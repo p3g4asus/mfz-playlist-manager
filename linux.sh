@@ -1,0 +1,1 @@
+p4a apk --private /home/matteo/python-for-android/devdl --package=org.kivymfz.devicedl --name "DeviceDL" --version 0.1 --bootstrap=sdl2 --requirements=libffi,python3,oscpy,kivy --debug --permission INTERNET --permission WRITE_EXTERNAL_STORAGE --permission READ_EXTERNAL_STORAGE --dist-name devdl_apk

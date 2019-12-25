@@ -1,0 +1,28 @@
+[
+    {
+        "type": "title",
+        "title": "Registration"
+    },
+    {
+        "type": "string",
+        "title": "User Name",
+        "desc": "User Name",
+        "section": "registration",
+        "key": "username"
+    },
+    {
+        "type": "password",
+        "title": "Password",
+        "desc": "Password",
+        "section": "registration",
+        "key": "password"
+    },
+    {
+        "type": "buttons",
+        "title": "Registration buttons",
+        "desc": "Registration buttons",
+        "section": "registration",
+        "key": "regbuttons",
+        "buttons": [{"title":"Register","id":"btn_reg"},{"title":"Modify","id":"btn_mod"},{"title":"Logout","id":"btn_out"}]
+    }
+]

@@ -1,0 +1,241 @@
+import argparse
+import asyncio
+import base64
+import glob
+import json
+import logging
+import os
+import traceback
+from functools import partial
+from os.path import basename, dirname, isfile, join
+
+import aiohttp
+from aiohttp import web
+from aiohttp_security import SessionIdentityPolicy
+from aiohttp_security import setup as setup_security
+from aiohttp_session import setup as setup_session
+from aiohttp_session.cookie_storage import EncryptedCookieStorage
+from cryptography import fernet
+
+import aiosqlite
+from common.const import PORT_OSC_CONST, COOKIE_LOGIN
+from common.timer import Timer
+from server.sqliteauth import SqliteAuthorizationPolicy
+from server.webhandlers import index, logout, login, modify_pw, pls_h, register, playlist_m3u
+
+from . import __prog__
+
+_LOGGER = logging.getLogger(__name__)
+
+
+async def testhandle(request):
+    return web.Response(text='Test handle')
+
+
+async def websocket_handler(request):
+    print('Websocket connection starting')
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    print('Websocket connection ready')
+
+    async for msg in ws:
+        print(msg)
+        if msg.type == aiohttp.WSMsgType.TEXT:
+            print(msg.data)
+            if msg.data == 'close':
+                await ws.close()
+            else:
+                await ws.send_str(msg.data + '/answer')
+
+    print('Websocket connection closed')
+    return ws
+
+# https://github.com/AndreMiras/p4a-service-sticky/blob/develop/main.py
+# https://github.com/kivy/kivy/wiki/Background-Service-using-P4A-android.service
+
+
+def stop_service(app):
+    loop = asyncio.get_event_loop()
+    loop.exit()
+    from jnius import autoclass
+    service = autoclass('org.kivy.android.PythonService').mService
+    service.stopForeground(True)
+
+
+def ping_app(app):
+    from oscpy.client import send_message
+    send_message('/server_ping',
+                 (json.dumps(dict(msgport=app.args["msgfrom"])),),
+                 '127.0.0.1',
+                 PORT_OSC_CONST,
+                 encoding='utf8')
+    app.timerping = Timer(2, partial(ping_app, app))
+
+
+def insert_notification():
+    import jnius
+    # Context = jnius.autoclass('android.content.Context')
+    Intent = jnius.autoclass('android.content.Intent')
+    PendingIntent = jnius.autoclass('android.app.PendingIntent')
+    AndroidString = jnius.autoclass('java.lang.String')
+    NotificationBuilder = jnius.autoclass('android.app.Notification$Builder')
+    # Notification = jnius.autoclass('android.app.Notification')
+    # service_name = 'S1'
+    # package_name = 'com.something'
+    service = jnius.autoclass('org.kivy.android.PythonService').mService
+    # Previous version of Kivy had a reference to the service like below.
+    # service = jnius.autoclass('{}.Service{}'.format(package_name, service_name)).mService
+    PythonActivity = jnius.autoclass('org.kivy.android' + '.PythonActivity')
+    # notification_service = service.getSystemService(
+    #    Context.NOTIFICATION_SERVICE)
+    app_context = service.getApplication().getApplicationContext()
+    notification_builder = NotificationBuilder(app_context)
+    title = AndroidString("KivyPls".encode('utf-8'))
+    message = AndroidString("HttpServerService".encode('utf-8'))
+    # app_class = service.getApplication().getClass()
+    notification_intent = Intent(app_context, PythonActivity)
+    notification_intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                                 Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                                 Intent.FLAG_ACTIVITY_NEW_TASK)
+    notification_intent.setAction(Intent.ACTION_MAIN)
+    notification_intent.addCategory(Intent.CATEGORY_LAUNCHER)
+    intent = PendingIntent.getActivity(service, 0, notification_intent, 0)
+    notification_builder.setContentTitle(title)
+    notification_builder.setContentText(message)
+    notification_builder.setContentIntent(intent)
+    Drawable = jnius.autoclass("{}.R$drawable".format(service.getPackageName()))
+    icon = getattr(Drawable, 'icon')
+    notification_builder.setSmallIcon(icon)
+    notification_builder.setAutoCancel(True)
+    new_notification = notification_builder.getNotification()
+    # Below sends the notification to the notification bar; nice but not a foreground service.
+    # notification_service.notify(0, new_noti)
+    service.startForeground(1, new_notification)
+
+
+CREATE_DB_IF_NOT_EXIST = \
+    '''
+    CREATE TABLE IF NOT EXISTS user(
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS type(
+        name TEXT NOT NULL UNIQUE
+    );
+    CREATE TABLE IF NOT EXISTS playlist(
+        name TEXT NOT NULL,
+        user INTEGER NOT NULL,
+        type INTEGER NOT NULL,
+        conf TEXT,
+        FOREIGN KEY (user)
+            REFERENCES user (rowid)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE,
+        FOREIGN KEY (type)
+            REFERENCES type (rowid)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE,
+        UNIQUE(name,user)
+    );
+    CREATE TABLE IF NOT EXISTS playlist_item(
+        title TEXT,
+        img TEXT,
+        datepub DATETIME,
+        link TEXT NOT NULL,
+        uid TEXT NOT NULL,
+        playlist INTEGER NOT NULL,
+        dur INTEGER NOT NULL,
+        conf TEXT,
+        seen DATETIME,
+        UNIQUE(uid, playlist),
+        FOREIGN KEY (playlist)
+            REFERENCES playlist (rowid)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE,
+    );
+    PRAGMA foreign_keys = ON;
+    '''
+
+
+async def init_db(app):
+    app.p.db = await aiosqlite.connect(app.p.args['dbfile'])
+    if not isinstance(app.p.db, aiosqlite.Connection):
+        app.p.db = None
+    else:
+        await app.p.db.execute(CREATE_DB_IF_NOT_EXIST)
+        await app.p.db.commit()
+        import importlib
+        app.p.processors = dict()
+        modules = glob.glob(join(dirname(__file__), "pls", "*.py"))
+        pls = [basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('__init__.py')]
+        for x in pls:
+            try:
+                m = importlib.import_module("server.pls."+x)
+                cla = getattr(m, "MessageProcessor")
+                if cla:
+                    app.p.processors[x] = cla(app.p.db)
+                    await app.p.db.execute("INSERT OR IGNORE INTO type(name) VALUES (?)", [(x,)])
+            except Exception:
+                _LOGGER.warning(traceback.format_exc())
+        await app.p.db.commit()
+
+
+def init_auth(app):
+    fernet_key = fernet.Fernet.generate_key()
+    secret_key = base64.urlsafe_b64decode(fernet_key)
+
+    storage = EncryptedCookieStorage(secret_key, cookie_name=COOKIE_LOGIN)
+    setup_session(app, storage)
+
+    policy = SessionIdentityPolicy()
+    setup_security(app, policy, SqliteAuthorizationPolicy(app.p.db))
+
+
+async def start_app(app):
+    init_auth(app)
+    runner = web.AppRunner(app)
+    app.p.myrunners.append(runner)
+    await runner.setup()
+    app.router.add_route('GET', '/', index)
+    app.router.add_route('GET', '/login', login)
+    app.router.add_route('GET', '/modifypw', modify_pw)
+    app.router.add_route('GET', '/register', register)
+    app.router.add_route('GET', '/logout', logout)
+    app.router.add_route('GET', '/m3u', playlist_m3u)
+    app.router.add_route('GET', '/ws', pls_h)
+    site = web.TCPSite(runner, app.p.args["host"], app.p.args["port"])
+    await site.start()
+
+
+def main():
+    app = web.Application()
+    app.p.myrunners = []
+    p4a = os.environ.get('PYTHON_SERVICE_ARGUMENT', '')
+    if len(p4a):
+        args = json.loads(p4a)
+        from oscpy.server import OSCThreadServer
+        app.p.osc = OSCThreadServer(encoding='utf8')
+        app.p.osc.listen(address='127.0.0.1', port=args["msgfrom"], default=True)
+        app.p.osc.bind('/stop_service', partial(stop_service, app))
+        app.p.timerping = Timer(2, partial(ping_app, app))
+        insert_notification()
+    else:
+        parser = argparse.ArgumentParser(prog=__prog__)
+        parser.add_argument('port', type=int, help='port number', default=8080)
+        parser.add_argument('host', default="0.0.0.0")
+        parser.add_argument('--dbfile', required=False, help='DB file path', default='maindb.db')
+        args = vars(parser.parse_args())
+
+    app.p.args = args
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(init_db(app))
+    loop.create_task(start_app(app))
+    loop.run_forever()
+    if len(p4a):
+        app.p.timerping.cancel()
+    for r in app.p.myrunners:
+        loop.run_until_complete(r.cleanup())
+
+
+if __name__ == '__main__':
+    main()
