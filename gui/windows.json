@@ -1,9 +1,5 @@
 [
     {
-        "type": "title",
-        "title": "Windows"
-    },
-    {
         "type": "path",
         "title": "Player path",
         "desc": "Path of the video player executable",

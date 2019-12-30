@@ -1,17 +1,15 @@
+import json
+import logging
 from textwrap import dedent
 
-from aiohttp import web, WSMsgType
-
-from aiohttp_security import (
-    remember, forget, authorized_userid, check_authorized
-)
-
-from server.sqliteauth import check_credentials, identity2id, identity2username
+from aiohttp import WSMsgType, web
+from aiohttp_security import (authorized_userid, check_authorized, forget,
+                              remember)
 
 from common.const import COOKIE_USERID
-from common.playlist import PlaylistMessage, Playlist
-
-import logging
+from common.playlist import Playlist, PlaylistMessage
+from common.utils import MyEncoder
+from server.sqliteauth import check_credentials, identity2id, identity2username
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,6 +33,7 @@ index_template = dedent("""
 
 async def index(request):
     identity = await authorized_userid(request)
+    _LOGGER.debug("Identity is %s" % str(identity))
     if identity:
         template = index_template.format(
             message='Hello, {username}!'.format(username=identity2username(identity)))
@@ -44,8 +43,8 @@ async def index(request):
         text=template,
         content_type='text/html',
     )
-    if identity:
-        resp.set_cookie(COOKIE_USERID, str(identity2id(id)))
+    # if identity:
+    #     resp.set_cookie(COOKIE_USERID, str(identity2id(identity)))
     return resp
 
 
@@ -59,7 +58,7 @@ async def modify_pw(request):
             return web.HTTPUnauthorized(body='Invalid username provided')
         password = form.get('password')
         if password and len(password) >= 5:
-            await request.app.p.db.execute("UPDATE user set password=? WHERE username=?", [(password, username)])
+            await request.app.p.db.execute("UPDATE user set password=? WHERE username=?", (password, username))
             await request.app.p.db.commit()
             return web.HTTPFound('/')
     return web.HTTPUnauthorized(body='Invalid username / password combination')
@@ -104,8 +103,10 @@ async def login(request):
 
     verified = await check_credentials(
         request.app.p.db, username, password)
+    _LOGGER.debug("Ver = " + str(verified))
     if verified:
         await remember(request, response, verified)
+        response.set_cookie(COOKIE_USERID, str(identity2id(verified)))
         return response
 
     return web.HTTPUnauthorized(body='Invalid username / password combination')
@@ -123,27 +124,27 @@ async def logout(request):
 
 async def pls_h(request):
     identity = await authorized_userid(request)
-    if identity:
-        print('Websocket connection starting')
-        ws = web.WebSocketResponse()
-        await ws.prepare(request)
-        print('Websocket connection ready')
-
-        async for msg in ws:
-            if msg.type == WSMsgType.TEXT:
-                pl = PlaylistMessage(None, msg.json())
-                _LOGGER.info("Message "+str(pl))
-                for p in request.app.p.processors:
-                    if p.interested(pl):
-                        if await p.process(ws, pl):
-                            break
-                        else:
-                            return ws
-            elif msg.type == WSMsgType.ERROR:
-                _LOGGER.error('ws connection closed with exception %s' %
-                              ws.exception())
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    async for msg in ws:
+        if msg.type == WSMsgType.TEXT:
+            pl = PlaylistMessage(None, msg.json())
+            _LOGGER.info("Message "+str(pl))
+            if not identity:
+                _LOGGER.info("Unauthorized")
+                await ws.send_str(json.dumps(pl.err(100, "Not authorized"), cls=MyEncoder))
                 break
-
+            for k, p in request.app.p.processors.items():
+                _LOGGER.debug("Checking " + k)
+                if p.interested(pl):
+                    if await p.process(ws, pl):
+                        break
+                    else:
+                        return ws
+        elif msg.type == WSMsgType.ERROR:
+            _LOGGER.error('ws connection closed with exception %s' %
+                          ws.exception())
+            break
     return ws
 
 
@@ -155,13 +156,20 @@ async def register(request):
         form = await request.post()
         username = form.get('username')
         password = form.get('password')
+        _LOGGER.debug("Usermame=%s Password=%s" % (username, password))
         if username and len(username) >= 5 and password and len(password) >= 5:
             db = request.app.p.db
-            cursor = await db.execute("select * from user WHERE username=?", username)
-            async for row in cursor:
-                return web.HTTPUnauthorized(body='Username already taken')
-            await db.execute('INSERT INTO user(username,password) VALUES (?;?)', (username, password))
+            async with db.execute(
+                '''
+                SELECT count(*) FROM user
+                WHERE username = ?
+                ''', (username,)
+            ) as cursor:
+                data = (await cursor.fetchone())[0]
+                if data:
+                    return web.HTTPUnauthorized(body='Username already taken')
+            await db.execute('INSERT INTO user(username,password) VALUES (?,?)', (username, password))
             await db.commit()
-            return web.HTTPFound('/login')
+            return web.HTTPFound('/')
         else:
             return web.HTTPUnauthorized(body='Invalid username / password combination')

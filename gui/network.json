@@ -1,9 +1,5 @@
 [
     {
-        "type": "title",
-        "title": "Network"
-    },
-    {
         "type": "string",
         "title": "Host",
         "desc": "HTTP Host",

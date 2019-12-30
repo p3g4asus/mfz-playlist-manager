@@ -1,74 +1,90 @@
+from functools import partial
+
 from jnius import autoclass, cast
 from kivy.gesture import Gesture, GestureDatabase
 from kivy.graphics import Color, Ellipse, Line
 from kivy.lang import Builder
 from kivy.logger import Logger
+from kivy.metrics import dp
 from kivy.properties import NumericProperty, ObjectProperty, StringProperty
+from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.popup import Popup
+from kivy.uix.recycleview import RecycleView
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
-from kivy.uix.tabbedpanel import TabbedPanelItem
 from kivy.utils import platform
 from kivymd.toast.kivytoast.kivytoast import toast
+from kivymd.uix.card import MDCardPost
 from kivymd.uix.dialog import MDDialog
+from kivymd.uix.imagelist import SmartTileWithLabel
 from kivymd.uix.label import MDLabel
 from kivymd.uix.menu import MDDropdownMenu
+from kivymd.uix.snackbar import Snackbar
+from kivymd.uix.tab import MDTabsBase
 
 from common.const import CMD_DEL, CMD_REFRESH, CMD_REN, CMD_SEEN
-from common.playlist import Playlist, PlaylistMessage
+from common.playlist import PlaylistMessage
+from common.timer import Timer
+
 from .gestures import lineleft, lineright
 from .renamewidget import RenameWidget
-from .typewidget import TypeWidget
 from .updatewidget import UpdateWidget
+
+
+# <PlsRvItem>:
+#     source: root.img
+#     tile_text: root.format_duration(root.dur)
+#     tile_font_style: "H5"
+#     text_post: root.title + ' (' + root.uid + ')'
+#     with_image: root.img is not None and len(root.img)
+#     swipe: True
+#     buttons: ["play", "delete"]
 
 Builder.load_string(
     '''
 #:import MDIconButton kivymd.uix.button.MDIconButton
-#:import MDLabel kivymd.uix.label.MDLabel
+#:import MDCardPost kivymd.uix.card.MDCardPost
 <PlsRvItem>:
-    AsyncImage:
-        id: id_img
-        source: root.img
-        size_hint: (1, .30)
-    MDLabel:
-        theme_text_color: "Primary"
-        id: id_duration
-        text: root.fotmat_duration(root.dur)
-        size_hint: (1, .15)
-    MDLabel:
-        theme_text_color: "Primary"
-        id: id_title
-        text: root.title
-        size_hint: (1, .55)
-    MDIconButton:
-        icon: "dots-vertical"
-        on_release: root.open_menu()
-
-<PlsRv>:
-    viewclass: 'PlsRvItem'
+    path_to_avatar: root.img
+    source: root.img
+    name_data: 'Uid: ' + root.uid + '\\nDate: '+root.datepub
+    tile_text: root.format_duration(root.dur)
+    tile_font_style: "H6"
+    text_post: root.title + ' (' + root.uid + ')'
+    swipe: True
+    buttons: ["play", "delete"]
+    with_image: root.img is not None and len(root.img)
     '''
 )
+
+
+#             md_bg_color: app.theme_cls.primary_color
+#             background_palette: "Primary"
+#             elevation: 10
 
 Builder.load_string(
     '''
 <PlsItem>:
-    BoxLayout:
-        id: id_mainbox
-        MDToolbar:
-            id: toolbar
-            title: 'Title'
-            md_bg_color: app.theme_cls.primary_color
-            background_palette: "Primary"
-            elevation: 10
-        PlsRv:
-            id: id_rv
-            title: 'Playlist'
+    id: id_mainbox
+    orientation: 'vertical'
+    ScrollView:
+        id: scroll
+        size_hint: 1, 1
+        do_scroll_x: False
+
+        GridLayout:
+            id: id_grid_card
+            cols: 1
+            spacing: dp(5)
+            padding: dp(5)
+            size_hint_y: None
+            height: self.minimum_height
     '''
 )
 
 
 async def launch_link(lnk, launchconf):
-    if platform == "windows":
+    if platform == "win":
         if not launchconf:
             toast("Please configure video player path")
         else:
@@ -87,33 +103,39 @@ async def launch_link(lnk, launchconf):
         # PythonActivity.mActivity.startActivity(intent)
 
 
-class PlsRvItem(RecycleDataViewBehavior, GridLayout):
+class PlsRvItem(MDCardPost):
     ''' Add selection support to the Label '''
-    index = None
     img = StringProperty('')
     dur = NumericProperty(0)
     title = StringProperty('')
     link = StringProperty('')
     launch = StringProperty()
     uid = StringProperty()
-    rowid = NumericProperty(0)
+    rowid = ObjectProperty()
+    playlist = ObjectProperty()
+    datepub = ObjectProperty()
     tab = ObjectProperty()
-    cols = 4
-
-    @staticmethod
-    def simplegesture(name, point_list):
-        """
-            A simple helper function
-        """
-        g = Gesture()
-        g.add_stroke(point_list)
-        g.normalize()
-        g.name = name
-        return g
+    conf = ObjectProperty()
+    seen = NumericProperty()
 
     def __init__(self, *args, **kwargs):
-        super(PlsRvItem, self).__init__()
-        self.gdb = GestureDatabase()
+        super(PlsRvItem, self).__init__(**kwargs)
+        self.callback = self.process_button_click
+        for i in self.ids.root_box.children[0].children:
+            if isinstance(i, SmartTileWithLabel):
+                i.allow_stretch = False
+                i.keep_ratio = True
+        self.ids.title_box.height = dp(100)
+        for i in self.ids.title_box.children:
+            if isinstance(i, MDLabel):
+                i.font_size = '12sp'
+
+    def process_button_click(self, inst, value):
+        if value and isinstance(value, str):
+            if value == "play":
+                self.on_lineright()
+                return
+        self.on_lineleft()
 
     def format_duration(self, dur):
         h = dur // 3600
@@ -129,150 +151,59 @@ class PlsRvItem(RecycleDataViewBehavior, GridLayout):
         dur -= m * 60
         return s + (':%02d' % (dur, ))
 
-    def on_touch_up(self, touch):
-        # touch is over, display informations, and check if it matches some
-        # known gesture.
-        g = PlsRvItem.simplegesture(
-            '',
-            list(zip(touch.ud['line'].points[::2],
-                     touch.ud['line'].points[1::2]))
-        )
-        # gestures to my_gestures.py
-        Logger.debug("gesture representation:", self.gdb.gesture_to_str(g))
-        g2 = self.gdb.find(g, minscore=0.70)
-
-        Logger.debug(g2)
-        if g2:
-            if g2[1] == lineright:
-                Logger.debug("LR")
-                self.on_lineright()
-            if g2[1] == lineleft:
-                self.on_lineleft()
-                Logger.debug("LL")
-
-        # erase the lines on the screen, this is a bit quick&dirty, since we
-        # can have another touch event on the way...
-        self.canvas.clear()
-
     def on_lineleft(self, *args, **kwargs):
-        self.tab.on_new_del_item(self.rowid, self.title, self.index)
+        self.tab.on_new_del_item(self)
 
     def on_lineright(self, *args, **kwargs):
-        await launch_link(self.item_lnk, self.launchconf)
-
-    def on_touch_down(self, touch):
-        # start collecting points in touch.ud
-        # create a line to display the points
-        userdata = touch.ud
-        with self.canvas:
-            Color(1, 1, 0)
-            d = 30.
-            Ellipse(pos=(touch.x - d / 2, touch.y - d / 2), size=(d, d))
-            userdata['line'] = Line(points=(touch.x, touch.y))
-        return True
-
-    def on_touch_move(self, touch):
-        # store points of the touch movement
-        try:
-            touch.ud['line'].points += [touch.x, touch.y]
-            return True
-        except KeyError:
-            pass
-
-    def open_menu(self):
-        items = [
-            dict(
-                viewclass="MDMenuItem",
-                text="Remove",
-                callback=self.on_lineleft
-            ),
-            dict(
-                viewclass="MDMenuItem",
-                text="Play",
-                callback=self.on_lineleft,
-            ),
-        ]
-        MDDropdownMenu(items=items, width_mult=3).open(self)
-
-    def refresh_view_attrs(self, rv, index, data):
-        ''' Catch and handle the view changes '''
-        self.index = index
-        dbitem = data[index]
-        self.rowid = dbitem['rowid']
-        self.uid = dbitem['uid']
-        self.link = dbitem['link']
-        self.title = dbitem['title']
-        self.img = dbitem['img']
-        self.dur = dbitem['dur']
-        self.launch = dbitem['launch']
-        self.tab = dbitem['tab']
-        return super(PlsRvItem, self).refresh_view_attrs(
-            rv, index, data)
+        Timer(1, partial(launch_link, self.link, self.launch))
 
 
-class PlsItem(TabbedPanelItem):
-    playlist = ObjectProperty(None)
+class PlsRv(RecycleView):
+    pass
+
+
+class PlsItem(BoxLayout, MDTabsBase):
     client = ObjectProperty()
     confclass = ObjectProperty()
     launchconf = StringProperty('')
 
-    def __init__(self, **kwargs):
+    def __init__(self, playlist=None, **kwargs):
+        self.playlist = playlist
         super(PlsItem, self).__init__(**kwargs)
+        self.popup = None
         self.load_list()
 
-    async def play_pls(self):
+    def play_pls(self):
         lnk = self.client.m3u_lnk(self.pls_playlist.name)
-        await launch_link(lnk, self.launchconf)
+        Timer(1, partial(launch_link, lnk, self.launchconf))
 
     def load_list(self):
+        Logger.debug("Loading list in tab: %s" % str(self.playlist))
         if self.playlist:
-            self.ids.id_toolbar.right_action_items = [
-                ["play", await self.play_pls()],
-                ["plus", self.add_pls()],
-                ["close", self.del_pls()]]
-            if self.confclass:
-                self.conf_w = self.confclass(
-                    conf=self.playlist.conf,
-                    on_conf=self.on_new_conf,
-                    on_exit=self.on_new_exit,
-                    client=self.client)
-                self.ids.id_toolbar.left_action_items = [
-                    ["update", self.update_pls()],
-                    ["textbox", self.rename_pls()],
-                    ["settings", self.conf_pls()]]
-            else:
-                self.conf_w = None
-                self.ids.id_toolbar.left_action_items = [
-                    ["update", self.update_pls()],
-                    ["textbox", self.rename_pls()]]
-            self.types_w = TypeWidget(
-                    on_type=self.on_new_type)
-            self.rename_w = RenameWidget(
-                    name=self.playlist.name,
-                    on_exit=self.on_new_exit,
-                    on_rename=self.on_new_name)
-            self.update_w = UpdateWidget(
-                on_update=self.on_new_update,
-                on_exit=self.on_new_exit)
-            self.popup = None
             self.text = self.playlist.name
-            data_rv = []
-            for d in self.playlist.items:
+            self.ids.id_grid_card.clear_widgets()
+            if not self.playlist.items:
+                self.ids.id_grid_card.add_widget(PlsRvItem(**{
+                       'rowid': None,
+                       'uid': 'F309989201002401',
+                       'link': 'https://link.theplatform.eu/s/PR1GhC/media/0UrkkBgkTWSv',
+                       'title': 'Puntata del 22 dicembre',
+                       'playlist': None,
+                       'img': 'https://static2.mediasetplay.mediaset.it/Mediaset_Italia_Production_-_Main/1021/416/F309989201002401-3-keyframe-poster-1280x720.jpg',
+                       'datepub': '2019-12-22 21:10:00.000000',
+                       'conf': {'subbrand': 100003082, 'brand': 100002223},
+                       'dur': 11877, 'seen': 0, 'launch': '',
+                       'tab': self}))
+            for d in reversed(self.playlist.items):
                 if not d.seen:
                     dct = vars(d)
                     dct['launch'] = self.launchconf
                     dct['tab'] = self
-                    data_rv.append(dct)
-            self.ids.id_rv.data = data_rv
-        else:
-            if getattr(self.ids, "id_rv"):
-                self.remove_widget(self.ids.id_rv)
-            self.ids.id_toolbar.right_action_items = [
-                ["plus", self.add_pls()]]
-            self.text = "Click the add button"
-            self.add_widget(MDLabel(text="Please add a playlist"))
+                    Logger.debug("Adding %s" % str(dct))
+                    self.ids.id_grid_card.add_widget(PlsRvItem(**dct))
 
     def on_new_name(self, inst, name):
+        self.on_new_exit(None)
         if self.playlist.rowid:
             self.client.enqueue(PlaylistMessage(cmd=CMD_REN, playlist=self.playlist.rowid, to=name), self.on_new_name_result)
         else:
@@ -283,12 +214,12 @@ class PlsItem(TabbedPanelItem):
             toast("Timeout error waiting for server response")
         elif isinstance(received, PlaylistMessage):
             if received.rv:
-                toast("[E %d] %s" % (received.rv, received.msg))
+                toast("[E %d] %s" % (received.rv, received.err))
             else:
                 received = received.name
         if isinstance(received, str):
             self.playlist.name = received
-            toast("New playlist name "+received)
+            toast("New playlist name " + received)
             self.text = received
 
     def set_playlist(self, p):
@@ -299,93 +230,141 @@ class PlsItem(TabbedPanelItem):
         if not received:
             toast("Timeout error waiting for server response")
         elif received.rv == 0:
+            Logger.debug("PlsItem: Sent PL: %s Received PL: %s" % (str(sent.playlist), str(received.playlist)))
             self.set_playlist(received.playlist)
         else:
-            toast("[E %d] %s" % (received.rv, received.msg))
+            toast("[E %d] %s" % (received.rv, received.err))
 
-    async def on_new_del_result(self, client, sent, received):
+    async def on_new_del_result(self, client, sent, received, tabs=None):
         if not received:
             toast("Timeout error waiting for server response")
         elif isinstance(received, PlaylistMessage):
             if received.rv:
-                toast("[E %d] %s" % (received.rv, received.msg))
+                toast("[E %d] %s" % (received.rv, received.err))
             else:
                 received = self.playlist.name
         if isinstance(received, str):
             toast("Playlist %s removed" % received)
-            self.parent.remove_widget(self)
+            if tabs:
+                tabs.remove_widget(self)
 
-    async def on_new_del_item_result(self, client, sent, received):
+    async def on_new_del_item_result(self, client, sent, received, widget=None):
         if not received:
             toast("Timeout error waiting for server response")
         elif isinstance(received, PlaylistMessage):
             if received.rv:
-                toast("[E %d] %s" % (received.rv, received.msg))
+                toast("[E %d] %s" % (received.rv, received.err))
             else:
                 received = received.index
         if isinstance(received, int):
-            it = self.ids.id_rv.data.pop(received)
-            toast("%s removed" % it["title"])
+            w = self.ids.id_grid_card.children[received]
+            self.ids.id_grid_card.remove_widget(w)
+            Snackbar(
+                text="%s removed" % w.title,
+                button_text="Undo",
+                button_callback=partial(self.on_new_del_item_undo,
+                                        removed_item=dict(widget=w, index=received)),
+            ).show()
+
+    async def on_new_del_item_undo_result(self, client, sent, received, removed_item):
+        if not received:
+            toast("Timeout error waiting for server response")
+        elif isinstance(received, PlaylistMessage):
+            if received.rv:
+                toast("[E %d] %s" % (received.rv, received.err))
+            else:
+                received = removed_item
+        if isinstance(received, dict):
+            self.ids.id_grid_card.add_widget(received['widget'], index=received['index'])
+            toast('%s restored' % received['widget'].title)
+
+    def on_new_del_item_undo(self, *args, **kwargs):
+        removed_item = kwargs['removed_item']
+        rowid = removed_item['widget'].rowid
+        if rowid:
+            self.client.enqueue(
+                PlaylistMessage(cmd=CMD_SEEN, playlistitem=rowid, seen=0),
+                partial(self.on_new_del_item_undo_result, removed_item))
+        else:
+            Timer(1, partial(
+                    self.on_new_del_item_undo_result,
+                    self.client,
+                    None,
+                    removed_item,
+                    removed_item))
 
     def on_new_exit(self, inst):
         if self.popup:
             self.popup.dismiss()
+            self.popup = None
 
     def on_new_update(self, inst, df, dt):
-        self.client.enqueue(PlaylistMessage(cmd=CMD_REFRESH, playlist=self.playlist), self.on_new_update_result)
+        self.on_new_exit(None)
+        self.client.enqueue(PlaylistMessage(
+            cmd=CMD_REFRESH,
+            playlist=self.playlist,
+            datefrom=int(df.timestamp() * 1000),
+            dateto=int(dt.timestamp() * 1000)), self.on_new_update_result)
 
     def on_new_conf(self, inst, conf):
+        self.on_new_exit(None)
         self.playlist.conf = conf
         toast("Please update to save new config")
 
-    def on_new_del_item(self, rowid, title, index):
-        if rowid:
-            self.client.enqueue(PlaylistMessage(cmd=CMD_SEEN, playlistitem=rowid, seen=1, index=index), self.on_new_del_item_result)
+    def on_new_del_item(self, inst):
+        index = self.ids.id_grid_card.children.index(inst)
+        if inst.rowid:
+            self.client.enqueue(PlaylistMessage(cmd=CMD_SEEN, playlistitem=inst.rowid, seen=1, index=index), self.on_new_del_item_result)
         else:
-            self.on_new_del_item_result(self.client, None, index)
+            Timer(1, partial(self.on_new_del_item_result, self.client, None, index))
 
-    def on_new_del(self, but, inst):
+    def on_new_del(self, but, inst, tabs=None):
         if but == "Yes":
             if self.playlist.rowid:
-                self.client.enqueue(PlaylistMessage(cmd=CMD_DEL, playlist=self.playlist.rowid), self.on_new_del_result)
+                self.client.enqueue(
+                    PlaylistMessage(cmd=CMD_DEL, playlist=self.playlist.rowid),
+                    partial(self.on_new_del_result, tabs=tabs))
             else:
-                self.on_new_del_result(self.client, None, self.playlist.name)
-
-    def on_new_type(self, inst, types, confclass):
-        if type != TypeWidget.ABORT:
-            tab = PlsItem(
-                playlist=Playlist(type=types),
-                client=self.client,
-                confclass=confclass)
-            self.parent.add_widget(tab)
-            self.parent.switch_to(tab, True)
+                self.on_new_del_result(self.client, None, self.playlist.name, tabs=tabs)
 
     def update_pls(self):
-        self.popup = Popup(content=self.update_w, auto_dismiss=True, title='Update')
-        self.popup.open()
-
-    def add_pls(self):
-        self.popup = Popup(content=self.type_w, auto_dismiss=True, title='Type')
+        update_w = UpdateWidget(
+            on_update=self.on_new_update,
+            on_exit=self.on_new_exit)
+        self.popup = Popup(content=update_w, auto_dismiss=True, title='Update')
         self.popup.open()
 
     def conf_pls(self):
-        self.popup = Popup(content=self.conf_w, auto_dismiss=True, title='Conf')
-        self.popup.open()
+        if self.playlist and self.confclass:
+            conf_w = self.confclass(
+                startconf=self.playlist.conf,
+                on_exit=self.on_new_exit,
+                client=self.client)
+            conf_w.bind(conf=self.on_new_conf)
+            self.popup = Popup(content=conf_w, auto_dismiss=True, title='Conf')
+            self.popup.open()
+        else:
+            toast("Playlist does not need configuration")
 
-    def del_pls(self):
+    def del_pls(self, tabs):
         dialog = MDDialog(
             title="Delete confirmation",
             size_hint=(0.8, 0.3),
             text_button_ok="Yes",
             text="Are you sure?",
             text_button_cancel="No",
-            events_callback=self.on_new_del,
+            events_callback=partial(self.on_new_del, tabs=tabs),
         )
         dialog.open()
 
     def rename_pls(self):
-        self.popup = Popup(content=self.rename_w, auto_dismiss=True, title='Update')
-        self.popup.open()
+        if self.playlist:
+            rename_w = RenameWidget(
+                    on_exit=self.on_new_exit,
+                    name=self.playlist.name,
+                    on_rename=self.on_new_name)
+            self.popup = Popup(content=rename_w, auto_dismiss=True, title='Update')
+            self.popup.open()
 
 # class PlsItem(TabbedPanelItem, ABC):
 #     pls_name = StringProperty('')

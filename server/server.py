@@ -23,7 +23,7 @@ from common.timer import Timer
 from server.sqliteauth import SqliteAuthorizationPolicy
 from server.webhandlers import index, logout, login, modify_pw, pls_h, register, playlist_m3u
 
-from . import __prog__
+__prog__ = "pls-server"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,15 +113,19 @@ def insert_notification():
     service.startForeground(1, new_notification)
 
 
-CREATE_DB_IF_NOT_EXIST = \
+CREATE_DB_IF_NOT_EXIST = [
     '''
     CREATE TABLE IF NOT EXISTS user(
         username TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL
-    );
+    )
+    ''',
+    '''
     CREATE TABLE IF NOT EXISTS type(
         name TEXT NOT NULL UNIQUE
-    );
+    )
+    ''',
+    '''
     CREATE TABLE IF NOT EXISTS playlist(
         name TEXT NOT NULL,
         user INTEGER NOT NULL,
@@ -136,7 +140,9 @@ CREATE_DB_IF_NOT_EXIST = \
             ON UPDATE CASCADE
             ON DELETE CASCADE,
         UNIQUE(name,user)
-    );
+    )
+    ''',
+    '''
     CREATE TABLE IF NOT EXISTS playlist_item(
         title TEXT,
         img TEXT,
@@ -151,10 +157,13 @@ CREATE_DB_IF_NOT_EXIST = \
         FOREIGN KEY (playlist)
             REFERENCES playlist (rowid)
             ON UPDATE CASCADE
-            ON DELETE CASCADE,
-    );
-    PRAGMA foreign_keys = ON;
+            ON DELETE CASCADE
+    )
+    ''',
     '''
+    PRAGMA foreign_keys = ON
+    '''
+]
 
 
 async def init_db(app):
@@ -162,19 +171,22 @@ async def init_db(app):
     if not isinstance(app.p.db, aiosqlite.Connection):
         app.p.db = None
     else:
-        await app.p.db.execute(CREATE_DB_IF_NOT_EXIST)
+        app.p.db.row_factory = aiosqlite.Row
+        for q in CREATE_DB_IF_NOT_EXIST:
+            await app.p.db.execute(q)
         await app.p.db.commit()
         import importlib
         app.p.processors = dict()
         modules = glob.glob(join(dirname(__file__), "pls", "*.py"))
-        pls = [basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('__init__.py')]
+        pls = [basename(f)[:-3] for f in modules if isfile(f)]
         for x in pls:
             try:
                 m = importlib.import_module("server.pls."+x)
                 cla = getattr(m, "MessageProcessor")
                 if cla:
                     app.p.processors[x] = cla(app.p.db)
-                    await app.p.db.execute("INSERT OR IGNORE INTO type(name) VALUES (?)", [(x,)])
+                    if x != "common":
+                        await app.p.db.execute("INSERT OR IGNORE INTO type(name) VALUES (?)", (x,))
             except Exception:
                 _LOGGER.warning(traceback.format_exc())
         await app.p.db.commit()
@@ -192,23 +204,31 @@ def init_auth(app):
 
 
 async def start_app(app):
+    _LOGGER.info("Setting up")
     init_auth(app)
     runner = web.AppRunner(app)
     app.p.myrunners.append(runner)
-    await runner.setup()
     app.router.add_route('GET', '/', index)
-    app.router.add_route('GET', '/login', login)
-    app.router.add_route('GET', '/modifypw', modify_pw)
-    app.router.add_route('GET', '/register', register)
+    app.router.add_route('POST', '/login', login)
+    app.router.add_route('POST', '/modifypw', modify_pw)
+    app.router.add_route('POST', '/register', register)
     app.router.add_route('GET', '/logout', logout)
     app.router.add_route('GET', '/m3u', playlist_m3u)
     app.router.add_route('GET', '/ws', pls_h)
+    await runner.setup()
+    _LOGGER.info("Creating site (%s:%d)" % (app.p.args["host"], app.p.args["port"]))
     site = web.TCPSite(runner, app.p.args["host"], app.p.args["port"])
     await site.start()
+    _LOGGER.info("Start finished")
+
+
+class Object:
+    pass
 
 
 def main():
     app = web.Application()
+    app.p = Object()
     app.p.myrunners = []
     p4a = os.environ.get('PYTHON_SERVICE_ARGUMENT', '')
     if len(p4a):
@@ -221,20 +241,28 @@ def main():
         insert_notification()
     else:
         parser = argparse.ArgumentParser(prog=__prog__)
-        parser.add_argument('port', type=int, help='port number', default=8080)
-        parser.add_argument('host', default="0.0.0.0")
-        parser.add_argument('--dbfile', required=False, help='DB file path', default='maindb.db')
+        parser.add_argument('--port', type=int, help='port number', required=False, default=8080)
+        parser.add_argument('--host', required=False, default="0.0.0.0")
+        parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))
+        parser.add_argument("-v", "--verbose", help="increase output verbosity",
+                            action="store_true")
         args = vars(parser.parse_args())
+        if args["verbose"]:
+            logging.basicConfig(level=logging.DEBUG)
 
     app.p.args = args
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(init_db(app))
-    loop.create_task(start_app(app))
-    loop.run_forever()
-    if len(p4a):
-        app.p.timerping.cancel()
-    for r in app.p.myrunners:
-        loop.run_until_complete(r.cleanup())
+    try:
+        loop.run_until_complete(init_db(app))
+        loop.run_until_complete(start_app(app))
+        loop.run_forever()
+    finally:
+        # loop.run_forever()
+        if len(p4a):
+            app.p.timerping.cancel()
+        for r in app.p.myrunners:
+            loop.run_until_complete(r.cleanup())
+        loop.close()
 
 
 if __name__ == '__main__':

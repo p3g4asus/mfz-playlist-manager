@@ -1,4 +1,4 @@
-from common.utils import AbstractMessageProcessor
+from common.utils import AbstractMessageProcessor, MyEncoder
 from common.const import (
     CMD_MEDIASET_PROGRAMS,
     CMD_MEDIASET_BRANDS,
@@ -7,6 +7,7 @@ from common.const import (
     MSG_MEDIASET_INVALID_SUBBRAND,
     MSG_MEDIASET_BACKEND_ERROR,
     MSG_MEDIASET_INVALID_BRAND,
+    MSG_MEDIASET_INVALID_DATE,
     MSG_PLAYLIST_NOT_FOUND,
     MSG_DB_ERROR
 )
@@ -67,33 +68,39 @@ class MessageProcessor(AbstractMessageProcessor):
             try:
                 async with aiohttp.ClientSession() as session:
                     startFrom = 1
-                    brands = []
+                    brands = dict()
                     while True:
-                        async with session.get(MessageProcessor.brandsUrl(brand, startFrom)) as resp:
+                        url = MessageProcessor.brandsUrl(brand, startFrom)
+                        _LOGGER.debug("Mediaset: Getting processBrands " + url)
+                        async with session.get(url) as resp:
                             if resp.status == 200:
                                 js = await resp.json()
+                                _LOGGER.debug("Mediaset: Rec processBrands " + str(js))
                                 title = ''
                                 for e in js['entries']:
-                                    if 'mediasetprogram$subBrandId' in e:
-                                        brands.append(dict(
+                                    if 'mediasetprogram$subBrandId' in e and\
+                                       e['mediasetprogram$subBrandId'] not in brands:
+                                        id = e['mediasetprogram$subBrandId']
+                                        brands[id] = dict(
                                             title=title,
-                                            id=e['mediasetprogram$subBrandId'],
+                                            id=int(id),
                                             desc=e['description']
-                                        ))
+                                        )
                                     else:
                                         title = e['title']
 
                                 if self.isLastPage(js):
-                                    return msg.ok(brands=brands)
+                                    return msg.ok(brands=list(brands.values()))
                                 else:
                                     startFrom += js['itemsPerPage']
                             else:
                                 return msg.err(12, MSG_MEDIASET_BACKEND_ERROR)
 
             except Exception:
+                _LOGGER.error(traceback.format_exc())
                 return msg.err(11, MSG_MEDIASET_BACKEND_ERROR)
         else:
-            return msg.err(11, MSG_MEDIASET_INVALID_BRAND)
+            return msg.err(15, MSG_MEDIASET_INVALID_BRAND)
 
     async def processListings(self, msg):
         datestart = msg.f('datestart', (int,))
@@ -101,27 +108,33 @@ class MessageProcessor(AbstractMessageProcessor):
             try:
                 async with aiohttp.ClientSession() as session:
                     startFrom = 1
-                    brands = []
+                    brands = dict()
                     while True:
-                        async with session.get(MessageProcessor.listingsUrl(datestart, startFrom)) as resp:
+                        url = MessageProcessor.listingsUrl(datestart, startFrom)
+                        _LOGGER.debug("Mediaset: Getting " + url)
+                        async with session.get(url) as resp:
                             if resp.status == 200:
                                 js = await resp.json()
+                                _LOGGER.debug("Mediaset: Rec " + str(js))
                                 for e in js['entries']:
                                     if 'listings' in e:
                                         for l in e['listings']:
                                             if 'program' in l:
                                                 if 'mediasetprogram$brandId' in l['program'] and\
-                                                   'mediasetprogram$brandTitle' in l['program']:
+                                                   'mediasetprogram$brandTitle' in l['program'] and\
+                                                   l['program']['mediasetprogram$brandId'] not in brands:
                                                     title = l['program']['mediasetprogram$brandTitle']
                                                     id = l['program']['mediasetprogram$brandId']
                                                     starttime = l['startTime']
-                                                    brands.append(dict(
+                                                    brands[id] = dict(
                                                         title=title,
-                                                        id=id,
+                                                        id=int(id),
                                                         starttime=starttime
-                                                    ))
+                                                    )
 
                                 if self.isLastPage(js):
+                                    brands = list(brands.values())
+                                    sorted(brands, key=lambda item: item['title'])
                                     return msg.ok(brands=brands)
                                 else:
                                     startFrom += js['itemsPerPage']
@@ -131,25 +144,32 @@ class MessageProcessor(AbstractMessageProcessor):
             except Exception:
                 return msg.err(11, MSG_MEDIASET_BACKEND_ERROR)
         else:
-            return msg.err(11, MSG_MEDIASET_INVALID_BRAND)
+            return msg.err(14, MSG_MEDIASET_INVALID_DATE)
 
     def entry2Program(self, e, brand, subbrand, playlist):
         conf = dict(subbrand=subbrand, brand=brand)
         title = e['title']
         uid = e['guid']
         img = None
-        minheight = 1300
+        # minheight = 1300
+        # for imgo in e['thumbnails'].values():
+        #     if 'title' in imgo and\
+        #         imgo['title'] == 'Keyframe_Poster Image' and\
+        #        (not img or imgo['height'] < minheight):
+        #         minheight = imgo['height']
+        #         img = imgo['url']
+        maxheight = 0
         for imgo in e['thumbnails'].values():
             if 'title' in imgo and\
                 imgo['title'] == 'Keyframe_Poster Image' and\
-               (not img or imgo['height'] < minheight):
-                minheight = imgo['height']
+               (not img or imgo['height'] > maxheight):
+                maxheight = imgo['height']
                 img = imgo['url']
         datepubi = e["mediasetprogram$publishInfo_lastPublished"]
         datepubo = datetime.fromtimestamp(datepubi / 1000)
         datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
         dur = e["mediasetprogram$duration"]
-        link = e["media"]["publicUrl"]
+        link = e["media"][0]["publicUrl"]
         return (PlaylistItem(
             link=link,
             title=title,
@@ -169,7 +189,7 @@ class MessageProcessor(AbstractMessageProcessor):
         if brand and subbrands:
             try:
                 async with aiohttp.ClientSession() as session:
-                    programs = []
+                    programs = dict()
                     for subbrand in subbrands:
                         startFrom = 1
                         while True:
@@ -179,16 +199,20 @@ class MessageProcessor(AbstractMessageProcessor):
                                     for e in js['entries']:
                                         try:
                                             (pr, datepubi) = self.entry2Program(e, brand, subbrand, playlist)
-                                            if datepubi >= datefrom and (datepubi <= dateto or dateto < datefrom):
-                                                programs.append(pr)
-                                            if self.isLastPage(js):
-                                                break
-                                            else:
-                                                startFrom += js['itemsPerPage']
+                                            _LOGGER.debug("Found [%s] = %s" % (pr.uid, str(pr)))
+                                            if pr.uid not in programs and datepubi >= datefrom and\
+                                               (datepubi <= dateto or dateto < datefrom):
+                                                programs[pr.uid] = pr
+                                                _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
                                         except Exception:
                                             _LOGGER.error(traceback.format_exc())
+                                    if self.isLastPage(js):
+                                        break
+                                    else:
+                                        startFrom += js['itemsPerPage']
                                 else:
                                     return msg.err(12, MSG_MEDIASET_BACKEND_ERROR)
+                    programs = list(programs.values())
                     sorted(programs, key=lambda item: item.datepub)
                     if not len(programs):
                         return msg.err(13, MSG_MEDIASET_INVALID_SUBBRAND)
@@ -198,13 +222,17 @@ class MessageProcessor(AbstractMessageProcessor):
                 _LOGGER.error(traceback.format_exc())
                 return msg.err(11, MSG_MEDIASET_BACKEND_ERROR)
         else:
-            return msg.err(11, MSG_MEDIASET_INVALID_BRAND)
+            return msg.err(16, MSG_MEDIASET_INVALID_BRAND)
 
     async def processRefresh(self, msg):
         x = msg.playlistObj()
         if x:
-            msg.brand = x.conf['brand']
-            msg.subbrands = x.conf['subbrands']
+            try:
+                msg.brand = x.conf['brand']['id']
+                msg.subbrands = [s['id'] for s in x.conf['subbrands']]
+            except (KeyError, AttributeError):
+                _LOGGER.error(traceback.format_exc())
+                return msg.err(11, MSG_MEDIASET_BACKEND_ERROR)
             datefrom = msg.f('datefrom')
             if datefrom is None:
                 msg.datefrom = 0
@@ -229,7 +257,7 @@ class MessageProcessor(AbstractMessageProcessor):
                         if not x.items[idx].seen:
                             x.items[idx] = i
 
-                rv = x.toDB(self.db)
+                rv = True  # await x.toDB(self.db)
                 if rv:
                     return msg.ok()
                 else:
@@ -250,5 +278,5 @@ class MessageProcessor(AbstractMessageProcessor):
         elif msg.c(CMD_MEDIASET_LISTINGS):
             resp = await self.processListings(msg)
         if resp:
-            await ws.send_str(json.dumps(resp))
+            await ws.send_str(json.dumps(resp, cls=MyEncoder))
         return True

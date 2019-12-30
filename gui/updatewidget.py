@@ -1,45 +1,53 @@
 from kivy.lang import Builder
 from kivy.logger import Logger
-from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
 
 Builder.load_string(
     '''
-#:import MDFlatButton kivymd.uix.button.MDFlatButton
+#:import MDIconButton kivymd.uix.button.MDIconButton
 #:import MDLabel kivymd.uix.label.MDLabel
-#:import DatePicker common.gui.DatePicker
+#:import ButtonDatePicker gui.buttondatepicker.ButtonDatePicker
 <UpdateWidget>:
-    orientation: 'vertical'
+    cols: 1
+    rows: 3
+    spacing: dp(5)
+    height: self.minimum_height
     BoxLayout:
+        size_hint: (1, 0.4)
         orientation: 'horizontal'
         MDLabel:
             theme_text_color: "Primary"
             text: 'From'
-        DatePicker:
+        ButtonDatePicker:
+            nulltext: ''
             dateformat: '%d/%m/%Y'
             id: id_datefrom
     BoxLayout:
+        size_hint: (1, 0.4)
         orientation: 'horizontal'
         MDLabel:
             theme_text_color: "Primary"
             text: 'To'
-        DatePicker:
+        ButtonDatePicker:
+            nulltext: ''
             dateformat: '%d/%m/%Y'
             id: id_dateto
     BoxLayout:
+        size_hint: (1, 0.2)
         orientation: 'horizontal'
-        MDFlatButton:
+        MDIconButton:
             id: id_updatebtn
-            text: 'Update'
+            icon: 'update'
             on_release: root.dispatch_update()
-        MDFlatButton:
+        MDIconButton:
             id: id_exitbtn
-            text: 'Exit'
+            icon: 'close'
             on_release: root.dispatch_exit()
     '''
 )
 
 
-class UpdateWidget(BoxLayout):
+class UpdateWidget(GridLayout):
     def __init__(self, **kwargs):
         self.register_event_type('on_update')
         self.register_event_type('on_exit')
@@ -50,18 +58,18 @@ class UpdateWidget(BoxLayout):
     def check_dates(self, inst, dt):
         if self.ids.id_dateto.date < self.ids.id_datefrom.date:
             if inst == self.ids.id_dateto:
-                self.ids.id_datefrom.set_date(self.ids.id_dateto.date)
+                self.ids.id_datefrom.apply_date(self.ids.id_dateto.date)
             else:
-                self.ids.id_dateto.set_date(self.ids.id_datefrom.date)
+                self.ids.id_dateto.apply_date(self.ids.id_datefrom.date)
 
-    def on_exit(self, inst):
+    def on_exit(self):
         Logger.debug("On exit called")
 
-    def on_update(self, inst, df, dt):
+    def on_update(self, df, dt):
         Logger.debug("On update called %s-%s" % (str(df), str(dt)))
 
-    def dispatch_update(self, inst):
+    def dispatch_update(self):
         self.dispatch('on_update', self.ids.id_datefrom.date, self.ids.id_dateto.date)
 
-    def dispatch_exit(self, inst):
+    def dispatch_exit(self):
         self.dispatch('on_exit')

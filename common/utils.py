@@ -13,7 +13,10 @@ class Fieldable:
         return str(vars(self))
 
     def f(self, name, typetuple=None):
-        a = getattr(self, name)
+        try:
+            a = getattr(self, name)
+        except AttributeError:
+            a = None
         return None if typetuple and (not a or not isinstance(a, typetuple)) else a
 
 

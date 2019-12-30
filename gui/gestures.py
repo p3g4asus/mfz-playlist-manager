@@ -21,7 +21,7 @@ lineleft = gdb.str_to_gesture(
     'z69utfJTmz8qTFclM/z6/3N4cSteSyvT28bW/PL0/935Ffdsd1n9Q7muT+dNw+Xj59lzFU+6W'
     'Y5L8ug5qwTR/PFH5bDz+AM/6Dqo=')
 
-lieright = gdb.str_to_gesture(
+lineright = gdb.str_to_gesture(
     'eNq1WNtyGzcMfd8fiV+iIS4EyB9QXzuTD+g4icbxpLU1ttI2f18QoHa5jpy12qlGAyUw9hA4B'
     'yQh3dx/vf/z++7u8Hz69nSYfumfxzTdfD7C9OHdw+0fh3fTEe2f9kHT84d3z6enx6+HZ/svTz'
     'e/H/N0cxHkg4dNR2lQas8fH+8fTu2x0h6rrzz2a4uajhAZtBS+2yOA0z7tCDMkqjk1y0W1pfN'

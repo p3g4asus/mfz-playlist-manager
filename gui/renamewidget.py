@@ -40,10 +40,10 @@ class RenameWidget(BoxLayout):
     def enable_button(self, val):
         self.ids.id_renamebtn.disabled = not (val and len(val) and re.search(r"[a-zA-Z]", val))
 
-    def on_exit(self, inst):
+    def on_exit(self):
         Logger.debug("On exit called")
 
-    def on_rename(self, inst, nm):
+    def on_rename(self, nm):
         Logger.debug("On update called %s" % (nm))
 
     def dispatch_rename(self, inst):

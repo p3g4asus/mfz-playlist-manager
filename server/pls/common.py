@@ -1,4 +1,4 @@
-from common.utils import AbstractMessageProcessor
+from common.utils import AbstractMessageProcessor, MyEncoder
 from common.const import (
     CMD_DEL,
     CMD_REN,
@@ -83,5 +83,5 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await ws.close()
             return False
         if resp:
-            await ws.send_str(json.dumps(resp))
+            await ws.send_str(json.dumps(resp, cls=MyEncoder))
         return True

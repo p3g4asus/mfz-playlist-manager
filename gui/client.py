@@ -8,6 +8,7 @@ from kivy.logger import Logger
 from common.const import COOKIE_LOGIN, COOKIE_USERID
 from common.playlist import PlaylistMessage
 from common.timer import Timer
+from common.utils import MyEncoder
 
 
 class PlsClientJob:
@@ -62,14 +63,20 @@ class PlsClient:
 
     def timer_login(self):
         if not self.login_t:
-            self.login_t = Timer(10, self.timer_login_callback)
+            self.login_t = Timer(5, self.timer_login_callback)
 
-    async def on_login_caller(self, rv, **kwargs):
+    def is_logged_in(self):
+        return self.login_t is None and self.login_h is not None and\
+            self.user_h is not None
+
+    async def on_login_caller(self, client, rv, **kwargs):
+        Logger.debug("Onlogin: %s" % str(rv))
         self.login_t = None
         if self.on_login:
             await self.on_login(self, rv, **kwargs)
 
     async def timer_login_callback(self):
+        Logger.debug("Trying to login: %s@%s:%d" % (self.username, self.host, self.port))
         if not await self.register(urlpart='login', callback=self.on_login_caller):
             self.timer_login()
 
@@ -114,16 +121,15 @@ class PlsClient:
 
     async def register(self, urlpart='register', callback=None):
         payload = dict(
-            form=dict(
-                username=self.username,
-                password=self.password
-            )
+            username=self.username,
+            password=self.password
         )
         url = 'http://%s:%d/%s' % (
             self.host,
             self.port,
             urlpart
         )
+        Logger.debug("Client: Let's conect to url %s: callback = %s" % (url, str(callback)))
         try:
             if self.login_h is not None:
                 cookie = dict()
@@ -131,16 +137,25 @@ class PlsClient:
             else:
                 cookie = None
             async with aiohttp.ClientSession(cookies=cookie) as session:
-                async with session.post(url, data=payload) as resp:
-                    if resp.status == 200:
+                async with session.post(url, data=payload, allow_redirects=False) as resp:
+                    Logger.debug("Client: Resp received: status = %d Cookies = %s" % (resp.status, str(resp.cookies)))
+                    # Logger.debug("Client: Cookies = [%s] = %s, [%s] = %s" % (COOKIE_LOGIN, resp.cookies.get(COOKIE_LOGIN).value, COOKIE_USERID, resp.cookies.get(COOKIE_USERID).value))
+                    for cookie in session.cookie_jar:
+                        Logger.debug("Client: cookie.key = %s %s" % (str(cookie.key), str(cookie)))
+                    if resp.status == 302 or resp.status == 200:
                         if self.login_h is None:
-                            self.login_h = resp.cookies.get(COOKIE_LOGIN)
+                            c = resp.cookies.get(COOKIE_LOGIN)
+                            if c:
+                                self.login_h = c.value
                         if self.user_h is None:
-                            self.user_h = resp.cookies.get(COOKIE_USERID)
+                            c = resp.cookies.get(COOKIE_USERID)
+                            if c:
+                                self.user_h = int(c.value)
                         # cookies = {'cookies_are': 'working'}
                         # async with ClientSession(cookies=cookies) as session:
-                        Logger.info("l = %s, u = %s", str(self.login_h), str(self.user_h))
-                        if self.login_h is not None and self.user_h is not None:
+                        # Logger.debug("Client: Cookies = %s Body %s" % (str(resp.cookies), await resp.text()))
+                        Logger.info("Client: l = %s, u = %s", str(self.login_h), str(self.user_h))
+                        if urlpart != "login" or (self.login_h is not None and self.user_h is not None):
                             # toast("Registration OK")
                             if callback:
                                 await callback(self, 0, userid=self.user_h)
@@ -148,61 +163,79 @@ class PlsClient:
                         elif callback:
                             await callback(self, "Invalid conection cookies")
                     elif callback:
-                        await callback(self, "Registration Failed: username taken?")
+                        Logger.debug("Client: calling calback 1")
+                        await callback(self, "%s failed: %d received" % (urlpart, resp.status))
         except Exception:
             if callback:
                 await callback(self, "Registration network error")
             Logger.error(traceback.format_exc())
+        Logger.debug("Client: exiting %s" % urlpart)
         return False
 
-        async def single_action(self, ws, job):
-            await ws.send_str(json.dumps(job.msg))
-            if job.waitfor:
-                return PlaylistMessage(None, json.loads(await ws.receive()))
-            else:
-                return None
+    async def single_action(self, ws, job):
+        Logger.debug("Sending %s" % job.msg)
+        await ws.send_str(json.dumps(job.msg, cls=MyEncoder))
+        if job.waitfor:
+            resp = await ws.receive()
+            Logger.debug("Received {}".format(resp.data))
+            p = PlaylistMessage(None, json.loads(resp.data))
+            Logger.debug("Converted {}".format(str(p)))
+            x = p.playlistObj()
+            if x:
+                Logger.debug("Playlistobj {}".format(str(x)))
+            return p
+        else:
+            return None
 
-        def stop(self):
-            self.stopped = True
-            self.ws_event.set()
+    def stop(self):
+        self.stopped = True
+        self.ws_event.set()
+        if self.login_t:
+            self.login_t.cancel()
+            self.login_t = None
+        self.login_h = None
+        self.user_h = None
 
-        async def process_queue(self, ws):
-            if len(self.ws_queue):
-                it = self.ws_queue[0]
-                rv = None
-                for i in range(self.retry):
-                    try:
-                        rv = await asyncio.wait_for(self.single_action(ws, it), self.timeout)
-                        break
-                    except asyncio.TimeoutError:
-                        Logger.error(traceback.format_exc())
-                    except json.decoder.JSONDecodeError:
-                        Logger.error(traceback.format_exc())
-                del self.ws_queue[0]
-                await it.call(self, rv)
-            else:
-                self.ws_event.clear()
-                await self.ws_event.wait()
+    async def process_queue(self, ws):
+        if len(self.ws_queue):
+            it = self.ws_queue[0]
+            rv = None
+            for i in range(self.retry):
+                try:
+                    rv = await asyncio.wait_for(self.single_action(ws, it), self.timeout)
+                    break
+                except asyncio.TimeoutError:
+                    Logger.error(traceback.format_exc())
+                except json.decoder.JSONDecodeError:
+                    Logger.error(traceback.format_exc())
+            del self.ws_queue[0]
+            await it.call(self, rv)
+        else:
+            self.ws_event.clear()
+            await self.ws_event.wait()
 
-        async def estabilish_connection(self):
-            if self.login_t or not self.login_h or not self.user_h:
-                return False
-            else:
-                url = 'http://%s:%d/%s' % (
-                    self.host,
-                    self.port,
-                    'ws'
-                )
-                self.stopped = False
-                cookie = dict()
-                cookie[COOKIE_LOGIN] = self.login_h
-                timeout = aiohttp.ClientTimeout(total=0, connect=30, sock_connect=30)
-                while not self.stopped:
-                    try:
-                        async with aiohttp.ClientSession(cookies=cookie, timeout=timeout) as session:
-                            async with session.ws_connect(url) as ws:
-                                while not self.stopped:
-                                    await self.process_queue(ws)
+    async def estabilish_connection(self):
+        if self.login_t or not self.login_h or not self.user_h:
+            return False
+        else:
+            url = 'http://%s:%d/%s' % (
+                self.host,
+                self.port,
+                'ws'
+            )
+            self.stopped = False
+            cookie = dict()
+            cookie[COOKIE_LOGIN] = self.login_h
+            timeout = aiohttp.ClientTimeout(total=0, connect=30, sock_connect=30)
+            while not self.stopped:
+                try:
+                    async with aiohttp.ClientSession(cookies=cookie, timeout=timeout) as session:
+                        async with session.ws_connect(url) as ws:
+                            while not self.stopped:
+                                await self.process_queue(ws)
 
-                    except Exception:
-                        Logger.error(traceback.format_exc())
+                except Exception:
+                    self.stopped = True
+                    self.timer_login()
+                    Logger.error(traceback.format_exc())
+                    break

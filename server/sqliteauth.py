@@ -18,9 +18,9 @@ class SqliteAuthorizationPolicy(AbstractAuthorizationPolicy):
             async with self.db.execute(
                 '''
                 select count(*) from user WHERE username=? AND rowid=?
-                ''', dct['username'], dct['rowid']
+                ''', (dct['username'], dct['rowid'])
             ) as cursor:
-                n = await cursor.fetchone()[0]
+                n = (await cursor.fetchone())[0]
                 if n:
                     return identity
         except Exception:
@@ -38,8 +38,10 @@ class SqliteAuthorizationPolicy(AbstractAuthorizationPolicy):
 async def check_credentials(db, username, password):
     async with db.execute(
         '''
-        select * from user WHERE username=?
-        ''', username
+        SELECT U.rowid as rowid,
+               U.username as username,
+               U.password as password from user as U WHERE username=?
+        ''', (username,)
     ) as cursor:
         row = await cursor.fetchone()
         if row and row['password'] == password:

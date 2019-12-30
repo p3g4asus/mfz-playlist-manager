@@ -9,13 +9,14 @@ class Playlist(JSONAble, Fieldable):
                 dbitem = json.loads(dbitem)
             self.rowid = dbitem['rowid']
             self.name = dbitem['name']
-            self.typei = dbitem['typei']
-            self.type = dbitem['type']
-            self.useri = dbitem['useri']
-            self.user = dbitem['user']
+            self.typei = dbitem['typei'] if 'typei' in dbitem else None
+            self.type = dbitem['type'] if 'type' in dbitem else None
+            self.useri = dbitem['useri'] if 'useri' in dbitem else None
+            self.user = dbitem['user'] if 'user' in dbitem else None
             self.items = dbitem['items'] if 'items' in dbitem else items if items else []
             self.conf = dbitem['conf']
         else:
+            self.rowid = None
             if isinstance(rowid, str) and not name and (useri or user):
                 self.name = rowid
             else:
@@ -39,8 +40,8 @@ class Playlist(JSONAble, Fieldable):
 
     def toJSON(self):
         dct = vars(self)
-        del dct['typei']
-        del dct['useri']
+        # del dct['typei']
+        # del dct['useri']
         return dct
 
     def toM3U(self):
@@ -89,12 +90,13 @@ class Playlist(JSONAble, Fieldable):
                 '''
                 SELECT * FROM playlist_item WHERE playlist=?
                 ''',
-                row['rowid']
+                (row['rowid'],)
             )
             items = []
             async for subrow in subcursor:
                 items.append(PlaylistItem(dbitem=subrow))
             pls.append(Playlist(dbitem=row, items=items))
+        return pls
 
     async def getTypeI(self, db):
         async with db.execute(
@@ -134,7 +136,7 @@ class Playlist(JSONAble, Fieldable):
             if self.useri is None:
                 self.useri = await self.getUserI(db)
                 if self.useri:
-                    await db.execute("DELETE FROM playlist WHERE name=? and user=?", self.name, self.useri)
+                    await db.execute("DELETE FROM playlist WHERE name=? and user=?", (self.name, self.useri))
                     return True
         return False
 
@@ -144,10 +146,12 @@ class Playlist(JSONAble, Fieldable):
     def __eq__(self, other):
         if self.rowid is not None and other.rowid is not None:
             return self.rowid == other.rowid
-        else:
+        elif self.rowid is None and other.rowid is None:
             return ((self.useri and self.useri == other.useri) or
                     (self.user and self.user == other.user)) and\
                     self.name == other.name
+        else:
+            return False
 
     async def toDB(self, db):
         if not isinstance(self.conf, str):
@@ -166,7 +170,7 @@ class Playlist(JSONAble, Fieldable):
                     WHERE name = ? AND user = ? AND rowid != ?
                     ''', (self.name, self.useri, self.rowid)
                 ) as cursor:
-                    data = await cursor.fetchone()[0]
+                    data = (await cursor.fetchone())[0]
                     if data:
                         return False
                 await db.execute(
@@ -181,13 +185,13 @@ class Playlist(JSONAble, Fieldable):
                     WHERE name = ? AND user = ?
                     ''', (self.name, self.useri)
                 ) as cursor:
-                    data = await cursor.fetchone()[0]
+                    data = (await cursor.fetchone())[0]
                     if data:
                         return False
                 async with db.cursor() as cursor:
                     await cursor.execute(
                         '''
-                        INSERT OR IGNORE int playlist(name,user,type,conf) VALUES (?,?,?,?)
+                        INSERT OR IGNORE into playlist(name,user,type,conf) VALUES (?,?,?,?)
                         ''',
                         (self.name, self.useri, self.typei, c)
                     )
@@ -202,7 +206,7 @@ class Playlist(JSONAble, Fieldable):
 
 
 class PlaylistItem(JSONAble, Fieldable):
-    def __init__(self, dbitem=None, title=None, uid=None, rowid=None, link=None, conf=None, playlist=None, img=None, datepub=None, dur=None, seen=None, **kwargs):
+    def __init__(self, dbitem=None, title=None, uid=None, rowid=None, link=None, conf=None, playlist=None, img=None, datepub=None, dur=None, seen=0, **kwargs):
         if dbitem:
             if isinstance(dbitem, str):
                 dbitem = json.loads(dbitem)
@@ -237,11 +241,12 @@ class PlaylistItem(JSONAble, Fieldable):
         if self.rowid is not None and other.rowid is not None:
             return self.rowid == other.rowid
         else:
-            return self.uid == other.uid and self.playlist == other.playlist
+            return self.uid and self.uid == other.uid and\
+                self.playlist == other.playlist and self.playlist
 
     def toJSON(self):
         dct = vars(self)
-        del dct['playlist']
+        # del dct['playlist']
         return dct
 
     async def setSeen(self, db, value=True):
@@ -271,16 +276,16 @@ class PlaylistItem(JSONAble, Fieldable):
                 WHERE uid = ? AND playlist = ?
                 ''', (self.uid, self.playlist)
             ) as cursor:
-                data = await cursor.fetchone()[0]
+                data = (await cursor.fetchone())[0]
                 return data > 0
             return False
 
     async def delete(self, db):
         if self.rowid:
-            await db.execute("DELETE FROM playlist_item WHERE rowid=?", self.rowid)
+            await db.execute("DELETE FROM playlist_item WHERE rowid=?", (self.rowid,))
             return True
         elif self.uid:
-            await db.execute("DELETE FROM playlist_item WHERE uid=?", self.uid)
+            await db.execute("DELETE FROM playlist_item WHERE uid=?", (self.uid,))
             return True
         return False
 

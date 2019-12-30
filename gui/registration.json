@@ -1,9 +1,5 @@
 [
     {
-        "type": "title",
-        "title": "Registration"
-    },
-    {
         "type": "string",
         "title": "User Name",
         "desc": "User Name",
@@ -19,8 +15,8 @@
     },
     {
         "type": "buttons",
-        "title": "Registration buttons",
-        "desc": "Registration buttons",
+        "title": "Registration operations",
+        "desc": "Click",
         "section": "registration",
         "key": "regbuttons",
         "buttons": [{"title":"Register","id":"btn_reg"},{"title":"Modify","id":"btn_mod"},{"title":"Logout","id":"btn_out"}]
