@@ -8,6 +8,8 @@ REM ~ pip3 install kivy.deps.angle
 REM ~ pip3 install jnius
 REM ~ pip3 install aiohttp-security[session]
 REM ~ pip3 install aiohttp
+REM ~ pip3 install cryptography
+REM ~ pip3 install aiosqlite
 REM ~ pip3 install "C:\Users\Matteo\Downloads\Kivy-2.0.0.dev0-cp37-cp37m-win_amd64.whl"
 REM ~ pip3 install git+git://github.com/HeaTTheatR/KivyMD.git
 call %~dp0venv\Scripts\activate.bat

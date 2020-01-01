@@ -1,66 +1,39 @@
-from kivy.lang import Builder
 from kivy.logger import Logger
-from kivy.uix.gridlayout import GridLayout
-
-Builder.load_string(
-    '''
-#:import MDIconButton kivymd.uix.button.MDIconButton
-#:import MDLabel kivymd.uix.label.MDLabel
-#:import ButtonDatePicker gui.buttondatepicker.ButtonDatePicker
-<UpdateWidget>:
-    cols: 1
-    rows: 3
-    spacing: dp(5)
-    height: self.minimum_height
-    BoxLayout:
-        size_hint: (1, 0.4)
-        orientation: 'horizontal'
-        MDLabel:
-            theme_text_color: "Primary"
-            text: 'From'
-        ButtonDatePicker:
-            nulltext: ''
-            dateformat: '%d/%m/%Y'
-            id: id_datefrom
-    BoxLayout:
-        size_hint: (1, 0.4)
-        orientation: 'horizontal'
-        MDLabel:
-            theme_text_color: "Primary"
-            text: 'To'
-        ButtonDatePicker:
-            nulltext: ''
-            dateformat: '%d/%m/%Y'
-            id: id_dateto
-    BoxLayout:
-        size_hint: (1, 0.2)
-        orientation: 'horizontal'
-        MDIconButton:
-            id: id_updatebtn
-            icon: 'update'
-            on_release: root.dispatch_update()
-        MDIconButton:
-            id: id_exitbtn
-            icon: 'close'
-            on_release: root.dispatch_exit()
-    '''
-)
+from kivy.properties import ObjectProperty
+from kivymd.uix.dialog import MDDialog
+from .buttondatepicker import ButtonDatePicker
+from datetime import datetime, timedelta
 
 
-class UpdateWidget(GridLayout):
+class UpdateWidget(MDDialog):
+    box_buttons_ref = ObjectProperty()
+
     def __init__(self, **kwargs):
         self.register_event_type('on_update')
         self.register_event_type('on_exit')
-        super(UpdateWidget, self).__init__(**kwargs)
-        self.ids.id_datefrom.bind(on_date_picked=self.check_dates)
-        self.ids.id_dateto.bind(on_date_picked=self.check_dates)
+        super(UpdateWidget, self).__init__(
+            text="Please input update dates",
+            title="Update Playlist",
+            text_button_ok="Update",
+            text_button_cancel="Cancel",
+            events_callback=self.events_callback_f, **kwargs)
+        dt = datetime.now() - timedelta(days=60)
+        self.datefrom = ButtonDatePicker(on_date_picked=self.check_dates, dateformat='From %d/%m/%Y', date=dt)
+        self.dateto = ButtonDatePicker(on_date_picked=self.check_dates, dateformat='To %d/%m/%Y', nulltext='')
+        Logger.debug("Updatewidget: Adding buttons")
+        self.box_buttons_ref = self.children[0].ids.box_buttons.__self__
+        n = len(self.box_buttons_ref.children)
+        self.box_buttons_ref.add_widget(self.dateto, index=n)
+        Logger.debug("Updatewidget: Button added " + str(n))
+        self.box_buttons_ref.add_widget(self.datefrom, index=n + 1)
+        Logger.debug("Updatewidget: Button added " + str(n + 1))
 
     def check_dates(self, inst, dt):
-        if self.ids.id_dateto.date < self.ids.id_datefrom.date:
-            if inst == self.ids.id_dateto:
-                self.ids.id_datefrom.apply_date(self.ids.id_dateto.date)
+        if self.dateto.date < self.datefrom.date:
+            if inst == self.dateto:
+                self.datefrom.apply_date(self.dateto.date)
             else:
-                self.ids.id_dateto.apply_date(self.ids.id_datefrom.date)
+                self.dateto.apply_date(self.datefrom.date)
 
     def on_exit(self):
         Logger.debug("On exit called")
@@ -68,8 +41,8 @@ class UpdateWidget(GridLayout):
     def on_update(self, df, dt):
         Logger.debug("On update called %s-%s" % (str(df), str(dt)))
 
-    def dispatch_update(self):
-        self.dispatch('on_update', self.ids.id_datefrom.date, self.ids.id_dateto.date)
-
-    def dispatch_exit(self):
-        self.dispatch('on_exit')
+    def events_callback_f(self, text, *args):
+        if text == 'Update':
+            self.dispatch('on_update', self.datefrom.date, self.dateto.date)
+        else:
+            self.dispatch('on_exit')

@@ -134,7 +134,7 @@ class MessageProcessor(AbstractMessageProcessor):
 
                                 if self.isLastPage(js):
                                     brands = list(brands.values())
-                                    sorted(brands, key=lambda item: item['title'])
+                                    brands.sort(key=lambda item: item['title'])
                                     return msg.ok(brands=brands)
                                 else:
                                     startFrom += js['itemsPerPage']
@@ -212,11 +212,11 @@ class MessageProcessor(AbstractMessageProcessor):
                                         startFrom += js['itemsPerPage']
                                 else:
                                     return msg.err(12, MSG_MEDIASET_BACKEND_ERROR)
-                    programs = list(programs.values())
-                    sorted(programs, key=lambda item: item.datepub)
                     if not len(programs):
                         return msg.err(13, MSG_MEDIASET_INVALID_SUBBRAND)
                     else:
+                        programs = list(programs.values())
+                        programs.sort(key=lambda item: item.datepub)
                         return msg.ok(items=programs)
             except Exception:
                 _LOGGER.error(traceback.format_exc())

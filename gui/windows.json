@@ -1,10 +1,10 @@
 [
     {
-        "type": "path",
+        "type": "buttons",
         "title": "Player path",
-        "desc": "Path of the video player executable",
+        "desc": "Click",
         "section": "windows",
-        "dirselect": false,
-        "key": "plpath"
+        "key": "pathbuttons",
+        "buttons": [{"title":"Select","id":"btn_sel"}]
     }
 ]

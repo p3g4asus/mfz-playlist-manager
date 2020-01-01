@@ -10,7 +10,7 @@ Builder.load_string(
 <ButtonDatePicker>:
     nulltext: ''
     pos_hint: {"center_x": .5}
-    opposite_colors: True
+    opposite_colors: False
     on_release: self.show_date_picker()
     '''
 )

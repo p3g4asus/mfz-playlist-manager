@@ -19,9 +19,8 @@ from os.path import expanduser, join, dirname
 from jnius import autoclass
 from kivy.lang import Builder
 from kivy.logger import Logger
-from kivy.properties import ObjectProperty, StringProperty, ListProperty, NumericProperty
+from kivy.properties import ObjectProperty, StringProperty, NumericProperty
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.popup import Popup
 from kivy.uix.settings import Settings
 from kivy.utils import platform
 from kivymd.app import MDApp
@@ -36,7 +35,9 @@ from common.const import CMD_DUMP, PORT_OSC_CONST
 from common.playlist import PlaylistMessage, Playlist
 from common.timer import Timer
 
+from . import __prog__, __version__
 from .client import PlsClient
+from .playerpathwidget import PlayerPathWidget
 from .plsitem import PlsItem
 from .settingbuttons import SettingButtons
 from .settingpassword import SettingPassword
@@ -95,7 +96,7 @@ KV = \
 
             MDLabel:
                 markup: True
-                text: "[b]PlsManager[/b]\\nVersion: 1.0"
+                text: "[b]" + app.title + "[/b]\\nVersion: " + app.format_version()
                 #pos_hint: {'center_y': .5}
                 x: root.parent.x + dp(10)
                 y: root.height - top_box.height + dp(10)
@@ -113,24 +114,25 @@ KV = \
 
 
 Screen:
-
+    name: 'full'
     NavigationLayout:
 
         ScreenManager:
-
+            id: id_screen_manager
             Screen:
-
+                name: 'main'
                 BoxLayout:
                     orientation: 'vertical'
 
                     MDToolbar:
                         id: id_toolbar
-                        title: "Navigation Drawer"
+                        title: app.title
                         md_bg_color: app.theme_cls.primary_color
                         left_action_items: [["menu", lambda x: nav_drawer.toggle_nav_drawer()]]
                         right_action_items: [["plus", id_tabcont.add_pls], ["delete", id_tabcont.del_pls], ["dots-vertical", app.open_menu]]
 
                     MyTabs:
+                        manager: root.ids.id_screen_manager
                         id: id_tabcont
 
 
@@ -157,6 +159,7 @@ class MyTabs(MDTabs):
     current_tab = ObjectProperty()
     client = ObjectProperty()
     useri = NumericProperty()
+    manager = ObjectProperty()
 
     def __init__(self, *args, **kwargs):
         super(MyTabs, self).__init__(*args, **kwargs)
@@ -194,16 +197,21 @@ class MyTabs(MDTabs):
 
     def add_pls(self, *args, **kwargs):
         if self.client.is_logged_in():
-            self.popup = Popup(
-                content=TypeWidget(on_type=self.on_new_type),
-                auto_dismiss=True, title='Type')
-            self.popup.open()
+            typew = TypeWidget(on_type=self.on_new_type)
+            self.manager.add_widget(typew)
+            self.manager.current = typew.name
         else:
             toast("Please login before adding")
 
     def update_pls(self, *args, **kwargs):
         if self.current_tab:
-            self.current_tab.update_pls()
+            self.current_tab.update_pls(True)
+        else:
+            toast("Please select a playlist tab")
+
+    def update_fast_pls(self, *args, **kwargs):
+        if self.current_tab:
+            self.current_tab.update_pls(False)
         else:
             toast("Please select a playlist tab")
 
@@ -225,7 +233,7 @@ class MyTabs(MDTabs):
         else:
             toast("Please select a playlist tab")
 
-    def rename_pls(self):
+    def rename_pls(self, *args, **kwargs):
         if self.current_tab:
             self.current_tab.rename_pls()
         else:
@@ -236,12 +244,12 @@ class MyTabs(MDTabs):
             tab = PlsItem(
                 playlist=Playlist(type=types, name=name, useri=self.useri, conf=dict()),
                 client=self.client,
+                manager=self.manager,
                 launchconf=self.launchconf,
                 confclass=confclass)
             self.add_widget(tab)
-        if self.popup:
-            self.popup.dismiss()
-            self.popup = None
+            tab.tab_label.state = "down"
+            tab.tab_label.on_release()
 
 
 def find_free_port():
@@ -273,6 +281,9 @@ class MainApp(MDApp):
         os.mkdir(pth)
         return pth
 
+    def format_version(self):
+        return "%d.%d.%d" % __version__
+
     def open_menu(self, *args, **kwargs):
         items = [
             dict(
@@ -286,6 +297,12 @@ class MainApp(MDApp):
                 text="Configure",
                 icon="settings",
                 callback=self.root.ids.id_tabcont.conf_pls
+            ),
+            dict(
+                viewclass="MDMenuItem",
+                text="Update (fast)",
+                icon="run-fast",
+                callback=self.root.ids.id_tabcont.update_fast_pls
             ),
             dict(
                 viewclass="MDMenuItem",
@@ -383,6 +400,7 @@ class MainApp(MDApp):
         self._init_fields()
 
     def _init_fields(self):
+        self.title = __prog__
         self.port_osc = PORT_OSC_CONST
         self.server_started = None
         self.port_service = find_free_port()
@@ -456,13 +474,26 @@ class MainApp(MDApp):
                          self.port_service,
                          encoding='utf8')
 
+    def rec_player_path(self, inst, path):
+        self.config.set("windows", "plpath", path)
+        self.config.write()
+
     def on_config_change(self, config, section, key, value):
         """
         Respond to changes in the configuration.
         """
         Logger.info("main.py: App.on_config_change: {0}, {1}, {2}, {3}".format(
             config, section, key, value))
-        if self.check_config():
+        if section == "windows" and key == "pathbuttons" and value == "btn_sel":
+            plwidget = PlayerPathWidget(
+                startpath=self.config.get("windows", "plpath"),
+                on_player_path=self.rec_player_path
+            )
+            self.close_settings()
+            self.root.ids.nav_drawer.animation_close()
+            self.root.ids.id_screen_manager.add_widget(plwidget)
+            self.root.ids.id_screen_manager.current = plwidget.name
+        elif self.check_config():
             if section == "network" and (key == "host" or key == "port"):
                 if self.server_started and value:
                     self.stop_server()
@@ -544,7 +575,11 @@ class MainApp(MDApp):
 
 def main():
     os.environ['KIVY_EVENTLOOP'] = 'async'
-    loop = asyncio.get_event_loop()
+    if platform == "win":
+        loop = asyncio.ProactorEventLoop()
+        asyncio.set_event_loop(loop)
+    else:
+        loop = asyncio.get_event_loop()
     app = MainApp()
     loop.run_until_complete(app.async_run())
     loop.close()
