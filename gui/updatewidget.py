@@ -1,48 +1,67 @@
+from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ObjectProperty
-from kivymd.uix.dialog import MDDialog
-from .buttondatepicker import ButtonDatePicker
+from kivy.uix.screenmanager import Screen
 from datetime import datetime, timedelta
 
 
-class UpdateWidget(MDDialog):
+Builder.load_string(
+    '''
+#:import ButtonDatePicker gui.buttondatepicker.ButtonDatePicker
+<UpdateWidget>:
+    name: 'update'
+    GridLayout:
+        spacing: dp(25)
+        height: self.minimum_height
+        rows: 3
+        cols: 1
+        MDToolbar:
+            id: id_toolbar
+            pos_hint: {'top': 1}
+            title: 'Update dates'
+            md_bg_color: app.theme_cls.primary_color
+            left_action_items: [["arrow-left", lambda x: root.manager.remove_widget(root)]]
+            right_action_items: [["update", lambda x: root.dispatch_update()]]
+            elevation: 10
+        AnchorLayout:
+            ButtonDatePicker:
+                size_hint: (0.5, 0.25)
+                id: id_datefrom
+                font_size: "20sp"
+                dateformat: 'From: %d/%m/%Y'
+                on_date_picked: root.check_dates(self, self.date)
+        AnchorLayout:
+            ButtonDatePicker:
+                size_hint: (0.5, 0.25)
+                id: id_dateto
+                dateformat: 'To: %d/%m/%Y'
+                font_size: "20sp"
+                nulltext: ''
+                on_date_picked: root.check_dates(self, self.date)
+    '''
+)
+
+
+class UpdateWidget(Screen):
     box_buttons_ref = ObjectProperty()
 
     def __init__(self, **kwargs):
         self.register_event_type('on_update')
-        self.register_event_type('on_exit')
-        super(UpdateWidget, self).__init__(
-            text="Please input update dates",
-            title="Update Playlist",
-            text_button_ok="Update",
-            text_button_cancel="Cancel",
-            events_callback=self.events_callback_f, **kwargs)
+        super(UpdateWidget, self).__init__(**kwargs)
         dt = datetime.now() - timedelta(days=60)
-        self.datefrom = ButtonDatePicker(on_date_picked=self.check_dates, dateformat='From %d/%m/%Y', date=dt)
-        self.dateto = ButtonDatePicker(on_date_picked=self.check_dates, dateformat='To %d/%m/%Y', nulltext='')
-        Logger.debug("Updatewidget: Adding buttons")
-        self.box_buttons_ref = self.children[0].ids.box_buttons.__self__
-        n = len(self.box_buttons_ref.children)
-        self.box_buttons_ref.add_widget(self.dateto, index=n)
-        Logger.debug("Updatewidget: Button added " + str(n))
-        self.box_buttons_ref.add_widget(self.datefrom, index=n + 1)
-        Logger.debug("Updatewidget: Button added " + str(n + 1))
+        self.ids.id_datefrom.set_date(dt)
+        self.ids.id_dateto.set_date(datetime.now())
 
     def check_dates(self, inst, dt):
-        if self.dateto.date < self.datefrom.date:
-            if inst == self.dateto:
-                self.datefrom.apply_date(self.dateto.date)
+        if self.ids.id_dateto.date < self.ids.id_datefrom.date:
+            if inst == self.ids.id_dateto.__self__:
+                self.ids.id_datefrom.set_date(self.ids.id_dateto.date)
             else:
-                self.dateto.apply_date(self.datefrom.date)
-
-    def on_exit(self):
-        Logger.debug("On exit called")
+                self.ids.id_dateto.set_date(self.ids.id_datefrom.date)
 
     def on_update(self, df, dt):
         Logger.debug("On update called %s-%s" % (str(df), str(dt)))
 
-    def events_callback_f(self, text, *args):
-        if text == 'Update':
-            self.dispatch('on_update', self.datefrom.date, self.dateto.date)
-        else:
-            self.dispatch('on_exit')
+    def dispatch_update(self):
+        self.manager.remove_widget(self)
+        self.dispatch('on_update', self.ids.id_datefrom.date, self.ids.id_dateto.date)

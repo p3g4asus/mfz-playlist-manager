@@ -17,7 +17,7 @@ class Fieldable:
             a = getattr(self, name)
         except AttributeError:
             a = None
-        return None if typetuple and (not a or not isinstance(a, typetuple)) else a
+        return None if typetuple and (a is None or not isinstance(a, typetuple)) else a
 
 
 class MyEncoder(json.JSONEncoder):
@@ -37,5 +37,5 @@ class AbstractMessageProcessor(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def process(self, ws, msg):
+    async def process(self, ws, msg, userid):
         pass

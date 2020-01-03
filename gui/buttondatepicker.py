@@ -29,17 +29,26 @@ class ButtonDatePicker(MDRaisedButton):
         if self.startdate:
             self.date = datetime.strptime(self.startdate, self.dateformat)
         Logger.debug("Nulltext = %s (%d)" % (self.nulltext, len(self.nulltext)))
-        self.apply_date(self.date)
+        self._apply_date(self.date)
 
     def show_date_picker(self):
-        MDDatePicker(self.apply_date,
+        MDDatePicker(self._apply_date,
                      self.date.year, self.date.month, self.date.day).open()
         self._pickedstate = 1
 
     def on_date_picked(self, dateo):
         Logger.debug("On Date Picked %s" % dateo.strftime(self.dateformat))
 
-    def apply_date(self, dateo):
+    def set_date(self, dateo):
+        self._pickedstate = 2
+        self._apply_date(dateo)
+
+    def reset(self, datev=datetime.now()):
+        self._pickedstate = 0
+        self.date = datev
+        self._apply_date(datev)
+
+    def _apply_date(self, dateo):
         if isinstance(dateo, date):
             dateo = datetime.combine(dateo, datetime.now().time())
         elif isinstance(dateo, str):

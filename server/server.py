@@ -116,17 +116,20 @@ def insert_notification():
 CREATE_DB_IF_NOT_EXIST = [
     '''
     CREATE TABLE IF NOT EXISTS user(
+        rowid INTEGER PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL
     )
     ''',
     '''
     CREATE TABLE IF NOT EXISTS type(
+        rowid INTEGER PRIMARY KEY,
         name TEXT NOT NULL UNIQUE
     )
     ''',
     '''
     CREATE TABLE IF NOT EXISTS playlist(
+        rowid INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
         user INTEGER NOT NULL,
         type INTEGER NOT NULL,
@@ -144,6 +147,7 @@ CREATE_DB_IF_NOT_EXIST = [
     ''',
     '''
     CREATE TABLE IF NOT EXISTS playlist_item(
+        rowid INTEGER PRIMARY KEY,
         title TEXT,
         img TEXT,
         datepub DATETIME,

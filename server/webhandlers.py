@@ -79,7 +79,7 @@ async def playlist_m3u(request):
         return web.HTTPUnauthorized(body='Invalid username / password combination')
 
     if 'name' in request.query:
-        pl = Playlist.loadbyid(useri=userid, username=username, name=request.query['name'])
+        pl = await Playlist.loadbyid(request.app.p.db, useri=userid, username=username, name=request.query['name'])
         if pl:
             txt = pl[0].toM3U()
             return web.Response(
@@ -134,10 +134,11 @@ async def pls_h(request):
                 _LOGGER.info("Unauthorized")
                 await ws.send_str(json.dumps(pl.err(100, "Not authorized"), cls=MyEncoder))
                 break
+            userid = identity2id(identity)
             for k, p in request.app.p.processors.items():
                 _LOGGER.debug("Checking " + k)
                 if p.interested(pl):
-                    if await p.process(ws, pl):
+                    if await p.process(ws, pl, userid):
                         break
                     else:
                         return ws

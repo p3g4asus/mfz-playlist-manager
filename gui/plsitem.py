@@ -108,8 +108,8 @@ class PlsRvItem(MDCardPost):
     playlist = ObjectProperty()
     datepub = ObjectProperty()
     tab = ObjectProperty()
-    conf = ObjectProperty()
-    seen = NumericProperty()
+    conf = ObjectProperty(None)
+    seen = ObjectProperty(None)
 
     def __init__(self, *args, **kwargs):
         super(PlsRvItem, self).__init__(
@@ -179,7 +179,7 @@ class PlsItem(BoxLayout, MDTabsBase):
         self.load_list()
 
     def play_pls(self):
-        lnk = self.client.m3u_lnk(self.pls_playlist.name)
+        lnk = self.client.m3u_lnk(self.playlist.name)
         Timer(1, partial(launch_link, lnk, self.launchconf))
 
     def load_list(self):
@@ -200,9 +200,9 @@ class PlsItem(BoxLayout, MDTabsBase):
                        'dur': 11877, 'seen': 0,
                        'launch': r'C:\/Program Files (x86)/VideoLAN/VLC/vlc.exe',
                        'tab': self}))
-            for d in reversed(self.playlist.items):
+            for d in self.playlist.items:
                 if not d.seen:
-                    dct = vars(d)
+                    dct = dict(vars(d))
                     dct['launch'] = self.launchconf
                     dct['tab'] = self
                     Logger.debug("Adding %s" % str(dct))
@@ -272,7 +272,7 @@ class PlsItem(BoxLayout, MDTabsBase):
                                         removed_item=dict(widget=w, index=received)),
             ).show()
 
-    async def on_new_del_item_undo_result(self, client, sent, received, removed_item):
+    async def on_new_del_item_undo_result(self, client, sent, received, removed_item=None):
         if not received:
             toast("Timeout error waiting for server response")
         elif isinstance(received, PlaylistMessage):
@@ -290,14 +290,14 @@ class PlsItem(BoxLayout, MDTabsBase):
         if rowid:
             self.client.enqueue(
                 PlaylistMessage(cmd=CMD_SEEN, playlistitem=rowid, seen=0),
-                partial(self.on_new_del_item_undo_result, removed_item))
+                partial(self.on_new_del_item_undo_result, removed_item=removed_item))
         else:
             Timer(1, partial(
                     self.on_new_del_item_undo_result,
                     self.client,
                     None,
                     removed_item,
-                    removed_item))
+                    removed_item=removed_item))
 
     def on_new_update(self, inst, df, dt):
         self.client.enqueue(PlaylistMessage(
@@ -309,6 +309,7 @@ class PlsItem(BoxLayout, MDTabsBase):
     def on_new_conf(self, inst, conf):
         self.playlist.conf = conf
         toast("Please update to save new config")
+        self.update_pls(True)
 
     def on_new_del_item(self, inst):
         index = self.ids.id_grid_card.children.index(inst)
@@ -328,12 +329,19 @@ class PlsItem(BoxLayout, MDTabsBase):
 
     def update_pls(self, show_date_selection):
         if show_date_selection:
-            UpdateWidget(on_update=self.on_new_update).open()
+            updatew = UpdateWidget(on_update=self.on_new_update)
+            self.manager.add_widget(updatew)
+            self.manager.current = updatew.name
         else:
             self.on_new_update(None, 0, int(datetime.now().timestamp() * 1000))
 
     def conf_pls(self):
         if self.playlist and self.confclass:
+            Logger.debug("PlsItem: %s/%s Startconf %s %s" % (
+                self.playlist.name,
+                str(self.playlist.rowid),
+                str(type(self.playlist.conf)),
+                str(self.playlist.conf)))
             conf_w = self.confclass(
                 startconf=self.playlist.conf,
                 client=self.client)

@@ -14,6 +14,7 @@ Builder.load_string(
     '''
 #:import MDIconButton kivymd.uix.button.MDIconButton
 #:import MDList kivymd.uix.list.MDList
+#:import ButtonDatePicker gui.buttondatepicker.ButtonDatePicker
 <ListItemWithCheckbox>:
     on_release:
         root.ids.id_cb.active = not root.ids.id_cb.active
@@ -27,23 +28,49 @@ Builder.load_string(
     name: 'conf_mediaset'
     GridLayout:
         cols: 1
-        rows: 4
+        rows: 5
         spacing: dp(5)
         height: self.minimum_height
         MDToolbar:
-            size_hint: (1, 0.2)
             id: id_toolbar
             title: 'Mediaset configuration'
             md_bg_color: app.theme_cls.primary_color
             left_action_items: [["arrow-left", lambda x: root.manager.remove_widget(root)]]
             right_action_items: [["content-save", lambda x: root.dispatch_conf(root)]]
+            elevation: 10
+        GridLayout:
+            size_hint: (1, 0.1)
+            cols: 2
+            rows: 1
+            spacing: dp(5)
+            height: self.minimum_height
+            MDTextFieldRound:
+                size_hint: (0.4, 1)
+                id: id_brandtf
+                icon_type: "right"
+                icon_right: "subdirectory-arrow-left"
+                icon_right_disabled: True
+                hint_text: "Brand ID"
+                normal_color: [0, 0, 0, 0.1]
+                icon_right_color: [1, 1, 1, 1]
+                foreground_color: [0, 0, 0, 1]
+            MDTextFieldRound:
+                size_hint: (0.6, 1)
+                id: id_filtertf
+                icon_type: "right"
+                icon_right: "magnify"
+                icon_right_disabled: False
+                hint_text: "Filter"
+                normal_color: [0, 0, 0, 0.1]
+                icon_right_color: [0, 0, 0, 1]
+                foreground_color: [0, 0, 0, 1]
         BoxLayout:
             size_hint: (1, 0.1)
             orientation: 'horizontal'
             padding: dp(15)
             MDLabel:
                 theme_text_color: "Primary"
-                text: 'From'
+                text: 'Get listings'
             ButtonDatePicker:
                 dateformat: '%d/%m/%Y'
                 nulltext: 'Unset'
@@ -105,6 +132,11 @@ class ConfWidget(Screen):
     def __init__(self, *args, **kwargs):
         super(ConfWidget, self).__init__(*args, **kwargs)
         self.on_startconf(self, self.startconf)
+        self.ids.id_filtertf.icon_callback = self.filter_brands
+        self.ids.id_brandtf.icon_callback = self.brand_confirmed
+        self.ids.id_brandtf.bind(text=self.brand_check)
+        # self.ids.id_filtertf.bind(text=self.filter_check)
+        self._current_listings = []
 
     def on_startconf(self, inst, co):
         br = 0
@@ -112,10 +144,13 @@ class ConfWidget(Screen):
         try:
             self.ids.id_listings.clear_widgets()
             self.ids.id_subbrands.clear_widgets()
+            self.ids.id_filtertf.text = ''
+            self.ids.id_brandtf.text = ''
         except (KeyError, AttributeError):
             return
         if 'brand' in self.startconf:
             self.current_brand = self.startconf['brand']
+            self.ids.id_brandtf.text = str(self.current_brand['id'])
             li = ListItemWithCheckbox(brandinfo=self.startconf['brand'], active=True, on_brand=self.on_brand_listings_checked, group='brand')
             self.ids.id_listings.add_widget(li)
             br += 1
@@ -157,18 +192,68 @@ class ConfWidget(Screen):
     def on_new_date(self, dt):
         self.ids.id_listings.clear_widgets()
         self.ids.id_subbrands.clear_widgets()
+        del self._current_listings[:]
+        self.ids.id_brandtf.text = ''
         self.current_brand = dict()
         self.current_subbrands = []
         Logger.debug("Mediaset: Enqueuing %s dt = %s" % (CMD_MEDIASET_LISTINGS, str(dt)))
         self.client.enqueue(PlaylistMessage(cmd=CMD_MEDIASET_LISTINGS, datestart=int(dt.timestamp() * 1000)), self.on_new_listings_result)
 
+    def filter_apply(self, sb):
+        filt = self.ids.id_filtertf.text
+        found = True
+        if filt:
+            f3 = filt.lower().split(' ')
+            for x in sb.values():
+                found = True
+                y = str(x).lower()
+                for i in f3:
+                    if y.find(i) < 0:
+                        found = False
+                        break
+                if found:
+                    break
+        return found
+
     def fill_listings(self, lst):
+        self._current_listings = lst
         for sb in lst:
-            li = ListItemWithCheckbox(brandinfo=sb, active=False, on_brand=self.on_brand_listings_checked, group='brand')
-            self.ids.id_listings.add_widget(li)
+            if self.filter_apply(sb):
+                a = self.current_brand and self.current_brand['id'] == sb['id']
+                li = ListItemWithCheckbox(brandinfo=sb, active=a, on_brand=self.on_brand_listings_checked, group='brand')
+                self.ids.id_listings.add_widget(li)
+
+    def filter_brands(self, *args, **kwargs):
+        self.ids.id_listings.clear_widgets()
+        self.fill_listings(self._current_listings)
+
+    def brand_check(self, inst, filt):
+        Logger.debug("Brand check %s" % filt)
+        try:
+            int(filt)
+            inst.icon_right_disabled = False
+            inst.icon_right_color = [0, 0, 0, 1]
+        except ValueError:
+            inst.icon_right_disabled = True
+            inst.icon_right_color = [1, 1, 1, 1]
+
+    def filter_check(self, inst, filt):
+        Logger.debug("Filter check %s" % filt)
+        inst.icon_right_disabled = len(filt) < 4 or not len(filt)
+
+    def brand_confirmed(self, *args, **kwargs):
+        bid = int(self.ids.id_brandtf.text)
+        for c in self.ids.id_listings.children:
+            c.active = c.brandinfo['id'] == bid
+        self.on_brand_listings_checked(
+            None,
+            dict(id=bid, title='', starttime=0),
+            True)
 
     def fill_subbrands(self, lst):
         for sb in lst:
+            if not self.current_brand['title']:
+                self.current_brand['title'] = sb['title']
             li = ListItemWithCheckbox(brandinfo=sb, active=False, on_brand=self.on_brand_subbrands_checked)
             self.ids.id_subbrands.add_widget(li)
 

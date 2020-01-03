@@ -1,4 +1,4 @@
-from os.path import isfile, splitdrive
+from os.path import isfile
 
 from kivy.lang import Builder
 from kivy.logger import Logger
@@ -92,7 +92,6 @@ class PlayerPathWidget(Screen):
         if not isfile(self.startpath):
             self.startpath = __file__
         self.ids.id_name.text = self.startpath
-        drv, _ = splitdrive(self.startpath)
         drives = self.get_win_drives()
         self.buttons = []
         for x in drives:

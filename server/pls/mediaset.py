@@ -9,7 +9,8 @@ from common.const import (
     MSG_MEDIASET_INVALID_BRAND,
     MSG_MEDIASET_INVALID_DATE,
     MSG_PLAYLIST_NOT_FOUND,
-    MSG_DB_ERROR
+    MSG_DB_ERROR,
+    MSG_UNAUTHORIZED
 )
 from common.playlist import Playlist, PlaylistItem
 import json
@@ -62,7 +63,7 @@ class MessageProcessor(AbstractMessageProcessor):
 # https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-all-programs?byCustomValue={brandId}{100000696},{subBrandId}{100000977}&sort=mediasetprogram$publishInfo_lastPublished|desc&count=true&entries=true&startIndex=1
 # https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-all-brands?byCustomValue={brandId}{100002223}&sort=mediasetprogram$order
 # https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-all-listings?byListingTime=1577001614000~1577001976000
-    async def processBrands(self, msg):
+    async def processBrands(self, msg, userid):
         brand = msg.f('brand', (int,))
         if brand:
             try:
@@ -102,7 +103,7 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(15, MSG_MEDIASET_INVALID_BRAND)
 
-    async def processListings(self, msg):
+    async def processListings(self, msg, userid):
         datestart = msg.f('datestart', (int,))
         if datestart:
             try:
@@ -181,7 +182,7 @@ class MessageProcessor(AbstractMessageProcessor):
             playlist=playlist
         ), datepubi)
 
-    async def processPrograms(self, msg, playlist=None):
+    async def processPrograms(self, msg, userid, playlist=None):
         brand = msg.f('brand', (int,))
         subbrands = msg.f('subbrands')
         datefrom = msg.f('datefrom', (int,))
@@ -224,9 +225,11 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(16, MSG_MEDIASET_INVALID_BRAND)
 
-    async def processRefresh(self, msg):
+    async def processRefresh(self, msg, userid):
         x = msg.playlistObj()
         if x:
+            if x.useri != userid:
+                return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
             try:
                 msg.brand = x.conf['brand']['id']
                 msg.subbrands = [s['id'] for s in x.conf['subbrands']]
@@ -243,40 +246,51 @@ class MessageProcessor(AbstractMessageProcessor):
                 c = x.conf
                 n = x.name
                 x = await Playlist.loadbyid(self.db, x.rowid)
+                if x and len(x):
+                    x = x[0]
+                else:
+                    return msg.err(5, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                if x.useri != userid:
+                    return msg.err(502, MSG_UNAUTHORIZED, playlist=None)
                 x.conf = c
                 x.name = n
             elif x.items is None:
                 x.items = []
-            resp = await self.processPrograms(msg, playlist=x.rowid)
+            resp = await self.processPrograms(msg, userid, playlist=x.rowid)
             if resp.rv == 0:
                 for i in resp.items:
                     if i not in x.items:
                         x.items.append(i)
+                        _LOGGER.debug("PlsItem new %s" % str(i))
                     else:
                         idx = x.items.index(i)
+                        _LOGGER.debug("PlsItem exists %s. Is %s [%d]" % (str(i), x.items[idx], not x.items[idx].seen))
                         if not x.items[idx].seen:
                             x.items[idx] = i
-
-                rv = True  # await x.toDB(self.db)
-                if rv:
-                    return msg.ok()
-                else:
-                    return msg.err(18, MSG_DB_ERROR, playlist=None)
+                try:
+                    rv = await x.toDB(self.db)
+                    if rv:
+                        return msg.ok(playlist=x)
+                    else:
+                        return msg.err(18, MSG_DB_ERROR, playlist=None)
+                except Exception:
+                    _LOGGER.error(traceback.format_exc())
+                    return msg.err(20, MSG_DB_ERROR, playlist=None)
             else:
                 return resp
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def process(self, ws, msg):
+    async def process(self, ws, msg, userid):
         resp = None
         if msg.c(CMD_MEDIASET_BRANDS):
-            resp = await self.processBrands(msg)
+            resp = await self.processBrands(msg, userid)
         elif msg.c(CMD_MEDIASET_PROGRAMS):
-            resp = await self.processPrograms(msg)
+            resp = await self.processPrograms(msg, userid)
         elif msg.c(CMD_REFRESH):
-            resp = await self.processRefresh(msg)
+            resp = await self.processRefresh(msg, userid)
         elif msg.c(CMD_MEDIASET_LISTINGS):
-            resp = await self.processListings(msg)
+            resp = await self.processListings(msg, userid)
         if resp:
             await ws.send_str(json.dumps(resp, cls=MyEncoder))
         return True

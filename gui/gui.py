@@ -156,7 +156,6 @@ class NavigationItem(OneLineAvatarListItem):
 class MyTabs(MDTabs):
     client = ObjectProperty()
     launchconf = StringProperty()
-    current_tab = ObjectProperty()
     client = ObjectProperty()
     useri = NumericProperty()
     manager = ObjectProperty()
@@ -164,17 +163,27 @@ class MyTabs(MDTabs):
     def __init__(self, *args, **kwargs):
         super(MyTabs, self).__init__(*args, **kwargs)
         self.tab_list = []
+        self.current_tab = None
 
     def remove_widget(self, w, *args, **kwargs):
         super(MyTabs, self).remove_widget(w)
         if isinstance(w, PlsItem):
+            idx = None
+            nm = ""
             try:
+                idx = self.tab_list.index(w)
                 self.tab_list.remove(w)
             except ValueError:
                 Logger.error(traceback.format_exc())
             if len(self.tab_list) == 0:
                 self.current_tab = None
-                Logger.debug("Gui: Currenttab = None")
+            elif idx > 0:
+                self.current_tab = self.tab_list[idx-1]
+                nm = self.current_tab.playlist.name
+            elif idx == 0:
+                self.current_tab = self.tab_list[0]
+                nm = self.current_tab.playlist.name
+            Logger.debug("Gui: Currenttab = %s - %s" % (str(idx), nm))
 
     def clear_widgets(self):
         for w in self.tab_list:
@@ -522,6 +531,7 @@ class MainApp(MDApp):
 
     async def on_register(self, client, rv, **kwargs):
         toast("Registration OK" if not rv else rv)
+        self.client.start_login_process(self.on_login)
 
     async def on_modify_pw(self, client, rv, **kwargs):
         toast("Modify PW OK" if not rv else rv)
@@ -560,6 +570,7 @@ class MainApp(MDApp):
             if str(x) not in processed:
                 self.root.ids.id_tabcont.add_widget(PlsItem(
                     playlist=self.playlists[x],
+                    manager=self.root.ids.id_screen_manager,
                     launchconf=self.config.get("windows", "plpath"),
                     client=self.client,
                     confclass=TypeWidget.type2class(self.playlists[x].type)

@@ -70,13 +70,13 @@ class PlsClient:
             self.user_h is not None
 
     async def on_login_caller(self, client, rv, **kwargs):
-        Logger.debug("Onlogin: %s" % str(rv))
+        Logger.debug("Client: Onlogin: %s" % str(rv))
         self.login_t = None
         if self.on_login:
             await self.on_login(self, rv, **kwargs)
 
     async def timer_login_callback(self):
-        Logger.debug("Trying to login: %s@%s:%d" % (self.username, self.host, self.port))
+        Logger.debug("Client: Trying to login: %s@%s:%d" % (self.username, self.host, self.port))
         if not await self.register(urlpart='login', callback=self.on_login_caller):
             self.timer_login()
 
@@ -104,7 +104,7 @@ class PlsClient:
                             on_logout(self, 0)
                         return True
         except Exception:
-            Logger.error(traceback.format_exc())
+            Logger.error("Client: " + traceback.format_exc())
         if on_logout:
             on_logout(self, "Cannot connect")
         return False
@@ -168,21 +168,21 @@ class PlsClient:
         except Exception:
             if callback:
                 await callback(self, "Registration network error")
-            Logger.error(traceback.format_exc())
+            Logger.error("Client: " + traceback.format_exc())
         Logger.debug("Client: exiting %s" % urlpart)
         return False
 
     async def single_action(self, ws, job):
-        Logger.debug("Sending %s" % job.msg)
+        Logger.debug("Client: Sending %s" % job.msg)
         await ws.send_str(json.dumps(job.msg, cls=MyEncoder))
         if job.waitfor:
             resp = await ws.receive()
-            Logger.debug("Received {}".format(resp.data))
+            Logger.debug("Client: Received {}".format(resp.data))
             p = PlaylistMessage(None, json.loads(resp.data))
-            Logger.debug("Converted {}".format(str(p)))
+            Logger.debug("Client: Converted {}".format(str(p)))
             x = p.playlistObj()
             if x:
-                Logger.debug("Playlistobj {}".format(str(x)))
+                Logger.debug("Client: Playlistobj {}".format(str(x)))
             return p
         else:
             return None
@@ -205,9 +205,9 @@ class PlsClient:
                     rv = await asyncio.wait_for(self.single_action(ws, it), self.timeout)
                     break
                 except asyncio.TimeoutError:
-                    Logger.error(traceback.format_exc())
+                    Logger.error("Client: " + traceback.format_exc())
                 except json.decoder.JSONDecodeError:
-                    Logger.error(traceback.format_exc())
+                    Logger.error("Client: " + traceback.format_exc())
             del self.ws_queue[0]
             await it.call(self, rv)
         else:
@@ -235,7 +235,7 @@ class PlsClient:
                                 await self.process_queue(ws)
 
                 except Exception:
-                    self.stopped = True
+                    self.stop()
                     self.timer_login()
-                    Logger.error(traceback.format_exc())
+                    Logger.error("Client: " + traceback.format_exc())
                     break

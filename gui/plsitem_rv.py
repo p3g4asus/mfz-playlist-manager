@@ -241,7 +241,7 @@ class PlsItem(BoxLayout, MDTabsBase):
                                         removed_item=dict(item=it, index=received)),
             ).show()
 
-    async def on_new_del_item_undo_result(self, client, sent, received, removed_item):
+    async def on_new_del_item_undo_result(self, client, sent, received, removed_item=None):
         if not received:
             toast("Timeout error waiting for server response")
         elif isinstance(received, PlaylistMessage):
@@ -259,9 +259,9 @@ class PlsItem(BoxLayout, MDTabsBase):
         if rowid:
             self.client.enqueue(
                 PlaylistMessage(cmd=CMD_SEEN, playlistitem=rowid, seen=0),
-                partial(self.on_new_del_item_result, removed_item))
+                partial(self.on_new_del_item_undo_result, removed_item=removed_item))
         else:
-            self.on_new_del_item_undo_result(self.client, None, removed_item, removed_item)
+            self.on_new_del_item_undo_result(self.client, None, removed_item, removed_item=removed_item)
 
     def on_new_exit(self, inst):
         if self.popup:
