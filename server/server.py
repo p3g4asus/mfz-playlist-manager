@@ -73,19 +73,20 @@ def ping_app(app):
 
 
 def insert_notification():
-    import jnius
+    from jnius import autoclass
+    fim = join(dirname(__file__), 'images', 'playlist-music.png')
     # Context = jnius.autoclass('android.content.Context')
-    Intent = jnius.autoclass('android.content.Intent')
-    PendingIntent = jnius.autoclass('android.app.PendingIntent')
-    AndroidString = jnius.autoclass('java.lang.String')
-    NotificationBuilder = jnius.autoclass('android.app.Notification$Builder')
-    # Notification = jnius.autoclass('android.app.Notification')
+    Intent = autoclass('android.content.Intent')
+    PendingIntent = autoclass('android.app.PendingIntent')
+    AndroidString = autoclass('java.lang.String')
+    NotificationBuilder = autoclass('android.app.Notification$Builder')
+    # Notification = autoclass('android.app.Notification')
     # service_name = 'S1'
     # package_name = 'com.something'
-    service = jnius.autoclass('org.kivy.android.PythonService').mService
+    service = autoclass('org.kivy.android.PythonService').mService
     # Previous version of Kivy had a reference to the service like below.
-    # service = jnius.autoclass('{}.Service{}'.format(package_name, service_name)).mService
-    PythonActivity = jnius.autoclass('org.kivy.android' + '.PythonActivity')
+    # service = autoclass('{}.Service{}'.format(package_name, service_name)).mService
+    PythonActivity = autoclass('org.kivy.android' + '.PythonActivity')
     # notification_service = service.getSystemService(
     #    Context.NOTIFICATION_SERVICE)
     app_context = service.getApplication().getApplicationContext()
@@ -103,9 +104,18 @@ def insert_notification():
     notification_builder.setContentTitle(title)
     notification_builder.setContentText(message)
     notification_builder.setContentIntent(intent)
-    Drawable = jnius.autoclass("{}.R$drawable".format(service.getPackageName()))
-    icon = getattr(Drawable, 'icon')
-    notification_builder.setSmallIcon(icon)
+    BitmapFactory = autoclass("android.graphics.BitmapFactory")
+    Icon = autoclass("android.graphics.drawable.Icon")
+    BitmapFactoryOptions = autoclass("android.graphics.BitmapFactory$Options")
+    # Drawable = jnius.autoclass("{}.R$drawable".format(service.getPackageName()))
+    # icon = getattr(Drawable, 'icon')
+    options = BitmapFactoryOptions()
+    # options.inMutable = True
+    # declaredField = options.getClass().getDeclaredField("inPreferredConfig")
+    # declaredField.set(cast('java.lang.Object',options), cast('java.lang.Object', BitmapConfig.ARGB_8888))
+    # options.inPreferredConfig = BitmapConfig.ARGB_8888;
+    bm = BitmapFactory.decodeFile(fim, options)
+    notification_builder.setSmallIcon(Icon.createWithBitmap(bm))
     notification_builder.setAutoCancel(True)
     new_notification = notification_builder.getNotification()
     # Below sends the notification to the notification bar; nice but not a foreground service.
@@ -230,6 +240,17 @@ class Object:
     pass
 
 
+async def init_osc(app):
+    try:
+        app.p.osc.listen(address='127.0.0.1', port=app.p.port_osc, default=True)
+        app.p.osc.bind('/stop_service', partial(stop_service, app))
+        app.p.timerping = Timer(2, partial(ping_app, app))
+        if app.p.timer_osc:
+            app.p.timer_osc = None
+    except (Exception, OSError):
+        app.p.timer_osc = Timer(1, partial(init_osc, app))
+
+
 def main():
     app = web.Application()
     app.p = Object()
@@ -238,10 +259,10 @@ def main():
     if len(p4a):
         args = json.loads(p4a)
         from oscpy.server import OSCThreadServer
+        app.p.port_osc = args["msgfrom"]
         app.p.osc = OSCThreadServer(encoding='utf8')
-        app.p.osc.listen(address='127.0.0.1', port=args["msgfrom"], default=True)
-        app.p.osc.bind('/stop_service', partial(stop_service, app))
-        app.p.timerping = Timer(2, partial(ping_app, app))
+        app.p.timerping = None
+        app.p.timer_osc = Timer(0.1, partial(init_osc, app))
         insert_notification()
     else:
         parser = argparse.ArgumentParser(prog=__prog__)
@@ -251,8 +272,8 @@ def main():
         parser.add_argument("-v", "--verbose", help="increase output verbosity",
                             action="store_true")
         args = vars(parser.parse_args())
-        if args["verbose"]:
-            logging.basicConfig(level=logging.DEBUG)
+    if args["verbose"]:
+        logging.basicConfig(level=logging.DEBUG)
 
     app.p.args = args
     loop = asyncio.get_event_loop()
@@ -262,7 +283,7 @@ def main():
         loop.run_forever()
     finally:
         # loop.run_forever()
-        if len(p4a):
+        if len(p4a) and app.p.timerping:
             app.p.timerping.cancel()
         for r in app.p.myrunners:
             loop.run_until_complete(r.cleanup())

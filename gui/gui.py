@@ -373,8 +373,7 @@ class MainApp(MDApp):
         Logger.debug("On Nav Home")
 
     def on_nav_exit(self, *args, **kwargs):
-        self.client.stop()
-        self.stop()
+        self.true_stop()
 
     def on_nav_settings(self, *args, **kwargs):
         self.open_settings()
@@ -392,6 +391,10 @@ class MainApp(MDApp):
             self.server_started = None
 
     def true_stop(self):
+        if self.timer_osc:
+            self.timer_osc.cancel()
+            self.timer_osc = None
+        self.client.stop()
         self.stop_server()
         self.stop()
 
@@ -408,14 +411,22 @@ class MainApp(MDApp):
             config.setdefaults('windows', {'plpath': ''})
         self._init_fields()
 
+    async def init_osc(self):
+        try:
+            self.osc.listen(address='127.0.0.1', port=self.port_osc, default=True)
+            self.osc.bind('/server_ping', self.server_ping)
+            if self.timer_osc:
+                self.timer_osc = None
+        except (Exception, OSError):
+            self.timer_osc = Timer(1, self.init_osc)
+
     def _init_fields(self):
         self.title = __prog__
         self.port_osc = PORT_OSC_CONST
         self.server_started = None
         self.port_service = find_free_port()
         self.osc = OSCThreadServer(encoding='utf8')
-        self.osc.listen(address='127.0.0.1', port=self.port_osc, default=True)
-        self.osc.bind('/server_ping', self.server_ping)
+        self.timer_osc = Timer(0.1, self.init_osc)
         self.client = PlsClient()
         self.userid = None
         self.playlists = []
@@ -461,17 +472,16 @@ class MainApp(MDApp):
     async def start_server(self):
         if platform == 'android' and not self.server_started:
             from jnius import autoclass
-            package_name = 'plsapp'
-            package_domain = 'org.mfz'
-            service_name = 'httpPls'
-            service_class = '{}.{}.Service{}'.format(
-                package_domain, package_name, service_name.title())
+            package_name = 'org.kivymfz.playlistmanager'
+            service_name = 'HttpServerService'
+            service_class = '{}.Service{}'.format(
+                package_name, service_name.title())
             service = autoclass(service_class)
             mActivity = autoclass('org.kivy.android.PythonActivity').mActivity
 
             arg = dict(dbfile=join(MainApp.db_dir(), 'maindb.db'),
                        host='0.0.0.0', port=self.config.getint("network", "port"),
-                       msgfrom=self.port_service, msgto=self.port_osc)
+                       msgfrom=self.port_service, msgto=self.port_osc, verbose=True)
             argument = json.dumps(arg)
             service.start(mActivity, argument)
 
