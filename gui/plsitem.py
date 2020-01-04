@@ -2,12 +2,14 @@ from datetime import datetime
 from functools import partial
 
 from jnius import autoclass, cast
+from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.metrics import dp
-from kivy.properties import NumericProperty, ObjectProperty, StringProperty
+from kivy.properties import NumericProperty, ObjectProperty, StringProperty, ListProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.recycleview import RecycleView
+from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.utils import platform
 from kivymd.toast.kivytoast.kivytoast import toast
 from kivymd.uix.card import MDCardPost
@@ -34,45 +36,94 @@ from .updatewidget import UpdateWidget
 
 Builder.load_string(
     '''
-#:import MDIconButton kivymd.uix.button.MDIconButton
-#:import MDCardPost kivymd.uix.card.MDCardPost
+<CardPostImage2>
+    spacing: dp(10)
+    padding: dp(5)
+    orientation: 'horizontal'
+    size_hint: None, None
+    size: root.card_size
+
+    SmartTileWithLabel:
+        pos_hint: {'top': 1}
+        source: root.source
+        text: ' %s' % root.tile_text
+        color: root.tile_text_color
+        size_hint_y: None
+        font_style: root.tile_font_style
+        height: root.card_size[1]
+        id: id_c1
+        on_release: root.callback(root, [self, self.source])
+    BoxLayout:
+        orientation: 'vertical'
+        id: id_c2
+        size_hint_y: None
+        pos_hint: {'top': 1}
+        height: root.card_size[1]
+        MDLabel:
+            pos_hint: {'top': 1}
+            text: root.text_post
+            size_hint_y: None
+            halign: 'justify'
+            valign: 'top'
+            height: int(root.card_size[1] / 150 * 110)
+            id: id_c21
+            text_size: self.width - 20, dp(60)
+        AnchorLayout:
+            pos_hint: {'top': 1}
+            anchor_x: 'right'
+            size_hint_y: None
+            height: int(root.card_size[1] / 150 * 40)
+            id: id_c22
+            BoxLayout:
+                pos_hint: {'top': 1}
+                id: box_buttons
+    '''
+)
+
+Builder.load_string(
+    '''
 <PlsRvItem>:
     path_to_avatar: root.img
     source: root.img
-    name_data: 'Uid: ' + root.uid + '\\nDate: '+root.datepub
     tile_text: root.format_duration(root.dur)
     tile_font_style: "H6"
-    text_post: 'Date: '+ root.datepub + '\\n' + root.title + ' (' + root.uid + ')'
+    text_post: root.format_post(root.datepub, root.title, root.uid)
     swipe: True
     buttons: ["play", "delete"]
-    with_image: root.img is not None and len(root.img)
+    with_image: True
+    card_image_class: root.mycls
+    ysize: dp(150)
+
+<PlsItem>:
+    id: id_mainbox
+    orientation: 'vertical'
+    PlsRv:
+        id: id_rv
+        title: 'Playlist'
+        viewclass: 'PlsRvItem'
+        RecycleBoxLayout:
+            default_size: None, dp(150)
+            default_size_hint: 1, None
+            size_hint_y: None
+            height: self.minimum_height
+            orientation: 'vertical'
     '''
 )
+
+
+class CardPostImage2(BoxLayout):
+    source = StringProperty()
+    text_post = StringProperty()
+    tile_text = StringProperty("Title")
+    tile_font_style = StringProperty("H5")
+    tile_text_color = ListProperty([1, 1, 1, 1])
+    callback = ObjectProperty(lambda *x: None)
+    card_size = ListProperty((Window.width - 10, dp(150)))
 
 
 #             md_bg_color: app.theme_cls.primary_color
 #             background_palette: "Primary"
 #             elevation: 10
-
-Builder.load_string(
-    '''
-<PlsItem>:
-    id: id_mainbox
-    orientation: 'vertical'
-    ScrollView:
-        id: scroll
-        size_hint: 1, 1
-        do_scroll_x: False
-
-        GridLayout:
-            id: id_grid_card
-            cols: 1
-            spacing: dp(10)
-            padding: dp(5)
-            size_hint_y: None
-            height: self.minimum_height
-    '''
-)
 
 
 async def launch_link(lnk, launchconf):
@@ -96,7 +147,7 @@ async def launch_link(lnk, launchconf):
         # PythonActivity.mActivity.startActivity(intent)
 
 
-class PlsRvItem(MDCardPost):
+class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
     ''' Add selection support to the Label '''
     img = StringProperty('')
     dur = NumericProperty(0)
@@ -110,14 +161,15 @@ class PlsRvItem(MDCardPost):
     tab = ObjectProperty()
     conf = ObjectProperty(None)
     seen = ObjectProperty(None)
+    index = NumericProperty(-1)
+    ysize = NumericProperty(dp(150))
+    mycls = ObjectProperty(CardPostImage2)
 
     def __init__(self, *args, **kwargs):
         super(PlsRvItem, self).__init__(
             callback=self.process_button_click,
             **kwargs)
-        sz = dp(150)
-        self.card_size[1] = sz
-        self.ids.root_box.children[0].card_size[1] = sz
+        self.on_ysize(self.ysize)
         for i in self.ids.root_box.children[0].children:
             if isinstance(i, SmartTileWithLabel):
                 i.allow_stretch = True
@@ -141,6 +193,9 @@ class PlsRvItem(MDCardPost):
                 return
         self.on_lineleft()
 
+    def format_post(self, datepub, title, uid):
+        return 'Date: ' + str(datepub) + '\n' + str(title) + ' (' + str(uid) + ')'
+
     def format_duration(self, dur):
         h = dur // 3600
         s = ''
@@ -158,8 +213,36 @@ class PlsRvItem(MDCardPost):
     def on_lineleft(self, *args, **kwargs):
         self.tab.on_new_del_item(self)
 
+    def on_ysize(self, sz):
+        self.card_size[1] = sz
+        self.ids.root_box.children[0].card_size[1] = sz
+
     def on_lineright(self, *args, **kwargs):
         Timer(1, partial(launch_link, self.link, self.launch))
+
+    def refresh_view_attrs(self, rv, index, dbitem):
+        ''' Catch and handle the view changes '''
+        Logger.debug("PlsItem: r_v_a data = %s" % str(dbitem))
+        self.index = index
+        Logger.debug("PlsItem: r_v_a = %s" % str(dbitem))
+        self.rowid = dbitem['rowid']
+        self.uid = dbitem['uid']
+        self.link = dbitem['link']
+        self.title = dbitem['title']
+        self.conf = dbitem['conf']
+        self.datepub = dbitem['datepub']
+        self.playlist = dbitem['playlist']
+        self.img = dbitem['img']
+        self.dur = dbitem['dur']
+        self.launch = dbitem['launch']
+        self.seen = dbitem['seen']
+        self.tab = dbitem['tab']
+        cpm = self.ids.root_box.children[0]
+        cpm.text_post = self.format_post(self.datepub, self.title, self.uid)
+        cpm.tile_text = self.format_duration(self.dur)
+        cpm.source = self.img
+        return super(PlsRvItem, self).refresh_view_attrs(
+            rv, index, dbitem)
 
 
 class PlsRv(RecycleView):
@@ -186,9 +269,10 @@ class PlsItem(BoxLayout, MDTabsBase):
         Logger.debug("Loading list in tab: %s" % str(self.playlist))
         if self.playlist:
             self.text = self.playlist.name
-            self.ids.id_grid_card.clear_widgets()
+            del self.ids.id_rv.data[:]
+            data = []
             if not self.playlist.items:
-                self.ids.id_grid_card.add_widget(PlsRvItem(**{
+                data.append({
                        'rowid': None,
                        'uid': 'F309989201002401',
                        'link': 'https://link.theplatform.eu/s/PR1GhC/media/0UrkkBgkTWSv',
@@ -199,14 +283,15 @@ class PlsItem(BoxLayout, MDTabsBase):
                        'conf': {'subbrand': 100003082, 'brand': 100002223},
                        'dur': 11877, 'seen': 0,
                        'launch': r'C:\/Program Files (x86)/VideoLAN/VLC/vlc.exe',
-                       'tab': self}))
+                       'tab': self})
             for d in self.playlist.items:
                 if not d.seen:
                     dct = dict(vars(d))
                     dct['launch'] = self.launchconf
                     dct['tab'] = self
                     Logger.debug("Adding %s" % str(dct))
-                    self.ids.id_grid_card.add_widget(PlsRvItem(**dct))
+                    data.append(dct)
+            self.ids.id_rv.data = data
 
     def on_new_name(self, text, inst):
         if text == "OK":
@@ -263,13 +348,13 @@ class PlsItem(BoxLayout, MDTabsBase):
             else:
                 received = received.index
         if isinstance(received, int):
-            w = self.ids.id_grid_card.children[received]
-            self.ids.id_grid_card.remove_widget(w)
+            it = dict(data=self.ids.id_rv.data[received], index=received)
+            del self.ids.id_rv.data[received]
             Snackbar(
-                text="%s removed" % w.title,
+                text="%s removed" % it["data"]["title"],
                 button_text="Undo",
                 button_callback=partial(self.on_new_del_item_undo,
-                                        removed_item=dict(widget=w, index=received)),
+                                        removed_item=it),
             ).show()
 
     async def on_new_del_item_undo_result(self, client, sent, received, removed_item=None):
@@ -281,12 +366,12 @@ class PlsItem(BoxLayout, MDTabsBase):
             else:
                 received = removed_item
         if isinstance(received, dict):
-            self.ids.id_grid_card.add_widget(received['widget'], index=received['index'])
-            toast('%s restored' % received['widget'].title)
+            self.ids.id_rv.data.insert(received["index"], received["data"])
+            toast('%s restored' % received["data"]["title"])
 
     def on_new_del_item_undo(self, *args, **kwargs):
         removed_item = kwargs['removed_item']
-        rowid = removed_item['widget'].rowid
+        rowid = removed_item['data']["rowid"]
         if rowid:
             self.client.enqueue(
                 PlaylistMessage(cmd=CMD_SEEN, playlistitem=rowid, seen=0),
@@ -312,11 +397,10 @@ class PlsItem(BoxLayout, MDTabsBase):
         self.update_pls(True)
 
     def on_new_del_item(self, inst):
-        index = self.ids.id_grid_card.children.index(inst)
         if inst.rowid:
-            self.client.enqueue(PlaylistMessage(cmd=CMD_SEEN, playlistitem=inst.rowid, seen=1, index=index), self.on_new_del_item_result)
+            self.client.enqueue(PlaylistMessage(cmd=CMD_SEEN, playlistitem=inst.rowid, seen=1, index=inst.index), self.on_new_del_item_result)
         else:
-            Timer(1, partial(self.on_new_del_item_result, self.client, None, index))
+            Timer(1, partial(self.on_new_del_item_result, self.client, None, inst.index))
 
     def on_new_del(self, but, inst, tabs=None):
         if but == "Yes":

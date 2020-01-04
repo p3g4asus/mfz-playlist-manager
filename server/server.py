@@ -90,7 +90,7 @@ def insert_notification():
     #    Context.NOTIFICATION_SERVICE)
     app_context = service.getApplication().getApplicationContext()
     notification_builder = NotificationBuilder(app_context)
-    title = AndroidString("KivyPls".encode('utf-8'))
+    title = AndroidString("PlsManager".encode('utf-8'))
     message = AndroidString("HttpServerService".encode('utf-8'))
     # app_class = service.getApplication().getClass()
     notification_intent = Intent(app_context, PythonActivity)

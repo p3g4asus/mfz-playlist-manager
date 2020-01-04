@@ -10,6 +10,7 @@ from kivymd.uix.selectioncontrol import MDCheckbox
 from common.const import CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS
 from common.playlist import PlaylistMessage
 
+
 Builder.load_string(
     '''
 #:import MDIconButton kivymd.uix.button.MDIconButton
@@ -42,7 +43,8 @@ Builder.load_string(
             size_hint: (1, 0.1)
             cols: 2
             rows: 1
-            spacing: dp(5)
+            spacing: [dp(50), dp(0)]
+            padding: [dp(25), dp(5)]
             height: self.minimum_height
             MDTextFieldRound:
                 size_hint: (0.4, 1)
@@ -51,9 +53,6 @@ Builder.load_string(
                 icon_right: "subdirectory-arrow-left"
                 icon_right_disabled: True
                 hint_text: "Brand ID"
-                normal_color: [0, 0, 0, 0.1]
-                icon_right_color: [1, 1, 1, 1]
-                foreground_color: [0, 0, 0, 1]
             MDTextFieldRound:
                 size_hint: (0.6, 1)
                 id: id_filtertf
@@ -61,9 +60,6 @@ Builder.load_string(
                 icon_right: "magnify"
                 icon_right_disabled: False
                 hint_text: "Filter"
-                normal_color: [0, 0, 0, 0.1]
-                icon_right_color: [0, 0, 0, 1]
-                foreground_color: [0, 0, 0, 1]
         BoxLayout:
             size_hint: (1, 0.1)
             orientation: 'horizontal'

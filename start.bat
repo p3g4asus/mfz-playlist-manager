@@ -11,7 +11,7 @@ REM ~ pip3 install aiohttp
 REM ~ pip3 install cryptography
 REM ~ pip3 install aiosqlite
 REM ~ pip3 install "C:\Users\Matteo\Downloads\Kivy-2.0.0.dev0-cp37-cp37m-win_amd64.whl"
-REM ~ pip3 install git+git://github.com/HeaTTheatR/KivyMD.git
+REM ~ pip3 install git+git://github.com/p3g4asus/KivyMD.git@25b0b7f2df7dba463111543cf526b6cd6b672ace
 call %~dp0venv\Scripts\activate.bat
 set PATH=C:\Program Files\Java\jre1.8.0_231\bin\server;%PATH%
 set KCFG_KIVY_LOG_LEVEL=debug

@@ -27,14 +27,17 @@ Builder.load_string(
             md_bg_color: app.theme_cls.primary_color
             left_action_items: [["arrow-left", lambda x: root.dispatch_on_type('Cancel')]]
             elevation: 10
-        MDTextFieldRound:
-            id: id_name
+        BoxLayout:
+            padding: [dp(30), dp(5)]
             size_hint: (1, 0.1)
-            icon_type: "without"
-            hint_text: "Playlist name"
-            normal_color: [0, 0, 0, 0.1]
-            foreground_color: [0, 0, 0, 1]
-            on_text: root.enable_buttons(self.text)
+            MDTextFieldRound:
+                id: id_name
+                size_hint: (1, 1)
+                icon_type: "without"
+                hint_text: "Playlist name"
+                normal_color: [0, 0, 0, 0.1]
+                foreground_color: [0, 0, 0, 1]
+                on_text: root.enable_buttons(self.text)
         ScrollView:
             size_hint: (1, 0.7)
             MDList:
