@@ -14,14 +14,14 @@ import socket
 import traceback
 from contextlib import closing
 from functools import partial
-from os.path import expanduser, join, dirname
+from os.path import expanduser, join, dirname, exists
 
 from jnius import autoclass
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ObjectProperty, StringProperty, NumericProperty
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.settings import Settings
+from kivy.uix.settings import SettingsWithSpinner
 from kivy.utils import platform
 from kivymd.app import MDApp
 from kivymd.toast.kivytoast.kivytoast import toast
@@ -44,6 +44,9 @@ from .settingpassword import SettingPassword
 from .typewidget import TypeWidget
 
 if platform == "android":
+    import certifi
+    # Here's all the magic !
+    os.environ['SSL_CERT_FILE'] = certifi.where()
     from android.permissions import request_permissions, Permission
     request_permissions([Permission.INTERNET, Permission.READ_EXTERNAL_STORAGE,
                          Permission.WRITE_EXTERNAL_STORAGE])
@@ -287,7 +290,8 @@ class MainApp(MDApp):
         else:
             home = expanduser("~")
             pth = join(home, '.kivypls')
-        os.mkdir(pth)
+        if not exists(pth):
+            os.mkdir(pth)
         return pth
 
     def format_version(self):
@@ -344,7 +348,7 @@ class MainApp(MDApp):
         # The line below is optional. You could leave it out or use one of the
         # standard options, such as SettingsWithSidebar, SettingsWithSpinner
         # etc.
-        self.settings_cls = Settings
+        self.settings_cls = SettingsWithSpinner
 
         # We apply the saved configuration settings or the defaults
         root = Builder.load_string(KV)  # (client=self.client)
@@ -352,7 +356,10 @@ class MainApp(MDApp):
 
     def on_start(self):
         self.on_config_change(self.config, "network", "host", None)
-        self.root.ids.id_tabcont.launchconf = self.config.get("windows", "plpath")
+        if platform == "win":
+            self.root.ids.id_tabcont.launchconf = self.config.get("windows", "plpath")
+        else:
+            self.root.ids.id_tabcont.launchconf = ''
         self.root.ids.id_tabcont.client = self.client
         self.root.ids.content_drawer.image_path = join(
             dirname(__file__), "images", "navdrawer.png")
@@ -447,7 +454,7 @@ class MainApp(MDApp):
         if platform == "win":
             settings.add_json_panel('Windows', self.config, join(dn, 'windows.json'))  # data=json)
 
-    def check_config(self):
+    def check_host_port_config(self):
         host = self.config.get("network", "host")
         if not host:
             toast("Host cannot be empty")
@@ -456,6 +463,9 @@ class MainApp(MDApp):
         if not port or port > 65535 or port <= 0:
             toast("Port should be in the range [1, 65535]")
             return False
+        return True
+
+    def check_other_config(self):
         user = self.config.get("registration", "username")
         password = self.config.get("registration", "password")
         Logger.debug("User = {user} Password = {password}".format(user=user, password=password))
@@ -471,19 +481,23 @@ class MainApp(MDApp):
 
     async def start_server(self):
         if platform == 'android' and not self.server_started:
-            from jnius import autoclass
-            package_name = 'org.kivymfz.playlistmanager'
-            service_name = 'HttpServerService'
-            service_class = '{}.Service{}'.format(
-                package_name, service_name.title())
-            service = autoclass(service_class)
-            mActivity = autoclass('org.kivy.android.PythonActivity').mActivity
+            try:
+                from jnius import autoclass
+                package_name = 'org.kivymfz.playlistmanager'
+                service_name = 'Httpserverservice'
+                service_class = '{}.Service{}'.format(
+                    package_name, service_name.title())
+                service = autoclass(service_class)
+                mActivity = autoclass('org.kivy.android.PythonActivity').mActivity
 
-            arg = dict(dbfile=join(MainApp.db_dir(), 'maindb.db'),
-                       host='0.0.0.0', port=self.config.getint("network", "port"),
-                       msgfrom=self.port_service, msgto=self.port_osc, verbose=True)
-            argument = json.dumps(arg)
-            service.start(mActivity, argument)
+                arg = dict(dbfile=join(MainApp.db_dir(), 'maindb.db'),
+                           host='0.0.0.0', port=self.config.getint("network", "port"),
+                           msgfrom=self.port_service, msgto=self.port_osc, verbose=True)
+                argument = json.dumps(arg)
+                Logger.info("Starting %s [%s]" % (service_class, argument))
+                service.start(mActivity, argument)
+            except Exception:
+                Logger.error(traceback.format_exc())
 
     def stop_server(self):
         if platform == "android" and self.port_service:
@@ -512,13 +526,18 @@ class MainApp(MDApp):
             self.root.ids.nav_drawer.animation_close()
             self.root.ids.id_screen_manager.add_widget(plwidget)
             self.root.ids.id_screen_manager.current = plwidget.name
-        elif self.check_config():
+        elif self.check_host_port_config():
             if section == "network" and (key == "host" or key == "port"):
                 if self.server_started and value:
                     self.stop_server()
                 host = self.config.get("network", "host")
+                Logger.info("Host port good %s" % host)
                 if host == "localhost" or host == "127.0.0.1":
+                    Logger.info("Have to start server")
                     Timer(6, self.start_server)
+        else:
+            return
+        if self.check_other_config():
             if (section == "network" and (key == "host" or key == "port")) or\
                (section == "registration" and (key == "username" or key == "password")):
                 self.client.set_pars(
@@ -581,7 +600,7 @@ class MainApp(MDApp):
                 self.root.ids.id_tabcont.add_widget(PlsItem(
                     playlist=self.playlists[x],
                     manager=self.root.ids.id_screen_manager,
-                    launchconf=self.config.get("windows", "plpath"),
+                    launchconf=self.config.get("windows", "plpath") if platform == "win" else '',
                     client=self.client,
                     confclass=TypeWidget.type2class(self.playlists[x].type)
                 ))

@@ -75,18 +75,30 @@ def ping_app(app):
 def insert_notification():
     from jnius import autoclass
     fim = join(dirname(__file__), 'images', 'playlist-music.png')
-    # Context = jnius.autoclass('android.content.Context')
+    Context = autoclass('android.content.Context')
     Intent = autoclass('android.content.Intent')
     PendingIntent = autoclass('android.app.PendingIntent')
     AndroidString = autoclass('java.lang.String')
     NotificationBuilder = autoclass('android.app.Notification$Builder')
-    # Notification = autoclass('android.app.Notification')
+    Notification = autoclass('android.app.Notification')
+    NotificationManager = autoclass('android.app.NotificationManager')
+    PythonActivity = autoclass('org.kivy.android.PythonActivity')
+    service = autoclass('org.kivy.android.PythonService').mService
+    
+    NOTIFICATION_CHANNEL_ID = AndroidString(service.getPackageName().encode('utf-8'))
+    channelName = AndroidString('HTTPServerService'.encode('utf-8'))
+    chan = NotificationChannel(NOTIFICATION_CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_DEFAULT);
+    chan.setLightColor(Color.BLUE);
+    chan.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+    manager = service.getSystemService(Context.NOTIFICATION_SERVICE);
+    manager.createNotificationChannel(chan);
+
+    # 
     # service_name = 'S1'
     # package_name = 'com.something'
-    service = autoclass('org.kivy.android.PythonService').mService
+    
     # Previous version of Kivy had a reference to the service like below.
     # service = autoclass('{}.Service{}'.format(package_name, service_name)).mService
-    PythonActivity = autoclass('org.kivy.android' + '.PythonActivity')
     # notification_service = service.getSystemService(
     #    Context.NOTIFICATION_SERVICE)
     app_context = service.getApplication().getApplicationContext()
@@ -256,6 +268,7 @@ def main():
     app.p = Object()
     app.p.myrunners = []
     p4a = os.environ.get('PYTHON_SERVICE_ARGUMENT', '')
+    _LOGGER.info("Starting server p4a = %s" % p4a)
     if len(p4a):
         args = json.loads(p4a)
         from oscpy.server import OSCThreadServer
@@ -290,5 +303,6 @@ def main():
         loop.close()
 
 
+_LOGGER.info("Server module name is %s" % __name__)
 if __name__ == '__main__':
     main()
