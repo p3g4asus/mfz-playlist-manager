@@ -100,9 +100,10 @@ Builder.load_string(
     PlsRv:
         id: id_rv
         title: 'Playlist'
+        ysize: root.cardsize
         viewclass: 'PlsRvItem'
         RecycleBoxLayout:
-            default_size: None, dp(150)
+            default_size: None, dp(root.cardsize)
             default_size_hint: 1, None
             size_hint_y: None
             height: self.minimum_height
@@ -162,14 +163,14 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
     conf = ObjectProperty(None)
     seen = ObjectProperty(None)
     index = NumericProperty(-1)
-    ysize = NumericProperty(dp(150))
+    ysize = NumericProperty(150)
     mycls = ObjectProperty(CardPostImage2)
 
     def __init__(self, *args, **kwargs):
         super(PlsRvItem, self).__init__(
             callback=self.process_button_click,
             **kwargs)
-        self.on_ysize(self.ysize)
+        self.on_ysize(self, self.ysize)
         for i in self.ids.root_box.children[0].children:
             if isinstance(i, SmartTileWithLabel):
                 i.allow_stretch = True
@@ -213,9 +214,9 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
     def on_lineleft(self, *args, **kwargs):
         self.tab.on_new_del_item(self)
 
-    def on_ysize(self, sz):
-        self.card_size[1] = sz
-        self.ids.root_box.children[0].card_size[1] = sz
+    def on_ysize(self, inst, sz):
+        self.card_size[1] = dp(sz)
+        self.ids.root_box.children[0].card_size[1] = dp(sz)
 
     def on_lineright(self, *args, **kwargs):
         Timer(1, partial(launch_link, self.link, self.launch))
@@ -237,6 +238,7 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
         self.launch = dbitem['launch']
         self.seen = dbitem['seen']
         self.tab = dbitem['tab']
+        self.ysize = rv.ysize
         cpm = self.ids.root_box.children[0]
         cpm.text_post = self.format_post(self.datepub, self.title, self.uid)
         cpm.tile_text = self.format_duration(self.dur)
@@ -246,6 +248,7 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
 
 
 class PlsRv(RecycleView):
+    ysize = NumericProperty(150)
     pass
 
 
@@ -254,6 +257,7 @@ class PlsItem(BoxLayout, MDTabsBase):
     confclass = ObjectProperty()
     manager = ObjectProperty()
     launchconf = StringProperty('')
+    cardsize = NumericProperty(150)
 
     def __init__(self, playlist=None, **kwargs):
         self.playlist = playlist

@@ -1,0 +1,9 @@
+[
+    {
+        "type": "numeric",
+        "title": "Card Size",
+        "desc": "Card size dp",
+        "section": "gui",
+        "key": "cardsize"
+    }
+]

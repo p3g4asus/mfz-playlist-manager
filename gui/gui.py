@@ -160,6 +160,7 @@ class MyTabs(MDTabs):
     client = ObjectProperty()
     launchconf = StringProperty()
     client = ObjectProperty()
+    cardsize = NumericProperty()
     useri = NumericProperty()
     manager = ObjectProperty()
 
@@ -256,6 +257,7 @@ class MyTabs(MDTabs):
             tab = PlsItem(
                 playlist=Playlist(type=types, name=name, useri=self.useri, conf=dict()),
                 client=self.client,
+                cardsize=self.cardsize,
                 manager=self.manager,
                 launchconf=self.launchconf,
                 confclass=confclass)
@@ -360,6 +362,7 @@ class MainApp(MDApp):
             self.root.ids.id_tabcont.launchconf = self.config.get("windows", "plpath")
         else:
             self.root.ids.id_tabcont.launchconf = ''
+        self.root.ids.id_tabcont.cardsize = int(self.config.get("gui", "cardsize"))
         self.root.ids.id_tabcont.client = self.client
         self.root.ids.content_drawer.image_path = join(
             dirname(__file__), "images", "navdrawer.png")
@@ -414,6 +417,8 @@ class MainApp(MDApp):
                             'timeout': 10, 'retry': 5})
         config.setdefaults('registration',
                            {'username': 'new', 'password': 'password'})
+        config.setdefaults('gui',
+                           {'cardsize': 150})
         if platform == "win":
             config.setdefaults('windows', {'plpath': ''})
         self._init_fields()
@@ -451,6 +456,7 @@ class MainApp(MDApp):
         settings.register_type('buttons', SettingButtons)
         settings.add_json_panel('Network', self.config, join(dn, 'network.json'))  # data=json)
         settings.add_json_panel('Registration', self.config, join(dn, 'registration.json'))  # data=json)
+        settings.add_json_panel('GUI', self.config, join(dn, 'gui.json'))  # data=json)
         if platform == "win":
             settings.add_json_panel('Windows', self.config, join(dn, 'windows.json'))  # data=json)
 
@@ -549,7 +555,7 @@ class MainApp(MDApp):
                     retry=int(self.config.get('network', 'retry')),
                 )
                 self.client.start_login_process(self.on_login)
-            elif section == "registration" and key == "regbuttons":
+            elif section == "registration" and key.startswith("regbuttons"):
                 if value == "btn_reg":
                     self.client.stop()
                     Timer(1, partial(self.client.register, callback=self.on_register))
@@ -600,6 +606,7 @@ class MainApp(MDApp):
                 self.root.ids.id_tabcont.add_widget(PlsItem(
                     playlist=self.playlists[x],
                     manager=self.root.ids.id_screen_manager,
+                    cardsize=int(self.config.get("gui", "cardsize")),
                     launchconf=self.config.get("windows", "plpath") if platform == "win" else '',
                     client=self.client,
                     confclass=TypeWidget.type2class(self.playlists[x].type)

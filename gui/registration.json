@@ -15,10 +15,26 @@
     },
     {
         "type": "buttons",
-        "title": "Registration operations",
+        "title": "Register",
         "desc": "Click",
         "section": "registration",
-        "key": "regbuttons",
-        "buttons": [{"title":"Register","id":"btn_reg"},{"title":"Modify","id":"btn_mod"},{"title":"Logout","id":"btn_out"}]
+        "key": "regbuttons_reg",
+        "buttons": [{"title":"Register","id":"btn_reg"}]
+    },
+    {
+        "type": "buttons",
+        "title": "Modify password",
+        "desc": "Click",
+        "section": "registration",
+        "key": "regbuttons_mod",
+        "buttons": [{"title":"Modify","id":"btn_mod"}]
+    },
+    {
+        "type": "buttons",
+        "title": "Logout",
+        "desc": "Click",
+        "section": "registration",
+        "key": "regbuttons_out",
+        "buttons": [{"title":"Logout","id":"btn_out"}]
     }
 ]
