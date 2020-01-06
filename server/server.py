@@ -246,6 +246,7 @@ async def osc_init(app):
         app.p.osc_transport, app.p.osc_protocol = await app.p.osc_server.create_serve_endpoint()  # Create datagram endpoint and start serving
         if app.p.osc_init_timer:
             app.p.osc_init_timer = None
+        app.p.osc_ping_timer = Timer(2, partial(ping_app, app))
         _LOGGER.debug("OSC OK")
     except (Exception, OSError):
         app.p.osc_init_timer = Timer(1, partial(osc_init, app))
@@ -293,8 +294,13 @@ def main():
         loop.run_forever()
     finally:
         # loop.run_forever()
-        if len(p4a) and app.p.osc_ping_timer:
-            app.p.osc_ping_timer.cancel()
+        if len(p4a):
+            if app.p.osc_init_timer:
+                app.p.osc_init_timer.cancel()
+                app.p.osc_init_timer = None
+            if app.p.osc_ping_timer:
+                app.p.osc_ping_timer.cancel()
+                app.p.osc_ping_timer = None
         for r in app.p.myrunners:
             loop.run_until_complete(r.cleanup())
         loop.close()

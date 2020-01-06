@@ -386,8 +386,8 @@ class MainApp(MDApp):
     def on_nav_settings(self, *args, **kwargs):
         self.open_settings()
 
-    def server_ping(self, address, osclist, *args, **kwargs):
-        port = int(osclist[0])
+    def server_ping(self, address, port, *args, **kwargs):
+        port = int(port)
         Logger.debug("Gui: Ping received with port %s" % str(port))
         self.osc_port_service = port
         if self.server_started:
