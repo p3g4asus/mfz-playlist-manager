@@ -1,3 +1,5 @@
+import traceback
+
 from datetime import datetime
 from functools import partial
 
@@ -92,7 +94,7 @@ Builder.load_string(
     buttons: ["play", "delete"]
     with_image: True
     card_image_class: root.mycls
-    ysize: dp(150)
+    ysize: 150
 
 <PlsItem>:
     id: id_mainbox
@@ -137,15 +139,18 @@ async def launch_link(lnk, launchconf):
             await asyncio.create_subprocess_exec(
                 launchconf, lnk)
     else:
-        Intent = autoclass('android.content.Intent')
-        Uri = autoclass('android.net.Uri')
-        u = Uri.parse(lnk)
-        intent = Intent(Intent.ACTION_VIEW, u)
-        intent.setDataAndType(u, "video/*")
-        PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
-        currentActivity.startActivity(intent)
-        # PythonActivity.mActivity.startActivity(intent)
+        try:
+            Intent = autoclass('android.content.Intent')
+            Uri = autoclass('android.net.Uri')
+            u = Uri.parse(lnk)
+            intent = Intent(Intent.ACTION_VIEW, u)
+            intent.setDataAndType(u, "video/*")
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
+            currentActivity.startActivity(intent)
+            # PythonActivity.mActivity.startActivity(intent)
+        except Exception:
+            Logger.error(traceback.format_exc())
 
 
 class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
@@ -178,13 +183,6 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
 
     def process_button_click(self, inst, value):
         ids = self.ids.root_box.children[0].ids
-        Logger.debug("S1 %s S2 %s S21 %s S22 %s S221 %s" % (
-            str(ids.id_c1.size),
-            str(ids.id_c2.size),
-            str(ids.id_c21.size),
-            str(ids.id_c22.size),
-            str(ids.box_buttons.size)
-        ))
         if value and isinstance(value, list):
             self.on_lineright()
             return
@@ -215,8 +213,9 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
         self.tab.on_new_del_item(self)
 
     def on_ysize(self, inst, sz):
-        self.card_size[1] = dp(sz)
-        self.ids.root_box.children[0].card_size[1] = dp(sz)
+        lo = dp(sz)
+        self.card_size[1] = lo
+        self.ids.root_box.children[0].card_size[1] = lo
 
     def on_lineright(self, *args, **kwargs):
         Timer(1, partial(launch_link, self.link, self.launch))

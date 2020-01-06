@@ -367,7 +367,7 @@ class MainApp(MDApp):
         self.root.ids.content_drawer.image_path = join(
             dirname(__file__), "images", "navdrawer.png")
         for items in {
-            "home-circle-outline": ("Home", self.on_nav_home),
+            "home-outline": ("Home", self.on_nav_home),
             "settings-outline": ("Settings", self.on_nav_settings),
             "exit-to-app": ("Exit", self.on_nav_exit),
         }.items():

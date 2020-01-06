@@ -76,22 +76,24 @@ def insert_notification():
     from jnius import autoclass
     fim = join(dirname(__file__), 'images', 'playlist-music.png')
     Context = autoclass('android.content.Context')
+    Color = autoclass("android.graphics.Color")
     Intent = autoclass('android.content.Intent')
     PendingIntent = autoclass('android.app.PendingIntent')
     AndroidString = autoclass('java.lang.String')
     NotificationBuilder = autoclass('android.app.Notification$Builder')
     Notification = autoclass('android.app.Notification')
+    NotificationChannel = autoclass('android.app.NotificationChannel')
     NotificationManager = autoclass('android.app.NotificationManager')
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
     service = autoclass('org.kivy.android.PythonService').mService
     
     NOTIFICATION_CHANNEL_ID = AndroidString(service.getPackageName().encode('utf-8'))
     channelName = AndroidString('HTTPServerService'.encode('utf-8'))
-    chan = NotificationChannel(NOTIFICATION_CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_DEFAULT);
-    chan.setLightColor(Color.BLUE);
-    chan.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
-    manager = service.getSystemService(Context.NOTIFICATION_SERVICE);
-    manager.createNotificationChannel(chan);
+    chan = NotificationChannel(NOTIFICATION_CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_DEFAULT)
+    chan.setLightColor(Color.BLUE)
+    chan.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE)
+    manager = service.getSystemService(Context.NOTIFICATION_SERVICE)
+    manager.createNotificationChannel(chan)
 
     # 
     # service_name = 'S1'
@@ -102,7 +104,7 @@ def insert_notification():
     # notification_service = service.getSystemService(
     #    Context.NOTIFICATION_SERVICE)
     app_context = service.getApplication().getApplicationContext()
-    notification_builder = NotificationBuilder(app_context)
+    notification_builder = NotificationBuilder(app_context, NOTIFICATION_CHANNEL_ID)
     title = AndroidString("PlsManager".encode('utf-8'))
     message = AndroidString("HttpServerService".encode('utf-8'))
     # app_class = service.getApplication().getClass()
