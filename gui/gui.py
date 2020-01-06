@@ -386,7 +386,8 @@ class MainApp(MDApp):
     def on_nav_settings(self, *args, **kwargs):
         self.open_settings()
 
-    def server_ping(self, address, port, *args, **kwargs):
+    def server_ping(self, address, osclist, *args, **kwargs):
+        port = int(osclist[0])
         Logger.debug("Gui: Ping received with port %s" % str(port))
         self.osc_port_service = port
         if self.server_started:
@@ -527,7 +528,7 @@ class MainApp(MDApp):
             Logger.debug("Sending stop service message to %d" % self.osc_port_service)
             client = SimpleUDPClient('127.0.0.1', self.osc_port_service)  # Create client
 
-            client.send_message("/stop_service")   # Send float message
+            client.send_message("/stop_service", 0)   # Send float message
 
     def rec_player_path(self, inst, path):
         self.config.set("windows", "plpath", path)

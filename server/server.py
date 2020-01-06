@@ -30,14 +30,15 @@ _LOGGER = logging.getLogger(__name__)
 # https://github.com/kivy/kivy/wiki/Background-Service-using-P4A-android.service
 
 
-def stop_service(address, app, *args, **kwargs):
+def stop_service(address, fixedlist, *args, **kwargs):
+    app = fixedlist[0]
     _LOGGER.debug("Received stop command")
     try:
         loop = asyncio.get_event_loop()
         loop.stop()
-        if app.p.osc_timer:
-            app.p.osc_timer.cancel()
-            app.p.osc_timer = None
+        if app.p.osc_init_timer:
+            app.p.osc_init_timer.cancel()
+            app.p.osc_init_timer = None
         if app.p.osc_transport:
             app.p.osc_transport.close()
             app.p.osc_transport = None
