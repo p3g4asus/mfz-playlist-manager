@@ -9,7 +9,6 @@ import traceback
 from functools import partial
 from os.path import basename, dirname, isfile, join, splitext
 
-import aiohttp
 from aiohttp import web
 from aiohttp_security import SessionIdentityPolicy
 from aiohttp_security import setup as setup_security
@@ -27,38 +26,21 @@ __prog__ = "pls-server"
 
 _LOGGER = logging.getLogger(__name__)
 
-
-async def testhandle(request):
-    return web.Response(text='Test handle')
-
-
-async def websocket_handler(request):
-    print('Websocket connection starting')
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-    print('Websocket connection ready')
-
-    async for msg in ws:
-        print(msg)
-        if msg.type == aiohttp.WSMsgType.TEXT:
-            print(msg.data)
-            if msg.data == 'close':
-                await ws.close()
-            else:
-                await ws.send_str(msg.data + '/answer')
-
-    print('Websocket connection closed')
-    return ws
-
 # https://github.com/AndreMiras/p4a-service-sticky/blob/develop/main.py
 # https://github.com/kivy/kivy/wiki/Background-Service-using-P4A-android.service
 
 
-def stop_service(msg, **kwargs):
+def stop_service(address, app, *args, **kwargs):
     _LOGGER.debug("Received stop command")
     try:
         loop = asyncio.get_event_loop()
         loop.stop()
+        if app.p.osc_timer:
+            app.p.osc_timer.cancel()
+            app.p.osc_timer = None
+        if app.p.osc_transport:
+            app.p.osc_transport.close()
+            app.p.osc_transport = None
         from jnius import autoclass
         service = autoclass('org.kivy.android.PythonService').mService
         service.stopForeground(True)
@@ -67,13 +49,8 @@ def stop_service(msg, **kwargs):
 
 
 def ping_app(app):
-    from oscpy.client import send_message
-    send_message('/server_ping',
-                 (json.dumps(dict(msgport=app.args["msgfrom"])),),
-                 '127.0.0.1',
-                 PORT_OSC_CONST,
-                 encoding='utf8')
-    app.timerping = Timer(2, partial(ping_app, app))
+    app.p.osc_client.send_message('/server_ping', app.p.osc_port)
+    app.p.osc_ping_timer = Timer(2, partial(ping_app, app))
 
 
 def insert_notification():
@@ -258,17 +235,19 @@ class Object:
     pass
 
 
-async def init_osc(app):
+async def osc_init(app):
+    from pythonosc.osc_server import AsyncIOOSCUDPServer
     try:
-        _LOGGER.debug("Binding osc port %d" % app.p.port_osc)
-        app.p.osc.listen(address='127.0.0.1', port=app.p.port_osc, default=True)
-        app.p.osc.bind('/stop_service', partial(stop_service, app=app))
-        app.p.timerping = Timer(2, partial(ping_app, app))
-        if app.p.timer_osc:
-            app.p.timer_osc = None
+        _LOGGER.debug("Binding osc port %d" % app.p.osc_port)
+        app.p.osc_server = AsyncIOOSCUDPServer(
+            ('127.0.0.1', app.p.osc_port),
+            app.p.osc_dispatcher, asyncio.get_event_loop())
+        app.p.osc_transport, app.p.osc_protocol = await app.p.osc_server.create_serve_endpoint()  # Create datagram endpoint and start serving
+        if app.p.osc_init_timer:
+            app.p.osc_init_timer = None
         _LOGGER.debug("OSC OK")
     except (Exception, OSError):
-        app.p.timer_osc = Timer(1, partial(init_osc, app))
+        app.p.osc_init_timer = Timer(1, partial(osc_init, app))
 
 
 def main():
@@ -278,12 +257,18 @@ def main():
     p4a = os.environ.get('PYTHON_SERVICE_ARGUMENT', '')
     _LOGGER.info("Starting server p4a = %s" % p4a)
     if len(p4a):
+        from pythonosc.dispatcher import Dispatcher
+        from pythonosc.udp_client import SimpleUDPClient
         args = json.loads(p4a)
-        from oscpy.server import OSCThreadServer
-        app.p.port_osc = args["msgfrom"]
-        app.p.osc = OSCThreadServer(encoding='utf8')
-        app.p.timerping = None
-        app.p.timer_osc = Timer(0.1, partial(init_osc, app))
+        app.p.osc_port = args["msgfrom"]
+        app.p.osc_server = None
+        app.p.osc_transport = None
+        app.p.osc_protocol = None
+        app.p.osc_dispatcher = Dispatcher()
+        app.p.osc_client = SimpleUDPClient('127.0.0.1', PORT_OSC_CONST)
+        app.p.osc_dispatcher.map("/stop_service", stop_service, app)
+        app.p.osc_ping_timer = None
+        app.p.osc_init_timer = Timer(0.1, partial(osc_init, app))
         insert_notification()
         import certifi
         # Here's all the magic !
@@ -307,8 +292,8 @@ def main():
         loop.run_forever()
     finally:
         # loop.run_forever()
-        if len(p4a) and app.p.timerping:
-            app.p.timerping.cancel()
+        if len(p4a) and app.p.osc_ping_timer:
+            app.p.osc_ping_timer.cancel()
         for r in app.p.myrunners:
             loop.run_until_complete(r.cleanup())
         loop.close()

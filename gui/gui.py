@@ -28,8 +28,6 @@ from kivymd.toast.kivytoast.kivytoast import toast
 from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.list import OneLineAvatarListItem
 from kivymd.uix.tab import MDTabs
-from oscpy.client import send_message
-from oscpy.server import OSCThreadServer
 
 from common.const import CMD_DUMP, PORT_OSC_CONST
 from common.playlist import PlaylistMessage, Playlist
@@ -388,9 +386,9 @@ class MainApp(MDApp):
     def on_nav_settings(self, *args, **kwargs):
         self.open_settings()
 
-    def server_ping(self, msg):
-        m = json.loads(msg)
-        self.port_service = m['msgport']
+    def server_ping(self, address, port, *args, **kwargs):
+        Logger.debug("Gui: Ping received with port %s" % str(port))
+        self.osc_port_service = port
         if self.server_started:
             self.server_started.cancel()
         self.server_started = Timer(5, self.server_stopped)
@@ -401,11 +399,15 @@ class MainApp(MDApp):
             self.server_started = None
 
     def true_stop(self):
-        if self.timer_osc:
-            self.timer_osc.cancel()
-            self.timer_osc = None
+        if platform == "android":
+            if self.osc_timer:
+                self.osc_timer.cancel()
+                self.osc_timer = None
+            if self.osc_transport:
+                self.osc_transport.close()
+                self.osc_transport = None
+            self.stop_server()
         self.client.stop()
-        self.stop_server()
         self.stop()
 
     def build_config(self, config):
@@ -423,24 +425,36 @@ class MainApp(MDApp):
             config.setdefaults('windows', {'plpath': ''})
         self._init_fields()
 
-    async def init_osc(self):
+    async def osc_init(self):
+        from pythonosc.osc_server import AsyncIOOSCUDPServer
         try:
-            Logger.debug("Binding osc port %d" % self.port_osc)
-            self.osc.listen(address='127.0.0.1', port=self.port_osc, default=True)
-            self.osc.bind('/server_ping', self.server_ping)
-            if self.timer_osc:
-                self.timer_osc = None
+            Logger.debug("Binding osc port %d" % self.osc_port)
+            self.osc_server = AsyncIOOSCUDPServer(
+                ('127.0.0.1', self.osc_port),
+                self.osc_dispatcher, asyncio.get_event_loop())
+            self.osc_transport, self.osc_protocol = await self.osc_server.create_serve_endpoint()  # Create datagram endpoint and start serving
+            if self.osc_timer:
+                self.osc_timer = None
             Logger.debug("OSC OK")
         except (Exception, OSError):
-            self.timer_osc = Timer(1, self.init_osc)
+            self.osc_timer = Timer(1, self.osc_init)
 
     def _init_fields(self):
         self.title = __prog__
-        self.port_osc = PORT_OSC_CONST
+        self.osc_port = PORT_OSC_CONST
         self.server_started = None
-        self.port_service = find_free_port()
-        self.osc = OSCThreadServer(encoding='utf8')
-        self.timer_osc = Timer(0.1, self.init_osc)
+        self.osc_port_service = find_free_port()
+        self.osc_server = None
+        self.osc_transport = None
+        self.osc_protocol = None
+        if platform == 'android':
+            from pythonosc.dispatcher import Dispatcher
+            self.osc_dispatcher = Dispatcher()
+            self.osc_dispatcher.map("/server_ping", self.server_ping)
+            self.osc_timer = Timer(0.1, self.osc_init)
+        else:
+            self.osc_dispatcher = None
+            self.osc_timer = None
         self.client = PlsClient()
         self.userid = None
         self.playlists = []
@@ -500,7 +514,7 @@ class MainApp(MDApp):
 
                 arg = dict(dbfile=join(MainApp.db_dir(), 'maindb.db'),
                            host='0.0.0.0', port=self.config.getint("network", "port"),
-                           msgfrom=self.port_service, msgto=self.port_osc, verbose=True)
+                           msgfrom=self.osc_port_service, msgto=self.osc_port, verbose=True)
                 argument = json.dumps(arg)
                 Logger.info("Starting %s [%s]" % (service_class, argument))
                 service.start(mActivity, argument)
@@ -508,13 +522,12 @@ class MainApp(MDApp):
                 Logger.error(traceback.format_exc())
 
     def stop_server(self):
-        if platform == "android" and self.port_service:
-            Logger.debug("Sending stop service message to %d" % self.port_service)
-            send_message('/stop_service',
-                         (json.dumps(dict(bye='bye')),),
-                         '127.0.0.1',
-                         self.port_service,
-                         encoding='utf8')
+        if platform == "android" and self.osc_port_service:
+            from pythonosc.udp_client import SimpleUDPClient
+            Logger.debug("Sending stop service message to %d" % self.osc_port_service)
+            client = SimpleUDPClient('127.0.0.1', self.osc_port_service)  # Create client
+
+            client.send_message("/stop_service")   # Send float message
 
     def rec_player_path(self, inst, path):
         self.config.set("windows", "plpath", path)
