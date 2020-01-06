@@ -7,7 +7,7 @@ import logging
 import os
 import traceback
 from functools import partial
-from os.path import basename, dirname, isfile, join
+from os.path import basename, dirname, isfile, join, splitext
 
 import aiohttp
 from aiohttp import web
@@ -54,12 +54,16 @@ async def websocket_handler(request):
 # https://github.com/kivy/kivy/wiki/Background-Service-using-P4A-android.service
 
 
-def stop_service(app):
-    loop = asyncio.get_event_loop()
-    loop.exit()
-    from jnius import autoclass
-    service = autoclass('org.kivy.android.PythonService').mService
-    service.stopForeground(True)
+def stop_service(msg, **kwargs):
+    _LOGGER.debug("Received stop command")
+    try:
+        loop = asyncio.get_event_loop()
+        loop.stop()
+        from jnius import autoclass
+        service = autoclass('org.kivy.android.PythonService').mService
+        service.stopForeground(True)
+    except Exception:
+        _LOGGER.error(traceback.format_exc())
 
 
 def ping_app(app):
@@ -86,7 +90,7 @@ def insert_notification():
     NotificationManager = autoclass('android.app.NotificationManager')
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
     service = autoclass('org.kivy.android.PythonService').mService
-    
+
     NOTIFICATION_CHANNEL_ID = AndroidString(service.getPackageName().encode('utf-8'))
     channelName = AndroidString('HTTPServerService'.encode('utf-8'))
     chan = NotificationChannel(NOTIFICATION_CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_DEFAULT)
@@ -95,10 +99,9 @@ def insert_notification():
     manager = service.getSystemService(Context.NOTIFICATION_SERVICE)
     manager.createNotificationChannel(chan)
 
-    # 
+    #
     # service_name = 'S1'
     # package_name = 'com.something'
-    
     # Previous version of Kivy had a reference to the service like below.
     # service = autoclass('{}.Service{}'.format(package_name, service_name)).mService
     # notification_service = service.getSystemService(
@@ -205,18 +208,19 @@ async def init_db(app):
         await app.p.db.commit()
         import importlib
         app.p.processors = dict()
-        modules = glob.glob(join(dirname(__file__), "pls", "*.py"))
-        pls = [basename(f)[:-3] for f in modules if isfile(f)]
+        modules = glob.glob(join(dirname(__file__), "pls", "*.py*"))
+        pls = [splitext(basename(f))[0] for f in modules if isfile(f)]
         for x in pls:
-            try:
-                m = importlib.import_module("server.pls."+x)
-                cla = getattr(m, "MessageProcessor")
-                if cla:
-                    app.p.processors[x] = cla(app.p.db)
-                    if x != "common":
-                        await app.p.db.execute("INSERT OR IGNORE INTO type(name) VALUES (?)", (x,))
-            except Exception:
-                _LOGGER.warning(traceback.format_exc())
+            if x not in app.p.processors:
+                try:
+                    m = importlib.import_module("server.pls."+x)
+                    cla = getattr(m, "MessageProcessor")
+                    if cla:
+                        app.p.processors[x] = cla(app.p.db)
+                        if x != "common":
+                            await app.p.db.execute("INSERT OR IGNORE INTO type(name) VALUES (?)", (x,))
+                except Exception:
+                    _LOGGER.warning(traceback.format_exc())
         await app.p.db.commit()
 
 
@@ -256,11 +260,13 @@ class Object:
 
 async def init_osc(app):
     try:
+        _LOGGER.debug("Binding osc port %d" % app.p.port_osc)
         app.p.osc.listen(address='127.0.0.1', port=app.p.port_osc, default=True)
-        app.p.osc.bind('/stop_service', partial(stop_service, app))
+        app.p.osc.bind('/stop_service', partial(stop_service, app=app))
         app.p.timerping = Timer(2, partial(ping_app, app))
         if app.p.timer_osc:
             app.p.timer_osc = None
+        _LOGGER.debug("OSC OK")
     except (Exception, OSError):
         app.p.timer_osc = Timer(1, partial(init_osc, app))
 
@@ -279,6 +285,9 @@ def main():
         app.p.timerping = None
         app.p.timer_osc = Timer(0.1, partial(init_osc, app))
         insert_notification()
+        import certifi
+        # Here's all the magic !
+        os.environ['SSL_CERT_FILE'] = certifi.where()
     else:
         parser = argparse.ArgumentParser(prog=__prog__)
         parser.add_argument('--port', type=int, help='port number', required=False, default=8080)

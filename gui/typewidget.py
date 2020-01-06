@@ -1,7 +1,7 @@
 import glob
 import re
 import traceback
-from os.path import basename, dirname, isfile, join
+from os.path import basename, dirname, isfile, join, splitext
 
 from kivy.lang import Builder
 from kivy.logger import Logger
@@ -59,18 +59,19 @@ class TypeWidget(Screen):
     @staticmethod
     def _get_pls_types():
         import importlib
-        modules = glob.glob(join(dirname(__file__), "pls", "*.py"))
-        pls = [basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('__init__.py')]
+        modules = glob.glob(join(dirname(__file__), "pls", "*.py*"))
+        pls = [splitext(basename(f))[0] for f in modules if isfile(f) and not f.endswith('__init__.py')]
         for x in pls:
-            Logger.debug("Processing %s" % x)
-            try:
-                m = importlib.import_module("gui.pls."+x)
-                clb = getattr(m, "ConfWidget")
-                if clb:
-                    Logger.debug("Class found: adding")
-                    TypeWidget.TYPES[x] = clb
-            except Exception:
-                Logger.warning(traceback.format_exc())
+            if x not in TypeWidget.TYPES:
+                Logger.debug("Processing %s" % x)
+                try:
+                    m = importlib.import_module("gui.pls."+x)
+                    clb = getattr(m, "ConfWidget")
+                    if clb:
+                        Logger.debug("Class found: adding")
+                        TypeWidget.TYPES[x] = clb
+                except Exception:
+                    Logger.warning(traceback.format_exc())
 
     def __init__(self, **kwargs):
         self.register_event_type('on_type')

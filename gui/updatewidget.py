@@ -25,17 +25,17 @@ Builder.load_string(
             elevation: 10
         AnchorLayout:
             ButtonDatePicker:
-                size_hint: (0.5, 0.25)
+                size_hint: (0.85, 0.25)
                 id: id_datefrom
-                font_size: "20sp"
+                font_size: "12sp"
                 dateformat: 'From: %d/%m/%Y'
                 on_date_picked: root.check_dates(self, self.date)
         AnchorLayout:
             ButtonDatePicker:
-                size_hint: (0.5, 0.25)
+                size_hint: (0.85, 0.25)
                 id: id_dateto
                 dateformat: 'To: %d/%m/%Y'
-                font_size: "20sp"
+                font_size: "12sp"
                 nulltext: ''
                 on_date_picked: root.check_dates(self, self.date)
     '''

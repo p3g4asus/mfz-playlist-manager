@@ -40,26 +40,36 @@ Builder.load_string(
             right_action_items: [["content-save", lambda x: root.dispatch_conf(root)]]
             elevation: 10
         GridLayout:
-            size_hint: (1, 0.1)
+            size_hint: (1, 0.2)
             cols: 2
-            rows: 1
+            rows: 2
             spacing: [dp(50), dp(0)]
             padding: [dp(25), dp(5)]
             height: self.minimum_height
             MDTextFieldRound:
-                size_hint: (0.4, 1)
+                size_hint: (0.65, 1)
                 id: id_brandtf
                 icon_type: "right"
                 icon_right: "subdirectory-arrow-left"
                 icon_right_disabled: True
                 hint_text: "Brand ID"
+            MDIconButton:
+                id: id_brandbt
+                size_hint: (0.35, 1)
+                on_release: root.brand_confirmed()
+                icon: "subdirectory-arrow-left"
             MDTextFieldRound:
-                size_hint: (0.6, 1)
+                size_hint: (0.65, 1)
                 id: id_filtertf
                 icon_type: "right"
                 icon_right: "magnify"
                 icon_right_disabled: False
                 hint_text: "Filter"
+            MDIconButton:
+                id: id_filterbt
+                size_hint: (0.35, 1)
+                on_release: root.filter_brands()
+                icon: "magnify"
         BoxLayout:
             size_hint: (1, 0.1)
             orientation: 'horizontal'
@@ -73,7 +83,7 @@ Builder.load_string(
                 id: id_datefrom
                 on_date_picked: root.on_new_date(self.date)
         ScrollView:
-            size_hint: (1, 0.6)
+            size_hint: (1, 0.5)
             MDList:
                 id: id_listings
         ScrollView:
@@ -229,16 +239,20 @@ class ConfWidget(Screen):
             int(filt)
             inst.icon_right_disabled = False
             inst.icon_right_color = [0, 0, 0, 1]
+            self.ids.id_brandbt.disabled = False
         except ValueError:
             inst.icon_right_disabled = True
             inst.icon_right_color = [1, 1, 1, 1]
+            self.ids.id_brandbt.disabled = True
 
     def filter_check(self, inst, filt):
         Logger.debug("Filter check %s" % filt)
         inst.icon_right_disabled = len(filt) < 4 or not len(filt)
+        self.ids.id_filterbt.disabled = inst.icon_right_disabled
 
     def brand_confirmed(self, *args, **kwargs):
         bid = int(self.ids.id_brandtf.text)
+        Logger.debug("Mediaset: brand_confirmed %d" % bid)
         for c in self.ids.id_listings.children:
             c.active = c.brandinfo['id'] == bid
         self.on_brand_listings_checked(

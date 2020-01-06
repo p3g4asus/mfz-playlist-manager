@@ -425,10 +425,12 @@ class MainApp(MDApp):
 
     async def init_osc(self):
         try:
+            Logger.debug("Binding osc port %d" % self.port_osc)
             self.osc.listen(address='127.0.0.1', port=self.port_osc, default=True)
             self.osc.bind('/server_ping', self.server_ping)
             if self.timer_osc:
                 self.timer_osc = None
+            Logger.debug("OSC OK")
         except (Exception, OSError):
             self.timer_osc = Timer(1, self.init_osc)
 
@@ -507,6 +509,7 @@ class MainApp(MDApp):
 
     def stop_server(self):
         if platform == "android" and self.port_service:
+            Logger.debug("Sending stop service message to %d" % self.port_service)
             send_message('/stop_service',
                          (json.dumps(dict(bye='bye')),),
                          '127.0.0.1',

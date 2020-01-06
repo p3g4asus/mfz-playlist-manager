@@ -4,6 +4,7 @@ from datetime import datetime
 from functools import partial
 
 from jnius import autoclass, cast
+from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.logger import Logger
@@ -14,6 +15,7 @@ from kivy.uix.recycleview import RecycleView
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.utils import platform
 from kivymd.toast.kivytoast.kivytoast import toast
+from kivymd.uix.button import MDFlatButton
 from kivymd.uix.card import MDCardPost
 from kivymd.uix.dialog import MDDialog, MDInputDialog
 from kivymd.uix.imagelist import SmartTileWithLabel
@@ -166,7 +168,7 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
     datepub = ObjectProperty()
     tab = ObjectProperty()
     conf = ObjectProperty(None)
-    seen = ObjectProperty(None)
+    seen = ObjectProperty(None, allownone=True)
     index = NumericProperty(-1)
     ysize = NumericProperty(150)
     mycls = ObjectProperty(CardPostImage2)
@@ -182,7 +184,6 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
                 i.keep_ratio = True
 
     def process_button_click(self, inst, value):
-        ids = self.ids.root_box.children[0].ids
         if value and isinstance(value, list):
             self.on_lineright()
             return
@@ -353,12 +354,19 @@ class PlsItem(BoxLayout, MDTabsBase):
         if isinstance(received, int):
             it = dict(data=self.ids.id_rv.data[received], index=received)
             del self.ids.id_rv.data[received]
-            Snackbar(
+            col = App.get_running_app().theme_cls.primary_color
+            sn = Snackbar(
                 text="%s removed" % it["data"]["title"],
                 button_text="Undo",
                 button_callback=partial(self.on_new_del_item_undo,
                                         removed_item=it),
-            ).show()
+            )
+            for x in sn.ids.box.children:
+                if isinstance(x, MDFlatButton):
+                    x.theme_text_color = "Custom"
+                    x.text_color = col
+                    break
+            sn.show()
 
     async def on_new_del_item_undo_result(self, client, sent, received, removed_item=None):
         if not received:
