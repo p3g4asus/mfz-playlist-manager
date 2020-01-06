@@ -17,5 +17,6 @@ set PATH=C:\Program Files\Java\jre1.8.0_231\bin\server;%PATH%
 set KCFG_KIVY_LOG_LEVEL=debug
 set KCFG_KIVY_LOG_ENABLE=1
 set KCFG_KIVY_LOG_DIR=%~dp0logs
+pushd %~dp0src
 python -m gui -d
 pause

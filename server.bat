@@ -1,6 +1,6 @@
 REM ~ py -3 -m venv %~dp0venv
 REM ~ pip3 install cython
-REM ~ pip3 install oscpy
+REM ~ pip3 install python-osc
 REM ~ pip3 install kivy.deps.sdl2
 REM ~ pip3 install kivy.deps.glew
 REM ~ pip3 install kivy.deps.gstreamer
@@ -15,5 +15,6 @@ set PATH=C:\Program Files\Java\jre1.8.0_231\bin\server;%PATH%
 set KCFG_KIVY_LOG_LEVEL=debug
 set KCFG_KIVY_LOG_ENABLE=1
 set KCFG_KIVY_LOG_DIR=%~dp0logs
-python -m server -v
+pushd %~dp0src
+python -m server --dbfile "%~dp0maindb.db" -v
 pause
