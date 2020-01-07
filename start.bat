@@ -1,6 +1,6 @@
 REM ~ py -3 -m venv %~dp0venv
 REM ~ pip3 install cython
-REM ~ pip3 install oscpy
+REM ~ pip3 install python-osc
 REM ~ pip3 install kivy.deps.sdl2
 REM ~ pip3 install kivy.deps.glew
 REM ~ pip3 install kivy.deps.gstreamer

@@ -117,8 +117,9 @@ class MessageProcessor(AbstractMessageProcessor):
         elif msg.c(CMD_SEEN):
             resp = await self.processSeen(msg, userid)
         elif msg.c(CMD_CLOSE):
-            resp = await ws.close()
-            return False
+            await ws.close()
         if resp:
             await ws.send_str(json.dumps(resp, cls=MyEncoder))
-        return True
+            return True
+        else:
+            return False
