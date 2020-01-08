@@ -262,6 +262,7 @@ class MyTabs(MDTabs):
             self.add_widget(tab)
             tab.tab_label.state = "down"
             tab.tab_label.on_release()
+            tab.conf_pls()
 
 
 def find_free_port():

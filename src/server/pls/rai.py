@@ -124,12 +124,12 @@ class MessageProcessor(RefreshMessageProcessor):
             _LOGGER.error(traceback.format_exc())
         _LOGGER.debug("Processing date: %s" % datepubs)
         datepubo = datetime.strptime(datepubs, '%d-%m-%Y %H:%M')
-        datepubi = datepubo.timestamp()
+        datepubi = int(datepubo.timestamp() * 1000)
         datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
         return (datepub, datepubi)
 
     async def entry2Program(self, it, session, progid, set, playlist):
-        conf = dict(progid=progid, set=set)
+        conf = dict(progid=progid, set=set, path=it["path_id"] if "path_id" in it else '')
         title = it['name'] if 'name' in it else it['episode_title']
         uid = it['id']
         img = None

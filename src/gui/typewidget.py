@@ -11,7 +11,6 @@ from kivymd.uix.list import OneLineListItem
 
 Builder.load_string(
     '''
-#:import MDTextFieldRound kivymd.uix.textfield.MDTextFieldRound
 #:import MDList kivymd.uix.list.MDList
 <TypeWidget>:
     name: 'type'
@@ -30,14 +29,14 @@ Builder.load_string(
         BoxLayout:
             padding: [dp(30), dp(5)]
             size_hint: (1, 0.1)
-            MDTextFieldRound:
+            MDTextField:
                 id: id_name
-                size_hint: (1, 1)
                 icon_type: "without"
+                error: True
                 hint_text: "Playlist name"
-                normal_color: [0, 0, 0, 0.1]
-                foreground_color: [0, 0, 0, 1]
-                on_text: root.enable_buttons(self.text)
+                helper_text_mode: "on_error"
+                helper_text: "Enter at list a letter"
+                on_text: root.enable_buttons(self, self.text)
         ScrollView:
             size_hint: (1, 0.7)
             MDList:
@@ -89,8 +88,14 @@ class TypeWidget(Screen):
     def on_type(self, name, type, confclass):
         Logger.debug("On type called %s, %s, %s" % (name, type, str(confclass)))
 
-    def enable_buttons(self, text, *args, **kwargs):
+    def enable_buttons(self, inst, text, *args, **kwargs):
         dis = not text or not re.search(r"[A-Za-z]", text)
+        if inst.error and not dis:
+            inst.error = False
+            inst.on_text(inst, text)
+        elif not inst.error and dis:
+            inst.error = True
+            inst.on_text(inst, text)
         for b in self.buttons:
             b.disabled = dis
 

@@ -21,7 +21,7 @@ Builder.load_string(
             title: 'Update dates'
             md_bg_color: app.theme_cls.primary_color
             left_action_items: [["arrow-left", lambda x: root.manager.remove_widget(root)]]
-            right_action_items: [["update", lambda x: root.dispatch_update()]]
+            right_action_items: [["run-fast", lambda x: root.dispatch_update(True)], ["update", lambda x: root.dispatch_update(False)]]
             elevation: 10
         AnchorLayout:
             ButtonDatePicker:
@@ -62,6 +62,8 @@ class UpdateWidget(Screen):
     def on_update(self, df, dt):
         Logger.debug("On update called %s-%s" % (str(df), str(dt)))
 
-    def dispatch_update(self):
+    def dispatch_update(self, fast):
         self.manager.remove_widget(self)
-        self.dispatch('on_update', self.ids.id_datefrom.date, self.ids.id_dateto.date)
+        self.dispatch('on_update',
+                      self.ids.id_datefrom.date if not fast else datetime(1980, 1, 1),
+                      self.ids.id_dateto.date if not fast else datetime.now())
