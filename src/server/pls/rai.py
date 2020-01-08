@@ -1,4 +1,3 @@
-import json
 import logging
 import re
 import traceback
@@ -6,10 +5,10 @@ from datetime import datetime
 
 import aiohttp
 from common.const import (CMD_RAI_CONTENTSET,
-                          MSG_BACKEND_ERROR, MSG_DB_ERROR, MSG_INVALID_DATE,
-                          MSG_PLAYLIST_NOT_FOUND, MSG_RAI_INVALID_CONTENTSET,
-                          MSG_RAI_INVALID_PROGID, MSG_UNAUTHORIZED)
-from common.playlist import Playlist, PlaylistItem
+                          MSG_BACKEND_ERROR,
+                          MSG_RAI_INVALID_CONTENTSET,
+                          MSG_RAI_INVALID_PROGID)
+from common.playlist import PlaylistItem
 
 from .refreshmessageprocessor import RefreshMessageProcessor
 
@@ -26,16 +25,16 @@ class MessageProcessor(RefreshMessageProcessor):
 
     @staticmethod
     def contentSetUrl(progid):
-        return ('https://www.raiplay.it/programmi/{progid}.json') % progid
+        return 'https://www.raiplay.it/programmi/%s.json' % progid
 
     @staticmethod
     def programsUrl(progid, set):
-        return ('https://www.raiplay.it/programmi/{progid}/{set}.json') %\
+        return ('https://www.raiplay.it/programmi/%s/%s.json') %\
             (progid, set)
 
     @staticmethod
     def relativeUrl(part):
-        return ('https://www.raiplay.it/programmi/{part}') % part
+        return ('https://www.raiplay.it%s') % part
 
     async def processContentSet(self, msg, userid):
         progid = msg.f('progid', (str,))
@@ -51,21 +50,21 @@ class MessageProcessor(RefreshMessageProcessor):
                             js = await resp.json()
                             _LOGGER.debug("Rai: Rec processContentSet " + str(js))
                             prog['id'] = progid
-                            prog['name'] = js['name']
+                            prog['title'] = js['name']
                             prog['desc'] = ''
                             prog['channel'] = ''
                             try:
-                                prog['desc'] = it['program_info']['description']
-                                prog['channel'] = it['program_info']['channel']
+                                prog['desc'] = js['program_info']['description']
+                                prog['channel'] = js['program_info']['channel']
                             except KeyError:
                                 pass
                             for b in js['blocks']:
-                                title = b['name'] + ' / ' if 'name' in b else ''
+                                pretitle = b['name'] + ' - ' if 'name' in b else ''
                                 for s in b['sets']:
                                     if 'name' in s and 'id' in s and\
                                        s['id'].count('-') == 5:
                                         id = s['id']
-                                        title += s['name']
+                                        title = pretitle + s['name']
                                         desc = s['path_id']
                                         sets[id] = dict(
                                             title=title,
@@ -73,11 +72,11 @@ class MessageProcessor(RefreshMessageProcessor):
                                             desc=desc
                                         )
                         else:
-                            return msg.err(12, MSG_BACKEND_ERROR)
+                            return msg.err(18, MSG_RAI_INVALID_PROGID)
                 if not sets or not prog:
                     return msg.err(12, MSG_RAI_INVALID_PROGID)
                 else:
-                    return msg.ok(sets=list(sets.values()), prog=prog)
+                    return msg.ok(contentsets=list(sets.values()), prog=prog)
             except Exception:
                 _LOGGER.error(traceback.format_exc())
                 return msg.err(11, MSG_BACKEND_ERROR)
@@ -99,7 +98,7 @@ class MessageProcessor(RefreshMessageProcessor):
                 async with session.get(it['video_url'] + '&output=45') as resp2:
                     if resp2.status == 200:
                         txt = await resp2.text()
-                        mo = re.search(r'<duration>([0-9]{2,}:[0-9]{2}:[0-9]{2})<')
+                        mo = re.search(r'<duration>([0-9]{2,}:[0-9]{2}:[0-9]{2})<', txt)
                         if mo:
                             return mo.group(1)
             except Exception:
@@ -107,19 +106,23 @@ class MessageProcessor(RefreshMessageProcessor):
             return ''
 
     async def get_datepub(self, it, session):
-        datepubs = '01-01-1970 00:01'
+        datepubs = '01-01-1980 00:01'
         try:
-            async with session.get(MessageProcessor.relativeUrl(it["path_id"])) as resp2:
+            url = MessageProcessor.relativeUrl(it["path_id"])
+            async with session.get(url) as resp2:
+                it2 = dict()
                 if resp2.status == 200:
-                    it2 = await resp.json()
+                    it2 = await resp2.json()
                     if 'date_published' in it2:
                         if 'time_published' in it2:
                             datepubs = it2['time_published']
                         else:
                             datepubs = '00:01'
                         datepubs = it2['date_published'] + ' ' + datepubs
+                _LOGGER.debug("Date trying %s rv=%d: %s" % (url, resp2.status, str(it2)))
         except Exception:
             _LOGGER.error(traceback.format_exc())
+        _LOGGER.debug("Processing date: %s" % datepubs)
         datepubo = datetime.strptime(datepubs, '%d-%m-%Y %H:%M')
         datepubi = datepubo.timestamp()
         datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -141,7 +144,7 @@ class MessageProcessor(RefreshMessageProcessor):
             imgs = it['images']
             for k in keys:
                 if k in imgs and len(imgs[k]):
-                    img = imgs[k]
+                    img = MessageProcessor.relativeUrl(imgs[k])
                     break
         except Exception:
             img = None
@@ -166,7 +169,7 @@ class MessageProcessor(RefreshMessageProcessor):
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
-        if set:
+        if sets and progid:
             try:
                 async with aiohttp.ClientSession() as session:
                     programs = dict()
@@ -176,7 +179,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                 js = await resp.json()
                                 for it in js['items']:
                                     try:
-                                        (pr, datepubi) = self.entry2Program(it, session, progid, set, playlist)
+                                        (pr, datepubi) = await self.entry2Program(it, session, progid, set, playlist)
                                         _LOGGER.debug("Found [%s] = %s" % (pr.uid, str(pr)))
                                         if pr.uid not in programs and datepubi >= datefrom and\
                                                 (datepubi <= dateto or dateto < datefrom):
@@ -196,9 +199,9 @@ class MessageProcessor(RefreshMessageProcessor):
                 _LOGGER.error(traceback.format_exc())
                 return msg.err(11, MSG_BACKEND_ERROR)
         else:
-            return msg.err(16, MSG_MEDIASET_INVALID_BRAND)
+            return msg.err(16, MSG_RAI_INVALID_CONTENTSET)
 
-    async def process_plus(self, ws, msg, userid):
+    async def getResponse(self, msg, userid):
         if msg.c(CMD_RAI_CONTENTSET):
             return await self.processContentSet(msg, userid)
         else:

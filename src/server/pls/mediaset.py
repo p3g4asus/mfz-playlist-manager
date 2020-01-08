@@ -83,6 +83,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                     if not brands:
                                         return msg.err(18, MSG_MEDIASET_INVALID_BRAND)
                                     else:
+                                        _LOGGER.debug("Brands found %s" % str(brands))
                                         return msg.ok(brands=list(brands.values()))
                                 else:
                                     startFrom += js['itemsPerPage']
@@ -219,7 +220,7 @@ class MessageProcessor(RefreshMessageProcessor):
         else:
             return msg.err(16, MSG_MEDIASET_INVALID_BRAND)
 
-    async def process_plus(self, ws, msg, userid):
+    async def getResponse(self, msg, userid):
         resp = None
         if msg.c(CMD_MEDIASET_BRANDS):
             resp = await self.processBrands(msg, userid)

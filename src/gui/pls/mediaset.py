@@ -16,7 +16,7 @@ Builder.load_string(
 #:import MDIconButton kivymd.uix.button.MDIconButton
 #:import MDList kivymd.uix.list.MDList
 #:import ButtonDatePicker gui.buttondatepicker.ButtonDatePicker
-<ListItemWithCheckbox>:
+<BrandItem>:
     on_release:
         root.ids.id_cb.active = not root.ids.id_cb.active
     BrandCheckbox:
@@ -25,7 +25,7 @@ Builder.load_string(
         active: root.active
         disabled: root.disabled
         on_active: root.dispatch_on_brand(self, self.active)
-<ConfWidget>:
+<MediasetConfScreen>:
     name: 'conf_mediaset'
     GridLayout:
         cols: 1
@@ -43,31 +43,23 @@ Builder.load_string(
             size_hint: (1, 0.2)
             cols: 2
             rows: 2
-            spacing: [dp(50), dp(0)]
-            padding: [dp(25), dp(5)]
-            height: self.minimum_height
-            MDTextFieldRound:
-                size_hint: (0.65, 1)
+            spacing: [dp(10), dp(0)]
+            padding: [dp(20), dp(0)]
+            MDTextField:
                 id: id_brandtf
-                icon_type: "right"
-                icon_right: "subdirectory-arrow-left"
-                icon_right_disabled: True
                 hint_text: "Brand ID"
+                error: True
+                helper_text_mode: "on_error"
+                helper_text: 'Brand ID should be numeric'
             MDIconButton:
                 id: id_brandbt
-                size_hint: (0.35, 1)
                 on_release: root.brand_confirmed()
                 icon: "subdirectory-arrow-left"
-            MDTextFieldRound:
-                size_hint: (0.65, 1)
+            MDTextField:
                 id: id_filtertf
-                icon_type: "right"
-                icon_right: "magnify"
-                icon_right_disabled: False
                 hint_text: "Filter"
             MDIconButton:
                 id: id_filterbt
-                size_hint: (0.35, 1)
                 on_release: root.filter_brands()
                 icon: "magnify"
         BoxLayout:
@@ -94,14 +86,14 @@ Builder.load_string(
 )
 
 
-class ListItemWithCheckbox(TwoLineAvatarIconListItem):
+class BrandItem(TwoLineAvatarIconListItem):
     brandinfo = DictProperty()
     active = BooleanProperty(False)
     group = ObjectProperty(None)
 
     def __init__(self, *args, **kwargs):
         self.register_event_type('on_brand')
-        super(ListItemWithCheckbox, self).__init__(*args, **kwargs)
+        super(BrandItem, self).__init__(*args, **kwargs)
         b = self.brandinfo
         self.text = b['desc'] if 'desc' in b else b['title']
         t = b['title'] + '/' if 'desc' in b else ''
@@ -127,7 +119,7 @@ class BrandCheckbox(MDCheckbox, IRightBodyTouch):
             super(BrandCheckbox, self).on_group(self, group)
 
 
-class ConfWidget(Screen):
+class MediasetConfScreen(Screen):
     startconf = DictProperty()
     conf = DictProperty()
     current_brand = DictProperty()
@@ -136,7 +128,7 @@ class ConfWidget(Screen):
     # manager = ObjectProperty()
 
     def __init__(self, *args, **kwargs):
-        super(ConfWidget, self).__init__(*args, **kwargs)
+        super(MediasetConfScreen, self).__init__(*args, **kwargs)
         self.on_startconf(self, self.startconf)
         self.ids.id_filtertf.icon_callback = self.filter_brands
         self.ids.id_brandtf.icon_callback = self.brand_confirmed
@@ -156,14 +148,15 @@ class ConfWidget(Screen):
             return
         if 'brand' in self.startconf:
             self.current_brand = self.startconf['brand']
+            self.ids.id_brandtf.error = False
             self.ids.id_brandtf.text = str(self.current_brand['id'])
-            li = ListItemWithCheckbox(brandinfo=self.startconf['brand'], active=True, on_brand=self.on_brand_listings_checked, group='brand')
+            li = BrandItem(brandinfo=self.startconf['brand'], active=True, on_brand=self.on_brand_listings_checked, group='brand')
             self.ids.id_listings.add_widget(li)
             br += 1
         if 'subbrands' in self.startconf:
             self.current_subbrands = self.startconf['subbrands']
             for sb in self.startconf['subbrands']:
-                li = ListItemWithCheckbox(brandinfo=sb, active=True, on_brand=self.on_brand_subbrands_checked)
+                li = BrandItem(brandinfo=sb, active=True, on_brand=self.on_brand_subbrands_checked)
                 self.ids.id_subbrands.add_widget(li)
                 sbr += 1
         self.save_button_show(br and sbr)
@@ -226,7 +219,7 @@ class ConfWidget(Screen):
         for sb in lst:
             if self.filter_apply(sb):
                 a = self.current_brand and self.current_brand['id'] == sb['id']
-                li = ListItemWithCheckbox(brandinfo=sb, active=a, on_brand=self.on_brand_listings_checked, group='brand')
+                li = BrandItem(brandinfo=sb, active=a, on_brand=self.on_brand_listings_checked, group='brand')
                 self.ids.id_listings.add_widget(li)
 
     def filter_brands(self, *args, **kwargs):
@@ -240,10 +233,16 @@ class ConfWidget(Screen):
             inst.icon_right_disabled = False
             inst.icon_right_color = [0, 0, 0, 1]
             self.ids.id_brandbt.disabled = False
+            if inst.error:
+                inst.error = False
+                inst.on_text(inst, filt)
         except ValueError:
             inst.icon_right_disabled = True
             inst.icon_right_color = [1, 1, 1, 1]
             self.ids.id_brandbt.disabled = True
+            if not inst.error:
+                inst.error = True
+                inst.on_text(inst, filt)
 
     def filter_check(self, inst, filt):
         Logger.debug("Filter check %s" % filt)
@@ -264,7 +263,7 @@ class ConfWidget(Screen):
         for sb in lst:
             if not self.current_brand['title']:
                 self.current_brand['title'] = sb['title']
-            li = ListItemWithCheckbox(brandinfo=sb, active=False, on_brand=self.on_brand_subbrands_checked)
+            li = BrandItem(brandinfo=sb, active=False, on_brand=self.on_brand_subbrands_checked)
             self.ids.id_subbrands.add_widget(li)
 
     async def on_new_listings_result(self, client, sent, received):
@@ -289,3 +288,6 @@ class ConfWidget(Screen):
             subbrands=self.current_subbrands)
         Logger.debug("Mediaset: Dispatching conf %s" % str(self.conf))
         self.manager.remove_widget(self)
+
+
+ConfWidget = MediasetConfScreen

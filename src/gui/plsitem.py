@@ -275,19 +275,6 @@ class PlsItem(BoxLayout, MDTabsBase):
             self.text = self.playlist.name
             del self.ids.id_rv.data[:]
             data = []
-            if not self.playlist.items:
-                data.append({
-                       'rowid': None,
-                       'uid': 'F309989201002401',
-                       'link': 'https://link.theplatform.eu/s/PR1GhC/media/0UrkkBgkTWSv',
-                       'title': 'Puntata del 22 dicembre',
-                       'playlist': None,
-                       'img': 'https://static2.mediasetplay.mediaset.it/Mediaset_Italia_Production_-_Main/1021/416/F309989201002401-3-keyframe-poster-1280x720.jpg',
-                       'datepub': '2019-12-22 21:10:00.000000',
-                       'conf': {'subbrand': 100003082, 'brand': 100002223},
-                       'dur': 11877, 'seen': 0,
-                       'launch': r'C:\/Program Files (x86)/VideoLAN/VLC/vlc.exe',
-                       'tab': self})
             for d in self.playlist.items:
                 if not d.seen:
                     dct = dict(vars(d))

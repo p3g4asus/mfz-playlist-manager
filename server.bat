@@ -8,8 +8,10 @@ REM ~ pip3 install kivy.deps.angle
 REM ~ pip3 install jnius
 REM ~ pip3 install aiohttp-security[session]
 REM ~ pip3 install aiohttp
-REM ~ pip3 install "C:\Users\Matteo\Downloads\Kivy-2.0.0.dev0-cp37-cp37m-win_amd64.whl"
-REM ~ pip3 install git+git://github.com/HeaTTheatR/KivyMD.git
+REM ~ set USE_SDL2=1
+REM ~ set USE_GSTREAMER=1
+REM ~ pip3 install git+git://github.com/kivy/kivy.git@cfa6b78f998abd71cda6ab665fd21b18277199b9
+REM ~ pip3 install git+git://github.com/p3g4asus/KivyMD.git@27e7e35576ec14d1fa11973a86d85ed8657eb7ae
 call %~dp0venv\Scripts\activate.bat
 set PATH=C:\Program Files\Java\jre1.8.0_231\bin\server;%PATH%
 set KCFG_KIVY_LOG_LEVEL=debug

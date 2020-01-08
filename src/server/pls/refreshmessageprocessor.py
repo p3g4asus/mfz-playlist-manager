@@ -28,7 +28,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
         if msg.c(CMD_REFRESH):
             resp = await self.processRefresh(msg, userid)
         else:
-            resp = await self.process_plus(msg, ws, msg, userid)
+            resp = await self.getResponse(msg, userid)
         if resp:
             await ws.send_str(json.dumps(resp, cls=MyEncoder))
             return True
@@ -44,7 +44,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
         pass
 
     @abc.abstractmethod
-    async def process_plus(self, ws, msg, userid):
+    async def getResponse(self, msg, userid):
         pass
 
     @abc.abstractmethod
