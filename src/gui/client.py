@@ -48,9 +48,9 @@ class PlsClient:
             self.username = username
         if password:
             self.password = password
-        if timeout is not None:
+        if timeout is not None and timeout > 0:
             self.timeout = timeout
-        if retry is not None:
+        if retry is not None and retry >= 1:
             self.retry = retry
 
     def enqueue(self, msg, callback, waitfor=True):
