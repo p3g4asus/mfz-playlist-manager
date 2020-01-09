@@ -505,7 +505,7 @@ class MainApp(MDApp):
                 toast("For windows playback to work you should set correct player path")
         return True
 
-    async def start_server(self):
+    def start_server(self):
         host = self.config.get("network", "host")
         if platform == 'android' and not self.timer_server_online and\
            (host == "localhost" or host == "127.0.0.1"):
