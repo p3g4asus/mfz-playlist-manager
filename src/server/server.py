@@ -299,6 +299,7 @@ def main():
                 from jnius import autoclass
                 service = autoclass('org.kivy.android.PythonService').mService
                 service.stopForeground(True)
+                service.stopSelf()
             for r in app.p.myrunners:
                 loop.run_until_complete(r.cleanup())
             _LOGGER.debug("Server: Closing loop")
