@@ -301,9 +301,10 @@ def main():
                 service.stopForeground(True)
             for r in app.p.myrunners:
                 loop.run_until_complete(r.cleanup())
+            _LOGGER.debug("Server: Closing loop")
             loop.close()
         except Exception:
-            _LOGGER.error(traceback.format_exc())
+            _LOGGER.error("Server: " + traceback.format_exc())
 
 
 _LOGGER.info("Server module name is %s" % __name__)

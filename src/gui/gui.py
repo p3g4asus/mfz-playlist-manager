@@ -400,6 +400,7 @@ class MainApp(MDApp):
         if self.timer_server_online:
             self.timer_server_online.cancel()
             self.timer_server_online = None
+        self.start_server()
 
     def true_stop(self):
         if platform == "android":
@@ -505,7 +506,9 @@ class MainApp(MDApp):
         return True
 
     async def start_server(self):
-        if platform == 'android' and not self.timer_server_online:
+        host = self.config.get("network", "host")
+        if platform == 'android' and not self.timer_server_online and\
+           (host == "localhost" or host == "127.0.0.1"):
             try:
                 from jnius import autoclass
                 package_name = 'org.kivymfz.playlistmanager'
@@ -523,17 +526,17 @@ class MainApp(MDApp):
                 service.start(mActivity, argument)
             except Exception:
                 Logger.error(traceback.format_exc())
+            finally:
+                self.timer_server_online = Timer(5, self.set_server_offline)
 
     def stop_server(self):
-        if platform == "android" and self.osc_port_service:
-            if self.timer_server_online:
-                self.timer_server_online.cancel()
-                self.timer_server_online = None
-                from pythonosc.udp_client import SimpleUDPClient
-                Logger.debug("Sending stop service message to %d" % self.osc_port_service)
-                client = SimpleUDPClient('127.0.0.1', self.osc_port_service)  # Create client
-
-                client.send_message("/stop_service", 0)   # Send float message
+        if platform == "android" and self.osc_port_service and self.timer_server_online:
+            self.timer_server_online.cancel()
+            self.timer_server_online = None
+            from pythonosc.udp_client import SimpleUDPClient
+            Logger.debug("Sending stop service message to %d" % self.osc_port_service)
+            client = SimpleUDPClient('127.0.0.1', self.osc_port_service)  # Create client
+            client.send_message("/stop_service", 0)   # Send float message
 
     def rec_player_path(self, inst, path):
         self.config.set("windows", "plpath", path)
@@ -560,9 +563,10 @@ class MainApp(MDApp):
                     self.stop_server()
                 host = self.config.get("network", "host")
                 Logger.info("Host port good %s" % host)
-                if host == "localhost" or host == "127.0.0.1":
-                    Logger.info("Have to start server")
-                    Timer(6, self.start_server)
+                if not self.timer_server_online:
+                    if host == "localhost" or host == "127.0.0.1":
+                        Logger.info("Have to start server")
+                        self.timer_server_online = Timer(6, self.set_server_offline)
         else:
             return
         if self.check_other_config():
@@ -652,6 +656,7 @@ def main():
     app = MainApp()
     loop.run_until_complete(app.async_run())
     loop.run_until_complete(asyncio_graceful_shutdown(loop, Logger, False))
+    Logger.debug("Gui: Closing loop")
     loop.close()
 
 
