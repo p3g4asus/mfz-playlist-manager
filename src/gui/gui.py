@@ -398,7 +398,6 @@ class MainApp(MDApp):
 
     async def set_server_offline(self):
         if self.timer_server_online:
-            self.timer_server_online.cancel()
             self.timer_server_online = None
         self.start_server()
 
