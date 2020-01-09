@@ -34,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 def stop_service(address, fixedlist, *args, **kwargs):
     app = fixedlist[0]
     _LOGGER.debug("Received stop command")
-    Timer(0, asyncio_graceful_shutdown(app.p.loop, _LOGGER))
+    app.p.loop.stop()
 
 
 def ping_app(app):
@@ -284,6 +284,8 @@ def main():
     finally:
         try:
             # loop.run_forever()
+            _LOGGER.debug("I am in finally branch")
+            loop.run_until_complete(asyncio_graceful_shutdown(loop, _LOGGER, False))
             if len(p4a):
                 if app.p.osc_init_timer:
                     app.p.osc_init_timer.cancel()
