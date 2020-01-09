@@ -31,6 +31,7 @@ from kivymd.uix.tab import MDTabs
 from common.const import CMD_DUMP, PORT_OSC_CONST
 from common.playlist import PlaylistMessage, Playlist
 from common.timer import Timer
+from common.utils import asyncio_graceful_shutdown
 
 from . import __prog__, __version__
 from .client import PlsClient
@@ -453,7 +454,7 @@ class MainApp(MDApp):
             from pythonosc.dispatcher import Dispatcher
             self.osc_dispatcher = Dispatcher()
             self.osc_dispatcher.map("/server_ping", self.server_ping)
-            self.osc_timer = Timer(0.1, self.osc_init)
+            self.osc_timer = Timer(0, self.osc_init)
         else:
             self.osc_dispatcher = None
             self.osc_timer = None
@@ -579,11 +580,11 @@ class MainApp(MDApp):
             elif section == "registration" and key.startswith("regbuttons"):
                 if value == "btn_reg":
                     self.client.stop()
-                    Timer(1, partial(self.client.register, callback=self.on_register))
+                    Timer(0, partial(self.client.register, callback=self.on_register))
                 elif value == "btn_out":
-                    Timer(1, partial(self.client.logout, callback=self.on_logout))
+                    Timer(0, partial(self.client.logout, callback=self.on_logout))
                 elif value == "btn_mod":
-                    Timer(1, partial(self.client.register, urlpart="modifypw", callback=self.on_modify_pw))
+                    Timer(0, partial(self.client.register, urlpart="modifypw", callback=self.on_modify_pw))
 
     async def on_register(self, client, rv, **kwargs):
         toast("Registration OK" if not rv else rv)
@@ -650,6 +651,7 @@ def main():
         loop = asyncio.get_event_loop()
     app = MainApp()
     loop.run_until_complete(app.async_run())
+    loop.run_until_complete(asyncio_graceful_shutdown(loop, Logger, False))
     loop.close()
 
 

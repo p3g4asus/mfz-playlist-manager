@@ -1,5 +1,6 @@
 import abc
 import json
+import asyncio
 
 
 class JSONAble(abc.ABC):
@@ -39,3 +40,22 @@ class AbstractMessageProcessor(abc.ABC):
     @abc.abstractmethod
     async def process(self, ws, msg, userid):
         pass
+
+
+async def asyncio_graceful_shutdown(loop, logger, perform_loop_stop=True):
+    """Cleanup tasks tied to the service's shutdown."""
+    try:
+        logger.info("Shutdown: Performing graceful stop")
+        tasks = [t for t in asyncio.all_tasks() if t is not
+                 asyncio.current_task()]
+
+        [task.cancel() for task in tasks]
+
+        logger.info(f"Cancelling {len(tasks)} outstanding tasks")
+        await asyncio.gather(*tasks)
+        if perform_loop_stop:
+            logger.info(f"Flushing metrics")
+            loop.stop()
+    except Exception:
+        import traceback
+        logger.error(traceback.format_exc())

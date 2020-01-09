@@ -219,7 +219,7 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
         self.ids.root_box.children[0].card_size[1] = lo
 
     def on_lineright(self, *args, **kwargs):
-        Timer(1, partial(launch_link, self.link, self.launch))
+        Timer(0, partial(launch_link, self.link, self.launch))
 
     def refresh_view_attrs(self, rv, index, dbitem):
         ''' Catch and handle the view changes '''
@@ -267,7 +267,7 @@ class PlsItem(BoxLayout, MDTabsBase):
 
     def play_pls(self):
         lnk = self.client.m3u_lnk(self.playlist.name)
-        Timer(1, partial(launch_link, lnk, self.launchconf))
+        Timer(0, partial(launch_link, lnk, self.launchconf))
 
     def load_list(self):
         Logger.debug("Loading list in tab: %s" % str(self.playlist))
@@ -289,7 +289,7 @@ class PlsItem(BoxLayout, MDTabsBase):
             if self.playlist.rowid:
                 self.client.enqueue(PlaylistMessage(cmd=CMD_REN, playlist=self.playlist.rowid, to=inst.text_field.text), self.on_new_name_result)
             else:
-                Timer(1, partial(self.on_new_name_result, self.client, None, inst.text_field.text))
+                Timer(0, partial(self.on_new_name_result, self.client, None, inst.text_field.text))
 
     async def on_new_name_result(self, client, sent, received):
         if not received:
@@ -375,7 +375,7 @@ class PlsItem(BoxLayout, MDTabsBase):
                 PlaylistMessage(cmd=CMD_SEEN, playlistitem=rowid, seen=0),
                 partial(self.on_new_del_item_undo_result, removed_item=removed_item))
         else:
-            Timer(1, partial(
+            Timer(0, partial(
                     self.on_new_del_item_undo_result,
                     self.client,
                     None,
@@ -398,7 +398,7 @@ class PlsItem(BoxLayout, MDTabsBase):
         if inst.rowid:
             self.client.enqueue(PlaylistMessage(cmd=CMD_SEEN, playlistitem=inst.rowid, seen=1, index=inst.index), self.on_new_del_item_result)
         else:
-            Timer(1, partial(self.on_new_del_item_result, self.client, None, inst.index))
+            Timer(0, partial(self.on_new_del_item_result, self.client, None, inst.index))
 
     def on_new_del(self, but, inst, tabs=None):
         if but == "Yes":

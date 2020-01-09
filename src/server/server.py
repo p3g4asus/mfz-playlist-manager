@@ -19,6 +19,7 @@ from cryptography import fernet
 import aiosqlite
 from common.const import PORT_OSC_CONST, COOKIE_LOGIN
 from common.timer import Timer
+from common.utils import asyncio_graceful_shutdown
 from server.sqliteauth import SqliteAuthorizationPolicy
 from server.webhandlers import index, logout, login, modify_pw, pls_h, register, playlist_m3u
 
@@ -33,20 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 def stop_service(address, fixedlist, *args, **kwargs):
     app = fixedlist[0]
     _LOGGER.debug("Received stop command")
-    try:
-        loop = asyncio.get_event_loop()
-        loop.stop()
-        if app.p.osc_init_timer:
-            app.p.osc_init_timer.cancel()
-            app.p.osc_init_timer = None
-        if app.p.osc_transport:
-            app.p.osc_transport.close()
-            app.p.osc_transport = None
-        from jnius import autoclass
-        service = autoclass('org.kivy.android.PythonService').mService
-        service.stopForeground(True)
-    except Exception:
-        _LOGGER.error(traceback.format_exc())
+    Timer(0, asyncio_graceful_shutdown(app.p.loop, _LOGGER))
 
 
 def ping_app(app):
@@ -270,7 +258,7 @@ def main():
         app.p.osc_client = SimpleUDPClient('127.0.0.1', PORT_OSC_CONST)
         app.p.osc_dispatcher.map("/stop_service", stop_service, app)
         app.p.osc_ping_timer = None
-        app.p.osc_init_timer = Timer(0.1, partial(osc_init, app))
+        app.p.osc_init_timer = Timer(0, partial(osc_init, app))
         insert_notification()
         import certifi
         # Here's all the magic !
@@ -288,22 +276,32 @@ def main():
 
     app.p.args = args
     loop = asyncio.get_event_loop()
+    app.p.loop = loop
     try:
         loop.run_until_complete(init_db(app))
         loop.run_until_complete(start_app(app))
         loop.run_forever()
     finally:
-        # loop.run_forever()
-        if len(p4a):
-            if app.p.osc_init_timer:
-                app.p.osc_init_timer.cancel()
-                app.p.osc_init_timer = None
-            if app.p.osc_ping_timer:
-                app.p.osc_ping_timer.cancel()
-                app.p.osc_ping_timer = None
-        for r in app.p.myrunners:
-            loop.run_until_complete(r.cleanup())
-        loop.close()
+        try:
+            # loop.run_forever()
+            if len(p4a):
+                if app.p.osc_init_timer:
+                    app.p.osc_init_timer.cancel()
+                    app.p.osc_init_timer = None
+                if app.p.osc_ping_timer:
+                    app.p.osc_ping_timer.cancel()
+                    app.p.osc_ping_timer = None
+                if app.p.osc_transport:
+                    app.p.osc_transport.close()
+                    app.p.osc_transport = None
+                from jnius import autoclass
+                service = autoclass('org.kivy.android.PythonService').mService
+                service.stopForeground(True)
+            for r in app.p.myrunners:
+                loop.run_until_complete(r.cleanup())
+            loop.close()
+        except Exception:
+            _LOGGER.error(traceback.format_exc())
 
 
 _LOGGER.info("Server module name is %s" % __name__)
