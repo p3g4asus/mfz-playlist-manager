@@ -35,7 +35,7 @@ Builder.load_string(
                 error: True
                 hint_text: "Playlist name"
                 helper_text_mode: "on_error"
-                helper_text: "Enter at list a letter"
+                helper_text: "Enter at least a letter"
                 on_text: root.enable_buttons(self, self.text)
         ScrollView:
             size_hint: (1, 0.7)

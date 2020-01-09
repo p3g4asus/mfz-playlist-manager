@@ -4,10 +4,9 @@ import traceback
 from datetime import datetime
 
 import aiohttp
-from common.const import (CMD_RAI_CONTENTSET,
-                          MSG_BACKEND_ERROR,
-                          MSG_RAI_INVALID_CONTENTSET,
-                          MSG_RAI_INVALID_PROGID)
+
+from common.const import (CMD_RAI_CONTENTSET, MSG_BACKEND_ERROR,
+                          MSG_RAI_INVALID_CONTENTSET, MSG_RAI_INVALID_PROGID)
 from common.playlist import PlaylistItem
 
 from .refreshmessageprocessor import RefreshMessageProcessor
@@ -129,7 +128,14 @@ class MessageProcessor(RefreshMessageProcessor):
         return (datepub, datepubi)
 
     async def entry2Program(self, it, session, progid, set, playlist):
-        conf = dict(progid=progid, set=set, path=it["path_id"] if "path_id" in it else '')
+        order = -1
+        if 'season' in it and re.search(r'^[0-9]+$', it['season']) and\
+           'episode' in it and re.search(r'^[0-9]+$', it['episode']):
+            order = int(it['season']) * 100 + int(it['episode'])
+        conf = dict(progid=progid,
+                    set=set,
+                    path=it["path_id"] if "path_id" in it else '',
+                    order=order)
         title = it['name'] if 'name' in it else it['episode_title']
         uid = it['id']
         img = None
@@ -193,7 +199,7 @@ class MessageProcessor(RefreshMessageProcessor):
                         return msg.err(13, MSG_RAI_INVALID_CONTENTSET)
                     else:
                         programs = list(programs.values())
-                        programs.sort(key=lambda item: item.datepub)
+                        programs.sort(key=lambda item: item.conf['order'] if item.conf['order'] > 0 else item.datepub)
                         return msg.ok(items=programs)
             except Exception:
                 _LOGGER.error(traceback.format_exc())
