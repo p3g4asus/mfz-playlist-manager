@@ -34,6 +34,7 @@ class PlsClient:
         self.login_h = None
         self.user_h = None
         self.login_t = None
+        self.single_action_task = None
         self.ws_queue = []
         self.stopped = True
         self.on_login = None
@@ -190,6 +191,10 @@ class PlsClient:
     def stop(self):
         self.stopped = True
         self.ws_event.set()
+        del self.ws_queue[:]
+        if self.single_action_task:
+            self.single_action_task.cancel()
+            self.single_action_task = None
         if self.login_t:
             self.login_t.cancel()
             self.login_t = None
@@ -202,10 +207,14 @@ class PlsClient:
             rv = None
             for i in range(self.retry):
                 try:
-                    rv = await asyncio.wait_for(self.single_action(ws, it), self.timeout)
+                    self.single_action_task = asyncio.ensure_future(self.single_action(ws, it))
+                    rv = await asyncio.wait_for(self.single_action_task, self.timeout)
+                    self.single_action_task = None
                     break
                 except asyncio.TimeoutError:
                     Logger.error("Client: " + traceback.format_exc())
+                    if self.stopped:
+                        return
                 except json.decoder.JSONDecodeError:
                     Logger.error("Client: " + traceback.format_exc())
             del self.ws_queue[0]
@@ -233,7 +242,8 @@ class PlsClient:
                         async with session.ws_connect(url) as ws:
                             while not self.stopped:
                                 await self.process_queue(ws)
-
+                except asyncio.CancelledError:
+                    break
                 except Exception:
                     self.stop()
                     self.timer_login()

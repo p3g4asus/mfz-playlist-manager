@@ -16,7 +16,6 @@ from contextlib import closing
 from functools import partial
 from os.path import expanduser, join, dirname, exists
 
-from jnius import autoclass
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ObjectProperty, StringProperty, NumericProperty
@@ -278,6 +277,7 @@ class MainApp(MDApp):
     @staticmethod
     def db_dir():
         if platform == "android":
+            from jnius import autoclass
             Environment = autoclass('android.os.Environment')
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
             ctx = PythonActivity.mActivity
@@ -391,14 +391,14 @@ class MainApp(MDApp):
         port = int(port)
         Logger.debug("Gui: Ping received with port %s" % str(port))
         self.osc_port_service = port
-        if self.server_started:
-            self.server_started.cancel()
-        self.server_started = Timer(5, self.server_stopped)
+        if self.timer_server_online:
+            self.timer_server_online.cancel()
+        self.timer_server_online = Timer(5, self.set_server_offline)
 
-    async def server_stopped(self):
-        if self.server_started:
-            self.server_started.cancel()
-            self.server_started = None
+    async def set_server_offline(self):
+        if self.timer_server_online:
+            self.timer_server_online.cancel()
+            self.timer_server_online = None
 
     def true_stop(self):
         if platform == "android":
@@ -444,7 +444,7 @@ class MainApp(MDApp):
     def _init_fields(self):
         self.title = __prog__
         self.osc_port = PORT_OSC_CONST
-        self.server_started = None
+        self.timer_server_online = None
         self.osc_port_service = find_free_port()
         self.osc_server = None
         self.osc_transport = None
@@ -504,7 +504,7 @@ class MainApp(MDApp):
         return True
 
     async def start_server(self):
-        if platform == 'android' and not self.server_started:
+        if platform == 'android' and not self.timer_server_online:
             try:
                 from jnius import autoclass
                 package_name = 'org.kivymfz.playlistmanager'
@@ -525,11 +525,14 @@ class MainApp(MDApp):
 
     def stop_server(self):
         if platform == "android" and self.osc_port_service:
-            from pythonosc.udp_client import SimpleUDPClient
-            Logger.debug("Sending stop service message to %d" % self.osc_port_service)
-            client = SimpleUDPClient('127.0.0.1', self.osc_port_service)  # Create client
+            if self.timer_server_online:
+                self.timer_server_online.cancel()
+                self.timer_server_online = None
+                from pythonosc.udp_client import SimpleUDPClient
+                Logger.debug("Sending stop service message to %d" % self.osc_port_service)
+                client = SimpleUDPClient('127.0.0.1', self.osc_port_service)  # Create client
 
-            client.send_message("/stop_service", 0)   # Send float message
+                client.send_message("/stop_service", 0)   # Send float message
 
     def rec_player_path(self, inst, path):
         self.config.set("windows", "plpath", path)
@@ -552,7 +555,7 @@ class MainApp(MDApp):
             self.root.ids.id_screen_manager.current = plwidget.name
         elif self.check_host_port_config():
             if section == "network" and (key == "host" or key == "port"):
-                if self.server_started and value:
+                if self.timer_server_online and value:
                     self.stop_server()
                 host = self.config.get("network", "host")
                 Logger.info("Host port good %s" % host)
