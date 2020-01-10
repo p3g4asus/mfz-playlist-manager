@@ -1,3 +1,5 @@
+import re
+
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import DictProperty, ListProperty,\
@@ -229,6 +231,11 @@ class MediasetConfScreen(Screen):
     def brand_check(self, inst, filt):
         Logger.debug("Brand check %s" % filt)
         try:
+            if re.search(r"^https://www.mediasetplay.mediaset.it/[^/]+/[^/]+$", filt):
+                mo = re.search(r"_b([0-9]+)$", filt)
+                if mo:
+                    filt = mo.group(1)
+                    inst.text = filt
             int(filt)
             inst.icon_right_disabled = False
             inst.icon_right_color = [0, 0, 0, 1]

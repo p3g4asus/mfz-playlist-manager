@@ -1,3 +1,5 @@
+import re
+
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import DictProperty, ListProperty,\
@@ -166,6 +168,10 @@ class RaiConfScreen(Screen):
 
     def prog_check(self, inst, filt):
         Logger.debug("Prog check %s" % filt)
+        mo = re.search(r"^https://www.raiplay.it/programmi/([^/]+)$", filt)
+        if mo:
+            filt = mo.group(1)
+            inst.text = filt
         if len(filt):
             inst.icon_right_disabled = False
             inst.icon_right_color = [0, 0, 0, 1]
