@@ -302,6 +302,8 @@ def main():
                 service.stopSelf()
             for r in app.p.myrunners:
                 loop.run_until_complete(r.cleanup())
+            if app.p.db:
+                loop.run_until_complete(app.p.db.close())
             _LOGGER.debug("Server: Closing loop")
             loop.close()
         except Exception:
