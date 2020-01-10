@@ -170,8 +170,7 @@ class MyTabs(MDTabs):
     def remove_widget(self, w, *args, **kwargs):
         super(MyTabs, self).remove_widget(w)
         if isinstance(w, PlsItem):
-            idx = None
-            nm = ""
+            idx = -3
             try:
                 idx = self.tab_list.index(w)
                 self.tab_list.remove(w)
@@ -179,26 +178,29 @@ class MyTabs(MDTabs):
                 Logger.error(traceback.format_exc())
             if len(self.tab_list) == 0:
                 self.current_tab = None
+                idx = -2
             elif idx > 0:
-                self.current_tab = self.tab_list[idx-1]
-                nm = self.current_tab.playlist.name
+                idx = idx - 1
             elif idx == 0:
-                self.current_tab = self.tab_list[0]
-                nm = self.current_tab.playlist.name
-            Logger.debug("Gui: Currenttab = %s - %s" % (str(idx), nm))
+                idx = 0
+            if idx >= 0:
+                self.carousel.index = idx
+                tab = self.tab_list[idx]
+                tab.tab_label.state = "down"
+                tab.tab_label.on_release()
 
     def clear_widgets(self):
         for w in self.tab_list:
             self.remove_widget(w)
 
-    def add_widget(self, w, *args, **kwargs):
-        super(MyTabs, self).add_widget(w, *args, **kwargs)
-        if isinstance(w, PlsItem):
-            self.tab_list.append(w)
+    def add_widget(self, tab, *args, **kwargs):
+        super(MyTabs, self).add_widget(tab, *args, **kwargs)
+        if isinstance(tab, PlsItem):
+            self.tab_list.append(tab)
             Logger.debug("Gui: Adding tab len = %d" % len(self.tab_list))
-            if len(self.tab_list) == 1:
-                Logger.debug("Gui: Currenttab = %s" % str(w))
-                self.current_tab = w
+            self.carousel.index = len(self.tab_list) - 1
+            tab.tab_label.state = "down"
+            tab.tab_label.on_release()
 
     def on_tab_switch(self, inst, text):
         super(MyTabs, self).on_tab_switch(inst, text)
@@ -260,8 +262,6 @@ class MyTabs(MDTabs):
                 launchconf=self.launchconf,
                 confclass=confclass)
             self.add_widget(tab)
-            tab.tab_label.state = "down"
-            tab.tab_label.on_release()
             tab.conf_pls()
 
 
