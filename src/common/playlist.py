@@ -140,18 +140,21 @@ class Playlist(JSONAble, Fieldable):
         return None
 
     async def delete(self, db):
+        rv = False
         if self.rowid:
             async with db.cursor() as cursor:
                 await cursor.execute("DELETE FROM playlist WHERE rowid=?", (self.rowid,))
-                return cursor.rowcount > 0
+                rv = cursor.rowcount > 0
         elif self.name and (self.useri or self.user):
             if self.useri is None:
                 self.useri = await self.getUserI(db)
                 if self.useri:
                     async with db.cursor() as cursor:
                         await cursor.execute("DELETE FROM playlist WHERE name=? and user=?", (self.name, self.useri))
-                        return cursor.rowcount > 0
-        return False
+                        rv = cursor.rowcount > 0
+        if rv:
+            await db.commit()
+        return rv
 
     def isOk(self):
         return self.typei and self.useri and self.name
@@ -283,6 +286,7 @@ class PlaylistItem(JSONAble, Fieldable):
             return None
 
     async def setSeen(self, db, value=True):
+        rv = False
         if self.rowid:
             async with db.cursor() as cursor:
                 if value:
@@ -293,8 +297,10 @@ class PlaylistItem(JSONAble, Fieldable):
                     await cursor.execute(
                         "UPDATE playlist_item SET seen=NULL WHERE rowid=?",
                         (self.rowid,))
-                return cursor.rowcount > 0
-        return False
+                rv = cursor.rowcount > 0
+        if rv:
+            await db.commit()
+        return rv
 
     def toM3U(self):
         return "#EXTINF:0,%s\r\n%s\r\n\r\n" % (self.title if self.title else "N/A", self.link)
@@ -314,15 +320,18 @@ class PlaylistItem(JSONAble, Fieldable):
             return False
 
     async def delete(self, db):
+        rv = False
         if self.rowid:
             async with db.cursor() as cursor:
                 await cursor.execute("DELETE FROM playlist_item WHERE rowid=?", (self.rowid,))
-                return cursor.rowcount > 0
+                rv = cursor.rowcount > 0
         elif self.uid and self.playlist:
             async with db.cursor() as cursor:
                 await cursor.execute("DELETE FROM playlist_item WHERE uid=?", (self.uid,))
-                return cursor.rowcount > 0
-        return False
+                rv = cursor.rowcount > 0
+        if rv:
+            await db.commit()
+        return rv
 
     def isOk(self):
         return self.link and self.uid and self.playlist
