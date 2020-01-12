@@ -5,7 +5,7 @@ from datetime import datetime
 
 import aiohttp
 
-from common.const import (CMD_RAI_CONTENTSET, MSG_BACKEND_ERROR,
+from common.const import (CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS, MSG_BACKEND_ERROR,
                           MSG_RAI_INVALID_CONTENTSET, MSG_RAI_INVALID_PROGID)
 from common.playlist import PlaylistItem
 
@@ -17,7 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 class MessageProcessor(RefreshMessageProcessor):
 
     def interested_plus(self, msg):
-        return msg.c(CMD_RAI_CONTENTSET)
+        return msg.c(CMD_RAI_CONTENTSET) or msg.c(CMD_RAI_LISTINGS)
 
     def get_name(self):
         return "rai"
@@ -36,7 +36,7 @@ class MessageProcessor(RefreshMessageProcessor):
         return ('https://www.raiplay.it%s') % part
 
     async def processContentSet(self, msg, userid):
-        progid = msg.f('progid', (str,))
+        progid = msg.f('brand', (str,))
         if progid:
             try:
                 async with aiohttp.ClientSession() as session:
@@ -58,15 +58,14 @@ class MessageProcessor(RefreshMessageProcessor):
                             except KeyError:
                                 pass
                             for b in js['blocks']:
-                                pretitle = b['name'] + ' - ' if 'name' in b else ''
+                                predesc = b['name'] + ' - ' if 'name' in b else ''
                                 for s in b['sets']:
                                     if 'name' in s and 'id' in s and\
                                        s['id'].count('-') == 5:
                                         id = s['id']
-                                        title = pretitle + s['name']
-                                        desc = s['path_id']
+                                        desc = predesc + s['name']
                                         sets[id] = dict(
-                                            title=title,
+                                            title=prog['title'],
                                             id=id,
                                             desc=desc
                                         )
@@ -75,7 +74,7 @@ class MessageProcessor(RefreshMessageProcessor):
                 if not sets or not prog:
                     return msg.err(12, MSG_RAI_INVALID_PROGID)
                 else:
-                    return msg.ok(contentsets=list(sets.values()), prog=prog)
+                    return msg.ok(brands=list(sets.values()), prog=prog)
             except Exception:
                 _LOGGER.error(traceback.format_exc())
                 return msg.err(11, MSG_BACKEND_ERROR)
@@ -170,8 +169,8 @@ class MessageProcessor(RefreshMessageProcessor):
 
     async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None):
         try:
-            progid = conf['prog']['id']
-            sets = [s['id'] for s in conf['contentsets']]
+            progid = conf['brand']['id']
+            sets = [s['id'] for s in conf['subbrands']]
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
@@ -207,8 +206,52 @@ class MessageProcessor(RefreshMessageProcessor):
         else:
             return msg.err(16, MSG_RAI_INVALID_CONTENTSET)
 
+    def processSingleListing(self, js):
+        rv = dict()
+        if 'contents' in js:
+            for content in js['contents']:
+                rv.update(self.processSingleListing(content))
+        elif 'path_id' in js and 'name' in js:
+            mo = re.search(r"/([^A-Z\-\./]+)\.json$", js['path_id'])
+            if mo:
+                idv = mo.group(1)
+                rv[idv] = dict(
+                    id=idv,
+                    title=js['name'],
+                    starttime=int(datetime.now().timestamp() * 1000)
+                )
+        return rv
+
+    async def processListings(self, msg, userid):
+        try:
+            async with aiohttp.ClientSession() as session:
+                programs = dict()
+                rurls = ['/film', '/fiction', '/bambini', '/programmi']
+                for rurl in rurls:
+                    try:
+                        url = MessageProcessor.relativeUrl(rurl) + '/index.json'
+                        _LOGGER.debug("Rai: Getting processListings " + url)
+                        async with session.get(url) as resp:
+                            if resp.status == 200:
+                                js = await resp.json()
+                                _LOGGER.debug("Rai: Rec processListings " + str(js))
+                                programs.update(self.processSingleListing(js))
+                    except Exception:
+                        _LOGGER.warning(traceback.format_exc())
+            if not programs:
+                return msg.err(12, MSG_BACKEND_ERROR)
+            else:
+                programs = list(programs.values())
+                programs.sort(key=lambda item: item['title'])
+                return msg.ok(brands=programs)
+        except Exception:
+            _LOGGER.error(traceback.format_exc())
+            return msg.err(11, MSG_BACKEND_ERROR)
+
     async def getResponse(self, msg, userid):
         if msg.c(CMD_RAI_CONTENTSET):
             return await self.processContentSet(msg, userid)
+        elif msg.c(CMD_RAI_LISTINGS):
+            return await self.processListings(msg, userid)
         else:
             return None
