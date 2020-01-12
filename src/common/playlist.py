@@ -1,7 +1,8 @@
 import json
-from .utils import JSONAble, Fieldable
 import logging
+from datetime import datetime
 
+from .utils import Fieldable, JSONAble
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -270,6 +271,17 @@ class PlaylistItem(JSONAble, Fieldable):
         dct = vars(self)
         # del dct['playlist']
         return dct
+
+    def parsed_datepub(self):
+        if self.datepub:
+            if isinstance(self.datepub, str):
+                try:
+                    return datetime.strptime(self.datepub, '%Y-%m-%d %H:%M:%S.%f')
+                except Exception:
+                    return None
+            elif isinstance(self.datepub, datetime):
+                return self.datepub
+        return None
 
     @staticmethod
     async def loadbyid(db, rowid):

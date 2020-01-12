@@ -407,7 +407,7 @@ class PlsItem(BoxLayout, MDTabsBase):
                     PlaylistMessage(cmd=CMD_DEL, playlist=self.playlist.rowid),
                     partial(self.on_new_del_result, tabs=tabs))
             else:
-                self.on_new_del_result(self.client, None, self.playlist.name, tabs=tabs)
+                Timer(0, partial(self.on_new_del_result, self.client, None, self.playlist.name, tabs=tabs))
 
     def update_pls(self, show_date_selection):
         if show_date_selection:

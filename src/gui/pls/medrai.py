@@ -58,6 +58,7 @@ Builder.load_string(
             viewclass: root.get_brand_rv_class_name()
             RecycleBoxLayout:
                 default_size_hint: 1, None
+                default_size: None, dp(55)
                 size_hint_y: None
                 height: self.minimum_height
                 orientation: 'vertical'

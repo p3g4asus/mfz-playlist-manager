@@ -189,7 +189,8 @@ class MessageProcessor(RefreshMessageProcessor):
                     for subbrand in subbrands:
                         startFrom = 1
                         while True:
-                            async with session.get(MessageProcessor.programsUrl(brand, subbrand, startFrom)) as resp:
+                            url = MessageProcessor.programsUrl(brand, subbrand, startFrom)
+                            async with session.get(url) as resp:
                                 if resp.status == 200:
                                     js = await resp.json()
                                     for e in js['entries']:

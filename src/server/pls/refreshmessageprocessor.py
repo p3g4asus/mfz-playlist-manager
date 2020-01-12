@@ -74,6 +74,13 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                     return msg.err(502, MSG_UNAUTHORIZED, playlist=None)
                 x.conf = c
                 x.name = n
+                if not datefrom and len(x.items):
+                    datefrom = x.items[-1].parsed_datepub()
+                    _LOGGER.debug("Parsed datefrom %s" % str(datefrom))
+                    if datefrom:
+                        datefrom = int(datefrom.timestamp() * 1000)
+                    else:
+                        datefrom = 0
             elif x.items is None:
                 x.items = []
             resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid)
