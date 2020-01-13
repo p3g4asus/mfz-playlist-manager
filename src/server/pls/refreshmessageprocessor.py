@@ -65,7 +65,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             if x.rowid is not None:
                 c = x.conf
                 n = x.name
-                x = await Playlist.loadbyid(self.db, x.rowid)
+                x = await Playlist.loadbyid(self.db, rowid=x.rowid)
                 if x and len(x):
                     x = x[0]
                 else:

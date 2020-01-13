@@ -57,7 +57,7 @@ class Playlist(JSONAble, Fieldable):
         return s
 
     @staticmethod
-    async def loadbyid(db, id=None, useri=None, name=None, username=None, loaditems=True):
+    async def loadbyid(db, rowid=None, useri=None, name=None, username=None, loaditems=True):
         pls = []
         commontxt = '''
             SELECT P.name AS name,
@@ -70,7 +70,7 @@ class Playlist(JSONAble, Fieldable):
             FROM playlist AS P, user AS U, type AS T
             WHERE P.type=T.rowid AND P.user=U.rowid%s%s
         ''' % (
-                "" if not isinstance(id, int) else (" AND P.rowid=%d" % id),
+                "" if not isinstance(rowid, int) else (" AND P.rowid=%d" % rowid),
                 "" if not isinstance(useri, int) else (" AND P.user=%d" % useri),
               )
         if isinstance(name, str) and len(name) and isinstance(username, str) and len(username):
@@ -92,7 +92,7 @@ class Playlist(JSONAble, Fieldable):
         async for row in cursor:
             subcursor = await db.execute(
                 '''
-                SELECT * FROM playlist_item WHERE playlist=?
+                SELECT * FROM playlist_item WHERE playlist=? ORDER BY iorder
                 ''',
                 (row['rowid'],)
             )
@@ -221,7 +221,7 @@ class Playlist(JSONAble, Fieldable):
             for i in self.items:
                 if not i.seen:
                     i.playlist = self.rowid
-                    await i.toDB(db)
+                    await i.toDB(db, commit=False)
             await db.commit()
             return True
         else:
@@ -229,7 +229,7 @@ class Playlist(JSONAble, Fieldable):
 
 
 class PlaylistItem(JSONAble, Fieldable):
-    def __init__(self, dbitem=None, title=None, uid=None, rowid=None, link=None, conf=None, playlist=None, img=None, datepub=None, dur=None, seen=None, **kwargs):
+    def __init__(self, dbitem=None, title=None, uid=None, rowid=None, link=None, conf=None, playlist=None, img=None, datepub=None, dur=None, seen=None, iorder=None, **kwargs):
         if dbitem:
             if isinstance(dbitem, str):
                 dbitem = json.loads(dbitem)
@@ -243,6 +243,7 @@ class PlaylistItem(JSONAble, Fieldable):
             self.conf = dbitem['conf']
             self.dur = dbitem['dur']
             self.seen = dbitem['seen']
+            self.iorder = dbitem['iorder']
         else:
             self.rowid = rowid
             self.uid = uid
@@ -254,6 +255,7 @@ class PlaylistItem(JSONAble, Fieldable):
             self.datepub = datepub
             self.dur = dur
             self.seen = seen
+            self.iorder = iorder
         if self.conf and isinstance(self.conf, str):
             self.conf = json.loads(self.conf)
 
@@ -348,7 +350,15 @@ class PlaylistItem(JSONAble, Fieldable):
     def isOk(self):
         return self.link and self.uid and self.playlist
 
-    async def toDB(self, db):
+    async def move_to(self, playlist, db):
+        self.playlist = playlist
+        self.iorder = None
+        return await self.toDB(db)
+
+    async def move_to_end(self, db):
+        return await self.move_to(self.playlist, db)
+
+    async def toDB(self, db, commit=True):
         if isinstance(self.conf, str):
             c = self.conf
         else:
@@ -364,12 +374,23 @@ class PlaylistItem(JSONAble, Fieldable):
                 seen = await cursor.fetchone()
                 if seen:
                     seen = seen[0]
+            if self.iorder is None:
+                async with db.execute(
+                    '''
+                    SELECT max(iorder) + 10 FROM playlist_item WHERE playlist=?
+                    ''', (self.playlist,)
+                ) as cursor:
+                    iorder = await cursor.fetchone()
+                    if iorder and iorder[0]:
+                        self.iorder = iorder[0]
+                    else:
+                        self.iorder = 10
             async with db.cursor() as cursor:
                 await cursor.execute(
                     '''
                     INSERT OR REPLACE INTO playlist_item(
-                        rowid,uid,link,title,playlist,conf,datepub,img,dur,seen
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                        rowid,uid,link,title,playlist,conf,datepub,img,dur,seen,iorder
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     ''',
                     (self.rowid,
                      self.uid,
@@ -380,9 +401,12 @@ class PlaylistItem(JSONAble, Fieldable):
                      self.datepub,
                      self.img,
                      self.dur,
-                     seen))
+                     seen,
+                     self.iorder))
                 self.seen = seen
                 self.rowid = cursor.lastrowid
+            if commit:
+                await db.commit()
             return True
         else:
             return False

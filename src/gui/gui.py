@@ -28,7 +28,7 @@ from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.list import OneLineAvatarListItem
 from kivymd.uix.tab import MDTabs
 
-from common.const import CMD_DUMP, PORT_OSC_CONST
+from common.const import CMD_DUMP, PORT_OSC_CONST, CMD_MOVE
 from common.playlist import PlaylistMessage, Playlist
 from common.timer import Timer
 from common.utils import asyncio_graceful_shutdown
@@ -40,6 +40,7 @@ from .plsitem import PlsItem
 from .settingbuttons import SettingButtons
 from .settingpassword import SettingPassword
 from .typewidget import TypeWidget
+from .playlistselect import PlaylistSelectWidget
 
 if platform == "android":
     import certifi
@@ -242,7 +243,7 @@ class MyTabs(MDTabs):
 
     def del_pls(self, *args, **kwargs):
         if self.current_tab:
-            self.current_tab.del_pls(self)
+            self.current_tab.del_pls()
         else:
             toast("Please select a playlist tab")
 
@@ -252,10 +253,39 @@ class MyTabs(MDTabs):
         else:
             toast("Please select a playlist tab")
 
+    def on_new_move_item(self, item):
+        items = dict()
+        for t in self.tab_list:
+            items[t.playlist.name] = t
+        selectp = PlaylistSelectWidget(on_playlist=partial(self.on_new_move_item_dest, delitem=item), items=items)
+        self.manager.add_widget(selectp)
+        self.manager.current = selectp.name
+
+    def on_new_move_item_dest(self, inst, plname, pltab, delitem=None):
+        if delitem and pltab:
+            self.client.enqueue(PlaylistMessage(
+                cmd=CMD_MOVE,
+                playlistitem=delitem.rowid,
+                playlist=pltab.playlist),
+                partial(self.on_new_move_item_dest_result, delitem=delitem, totab=pltab))
+
+    async def on_new_move_item_dest_result(self, client, sent, received, delitem=None, totab=None):
+        if not received:
+            toast("Timeout error waiting for server response")
+        elif isinstance(received, PlaylistMessage):
+            if received.rv:
+                toast("[E %d] %s" % (received.rv, received.err))
+            elif delitem and totab:
+                delitem.tab.del_item(delitem.index)
+                totab.set_playlist(received.playlist)
+                toast(f"{delitem.title} moved to {totab.playlist.name}")
+
     def on_new_type(self, inst, name, types, confclass):
         if types != TypeWidget.ABORT:
+            pl = Playlist(type=types, name=name, useri=self.useri, conf=dict())
             tab = PlsItem(
-                playlist=Playlist(type=types, name=name, useri=self.useri, conf=dict()),
+                playlist=pl,
+                tabcont=self,
                 client=self.client,
                 cardsize=self.cardsize,
                 manager=self.manager,
@@ -263,6 +293,33 @@ class MyTabs(MDTabs):
                 confclass=confclass)
             self.add_widget(tab)
             tab.conf_pls()
+
+    def fill_PlsListRV(self, playlists):
+        playlists = playlists
+        d = self.tab_list
+        processed = dict()
+        removelist = []
+        for t in d:
+            try:
+                idx = playlists.index(t.playlist)
+                processed[str(idx)] = True
+                t.set_playlist(playlists[idx])
+            except ValueError:
+                if t.playlist.rowid is not None:
+                    removelist.append(t)
+        for r in removelist:
+            self.remove_widget(r)
+        for x in range(len(playlists)):
+            if str(x) not in processed:
+                self.add_widget(PlsItem(
+                    playlist=playlists[x],
+                    manager=self.manager,
+                    tabcont=self,
+                    cardsize=self.cardsize,
+                    launchconf=self.launchconf,
+                    client=self.client,
+                    confclass=TypeWidget.type2class(playlists[x].type)
+                ))
 
 
 def find_free_port():
@@ -460,7 +517,6 @@ class MainApp(MDApp):
             self.osc_timer = None
         self.client = PlsClient()
         self.userid = None
-        self.playlists = []
         self.win_notifyed = False
 
     def build_settings(self, settings):
@@ -613,29 +669,7 @@ class MainApp(MDApp):
         elif received.rv:
             toast("[E %d] %s" % (received.rv, received.err))
         else:
-            self.playlists = received.f('playlists')
-            self.fill_PlsListRV()
-
-    def fill_PlsListRV(self):
-        d = self.root.ids.id_tabcont.tab_list
-        processed = dict()
-        for t in d:
-            try:
-                idx = self.playlists.index(t.playlist)
-                processed[str(idx)] = True
-                t.set_playlist(self.playlists[idx])
-            except ValueError:
-                self.root.remove_widget(t)
-        for x in range(len(self.playlists)):
-            if str(x) not in processed:
-                self.root.ids.id_tabcont.add_widget(PlsItem(
-                    playlist=self.playlists[x],
-                    manager=self.root.ids.id_screen_manager,
-                    cardsize=int(self.config.get("gui", "cardsize")),
-                    launchconf=self.config.get("windows", "plpath") if platform == "win" else '',
-                    client=self.client,
-                    confclass=TypeWidget.type2class(self.playlists[x].type)
-                ))
+            self.root.ids.id_tabcont.fill_PlsListRV(received.f('playlists'))
 
     def close_settings(self, settings=None):
         """

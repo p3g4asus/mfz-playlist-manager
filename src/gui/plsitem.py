@@ -93,7 +93,7 @@ Builder.load_string(
     tile_font_style: "H6"
     text_post: root.format_post(root.datepub, root.title, root.uid)
     swipe: True
-    buttons: ["play", "delete"]
+    buttons: ["play", "file-move-outline", "delete"]
     with_image: True
     card_image_class: root.mycls
     ysize: 150
@@ -191,6 +191,9 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
             if value == "play":
                 self.on_lineright()
                 return
+            elif value == "file-move-outline":
+                self.tab.on_new_move_item(self)
+                return
         self.on_lineleft()
 
     def format_post(self, datepub, title, uid):
@@ -254,6 +257,7 @@ class PlsRv(RecycleView):
 
 class PlsItem(BoxLayout, MDTabsBase):
     client = ObjectProperty()
+    tabcont = ObjectProperty(None)
     confclass = ObjectProperty()
     manager = ObjectProperty()
     launchconf = StringProperty('')
@@ -317,7 +321,7 @@ class PlsItem(BoxLayout, MDTabsBase):
         else:
             toast("[E %d] %s" % (received.rv, received.err))
 
-    async def on_new_del_result(self, client, sent, received, tabs=None):
+    async def on_new_del_result(self, client, sent, received):
         if not received:
             toast("Timeout error waiting for server response")
         elif isinstance(received, PlaylistMessage):
@@ -327,8 +331,10 @@ class PlsItem(BoxLayout, MDTabsBase):
                 received = self.playlist.name
         if isinstance(received, str):
             toast("Playlist %s removed" % received)
-            if tabs:
-                tabs.remove_widget(self)
+            self.tabcont.remove_widget(self)
+
+    def del_item(self, index):
+        del self.ids.id_rv.data[index]
 
     async def on_new_del_item_result(self, client, sent, received):
         if received is None:
@@ -400,14 +406,18 @@ class PlsItem(BoxLayout, MDTabsBase):
         else:
             Timer(0, partial(self.on_new_del_item_result, self.client, None, inst.index))
 
-    def on_new_del(self, but, inst, tabs=None):
+    def on_new_move_item(self, inst):
+        if inst.rowid and self.tabcont:
+            self.tabcont.on_new_move_item(inst)
+
+    def on_new_del(self, but, inst):
         if but == "Yes":
             if self.playlist.rowid:
                 self.client.enqueue(
                     PlaylistMessage(cmd=CMD_DEL, playlist=self.playlist.rowid),
-                    partial(self.on_new_del_result, tabs=tabs))
+                    self.on_new_del_result)
             else:
-                Timer(0, partial(self.on_new_del_result, self.client, None, self.playlist.name, tabs=tabs))
+                Timer(0, partial(self.on_new_del_result, self.client, None, self.playlist.name))
 
     def update_pls(self, show_date_selection):
         if show_date_selection:
@@ -433,15 +443,14 @@ class PlsItem(BoxLayout, MDTabsBase):
         else:
             toast("Playlist does not need configuration")
 
-    def del_pls(self, tabs):
+    def del_pls(self):
         dialog = MDDialog(
             title="Delete confirmation",
             size_hint=(0.8, 0.3),
             text_button_ok="Yes",
             text="Are you sure?",
             text_button_cancel="No",
-            events_callback=partial(self.on_new_del, tabs=tabs),
-        )
+            events_callback=self.on_new_del),
         dialog.open()
 
     def rename_pls(self):

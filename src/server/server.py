@@ -150,7 +150,9 @@ CREATE_DB_IF_NOT_EXIST = [
         dur INTEGER NOT NULL,
         conf TEXT,
         seen DATETIME,
+        iorder INTEGER NOT NULL,
         UNIQUE(uid, playlist),
+        UNIQUE(playlist, iorder),
         FOREIGN KEY (playlist)
             REFERENCES playlist (rowid)
             ON UPDATE CASCADE

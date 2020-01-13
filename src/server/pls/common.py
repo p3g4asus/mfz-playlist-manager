@@ -3,10 +3,12 @@ from common.const import (
     CMD_DEL,
     CMD_REN,
     CMD_DUMP,
+    CMD_MOVE,
     CMD_ADD,
     CMD_SEEN,
     CMD_CLOSE,
     MSG_NAME_TAKEN,
+    MSG_BACKEND_ERROR,
     MSG_UNAUTHORIZED,
     MSG_PLAYLIST_NOT_FOUND,
     MSG_PLAYLISTITEM_NOT_FOUND
@@ -22,16 +24,51 @@ class MessageProcessor(AbstractMessageProcessor):
 
     def interested(self, msg):
         return msg.c(CMD_DEL) or msg.c(CMD_REN) or msg.c(CMD_DUMP) or\
-            msg.c(CMD_ADD) or msg.c(CMD_SEEN)
+            msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE)
+
+    async def processMove(self, msg, userid):
+        pdst = msg.playlistObj()
+        itx = msg.playlistItemId()
+        if pdst and itx:
+            if pdst.rowid:
+                pdst = await Playlist.loadbyid(self.db, rowid=pdst.rowid, loaditems=True)
+                if not pdst:
+                    return msg.err(10, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                else:
+                    pdst = pdst[0]
+            if pdst.useri != userid:
+                return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+            it = await PlaylistItem.loadbyid(self.db, itx)
+            if not it:
+                return msg.err(14, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+            psrc = await Playlist.loadbyid(self.db, rowid=it.playlist)
+            if not psrc:
+                return msg.err(16, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+            else:
+                psrc = psrc[0]
+            if psrc.useri != userid:
+                return msg.err(502, MSG_UNAUTHORIZED, playlist=None)
+            if not pdst.rowid:
+                rv = await pdst.toDB(self.db)
+                if not rv:
+                    return msg.err(2, MSG_NAME_TAKEN, playlist=None)
+            rv = await it.move_to(pdst.rowid, self.db)
+            if rv:
+                pdst.items.append(it)
+                return msg.ok(playlist=pdst)
+            else:
+                return msg.err(4, MSG_BACKEND_ERROR, playlist=None)
+        else:
+            return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
     async def processAdd(self, msg, userid):
         x = msg.playlistObj()
         if x:
             if x.useri != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-            rv = x.toDB(self.db)
+            rv = await x.toDB(self.db)
             if rv:
-                return msg.ok()
+                return msg.ok(playlist=x)
             else:
                 return msg.err(2, MSG_NAME_TAKEN, playlist=None)
         else:
@@ -42,7 +79,7 @@ class MessageProcessor(AbstractMessageProcessor):
         if u:
             if u != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-            pl = await Playlist.loadbyid(self.db, id=msg.playlistId(), useri=u)
+            pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), useri=u)
             _LOGGER.debug("Playlists are %s" % str(pl))
             if len(pl):
                 return msg.ok(playlist=None, playlists=pl)
@@ -51,7 +88,7 @@ class MessageProcessor(AbstractMessageProcessor):
     async def processRen(self, msg, userid):
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, id=x, loaditems=False)
+            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=False)
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
@@ -71,7 +108,7 @@ class MessageProcessor(AbstractMessageProcessor):
         if x is not None:
             it = await PlaylistItem.loadbyid(self.db, rowid=x)
             if it:
-                pls = await Playlist.loadbyid(self.db, id=it.playlist, loaditems=False)
+                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=False)
                 if pls:
                     if pls[0].useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
@@ -90,7 +127,7 @@ class MessageProcessor(AbstractMessageProcessor):
     async def processDel(self, msg, userid):
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, id=x, loaditems=False)
+            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=False)
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
@@ -108,6 +145,8 @@ class MessageProcessor(AbstractMessageProcessor):
         resp = None
         if msg.c(CMD_DEL):
             resp = await self.processDel(msg, userid)
+        if msg.c(CMD_MOVE):
+            resp = await self.processMove(msg, userid)
         elif msg.c(CMD_ADD):
             resp = await self.processAdd(msg, userid)
         elif msg.c(CMD_REN):
