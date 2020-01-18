@@ -40,7 +40,7 @@ class MessageProcessor(RefreshMessageProcessor):
                 headers={'User-Agent': r'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'}) as resp:
             if resp.status == 200:
                 txt = await resp.text()
-                _LOGGER.debug("Received " + txt)
+                # _LOGGER.debug("Received " + txt)
                 mo = re.search(r'/playlist\?list=([^&\\]+)', txt)
                 if mo:
                     return mo.group(1)
