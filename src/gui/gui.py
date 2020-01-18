@@ -558,6 +558,20 @@ class MainApp(MDApp):
             if (not plpath or len(plpath) <= 4) and not self.win_notifyed:
                 self.win_notifyed = True
                 toast("For windows playback to work you should set correct player path")
+        try:
+            to = int(self.config.get("network", "timeout"))
+        except Exception:
+            to = -1
+        if to <= 0:
+            toast('Please insert a valid timeout value (int>=0)')
+            return False
+        try:
+            to = int(self.config.get("network", "retry"))
+        except Exception:
+            to = -1
+        if to <= 1:
+            toast('Please insert a valid retry value (int>=1)')
+            return False
         return True
 
     def start_server(self):

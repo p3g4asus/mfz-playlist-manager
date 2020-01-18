@@ -93,7 +93,7 @@ Builder.load_string(
     tile_font_style: "H6"
     text_post: root.format_post(root.datepub, root.title, root.uid)
     swipe: True
-    buttons: ["play", "file-move-outline", "delete"]
+    buttons: ["play", "folder-move", "delete"]
     with_image: True
     card_image_class: root.mycls
     ysize: 150
@@ -284,7 +284,7 @@ class PlsItem(BoxLayout, MDTabsBase):
                     dct = dict(vars(d))
                     dct['launch'] = self.launchconf
                     dct['tab'] = self
-                    Logger.debug("Adding %s" % str(dct))
+                    # Logger.debug("Adding %s" % str(dct))
                     data.append(dct)
             self.ids.id_rv.data = data
 
@@ -450,7 +450,7 @@ class PlsItem(BoxLayout, MDTabsBase):
             text_button_ok="Yes",
             text="Are you sure?",
             text_button_cancel="No",
-            events_callback=self.on_new_del),
+            events_callback=self.on_new_del)
         dialog.open()
 
     def rename_pls(self):

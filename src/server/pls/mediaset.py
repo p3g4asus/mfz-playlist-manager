@@ -5,8 +5,7 @@ from datetime import datetime
 import aiohttp
 from common.const import (CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS,
                           MSG_BACKEND_ERROR, MSG_INVALID_DATE,
-                          MSG_MEDIASET_INVALID_BRAND,
-                          MSG_MEDIASET_INVALID_SUBBRAND)
+                          MSG_MEDIASET_INVALID_BRAND, MSG_NO_VIDEOS)
 from common.playlist import PlaylistItem
 
 from .refreshmessageprocessor import RefreshMessageProcessor
@@ -152,12 +151,12 @@ class MessageProcessor(RefreshMessageProcessor):
         #        (not img or imgo['height'] < minheight):
         #         minheight = imgo['height']
         #         img = imgo['url']
-        maxheight = 0
+        minheight = 0
         for imgo in e['thumbnails'].values():
             if 'title' in imgo and\
                 imgo['title'] == 'Keyframe_Poster Image' and\
-               (not img or imgo['height'] > maxheight):
-                maxheight = imgo['height']
+               (not img or imgo['height'] < minheight):
+                minheight = imgo['height']
                 img = imgo['url']
         datepubi = e["mediasetprogram$publishInfo_lastPublished"]
         datepubo = datetime.fromtimestamp(datepubi / 1000)
@@ -210,7 +209,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                 else:
                                     return msg.err(12, MSG_BACKEND_ERROR)
                     if not len(programs):
-                        return msg.err(13, MSG_MEDIASET_INVALID_SUBBRAND)
+                        return msg.err(13, MSG_NO_VIDEOS)
                     else:
                         programs = list(programs.values())
                         programs.sort(key=lambda item: item.datepub)

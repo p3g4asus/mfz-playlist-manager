@@ -6,7 +6,8 @@ from datetime import datetime
 import aiohttp
 
 from common.const import (CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS, MSG_BACKEND_ERROR,
-                          MSG_RAI_INVALID_CONTENTSET, MSG_RAI_INVALID_PROGID)
+                          MSG_RAI_INVALID_CONTENTSET, MSG_RAI_INVALID_PROGID,
+                          MSG_NO_VIDEOS)
 from common.playlist import PlaylistItem
 
 from .refreshmessageprocessor import RefreshMessageProcessor
@@ -195,7 +196,7 @@ class MessageProcessor(RefreshMessageProcessor):
                             else:
                                 return msg.err(12, MSG_BACKEND_ERROR)
                     if not len(programs):
-                        return msg.err(13, MSG_RAI_INVALID_CONTENTSET)
+                        return msg.err(13, MSG_NO_VIDEOS)
                     else:
                         programs = list(programs.values())
                         programs.sort(key=lambda item: item.conf['order'] if item.conf['order'] > 0 else item.datepub)
