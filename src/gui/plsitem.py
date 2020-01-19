@@ -226,9 +226,11 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
 
     def refresh_view_attrs(self, rv, index, dbitem):
         ''' Catch and handle the view changes '''
-        Logger.debug("PlsItem: r_v_a data = %s" % str(dbitem))
+        try:
+            Logger.debug("PlsItem: r_v_a data = %s" % str(dbitem))
+        except Exception:
+            pass
         self.index = index
-        Logger.debug("PlsItem: r_v_a = %s" % str(dbitem))
         self.rowid = dbitem['rowid']
         self.uid = dbitem['uid']
         self.link = dbitem['link']
@@ -274,7 +276,10 @@ class PlsItem(BoxLayout, MDTabsBase):
         Timer(0, partial(launch_link, lnk, self.launchconf))
 
     def load_list(self):
-        Logger.debug("Loading list in tab: %s" % str(self.playlist))
+        try:
+            Logger.debug("Loading list in tab: %s" % str(self.playlist))
+        except Exception:
+            pass
         if self.playlist:
             self.text = self.playlist.name
             del self.ids.id_rv.data[:]
@@ -284,7 +289,10 @@ class PlsItem(BoxLayout, MDTabsBase):
                     dct = dict(vars(d))
                     dct['launch'] = self.launchconf
                     dct['tab'] = self
-                    # Logger.debug("Adding %s" % str(dct))
+                    try:
+                        Logger.debug("Adding %s" % str(dct))
+                    except Exception:
+                        pass
                     data.append(dct)
             self.ids.id_rv.data = data
 
@@ -316,7 +324,10 @@ class PlsItem(BoxLayout, MDTabsBase):
         if not received:
             toast("Timeout error waiting for server response")
         elif received.rv == 0:
-            Logger.debug("PlsItem: Sent PL: %s Received PL: %s" % (str(sent.playlist), str(received.playlist)))
+            try:
+                Logger.debug("PlsItem: Sent PL: %s Received PL: %s" % (str(sent.playlist), str(received.playlist)))
+            except Exception:
+                pass
             self.set_playlist(received.playlist)
         else:
             toast("[E %d] %s" % (received.rv, received.err))

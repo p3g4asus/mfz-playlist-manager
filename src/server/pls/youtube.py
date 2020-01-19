@@ -54,20 +54,19 @@ class MessageProcessor(RefreshMessageProcessor):
         if text:
             try:
                 async with aiohttp.ClientSession() as session:
-                    userfound = re.search(r'/user/([^/?&]+)', text)
-                    plid = None
-                    if userfound:
-                        chanid = userfound.group(1)
+                    mo2 = re.search(r'list=([^&]+)', text)
+                    if mo2:
+                        plid = mo2.group(1)
                     else:
-                        mo1 = re.search(r'/([^/]+)$', text)
-                        mo2 = re.search(r'list=([^&]+)', text)
-                        if mo2:
-                            plid = mo2.group(1)
-                        elif mo1:
-                            chanid = mo1.group(1)
+                        userfound = re.search(r'/user/([^/?&]+)', text)
+                        if userfound:
+                            chanid = userfound.group(1)
                         else:
-                            chanid = text
-                    if not plid:
+                            mo1 = re.search(r'/([^/]+)$', text)
+                            if mo1:
+                                chanid = mo1.group(1)
+                            else:
+                                chanid = text
                         res = await self.channel2playlist(session, chanid)
                         if isinstance(res, int):
                             if userfound:
