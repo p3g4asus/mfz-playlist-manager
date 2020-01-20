@@ -593,6 +593,7 @@ class MainApp(MDApp):
                 argument = json.dumps(arg)
                 Logger.info("Starting %s [%s]" % (service_class, argument))
                 service.start(mActivity, argument)
+                self.client.start_login_process(self.on_login)
             except Exception:
                 Logger.error(traceback.format_exc())
             finally:
@@ -617,6 +618,7 @@ class MainApp(MDApp):
         """
         Logger.info("main.py: App.on_config_change: {0}, {1}, {2}, {3}".format(
             config, section, key, value))
+        dologin = True
         if section == "windows" and key == "pathbuttons" and value == "btn_sel":
             plwidget = PlayerPathWidget(
                 startpath=self.config.get("windows", "plpath"),
@@ -635,6 +637,7 @@ class MainApp(MDApp):
                 if not self.timer_server_online:
                     if host == "localhost" or host == "127.0.0.1":
                         Logger.info("Have to start server")
+                        dologin = False
                         self.timer_server_online = Timer(0, self.set_server_offline)
         else:
             return
@@ -649,7 +652,8 @@ class MainApp(MDApp):
                     timeout=int(self.config.get('network', 'timeout')),
                     retry=int(self.config.get('network', 'retry')),
                 )
-                self.client.start_login_process(self.on_login)
+                if dologin:
+                    self.client.start_login_process(self.on_login)
             elif section == "registration" and key.startswith("regbuttons"):
                 if value == "btn_reg":
                     self.client.stop()
