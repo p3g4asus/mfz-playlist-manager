@@ -60,11 +60,11 @@ class PlsClient:
 
     def start_login_process(self, on_login=None):
         self.on_login = on_login
-        self.timer_login()
+        self.timer_login(delay=2)
 
-    def timer_login(self):
+    def timer_login(self, delay=5):
         if not self.login_t:
-            self.login_t = Timer(5, self.timer_login_callback)
+            self.login_t = Timer(delay, self.timer_login_callback)
 
     def is_logged_in(self):
         return self.login_t is None and self.login_h is not None and\

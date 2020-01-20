@@ -635,7 +635,7 @@ class MainApp(MDApp):
                 if not self.timer_server_online:
                     if host == "localhost" or host == "127.0.0.1":
                         Logger.info("Have to start server")
-                        self.timer_server_online = Timer(6, self.set_server_offline)
+                        self.timer_server_online = Timer(0, self.set_server_offline)
         else:
             return
         if self.check_other_config():
