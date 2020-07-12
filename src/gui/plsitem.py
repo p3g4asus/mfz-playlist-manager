@@ -191,7 +191,7 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
             if value == "play":
                 self.on_lineright()
                 return
-            elif value == "file-move-outline":
+            elif value == "folder-move":
                 self.tab.on_new_move_item(self)
                 return
         self.on_lineleft()

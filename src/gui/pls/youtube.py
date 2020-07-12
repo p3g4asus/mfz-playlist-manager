@@ -145,7 +145,12 @@ class YoutubeConfScreen(Screen):
     def brand_confirmed(self, *args, **kwargs):
         txt = self.ids.id_brandtf.text
         Logger.debug("MedRai: brand_confirmed %s" % txt)
-        self.client.enqueue(PlaylistMessage(cmd=CMD_YT_PLAYLISTCHECK, text=txt), self.on_new_playlist_check)
+        reqs = txt.split(',')
+        found = dict()
+        for t in reqs:
+            if t not in found:
+                found[t] = 1
+                self.client.enqueue(PlaylistMessage(cmd=CMD_YT_PLAYLISTCHECK, text=t), self.on_new_playlist_check)
 
     async def on_new_playlist_check(self, client, sent, received):
         if not received:

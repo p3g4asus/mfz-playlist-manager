@@ -29,11 +29,35 @@ class MessageProcessor(RefreshMessageProcessor):
             (startFrom, plid)
 
     @staticmethod
-    def channelUrl(user):
-        return f'https://www.youtube.com/c/{user}/videos'
+    def channelUrl(user, vers):
+        if vers == 2:
+            return f'https://www.youtube.com/c/{user}/videos'
+        else:
+            return f'https://www.youtube.com/user/{user}/videos'
 
-    async def channel2playlist(self, session, chanid):
-        url = MessageProcessor.channelUrl(chanid)
+    @staticmethod
+    def channelIdUrl(chanid):
+        return f'https://www.youtube.com/channel/{chanid}'
+
+    async def channelid2user(self, session, chanid):
+        url = MessageProcessor.channelIdUrl(chanid)
+        _LOGGER.debug("Youtube: Getting processPlaylistCheck " + url)
+        async with session.get(
+                url,
+                headers={'User-Agent': r'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'}) as resp:
+            if resp.status == 200:
+                txt = await resp.text()
+                # _LOGGER.debug("Received " + txt)
+                mo = re.search(r'/(?:c|user)/([^/]+)/videos', txt)
+                if mo:
+                    return mo.group(1)
+                else:
+                    return 15
+            else:
+                return 14
+
+    async def channel2playlist(self, session, chanid, vers):
+        url = MessageProcessor.channelUrl(chanid, vers)
         _LOGGER.debug("Youtube: Getting processPlaylistCheck " + url)
         async with session.get(
                 url,
@@ -58,18 +82,27 @@ class MessageProcessor(RefreshMessageProcessor):
                     if mo2:
                         plid = mo2.group(1)
                     else:
+                        channelfound = re.search(r'/channel/([^/?&]+)', text)
+                        if channelfound:
+                            res = await self.channelid2user(session, channelfound.group(1))
+                            if isinstance(res, int):
+                                return msg.err(res, MSG_YT_INVALID_CHANNEL)
+                            else:
+                                chanid = res
                         userfound = re.search(r'/c/([^/?&]+)', text)
                         if userfound:
                             chanid = userfound.group(1)
-                        else:
+                        elif not channelfound:
                             mo1 = re.search(r'/([^/]+)$', text)
                             if mo1:
                                 chanid = mo1.group(1)
                             else:
                                 chanid = text
-                        res = await self.channel2playlist(session, chanid)
+                        res = await self.channel2playlist(session, chanid, 2)
                         if isinstance(res, int):
-                            if userfound:
+                            res = await self.channel2playlist(session, chanid, 1)
+                        if isinstance(res, int):
+                            if userfound or channelfound:
                                 return msg.err(res, MSG_YT_INVALID_CHANNEL)
                             else:
                                 plid = chanid
