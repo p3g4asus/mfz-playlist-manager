@@ -13,7 +13,7 @@ REM ~ set USE_GSTREAMER=1
 REM ~ pip3 install git+git://github.com/kivy/kivy.git@cfa6b78f998abd71cda6ab665fd21b18277199b9
 REM ~ pip3 install git+git://github.com/p3g4asus/KivyMD.git@27e7e35576ec14d1fa11973a86d85ed8657eb7ae
 call %~dp0venv\Scripts\activate.bat
-set PATH=C:\Program Files\Java\jre1.8.0_231\bin\server;%PATH%
+set PATH=C:\Program Files\Java\jre1.8.0_251\bin\server;%PATH%
 set KCFG_KIVY_LOG_LEVEL=debug
 set KCFG_KIVY_LOG_ENABLE=1
 set KCFG_KIVY_LOG_DIR=%~dp0logs
