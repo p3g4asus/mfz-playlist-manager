@@ -30,7 +30,7 @@ class MessageProcessor(RefreshMessageProcessor):
 
     @staticmethod
     def channelUrl(user):
-        return f'https://www.youtube.com/user/{user}/videos'
+        return f'https://www.youtube.com/c/{user}/videos'
 
     async def channel2playlist(self, session, chanid):
         url = MessageProcessor.channelUrl(chanid)
@@ -58,7 +58,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     if mo2:
                         plid = mo2.group(1)
                     else:
-                        userfound = re.search(r'/user/([^/?&]+)', text)
+                        userfound = re.search(r'/c/([^/?&]+)', text)
                         if userfound:
                             chanid = userfound.group(1)
                         else:
