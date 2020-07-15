@@ -16,6 +16,7 @@ from contextlib import closing
 from functools import partial
 from os.path import expanduser, join, dirname, exists
 
+from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ObjectProperty, StringProperty, NumericProperty
@@ -414,6 +415,7 @@ class MainApp(MDApp):
         return root
 
     def on_start(self):
+        Window.bind(on_keyboard=self._on_keyboard)
         self.on_config_change(self.config, "network", "host", None)
         if platform == "win":
             self.root.ids.id_tabcont.launchconf = self.config.get("windows", "plpath")
@@ -458,7 +460,7 @@ class MainApp(MDApp):
             self.timer_server_online = None
         self.start_server()
 
-    def true_stop(self):
+    def stop_me(self):
         if platform == "android":
             if self.osc_timer:
                 self.osc_timer.cancel()
@@ -466,9 +468,13 @@ class MainApp(MDApp):
             if self.osc_transport:
                 self.osc_transport.close()
                 self.osc_transport = None
-            self.stop_server()
         self.client.stop()
         self.stop()
+
+    def true_stop(self):
+        if platform == "android":
+            self.stop_server()
+        self.stop_me()
 
     def build_config(self, config):
         """
@@ -611,6 +617,15 @@ class MainApp(MDApp):
     def rec_player_path(self, inst, path):
         self.config.set("windows", "plpath", path)
         self.config.write()
+
+        def _on_keyboard(self, win, scancode, *largs):
+            if scancode == 27:
+                if self.root.ids.nav_drawer.state == 'open':
+                    self.root.ids.nav_drawer.animation_close()
+                else:
+                    self.stop_me()
+                return True
+        return False
 
     def on_config_change(self, config, section, key, value):
         """
