@@ -618,13 +618,13 @@ class MainApp(MDApp):
         self.config.set("windows", "plpath", path)
         self.config.write()
 
-        def _on_keyboard(self, win, scancode, *largs):
-            if scancode == 27:
-                if self.root.ids.nav_drawer.state == 'open':
-                    self.root.ids.nav_drawer.animation_close()
-                else:
-                    self.stop_me()
-                return True
+    def _on_keyboard(self, win, scancode, *largs):
+        if scancode == 27:
+            if self.root.ids.nav_drawer.state == 'open':
+                self.root.ids.nav_drawer.animation_close()
+            else:
+                self.stop_me()
+            return True
         return False
 
     def on_config_change(self, config, section, key, value):
