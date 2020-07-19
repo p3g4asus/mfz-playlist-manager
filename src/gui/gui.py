@@ -159,7 +159,6 @@ class NavigationItem(OneLineAvatarListItem):
 class MyTabs(MDTabs):
     client = ObjectProperty()
     launchconf = StringProperty()
-    client = ObjectProperty()
     cardsize = NumericProperty()
     useri = NumericProperty()
     manager = ObjectProperty()
@@ -295,6 +294,17 @@ class MyTabs(MDTabs):
             self.add_widget(tab)
             tab.conf_pls()
 
+    def ws_dump(self):
+        self.client.enqueue(PlaylistMessage(cmd=CMD_DUMP, useri=self.useri), self.on_ws_dump)
+
+    async def on_ws_dump(self, client, sent, received):
+        if not received:
+            toast("Timeout error waiting for server response")
+        elif received.rv:
+            toast("[E %d] %s" % (received.rv, received.err))
+        else:
+            self.fill_PlsListRV(received.f('playlists'))
+
     def fill_PlsListRV(self, playlists):
         playlists = playlists
         d = self.tab_list
@@ -416,13 +426,13 @@ class MainApp(MDApp):
 
     def on_start(self):
         Window.bind(on_keyboard=self._on_keyboard)
-        self.on_config_change(self.config, "network", "host", None)
         if platform == "win":
             self.root.ids.id_tabcont.launchconf = self.config.get("windows", "plpath")
         else:
             self.root.ids.id_tabcont.launchconf = ''
         self.root.ids.id_tabcont.cardsize = int(self.config.get("gui", "cardsize"))
         self.root.ids.id_tabcont.client = self.client
+        self.on_config_change(self.config, "network", "host", None)
         self.root.ids.content_drawer.image_path = join(
             dirname(__file__), "images", "navdrawer.png")
         for items in {
@@ -693,16 +703,8 @@ class MainApp(MDApp):
         toast("Login OK" if not rv else rv)
         if not rv:
             self.root.ids.id_tabcont.useri = userid
-            client.enqueue(PlaylistMessage(cmd=CMD_DUMP, useri=userid), self.on_ws_dump)
+            self.root.ids.id_tabcont.ws_dump()
             await client.estabilish_connection()
-
-    async def on_ws_dump(self, client, sent, received):
-        if not received:
-            toast("Timeout error waiting for server response")
-        elif received.rv:
-            toast("[E %d] %s" % (received.rv, received.err))
-        else:
-            self.root.ids.id_tabcont.fill_PlsListRV(received.f('playlists'))
 
     def close_settings(self, settings=None):
         """

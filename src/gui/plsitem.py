@@ -71,7 +71,7 @@ Builder.load_string(
             valign: 'top'
             height: int(root.card_size[1] / 150 * 110)
             id: id_c21
-            text_size: self.width - 20, dp(60)
+            text_size: self.width - 20, None
         AnchorLayout:
             pos_hint: {'top': 1}
             anchor_x: 'right'
@@ -331,6 +331,7 @@ class PlsItem(BoxLayout, MDTabsBase):
             self.set_playlist(received.playlist)
         else:
             toast("[E %d] %s" % (received.rv, received.err))
+            self.tabcont.ws_dump()
 
     async def on_new_del_result(self, client, sent, received):
         if not received:
@@ -338,6 +339,7 @@ class PlsItem(BoxLayout, MDTabsBase):
         elif isinstance(received, PlaylistMessage):
             if received.rv:
                 toast("[E %d] %s" % (received.rv, received.err))
+                self.tabcont.ws_dump()
             else:
                 received = self.playlist.name
         if isinstance(received, str):
@@ -353,6 +355,7 @@ class PlsItem(BoxLayout, MDTabsBase):
         elif isinstance(received, PlaylistMessage):
             if received.rv:
                 toast("[E %d] %s" % (received.rv, received.err))
+                self.tabcont.ws_dump()
             else:
                 received = received.index
         if isinstance(received, int):
@@ -378,6 +381,7 @@ class PlsItem(BoxLayout, MDTabsBase):
         elif isinstance(received, PlaylistMessage):
             if received.rv:
                 toast("[E %d] %s" % (received.rv, received.err))
+                self.tabcont.ws_dump()
             else:
                 received = removed_item
         if isinstance(received, dict):
