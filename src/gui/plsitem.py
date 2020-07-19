@@ -197,7 +197,11 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
         self.on_lineleft()
 
     def format_post(self, datepub, title, uid):
-        return 'Date: ' + str(datepub) + '\n' + str(title) + ' (' + str(uid) + ')'
+        if datepub:
+            strdate = datetime.strptime(datepub, '%Y-%m-%d %H:%M:%S.%f').strftime('%d/%m %H:%M')
+        else:
+            strdate = 'N/A'
+        return 'Date: ' + strdate + '\n' + str(title) + ' (' + str(uid) + ')'
 
     def format_duration(self, dur):
         h = dur // 3600
