@@ -71,7 +71,7 @@ Builder.load_string(
             valign: 'top'
             height: int(root.card_size[1] / 150 * 110)
             id: id_c21
-            text_size: self.width - 20, None
+            text_size: self.width - 20, self.height - 10
         AnchorLayout:
             pos_hint: {'top': 1}
             anchor_x: 'right'
