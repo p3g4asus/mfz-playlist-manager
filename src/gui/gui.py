@@ -160,6 +160,7 @@ class MyTabs(MDTabs):
     client = ObjectProperty()
     launchconf = StringProperty()
     cardsize = NumericProperty()
+    cardtype = StringProperty()
     useri = NumericProperty()
     manager = ObjectProperty()
 
@@ -167,6 +168,10 @@ class MyTabs(MDTabs):
         super(MyTabs, self).__init__(*args, **kwargs)
         self.tab_list = []
         self.current_tab = None
+
+    def on_cardtype(self, inst, val):
+        for t in self.tab_list:
+            t.cardtype = val
 
     def remove_widget(self, w, *args, **kwargs):
         if isinstance(w, PlsItem):
@@ -289,7 +294,8 @@ class MyTabs(MDTabs):
                 cardsize=self.cardsize,
                 manager=self.manager,
                 launchconf=self.launchconf,
-                confclass=confclass)
+                confclass=confclass,
+                cardtype=self.cardtype)
             self.add_widget(tab)
             tab.conf_pls()
 
@@ -327,7 +333,8 @@ class MyTabs(MDTabs):
                     cardsize=self.cardsize,
                     launchconf=self.launchconf,
                     client=self.client,
-                    confclass=TypeWidget.type2class(playlists[x].type)
+                    confclass=TypeWidget.type2class(playlists[x].type),
+                    cardtype=self.cardtype
                 ))
 
 
@@ -465,6 +472,7 @@ class MainApp(MDApp):
         else:
             self.root.ids.id_tabcont.launchconf = ''
         self.root.ids.id_tabcont.cardsize = int(self.config.get("gui", "cardsize"))
+        self.root.ids.id_tabcont.cardtype = self.config.get("gui", "cardtype")
         self.root.ids.id_tabcont.client = self.client
         self.on_config_change(self.config, "network", "host", None)
         self.root.ids.content_drawer.image_path = join(
@@ -530,7 +538,7 @@ class MainApp(MDApp):
         config.setdefaults('registration',
                            {'username': 'new', 'password': 'password'})
         config.setdefaults('gui',
-                           {'cardsize': 150})
+                           {'cardsize': 150, 'cardtype': 'RESIZE'})
         if platform == "win":
             config.setdefaults('windows', {'plpath': ''})
         self._init_fields()
@@ -687,6 +695,8 @@ class MainApp(MDApp):
             self.root.ids.nav_drawer.animation_close()
             self.root.ids.id_screen_manager.add_widget(plwidget)
             self.root.ids.id_screen_manager.current = plwidget.name
+        if section == "gui" and key == "cardtype":
+            self.root.ids.id_tabcont.cardtype = value
         elif self.check_host_port_config():
             if section == "network" and (key == "host" or key == "port"):
                 if self.timer_server_online and value:

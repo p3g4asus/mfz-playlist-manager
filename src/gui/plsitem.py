@@ -69,6 +69,7 @@ Builder.load_string(
         id: id_rv
         title: 'Playlist'
         ysize: root.cardsize
+        cardtype: root.cardtype
         viewclass: 'PlsRvItem'
         RecycleBoxLayout:
             default_size: None, dp(root.cardsize)
@@ -258,6 +259,12 @@ class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
         self.seen = dbitem['seen']
         self.tab = dbitem['tab']
         self.height = rv.ysize
+        if rv.cardtype == 'RESIZE':
+            self.allow_stretch = True
+            self.keep_ratio = True
+        else:
+            self.allow_stretch = None
+            self.keep_ratio = None
         self.text_post = self.format_post(self.datepub, self.title, self.uuid)
         self.tile_text = self.format_duration(self.dur) + f'    ({self.iorder})'
         self.source = self.img
@@ -267,7 +274,7 @@ class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
 
 class PlsRv(RecycleView):
     ysize = NumericProperty(150)
-    pass
+    cardtype = StringProperty('RESIZE')
 
 
 class PlsItem(BoxLayout, MDTabsBase):
@@ -276,6 +283,7 @@ class PlsItem(BoxLayout, MDTabsBase):
     confclass = ObjectProperty()
     manager = ObjectProperty()
     launchconf = StringProperty('')
+    cardtype = StringProperty('RESIZE')
     cardsize = NumericProperty(150)
 
     def __init__(self, playlist=None, **kwargs):

@@ -5,5 +5,13 @@
         "desc": "Card size dp",
         "section": "gui",
         "key": "cardsize"
+    },
+    {
+        "type": "options",
+        "options": ["RESIZE", "CUT"],
+        "title": "Card Type",
+        "desc": "How to show card",
+        "section": "gui",
+        "key": "cardtype"
     }
 ]

@@ -1,6 +1,6 @@
 # from kivy.core.window import Window
 from kivy.lang import Builder
-from kivy.properties import (ListProperty, StringProperty)
+from kivy.properties import (BooleanProperty, ListProperty, StringProperty)
 from kivymd.uix.button import MDIconButton
 from kivymd.uix.card import MDCardSwipe, MDCardSwipeFrontBox
 
@@ -10,7 +10,7 @@ ICON_TRASH = '__trash__'
 Builder.load_string(
     """
 <CardPostImage2>
-    spacing: dp(10)
+    spacing: dp(5)
     padding: dp(5)
     orientation: 'horizontal'
     size_hint_y: None
@@ -25,6 +25,8 @@ Builder.load_string(
         # width: self.ids.img.width
         font_style: root.tile_font_style
         height: root.height
+        keep_ratio: root.keep_ratio
+        allow_stretch: root.allow_stretch
         id: id_c1
         on_release: root.callback('__image__')
     BoxLayout:
@@ -42,15 +44,11 @@ Builder.load_string(
             height: int(root.height / 150 * 110)
             id: id_c21
             text_size: self.width - dp(20), self.height - dp(5)
-        AnchorLayout:
-            pos_hint: {'top': 1}
-            anchor_x: 'right'
+        BoxLayout:
             size_hint_y: None
             height: int(root.height / 150 * 40)
-            id: id_c22
-            BoxLayout:
-                pos_hint: {'top': 1}
-                id: box_buttons
+            pos_hint: {'top': 1}
+            id: box_buttons
 
 <SwipeToDeleteItem>:
     size_hint_y: None
@@ -77,6 +75,8 @@ Builder.load_string(
         tile_text: root.tile_text
         tile_font_style: root.tile_font_style
         tile_text_color: root.tile_text_color
+        keep_ratio: root.keep_ratio
+        allow_stretch: root.allow_stretch
         buttons: root.buttons
     """
 )
@@ -89,6 +89,8 @@ class CardPostImage2(MDCardSwipeFrontBox):
     tile_font_style = StringProperty("H5")
     tile_text_color = ListProperty([1, 1, 1, 1])
     buttons = ListProperty()
+    keep_ratio = BooleanProperty(None, allownone=True)
+    allow_stretch = BooleanProperty(None, allownone=True)
 
     def __init__(self, **kwargs):
         self.register_event_type('on_button_click')
@@ -124,6 +126,8 @@ class SwipeToDeleteItem(MDCardSwipe):
     tile_font_style = StringProperty("H5")
     tile_text_color = ListProperty([1, 1, 1, 1])
     buttons = ListProperty()
+    keep_ratio = BooleanProperty(None, allownone=True)
+    allow_stretch = BooleanProperty(None, allownone=True)
 
     def __init__(self, **kwargs):
         self.register_event_type('on_button_click')
