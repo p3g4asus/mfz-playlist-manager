@@ -59,7 +59,7 @@ Builder.load_string(
     tile_text: root.format_duration(root.dur) + f'    ({root.iorder})'
     tile_font_style: "H6"
     text_post: root.format_post(root.datepub, root.title, root.uuid)
-    buttons: ["play", "folder-move", "order-numeric-ascending", "delete"]
+    buttons: ["folder-move", "order-numeric-ascending", "delete"]
     ysize: 150
 
 <PlsItem>:
