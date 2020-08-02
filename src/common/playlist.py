@@ -299,7 +299,7 @@ class PlaylistItem(JSONAble, Fieldable):
         else:
             return None
 
-    async def setSeen(self, db, value=True):
+    async def setSeen(self, db, value=True, commit=True):
         rv = False
         if self.rowid:
             async with db.cursor() as cursor:
@@ -314,6 +314,20 @@ class PlaylistItem(JSONAble, Fieldable):
                 rv = cursor.rowcount > 0
         if rv:
             await db.commit()
+        return rv
+
+    async def setIOrder(self, db, iorder, commit=True):
+        rv = False
+        if self.rowid:
+            async with db.cursor() as cursor:
+                await cursor.execute(
+                    "UPDATE playlist_item SET iorder=? WHERE rowid=?",
+                    (iorder, self.rowid,))
+                rv = cursor.rowcount > 0
+        if rv:
+            self.iorder = iorder
+            if commit:
+                await db.commit()
         return rv
 
     def toM3U(self):

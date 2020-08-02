@@ -156,6 +156,8 @@ class MessageProcessor(RefreshMessageProcessor):
         datepubi = datepubi * 1000
         datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
         img = it['thumbnail']
+        if img.endswith('default.jpg'):
+            img = img[0:-11] + 'hqdefault.jpg'
         dur = self.duration2int(it['duration'])
         link = f"http://www.youtube.com/watch?v={it['encrypted_id']}&src=plsmanager"
         return (PlaylistItem(

@@ -1,3 +1,4 @@
+import re
 import traceback
 
 from datetime import datetime
@@ -5,26 +6,25 @@ from functools import partial
 
 from jnius import autoclass, cast
 from kivy.app import App
-from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.metrics import dp
-from kivy.properties import NumericProperty, ObjectProperty, StringProperty, ListProperty
+from kivy.properties import NumericProperty, ObjectProperty, StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.recycleview import RecycleView
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.utils import platform
 from kivymd.toast.kivytoast.kivytoast import toast
-from kivymd.uix.button import MDFlatButton
-from kivymd.uix.card import MDCardPost
-from kivymd.uix.dialog import MDDialog, MDInputDialog
-from kivymd.uix.imagelist import SmartTileWithLabel
+from kivymd.uix.button import MDFlatButton, MDRaisedButton
+from kivymd.uix.dialog import MDDialog
 from kivymd.uix.snackbar import Snackbar
 from kivymd.uix.tab import MDTabsBase
 
-from common.const import CMD_DEL, CMD_REFRESH, CMD_REN, CMD_SEEN
+from common.const import CMD_DEL, CMD_IORDER, CMD_REFRESH, CMD_REN, CMD_SEEN
 from common.playlist import PlaylistMessage
 from common.timer import Timer
+
+from gui.mdcardpost import SwipeToDeleteItem, ICON_IMAGE, ICON_TRASH
 
 from .updatewidget import UpdateWidget
 
@@ -40,62 +40,26 @@ from .updatewidget import UpdateWidget
 
 Builder.load_string(
     '''
-<CardPostImage2>
-    spacing: dp(10)
+<RenameContent>
+    orientation: "vertical"
     padding: dp(5)
-    orientation: 'horizontal'
-    size_hint: None, None
-    size: root.card_size
-
-    SmartTileWithLabel:
-        pos_hint: {'top': 1}
-        source: root.source
-        text: ' %s' % root.tile_text
-        color: root.tile_text_color
-        size_hint_y: None
-        font_style: root.tile_font_style
-        height: root.card_size[1]
-        id: id_c1
-        on_release: root.callback(root, [self, self.source])
-    BoxLayout:
-        orientation: 'vertical'
-        id: id_c2
-        size_hint_y: None
-        pos_hint: {'top': 1}
-        height: root.card_size[1]
-        MDLabel:
-            pos_hint: {'top': 1}
-            text: root.text_post
-            size_hint_y: None
-            halign: 'justify'
-            valign: 'top'
-            height: int(root.card_size[1] / 150 * 110)
-            id: id_c21
-            text_size: self.width - dp(20), self.height - dp(5)
-        AnchorLayout:
-            pos_hint: {'top': 1}
-            anchor_x: 'right'
-            size_hint_y: None
-            height: int(root.card_size[1] / 150 * 40)
-            id: id_c22
-            BoxLayout:
-                pos_hint: {'top': 1}
-                id: box_buttons
+    MDTextField:
+        id: id_newname
+        hint_text: "New name"
+        error: True
+        helper_text_mode: "on_error"
+        helper_text: "At least a letter is required"
     '''
 )
 
 Builder.load_string(
     '''
 <PlsRvItem>:
-    path_to_avatar: root.img
     source: root.img
-    tile_text: root.format_duration(root.dur)
+    tile_text: root.format_duration(root.dur) + f'    ({root.iorder})'
     tile_font_style: "H6"
-    text_post: root.format_post(root.datepub, root.title, root.uid)
-    swipe: True
-    buttons: ["play", "folder-move", "delete"]
-    with_image: True
-    card_image_class: root.mycls
+    text_post: root.format_post(root.datepub, root.title, root.uuid)
+    buttons: ["play", "folder-move", "order-numeric-ascending", "delete"]
     ysize: 150
 
 <PlsItem>:
@@ -116,15 +80,40 @@ Builder.load_string(
 )
 
 
-class CardPostImage2(BoxLayout):
-    source = StringProperty()
-    text_post = StringProperty()
-    tile_text = StringProperty("Title")
-    tile_font_style = StringProperty("H5")
-    tile_text_color = ListProperty([1, 1, 1, 1])
-    callback = ObjectProperty(lambda *x: None)
-    card_size = ListProperty((Window.width - 10, dp(150)))
+class RenameContent(BoxLayout):
+    button_ok = ObjectProperty()
+    oldname = StringProperty()
 
+    def __init__(self, **kwargs):
+        super(RenameContent, self).__init__(**kwargs)
+        self.ids.id_newname.bind(text=self.name_check)
+        self.ids.id_newname.text = self.oldname
+
+    def is_name_ok(self, name):
+        return re.search(r"[A-Za-z]", name)
+
+    def name_check(self, inst, name):
+        if self.is_name_ok(name):
+            if self.ids.id_newname.error:
+                self.ids.id_newname.error = False
+                inst.on_text(inst, name)
+            if self.button_ok:
+                self.button_ok.disabled = name == self.oldname
+        else:
+            self.button_ok.disabled = True
+            if not self.ids.id_newname.error:
+                self.ids.id_newname.error = True
+                inst.on_text(inst, name)
+
+
+class OrderContent(RenameContent):
+    def __init__(self, **kwargs):
+        super(OrderContent, self).__init__(**kwargs)
+        self.ids.id_newname.hint_text = 'New Order'
+        self.ids.id_newname.helper_text = 'Only digits are allowed here'
+
+    def is_name_ok(self, name):
+        return re.search(r"^[0-9]+$", name)
 
 #             md_bg_color: app.theme_cls.primary_color
 #             background_palette: "Primary"
@@ -132,6 +121,7 @@ class CardPostImage2(BoxLayout):
 
 
 async def launch_link(lnk, launchconf):
+    Logger.debug(f'lnk to launch: {lnk}')
     if platform == "win":
         if not launchconf:
             toast("Please configure video player path")
@@ -155,14 +145,15 @@ async def launch_link(lnk, launchconf):
             Logger.error(traceback.format_exc())
 
 
-class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
+class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
     ''' Add selection support to the Label '''
     img = StringProperty('')
     dur = NumericProperty(0)
+    iorder = NumericProperty(0)
     title = StringProperty('')
     link = StringProperty('')
     launch = StringProperty()
-    uid = StringProperty()
+    uuid = StringProperty()
     rowid = ObjectProperty()
     playlist = ObjectProperty()
     datepub = ObjectProperty()
@@ -171,30 +162,49 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
     seen = ObjectProperty(None, allownone=True)
     index = NumericProperty(-1)
     ysize = NumericProperty(150)
-    mycls = ObjectProperty(CardPostImage2)
 
     def __init__(self, *args, **kwargs):
-        super(PlsRvItem, self).__init__(
-            callback=self.process_button_click,
-            **kwargs)
+        super(PlsRvItem, self).__init__(**kwargs)
         self.on_ysize(self, self.ysize)
-        for i in self.ids.root_box.children[0].children:
-            if isinstance(i, SmartTileWithLabel):
-                i.allow_stretch = True
-                i.keep_ratio = True
 
-    def process_button_click(self, inst, value):
-        if value and isinstance(value, list):
+    def on_button_click(self, value):
+        if value == ICON_IMAGE:
             self.on_lineright()
-            return
-        if value and isinstance(value, str):
-            if value == "play":
-                self.on_lineright()
-                return
-            elif value == "folder-move":
-                self.tab.on_new_move_item(self)
-                return
-        self.on_lineleft()
+        elif value == "play":
+            self.on_lineright()
+        elif value == "order-numeric-ascending":
+            self.show_iorder_dialog()
+        elif value == "folder-move":
+            self.tab.on_new_move_item(self)
+        elif value == ICON_TRASH or value == 'delete':
+            self.on_lineleft()
+
+    def show_iorder_dialog(self, *args, **kwargs):
+        renc = OrderContent(oldname=str(self.iorder))
+        renc.button_ok = MDFlatButton(
+            text="OK", disabled=True, on_release=partial(self.on_new_iorder, renc=renc)
+        )
+        dialog = MDDialog(
+            title="Item Order",
+            type="custom",
+            content_cls=renc,
+            buttons=[
+                MDRaisedButton(
+                    text="Cancel", on_release=partial(self.on_new_iorder, renc=renc)
+                ),
+                renc.button_ok,
+            ]
+        )
+        dialog.open()
+
+    def on_new_iorder(self, but, renc=None):
+        if but.text == "OK":
+            self.tab.on_new_iorder_item(self, int(renc.ids.id_newname.text))
+        while but:
+            but = but.parent
+            if isinstance(but, MDDialog):
+                but.dismiss()
+                break
 
     def format_post(self, datepub, title, uid):
         if datepub:
@@ -222,8 +232,7 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
 
     def on_ysize(self, inst, sz):
         lo = dp(sz)
-        self.card_size[1] = lo
-        self.ids.root_box.children[0].card_size[1] = lo
+        self.height = lo
 
     def on_lineright(self, *args, **kwargs):
         Timer(0, partial(launch_link, self.link, self.launch))
@@ -236,7 +245,7 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
             pass
         self.index = index
         self.rowid = dbitem['rowid']
-        self.uid = dbitem['uid']
+        self.uuid = dbitem['uuid']
         self.link = dbitem['link']
         self.title = dbitem['title']
         self.conf = dbitem['conf']
@@ -244,14 +253,14 @@ class PlsRvItem(RecycleDataViewBehavior, MDCardPost):
         self.playlist = dbitem['playlist']
         self.img = dbitem['img']
         self.dur = dbitem['dur']
+        self.iorder = dbitem['iorder']
         self.launch = dbitem['launch']
         self.seen = dbitem['seen']
         self.tab = dbitem['tab']
-        self.ysize = rv.ysize
-        cpm = self.ids.root_box.children[0]
-        cpm.text_post = self.format_post(self.datepub, self.title, self.uid)
-        cpm.tile_text = self.format_duration(self.dur)
-        cpm.source = self.img
+        self.height = rv.ysize
+        self.text_post = self.format_post(self.datepub, self.title, self.uuid)
+        self.tile_text = self.format_duration(self.dur) + f'    ({self.iorder})'
+        self.source = self.img
         return super(PlsRvItem, self).refresh_view_attrs(
             rv, index, dbitem)
 
@@ -293,6 +302,8 @@ class PlsItem(BoxLayout, MDTabsBase):
                     dct = dict(vars(d))
                     dct['launch'] = self.launchconf
                     dct['tab'] = self
+                    dct['uuid'] = dct['uid']
+                    del dct['uid']
                     try:
                         Logger.debug("Adding %s" % str(dct))
                     except Exception:
@@ -300,12 +311,20 @@ class PlsItem(BoxLayout, MDTabsBase):
                     data.append(dct)
             self.ids.id_rv.data = data
 
-    def on_new_name(self, text, inst):
-        if text == "OK":
+    def on_new_name(self, but, renc=None):
+        if but.text == "OK":
             if self.playlist.rowid:
-                self.client.enqueue(PlaylistMessage(cmd=CMD_REN, playlist=self.playlist.rowid, to=inst.text_field.text), self.on_new_name_result)
+                self.client.enqueue(PlaylistMessage(
+                    cmd=CMD_REN,
+                    playlist=self.playlist.rowid,
+                    to=renc.ids.id_newname.text), self.on_new_name_result)
             else:
-                Timer(0, partial(self.on_new_name_result, self.client, None, inst.text_field.text))
+                Timer(0, partial(self.on_new_name_result, self.client, None, renc.ids.id_newname.text))
+        while but:
+            but = but.parent
+            if isinstance(but, MDDialog):
+                but.dismiss()
+                break
 
     async def on_new_name_result(self, client, sent, received):
         if not received:
@@ -335,7 +354,7 @@ class PlsItem(BoxLayout, MDTabsBase):
             self.set_playlist(received.playlist)
         else:
             toast("[E %d] %s" % (received.rv, received.err))
-            self.tabcont.ws_dump()
+            self.tabcont.ws_dump(playlist_to_ask=self.playlist.rowid)
 
     async def on_new_del_result(self, client, sent, received):
         if not received:
@@ -353,13 +372,23 @@ class PlsItem(BoxLayout, MDTabsBase):
     def del_item(self, index):
         del self.ids.id_rv.data[index]
 
+    async def on_new_iorder_item_result(self, client, sent, received):
+        if received is None:
+            toast("Timeout error waiting for server response")
+        elif isinstance(received, PlaylistMessage):
+            if received.rv:
+                toast("[E %d] %s" % (received.rv, received.err))
+            else:
+                toast("New iorder (%d) OK" % received.playlistitem['iorder'])
+            self.tabcont.ws_dump(playlist_to_ask=self.playlist.rowid)
+
     async def on_new_del_item_result(self, client, sent, received):
         if received is None:
             toast("Timeout error waiting for server response")
         elif isinstance(received, PlaylistMessage):
             if received.rv:
                 toast("[E %d] %s" % (received.rv, received.err))
-                self.tabcont.ws_dump()
+                self.tabcont.ws_dump(playlist_to_ask=self.playlist.rowid)
             else:
                 received = received.index
         if isinstance(received, int):
@@ -385,7 +414,7 @@ class PlsItem(BoxLayout, MDTabsBase):
         elif isinstance(received, PlaylistMessage):
             if received.rv:
                 toast("[E %d] %s" % (received.rv, received.err))
-                self.tabcont.ws_dump()
+                self.tabcont.ws_dump(playlist_to_ask=self.playlist.rowid)
             else:
                 received = removed_item
         if isinstance(received, dict):
@@ -425,18 +454,27 @@ class PlsItem(BoxLayout, MDTabsBase):
         else:
             Timer(0, partial(self.on_new_del_item_result, self.client, None, inst.index))
 
+    def on_new_iorder_item(self, inst, neworder):
+        if inst.rowid:
+            self.client.enqueue(PlaylistMessage(cmd=CMD_IORDER, playlistitem=inst.rowid, iorder=neworder, index=inst.index), self.on_new_iorder_item_result)
+
     def on_new_move_item(self, inst):
         if inst.rowid and self.tabcont:
             self.tabcont.on_new_move_item(inst)
 
-    def on_new_del(self, but, inst):
-        if but == "Yes":
+    def on_new_del(self, but):
+        if but.text == 'Yes':
             if self.playlist.rowid:
                 self.client.enqueue(
                     PlaylistMessage(cmd=CMD_DEL, playlist=self.playlist.rowid),
                     self.on_new_del_result)
             else:
                 Timer(0, partial(self.on_new_del_result, self.client, None, self.playlist.name))
+        while but:
+            but = but.parent
+            if isinstance(but, MDDialog):
+                but.dismiss()
+                break
 
     def update_pls(self, show_date_selection):
         if show_date_selection:
@@ -466,21 +504,33 @@ class PlsItem(BoxLayout, MDTabsBase):
         dialog = MDDialog(
             title="Delete confirmation",
             size_hint=(0.8, 0.3),
-            text_button_ok="Yes",
             text="Are you sure?",
-            text_button_cancel="No",
-            events_callback=self.on_new_del)
+            buttons=[
+                MDFlatButton(
+                    text="Yes", on_release=self.on_new_del
+                ),
+                MDRaisedButton(
+                    text="No", on_release=self.on_new_del
+                ),
+            ])
         dialog.open()
 
     def rename_pls(self):
         if self.playlist:
-            dialog = MDInputDialog(
+            renc = RenameContent(oldname=self.playlist.name)
+            renc.button_ok = MDFlatButton(
+                text="OK", disabled=True, on_release=partial(self.on_new_name, renc=renc)
+            )
+            dialog = MDDialog(
                 title="Playlist rename",
-                size_hint=(0.8, 0.3),
-                text_button_ok="OK",
-                hint_text="New name",
-                text_button_cancel="Cancel",
-                events_callback=self.on_new_name
+                type="custom",
+                content_cls=renc,
+                buttons=[
+                    MDRaisedButton(
+                        text="Cancel", on_release=partial(self.on_new_name, renc=renc)
+                    ),
+                    renc.button_ok,
+                ]
             )
             dialog.open()
 

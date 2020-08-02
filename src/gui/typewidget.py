@@ -79,7 +79,7 @@ class TypeWidget(Screen):
         super(TypeWidget, self).__init__(**kwargs)
         self.buttons = []
         for x in TypeWidget.TYPES.keys():
-            b = OneLineListItem(text=x, on_release=self.dispatch_on_type)
+            b = OneLineListItem(text=x, on_release=self.dispatch_on_type, disabled=True)
             self.buttons.append(b)
             self.ids.id_types.add_widget(b)
         b = OneLineListItem(text=TypeWidget.ABORT, on_release=self.dispatch_on_type)

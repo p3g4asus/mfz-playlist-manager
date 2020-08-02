@@ -169,8 +169,8 @@ class MyTabs(MDTabs):
         self.current_tab = None
 
     def remove_widget(self, w, *args, **kwargs):
-        super(MyTabs, self).remove_widget(w)
         if isinstance(w, PlsItem):
+            super(MyTabs, self).remove_widget(w.tab_label)
             idx = -3
             try:
                 idx = self.tab_list.index(w)
@@ -203,11 +203,10 @@ class MyTabs(MDTabs):
             tab.tab_label.state = "down"
             tab.tab_label.on_release()
 
-    def on_tab_switch(self, inst, text):
-        super(MyTabs, self).on_tab_switch(inst, text)
+    def on_tab_switch(self, instance_tab, instance_tab_label, text):
         Logger.debug("On tab switch to %s" % str(text))
-        self.current_tab = inst.tab
-        Logger.debug("Gui: Currenttab = %s" % str(inst.tab))
+        self.current_tab = instance_tab
+        Logger.debug("Gui: Currenttab = %s" % str(instance_tab))
 
     def add_pls(self, *args, **kwargs):
         if self.client.is_logged_in():
@@ -294,8 +293,8 @@ class MyTabs(MDTabs):
             self.add_widget(tab)
             tab.conf_pls()
 
-    def ws_dump(self):
-        self.client.enqueue(PlaylistMessage(cmd=CMD_DUMP, useri=self.useri), self.on_ws_dump)
+    def ws_dump(self, playlist_to_ask=None):
+        self.client.enqueue(PlaylistMessage(cmd=CMD_DUMP, playlist=playlist_to_ask, useri=self.useri), self.on_ws_dump)
 
     async def on_ws_dump(self, client, sent, received):
         if not received:
@@ -303,10 +302,9 @@ class MyTabs(MDTabs):
         elif received.rv:
             toast("[E %d] %s" % (received.rv, received.err))
         else:
-            self.fill_PlsListRV(received.f('playlists'))
+            self.fill_PlsListRV(received.f('playlists'), sent.f('playlist'))
 
-    def fill_PlsListRV(self, playlists):
-        playlists = playlists
+    def fill_PlsListRV(self, playlists, playlist_asked=None):
         d = self.tab_list
         processed = dict()
         removelist = []
@@ -316,7 +314,7 @@ class MyTabs(MDTabs):
                 processed[str(idx)] = True
                 t.set_playlist(playlists[idx])
             except ValueError:
-                if t.playlist.rowid is not None:
+                if t.playlist.rowid is not None and playlist_asked is None:
                     removelist.append(t)
         for r in removelist:
             self.remove_widget(r)
@@ -370,38 +368,74 @@ class MainApp(MDApp):
     def open_menu(self, *args, **kwargs):
         items = [
             dict(
-                viewclass="MDMenuItem",
                 text="Play",
                 icon="play",
-                callback=self.root.ids.id_tabcont.play_pls
+                font_style="Caption",
+                height="36dp",
+                top_pad="10dp",
+                bot_pad="10dp",
+                divider=None
             ),
             dict(
-                viewclass="MDMenuItem",
                 text="Configure",
-                icon="settings",
-                callback=self.root.ids.id_tabcont.conf_pls
+                icon="cog",
+                font_style="Caption",
+                height="36dp",
+                top_pad="10dp",
+                bot_pad="10dp",
+                divider=None
             ),
             dict(
-                viewclass="MDMenuItem",
                 text="Update (fast)",
                 icon="run-fast",
-                callback=self.root.ids.id_tabcont.update_fast_pls
+                font_style="Caption",
+                height="36dp",
+                top_pad="10dp",
+                bot_pad="10dp",
+                divider=None
             ),
             dict(
-                viewclass="MDMenuItem",
                 text="Update",
                 icon="update",
-                callback=self.root.ids.id_tabcont.update_pls
+                font_style="Caption",
+                height="36dp",
+                top_pad="10dp",
+                bot_pad="10dp",
+                divider=None
             ),
             dict(
-                viewclass="MDMenuItem",
                 text="Rename",
-                icon="textbox",
-                callback=self.root.ids.id_tabcont.rename_pls
+                icon="text-box",
+                font_style="Caption",
+                height="36dp",
+                top_pad="10dp",
+                bot_pad="10dp",
+                divider=None
             ),
         ]
-        MDDropdownMenu(items=items, width_mult=3).open(
-            self.root.ids.id_toolbar.ids["right_actions"].children[0])
+
+        def menu_callback(instance):
+            if instance.text == "Play":
+                self.root.ids.id_tabcont.play_pls()
+            elif instance.text == "Configure":
+                self.root.ids.id_tabcont.conf_pls()
+            elif instance.text == "Update (fast)":
+                self.root.ids.id_tabcont.update_fast_pls()
+            elif instance.text == "Update":
+                self.root.ids.id_tabcont.update_pls()
+            elif instance.text == "Rename":
+                self.root.ids.id_tabcont.rename_pls()
+            while instance:
+                instance = instance.parent
+                if isinstance(instance, MDDropdownMenu):
+                    instance.dismiss()
+                    break
+
+        MDDropdownMenu(
+            items=items,
+            width_mult=3.5,
+            caller=self.root.ids.id_toolbar.ids["right_actions"].children[0],
+            callback=menu_callback).open()
 
 # https://stackoverflow.com/questions/42159927/http-basic-auth-on-twisted-klein-server
 # https://github.com/racker/python-twisted-core/blob/master/doc/examples/dbcred.py
@@ -437,7 +471,7 @@ class MainApp(MDApp):
             dirname(__file__), "images", "navdrawer.png")
         for items in {
             "home-outline": ("Home", self.on_nav_home),
-            "settings-outline": ("Settings", self.on_nav_settings),
+            "cog-outline": ("Settings", self.on_nav_settings),
             "exit-to-app": ("Exit", self.on_nav_exit),
         }.items():
             self.root.ids.content_drawer.ids.box_item.add_widget(
@@ -662,7 +696,7 @@ class MainApp(MDApp):
                 if not self.timer_server_online:
                     if host == "localhost" or host == "127.0.0.1":
                         Logger.info("Have to start server")
-                        dologin = False
+                        dologin = platform != 'android'
                         self.timer_server_online = Timer(0, self.set_server_offline)
         else:
             return

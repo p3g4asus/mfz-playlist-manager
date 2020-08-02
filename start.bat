@@ -15,8 +15,8 @@ REM pip3 install cryptography
 REM pip3 install aiosqlite
 REM set USE_SDL2=1
 REM set USE_GSTREAMER=1
-REM pip3 install git+git://github.com/kivy/kivy.git@cfa6b78f998abd71cda6ab665fd21b18277199b9
-REM pip3 install git+git://github.com/p3g4asus/KivyMD.git
+REM pip3 install git+https://github.com/kivy/kivy.git@20c14b2a2bac73288a4c2808843910364565f66a
+REM pip3 install git+https://github.com/p3g4asus/KivyMD.git@HeaTTheatR-master
 REM pause
 call %~dp0venv\Scripts\activate.bat
 set JAVA_HOME=C:\Program Files\Java\jdk-13.0.2

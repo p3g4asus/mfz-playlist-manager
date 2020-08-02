@@ -5,6 +5,7 @@ from common.const import (
     CMD_DUMP,
     CMD_MOVE,
     CMD_ADD,
+    CMD_IORDER,
     CMD_SEEN,
     CMD_CLOSE,
     MSG_NAME_TAKEN,
@@ -24,7 +25,7 @@ class MessageProcessor(AbstractMessageProcessor):
 
     def interested(self, msg):
         return msg.c(CMD_DEL) or msg.c(CMD_REN) or msg.c(CMD_DUMP) or\
-            msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE)
+            msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or msg.c(CMD_IORDER)
 
     async def processMove(self, msg, userid):
         pdst = msg.playlistObj()
@@ -112,9 +113,28 @@ class MessageProcessor(AbstractMessageProcessor):
                 if pls:
                     if pls[0].useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                    if await it.setSeen(self.db, msg.f("seen")):
-                        await self.db.commit()
+                    if await it.setSeen(self.db, msg.f("seen"), commit=True):
                         return msg.ok(playlistitem=x)
+                    else:
+                        return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                else:
+                    msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+            else:
+                return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+        else:
+            return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+
+    async def processIOrder(self, msg, userid):
+        x = msg.playlistItemId()
+        if x is not None:
+            it = await PlaylistItem.loadbyid(self.db, rowid=x)
+            if it:
+                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=False)
+                if pls:
+                    if pls[0].useri != userid:
+                        return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                    if await it.setIOrder(self.db, msg.f("iorder"), commit=True):
+                        return msg.ok(playlistitem=it)
                     else:
                         return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                 else:
@@ -155,6 +175,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processDump(msg, userid)
         elif msg.c(CMD_SEEN):
             resp = await self.processSeen(msg, userid)
+        elif msg.c(CMD_IORDER):
+            resp = await self.processIOrder(msg, userid)
         elif msg.c(CMD_CLOSE):
             await ws.close()
         if resp:
