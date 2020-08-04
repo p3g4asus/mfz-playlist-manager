@@ -129,11 +129,24 @@ class MessageProcessor(AbstractMessageProcessor):
         if x is not None:
             it = await PlaylistItem.loadbyid(self.db, rowid=x)
             if it:
-                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=False)
+                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=True)
                 if pls:
                     if pls[0].useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                    if await it.setIOrder(self.db, msg.f("iorder"), commit=True):
+                    dest_iorder = msg.f("iorder")
+                    round_iorder = dest_iorder if (dest_iorder % 10) == 0 else (dest_iorder // 10 + 1) * 10
+                    plus_idx = -1
+                    for idx, other_it in enumerate(pls[0].items):
+                        if other_it.rowid != x and other_it.iorder >= dest_iorder:
+                            plus_idx = idx
+                            break
+                    if plus_idx >= 0:
+                        cur_iorder = round_iorder + (len(pls[0].items) - plus_idx) * 10
+                        for idx in range(len(pls[0].items) - 1, plus_idx - 1, -1):
+                            if not await pls[0].items[idx].setIOrder(self.db, cur_iorder, commit=False):
+                                return msg.err(5, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                            cur_iorder -= 10
+                    if await it.setIOrder(self.db, round_iorder, commit=True):
                         return msg.ok(playlistitem=it)
                     else:
                         return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)

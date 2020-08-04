@@ -162,6 +162,7 @@ class MyTabs(MDTabs):
     cardsize = NumericProperty()
     cardtype = StringProperty()
     useri = NumericProperty()
+    sel_tab = NumericProperty()
     manager = ObjectProperty()
 
     def __init__(self, *args, **kwargs):
@@ -183,7 +184,7 @@ class MyTabs(MDTabs):
             except ValueError:
                 Logger.error(traceback.format_exc())
             if len(self.tab_list) == 0:
-                self.current_tab = None
+                self.dispatch("on_tab_switch", None, None, None)
                 idx = -2
             elif idx > 0:
                 idx = idx - 1
@@ -336,6 +337,14 @@ class MyTabs(MDTabs):
                     confclass=TypeWidget.type2class(playlists[x].type),
                     cardtype=self.cardtype
                 ))
+        if self.sel_tab >= 0:
+            Logger.debug(f'Setting sel_tab {self.sel_tab}')
+            for idx, tab in enumerate(self.tab_list):
+                if tab.playlist.rowid == self.sel_tab:
+                    self.carousel.index = idx
+                    tab.tab_label.state = "down"
+                    tab.tab_label.on_release()
+            self.sel_tab = -1
 
 
 def find_free_port():
@@ -474,6 +483,8 @@ class MainApp(MDApp):
         self.root.ids.id_tabcont.cardsize = int(self.config.get("gui", "cardsize"))
         self.root.ids.id_tabcont.cardtype = self.config.get("gui", "cardtype")
         self.root.ids.id_tabcont.client = self.client
+        self.root.ids.id_tabcont.sel_tab = int(self.config.get("gui", "current_tab"))
+        self.root.ids.id_tabcont.bind(on_tab_switch=self.on_tab_switch)
         self.on_config_change(self.config, "network", "host", None)
         self.root.ids.content_drawer.image_path = join(
             dirname(__file__), "images", "navdrawer.png")
@@ -489,6 +500,12 @@ class MainApp(MDApp):
                     on_release=items[1][1]
                 )
             )
+
+    def on_tab_switch(self, inst, tab, *args):
+        v = '-1' if tab is None or tab.playlist.rowid is None else str(tab.playlist.rowid)
+        Logger.debug(f'Setting current_tab to {v}')
+        self.config.set("gui", "current_tab", v)
+        self.config.write()
 
     def on_nav_home(self, *args, **kwargs):
         Logger.debug("On Nav Home")
@@ -538,7 +555,8 @@ class MainApp(MDApp):
         config.setdefaults('registration',
                            {'username': 'new', 'password': 'password'})
         config.setdefaults('gui',
-                           {'cardsize': 150, 'cardtype': 'RESIZE'})
+                           {'cardsize': 150, 'cardtype': 'RESIZE',
+                            'current_tab': -1})
         if platform == "win":
             config.setdefaults('windows', {'plpath': ''})
         self._init_fields()
