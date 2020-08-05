@@ -146,6 +146,35 @@ async def launch_link(lnk, launchconf):
             Logger.error(traceback.format_exc())
 
 
+def iorder_show_dialog(plsitem, uuid, plstab, *args, **kwargs):
+    renc = OrderContent(oldname=str(plsitem.iorder))
+    renc.button_ok = MDFlatButton(
+        text="OK", disabled=True, on_release=partial(iorder_on_new, renc=renc, tab=plstab, item=plsitem)
+    )
+    dialog = MDDialog(
+        title=f"Item Order {uuid}",
+        type="custom",
+        content_cls=renc,
+        buttons=[
+            MDRaisedButton(
+                text="Cancel", on_release=partial(iorder_on_new, renc=renc, tab=plstab, item=plsitem)
+            ),
+            renc.button_ok,
+        ]
+    )
+    dialog.open()
+
+
+def iorder_on_new(but, renc=None, tab=None, item=None):
+    if but.text == "OK":
+        tab.on_new_iorder_item(item, int(renc.ids.id_newname.text))
+    while but:
+        but = but.parent
+        if isinstance(but, MDDialog):
+            but.dismiss()
+            break
+
+
 class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
     ''' Add selection support to the Label '''
     img = StringProperty('')
@@ -174,38 +203,11 @@ class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
         elif value == "play":
             self.on_lineright()
         elif value == "order-numeric-ascending":
-            self.show_iorder_dialog()
+            iorder_show_dialog(self, self.uuid, self.tab)
         elif value == "folder-move":
             self.tab.on_new_move_item(self)
         elif value == ICON_TRASH or value == 'delete':
             self.on_lineleft()
-
-    def show_iorder_dialog(self, *args, **kwargs):
-        renc = OrderContent(oldname=str(self.iorder))
-        renc.button_ok = MDFlatButton(
-            text="OK", disabled=True, on_release=partial(self.on_new_iorder, renc=renc)
-        )
-        dialog = MDDialog(
-            title="Item Order",
-            type="custom",
-            content_cls=renc,
-            buttons=[
-                MDRaisedButton(
-                    text="Cancel", on_release=partial(self.on_new_iorder, renc=renc)
-                ),
-                renc.button_ok,
-            ]
-        )
-        dialog.open()
-
-    def on_new_iorder(self, but, renc=None):
-        if but.text == "OK":
-            self.tab.on_new_iorder_item(self, int(renc.ids.id_newname.text))
-        while but:
-            but = but.parent
-            if isinstance(but, MDDialog):
-                but.dismiss()
-                break
 
     def format_post(self, datepub, title, uid):
         if datepub:
@@ -464,7 +466,7 @@ class PlsItem(BoxLayout, MDTabsBase):
 
     def on_new_iorder_item(self, inst, neworder):
         if inst.rowid:
-            self.client.enqueue(PlaylistMessage(cmd=CMD_IORDER, playlistitem=inst.rowid, iorder=neworder, index=inst.index), self.on_new_iorder_item_result)
+            self.client.enqueue(PlaylistMessage(cmd=CMD_IORDER, playlistitem=inst.rowid, iorder=neworder), self.on_new_iorder_item_result)
 
     def on_new_move_item(self, inst):
         if inst.rowid and self.tabcont:

@@ -37,7 +37,7 @@ from common.utils import asyncio_graceful_shutdown
 from . import __prog__, __version__
 from .client import PlsClient
 from .playerpathwidget import PlayerPathWidget
-from .plsitem import PlsItem
+from .plsitem import PlsItem, iorder_show_dialog
 from .settingbuttons import SettingButtons
 from .settingpassword import SettingPassword
 from .typewidget import TypeWidget
@@ -191,10 +191,7 @@ class MyTabs(MDTabs):
             elif idx == 0:
                 idx = 0
             if idx >= 0:
-                self.carousel.index = idx
-                tab = self.tab_list[idx]
-                tab.tab_label.state = "down"
-                tab.tab_label.on_release()
+                self.select_tab(idx, is_rowid=False)
 
     def clear_widgets(self):
         for w in self.tab_list:
@@ -205,9 +202,7 @@ class MyTabs(MDTabs):
         if isinstance(tab, PlsItem):
             self.tab_list.append(tab)
             Logger.debug("Gui: Adding tab len = %d" % len(self.tab_list))
-            self.carousel.index = len(self.tab_list) - 1
-            tab.tab_label.state = "down"
-            tab.tab_label.on_release()
+            self.select_tab(tab)
 
     def on_tab_switch(self, instance_tab, instance_tab_label, text):
         Logger.debug("On tab switch to %s" % str(text))
@@ -283,7 +278,19 @@ class MyTabs(MDTabs):
             elif delitem and totab:
                 delitem.tab.del_item(delitem.index)
                 totab.set_playlist(received.playlist)
+                for di in received.playlist.items:
+                    if di.rowid == delitem.rowid:
+                        break
                 toast(f"{delitem.title} moved to {totab.playlist.name}")
+                if di and di.rowid == delitem.rowid:
+                    iorder_show_dialog(di, di.uid, totab)
+
+    def select_tab(self, tab, is_rowid=False):
+        for idx, t in enumerate(self.tab_list):
+            if tab == t or (idx == tab and not is_rowid) or (t.playlist.rowid == tab and is_rowid):
+                self.carousel.index = idx
+                t.tab_label.state = "down"
+                t.tab_label.on_release()
 
     def on_new_type(self, inst, name, types, confclass):
         if types != TypeWidget.ABORT:
@@ -339,11 +346,7 @@ class MyTabs(MDTabs):
                 ))
         if self.sel_tab >= 0:
             Logger.debug(f'Setting sel_tab {self.sel_tab}')
-            for idx, tab in enumerate(self.tab_list):
-                if tab.playlist.rowid == self.sel_tab:
-                    self.carousel.index = idx
-                    tab.tab_label.state = "down"
-                    tab.tab_label.on_release()
+            self.select_tab(self.sel_tab, is_rowid=True)
             self.sel_tab = -1
 
 
