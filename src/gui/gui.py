@@ -95,7 +95,7 @@ KV = \
                 icon: "close"
                 x: root.parent.x + dp(10)
                 pos_hint: {"top": 1}
-                on_release: root.parent.toggle_nav_drawer()
+                on_release: root.parent.set_state("toggle")
 
             MDLabel:
                 markup: True
@@ -131,7 +131,7 @@ Screen:
                         id: id_toolbar
                         title: app.title
                         md_bg_color: app.theme_cls.primary_color
-                        left_action_items: [["menu", lambda x: nav_drawer.toggle_nav_drawer()]]
+                        left_action_items: [["menu", lambda x: nav_drawer.set_state("toggle")]]
                         right_action_items: [["plus", id_tabcont.add_pls], ["delete", id_tabcont.del_pls], ["dots-vertical", app.open_menu]]
 
                     MyTabs:
