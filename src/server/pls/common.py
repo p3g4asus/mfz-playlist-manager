@@ -7,6 +7,7 @@ from common.const import (
     CMD_ADD,
     CMD_IORDER,
     CMD_SEEN,
+    CMD_SORT,
     CMD_CLOSE,
     MSG_NAME_TAKEN,
     MSG_BACKEND_ERROR,
@@ -25,7 +26,8 @@ class MessageProcessor(AbstractMessageProcessor):
 
     def interested(self, msg):
         return msg.c(CMD_DEL) or msg.c(CMD_REN) or msg.c(CMD_DUMP) or\
-            msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or msg.c(CMD_IORDER)
+            msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or\
+            msg.c(CMD_IORDER) or msg.c(CMD_SORT)
 
     async def processMove(self, msg, userid):
         pdst = msg.playlistObj()
@@ -174,6 +176,28 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
+    async def processSort(self, msg, userid):
+        x = msg.playlistId()
+        if x is not None:
+            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=True, sort_item_field='datepub')
+            if pls:
+                if pls[0].useri != userid:
+                    return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                cur_iorder = 10
+                for other_it in pls[0].items:
+                    if not await other_it.setIOrder(self.db, -cur_iorder, commit=False):
+                        return msg.err(5, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                    other_it.iorder = -other_it.iorder
+                    cur_iorder += 10
+                if pls[0].items:
+                    if not await pls[0].fix_iorder(self.db, commit=True):
+                        return msg.err(2, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                return msg.ok(playlist=pls[0])
+            else:
+                msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+        else:
+            return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+
     async def process(self, ws, msg, userid):
         resp = None
         if msg.c(CMD_DEL):
@@ -190,6 +214,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processSeen(msg, userid)
         elif msg.c(CMD_IORDER):
             resp = await self.processIOrder(msg, userid)
+        elif msg.c(CMD_SORT):
+            resp = await self.processSort(msg, userid)
         elif msg.c(CMD_CLOSE):
             await ws.close()
         if resp:

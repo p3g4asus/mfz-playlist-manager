@@ -20,7 +20,7 @@ from kivymd.uix.dialog import MDDialog
 from kivymd.uix.snackbar import Snackbar
 from kivymd.uix.tab import MDTabsBase
 
-from common.const import CMD_DEL, CMD_IORDER, CMD_REFRESH, CMD_REN, CMD_SEEN
+from common.const import CMD_DEL, CMD_IORDER, CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT
 from common.playlist import PlaylistMessage
 from common.timer import Timer
 
@@ -379,6 +379,17 @@ class PlsItem(BoxLayout, MDTabsBase):
             toast("Playlist %s removed" % received)
             self.tabcont.remove_widget(self)
 
+    async def on_new_sort_result(self, client, sent, received):
+        if not received:
+            toast("Timeout error waiting for server response")
+        elif isinstance(received, PlaylistMessage):
+            if received.rv:
+                toast("[E %d] %s" % (received.rv, received.err))
+                self.tabcont.ws_dump(playlist_to_ask=self.playlist.rowid)
+            else:
+                toast("Playlist %s sorted" % self.playlist.name)
+                self.set_playlist(received.playlist)
+
     def del_item(self, index):
         del self.ids.id_rv.data[index]
 
@@ -486,6 +497,18 @@ class PlsItem(BoxLayout, MDTabsBase):
                 but.dismiss()
                 break
 
+    def on_new_sort(self, but):
+        if but.text == 'Yes':
+            if self.playlist.rowid:
+                self.client.enqueue(
+                    PlaylistMessage(cmd=CMD_SORT, playlist=self.playlist.rowid),
+                    self.on_new_sort_result)
+        while but:
+            but = but.parent
+            if isinstance(but, MDDialog):
+                but.dismiss()
+                break
+
     def update_pls(self, show_date_selection):
         if show_date_selection:
             updatew = UpdateWidget(on_update=self.on_new_update)
@@ -515,12 +538,29 @@ class PlsItem(BoxLayout, MDTabsBase):
             title="Delete confirmation",
             size_hint=(0.8, 0.3),
             text="Are you sure?",
+            type="alert",
             buttons=[
                 MDFlatButton(
                     text="Yes", on_release=self.on_new_del
                 ),
                 MDRaisedButton(
                     text="No", on_release=self.on_new_del
+                ),
+            ])
+        dialog.open()
+
+    def sort_pls(self):
+        dialog = MDDialog(
+            title="Sort confirmation",
+            size_hint=(0.8, 0.3),
+            text="Are you sure?",
+            type="alert",
+            buttons=[
+                MDFlatButton(
+                    text="Yes", on_release=self.on_new_sort
+                ),
+                MDRaisedButton(
+                    text="No", on_release=self.on_new_sort
                 ),
             ])
         dialog.open()

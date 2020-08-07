@@ -253,6 +253,12 @@ class MyTabs(MDTabs):
         else:
             toast("Please select a playlist tab")
 
+    def sort_pls(self, *args, **kwargs):
+        if self.current_tab:
+            self.current_tab.sort_pls()
+        else:
+            toast("Please select a playlist tab")
+
     def on_new_move_item(self, item):
         items = dict()
         for t in self.tab_list:
@@ -431,6 +437,15 @@ class MainApp(MDApp):
                 bot_pad="10dp",
                 divider=None
             ),
+            dict(
+                text="Sort by date",
+                icon="sort-alphabetical-ascending",
+                font_style="Caption",
+                height="36dp",
+                top_pad="10dp",
+                bot_pad="10dp",
+                divider=None
+            ),
         ]
 
         def menu_callback(instance):
@@ -444,6 +459,8 @@ class MainApp(MDApp):
                 self.root.ids.id_tabcont.update_pls()
             elif instance.text == "Rename":
                 self.root.ids.id_tabcont.rename_pls()
+            elif instance.text == "Sort by date":
+                self.root.ids.id_tabcont.sort_pls()
             while instance:
                 instance = instance.parent
                 if isinstance(instance, MDDropdownMenu):

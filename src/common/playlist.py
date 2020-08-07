@@ -57,7 +57,7 @@ class Playlist(JSONAble, Fieldable):
         return s
 
     @staticmethod
-    async def loadbyid(db, rowid=None, useri=None, name=None, username=None, loaditems=True):
+    async def loadbyid(db, rowid=None, useri=None, name=None, username=None, loaditems=True, sort_item_field='iorder'):
         pls = []
         commontxt = '''
             SELECT P.name AS name,
@@ -91,8 +91,8 @@ class Playlist(JSONAble, Fieldable):
             )
         async for row in cursor:
             subcursor = await db.execute(
-                '''
-                SELECT * FROM playlist_item WHERE playlist=? ORDER BY iorder
+                f'''
+                SELECT * FROM playlist_item WHERE playlist=? ORDER BY {sort_item_field}
                 ''',
                 (row['rowid'],)
             )
@@ -169,6 +169,19 @@ class Playlist(JSONAble, Fieldable):
                     self.name == other.name
         else:
             return False
+
+    async def fix_iorder(self, db, commit=True):
+        async with db.cursor() as cursor:
+            await cursor.execute(
+                '''
+                UPDATE playlist_item SET iorder=abs(iorder) WHERE playlist=?
+                ''', (self.rowid,)
+            )
+            if cursor.rowcount <= 0:
+                return False
+        if commit:
+            await db.commit()
+        return True
 
     async def toDB(self, db):
         if isinstance(self.conf, str):

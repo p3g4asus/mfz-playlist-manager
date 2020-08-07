@@ -32,6 +32,8 @@ class MessageProcessor(RefreshMessageProcessor):
     def channelUrl(user, vers):
         if vers == 2:
             return f'https://www.youtube.com/c/{user}/videos'
+        elif vers == 3:
+            return f'https://www.youtube.com/channel/{user}/videos'
         else:
             return f'https://www.youtube.com/user/{user}/videos'
 
@@ -82,11 +84,13 @@ class MessageProcessor(RefreshMessageProcessor):
                     if mo2:
                         plid = mo2.group(1)
                     else:
+                        vers = None
                         channelfound = re.search(r'/channel/([^/?&]+)', text)
                         if channelfound:
                             res = await self.channelid2user(session, channelfound.group(1))
                             if isinstance(res, int):
-                                return msg.err(res, MSG_YT_INVALID_CHANNEL)
+                                chanid = channelfound.group(1)
+                                vers = 3
                             else:
                                 chanid = res
                         userfound = re.search(r'/c/([^/?&]+)', text)
@@ -98,9 +102,12 @@ class MessageProcessor(RefreshMessageProcessor):
                                 chanid = mo1.group(1)
                             else:
                                 chanid = text
-                        res = await self.channel2playlist(session, chanid, 2)
-                        if isinstance(res, int):
-                            res = await self.channel2playlist(session, chanid, 1)
+                        if vers:
+                            res = await self.channel2playlist(session, chanid, vers)
+                        else:
+                            res = await self.channel2playlist(session, chanid, 2)
+                            if isinstance(res, int):
+                                res = await self.channel2playlist(session, chanid, 1)
                         if isinstance(res, int):
                             if userfound or channelfound:
                                 return msg.err(res, MSG_YT_INVALID_CHANNEL)
