@@ -15,9 +15,8 @@ Builder.load_string(
     '''
 <MedRaiConfScreen>:
     name: 'conf_' + root.get_name_id()
-    GridLayout:
-        cols: 1
-        rows: 5
+    BoxLayout:
+        orientation: 'vertical'
         spacing: dp(5)
         height: self.minimum_height
         id: id_grid
@@ -28,10 +27,12 @@ Builder.load_string(
             left_action_items: [["arrow-left", lambda x: root.manager.remove_widget(root)]]
             right_action_items: [["content-save", lambda x: root.dispatch_conf(root)]]
             elevation: 10
-        GridLayout:
-            size_hint: (1, 0.2)
-            cols: 2
-            rows: 2
+            size_hint_x: 1
+            size_hint_y: None
+            height: dp(60)
+        BoxLayout:
+            size_hint_y: None
+            height: dp(60)
             spacing: [dp(10), dp(0)]
             padding: [dp(20), dp(0)]
             MDTextField:
@@ -44,6 +45,11 @@ Builder.load_string(
                 id: id_brandbt
                 on_release: root.brand_confirmed()
                 icon: "subdirectory-arrow-left"
+        BoxLayout:
+            size_hint_y: None
+            height: dp(60)
+            spacing: [dp(10), dp(0)]
+            padding: [dp(20), dp(0)]
             MDTextField:
                 id: id_filtertf
                 hint_text: "Filter"

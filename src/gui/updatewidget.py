@@ -10,11 +10,10 @@ Builder.load_string(
 #:import ButtonDatePicker gui.buttondatepicker.ButtonDatePicker
 <UpdateWidget>:
     name: 'update'
-    GridLayout:
+    BoxLayout:
         spacing: dp(25)
         height: self.minimum_height
-        rows: 3
-        cols: 1
+        orientation: 'vertical'
         MDToolbar:
             id: id_toolbar
             pos_hint: {'top': 1}
@@ -23,6 +22,9 @@ Builder.load_string(
             left_action_items: [["arrow-left", lambda x: root.manager.remove_widget(root)]]
             right_action_items: [["run-fast", lambda x: root.dispatch_update(True)], ["update", lambda x: root.dispatch_update(False)]]
             elevation: 10
+            size_hint_x: 1
+            size_hint_y: None
+            height: dp(60)
         AnchorLayout:
             ButtonDatePicker:
                 size_hint: (0.85, 0.25)
@@ -38,6 +40,8 @@ Builder.load_string(
                 font_size: "12sp"
                 nulltext: ''
                 on_date_picked: root.check_dates(self, self.date)
+        BoxLayout:
+            orientation: 'vertical'
     '''
 )
 

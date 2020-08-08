@@ -14,21 +14,23 @@ Builder.load_string(
 #:import MDList kivymd.uix.list.MDList
 <TypeWidget>:
     name: 'type'
-    GridLayout:
+    BoxLayout:
         spacing: dp(5)
         height: self.minimum_height
-        rows: 3
-        cols: 1
+        orientation: 'vertical'
         MDToolbar:
             pos_hint: {'top': 1}
-            size_hint: (1, 0.2)
             title: 'New Playlist'
             md_bg_color: app.theme_cls.primary_color
             left_action_items: [["arrow-left", lambda x: root.dispatch_on_type('Cancel')]]
             elevation: 10
+            size_hint_x: 1
+            size_hint_y: None
+            height: dp(60)
         BoxLayout:
             padding: [dp(30), dp(5)]
-            size_hint: (1, 0.1)
+            size_hint_y: None
+            height: dp(60)
             MDTextField:
                 id: id_name
                 icon_type: "without"
@@ -37,6 +39,8 @@ Builder.load_string(
                 helper_text_mode: "on_error"
                 helper_text: "Enter at least a letter"
                 on_text: root.enable_buttons(self, self.text)
+                size_hint_y: None
+                height: dp(60)
         ScrollView:
             size_hint: (1, 0.7)
             MDList:

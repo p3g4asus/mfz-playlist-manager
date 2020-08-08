@@ -152,9 +152,11 @@ class MessageProcessor(RefreshMessageProcessor):
         #         minheight = imgo['height']
         #         img = imgo['url']
         minheight = 0
+        _LOGGER.debug("ThumbMed = %s" % str(e['thumbnails'].values()))
         for imgo in e['thumbnails'].values():
             if 'title' in imgo and\
-                imgo['title'] == 'Keyframe_Poster Image' and\
+                (imgo['title'] == 'Keyframe_Poster Image' or
+                 imgo['title'].startswith('image_keyframe_poster')) and\
                (not img or imgo['height'] < minheight):
                 minheight = imgo['height']
                 img = imgo['url']

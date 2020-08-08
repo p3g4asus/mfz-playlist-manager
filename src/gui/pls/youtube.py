@@ -13,11 +13,10 @@ Builder.load_string(
     '''
 <YoutubeConfScreen>:
     name: 'conf_youtube'
-    GridLayout:
-        cols: 1
-        rows: 5
+    BoxLayout:
         spacing: dp(5)
         height: self.minimum_height
+        orientation: 'vertical'
         id: id_grid
         MDToolbar:
             id: id_toolbar
@@ -26,10 +25,12 @@ Builder.load_string(
             left_action_items: [["arrow-left", lambda x: root.manager.remove_widget(root)]]
             right_action_items: [["content-save", lambda x: root.dispatch_conf(root)]]
             elevation: 10
-        GridLayout:
-            size_hint: (1, 0.1)
-            cols: 2
-            rows: 1
+            size_hint_x: 1
+            size_hint_y: None
+            height: dp(60)
+        BoxLayout:
+            size_hint_y: None
+            height: self.minimum_height
             spacing: [dp(10), dp(0)]
             padding: [dp(20), dp(0)]
             MDTextField:
@@ -38,6 +39,8 @@ Builder.load_string(
                 error: True
                 helper_text_mode: "on_error"
                 helper_text: 'Please write a playlist id or channel name'
+                size_hint_y: None
+                height: dp(60)
             MDIconButton:
                 id: id_brandbt
                 on_release: root.brand_confirmed()

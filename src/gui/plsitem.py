@@ -54,8 +54,9 @@ Builder.load_string(
 
 Builder.load_string(
     '''
+#:import images_path kivymd.images_path
 <PlsRvItem>:
-    source: root.img
+    source: root.img if root.img else f'{images_path}kivymd_logo.png'
     tile_text: root.format_duration(root.dur) + f'    ({root.iorder})'
     tile_font_style: "H6"
     text_post: root.format_post(root.datepub, root.title, root.uuid)
@@ -177,7 +178,7 @@ def iorder_on_new(but, renc=None, tab=None, item=None):
 
 class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
     ''' Add selection support to the Label '''
-    img = StringProperty('')
+    img = StringProperty('', allownone=True)
     dur = NumericProperty(0)
     iorder = NumericProperty(0)
     title = StringProperty('')
@@ -269,7 +270,6 @@ class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
             self.keep_ratio = None
         self.text_post = self.format_post(self.datepub, self.title, self.uuid)
         self.tile_text = self.format_duration(self.dur) + f'    ({self.iorder})'
-        self.source = self.img
         return super(PlsRvItem, self).refresh_view_attrs(
             rv, index, dbitem)
 
