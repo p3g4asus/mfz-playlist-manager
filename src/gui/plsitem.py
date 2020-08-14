@@ -212,7 +212,9 @@ class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
 
     def format_post(self, datepub, title, uid):
         if datepub:
-            strdate = datetime.strptime(datepub, '%Y-%m-%d %H:%M:%S.%f').strftime('%d/%m %H:%M')
+            itsdate = datetime.strptime(datepub, '%Y-%m-%d %H:%M:%S.%f')
+            format = '%d/%m/%Y %H:%M' if itsdate.year != datetime.now().year else '%d/%m %H:%M'
+            strdate = itsdate.strftime(format)
         else:
             strdate = 'N/A'
         return 'Date: ' + strdate + '\n' + str(title) + ' (' + str(uid) + ')'
