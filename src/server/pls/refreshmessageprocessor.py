@@ -1,16 +1,13 @@
-from common.utils import AbstractMessageProcessor, MyEncoder
-from common.const import (
-    CMD_REFRESH,
-    MSG_PLAYLIST_NOT_FOUND,
-    MSG_DB_ERROR,
-    MSG_UNAUTHORIZED
-)
-from common.playlist import Playlist
-
 import abc
 import json
 import logging
 import traceback
+from datetime import datetime
+
+from common.const import (CMD_REFRESH, MSG_DB_ERROR, MSG_PLAYLIST_NOT_FOUND,
+                          MSG_UNAUTHORIZED)
+from common.playlist import Playlist
+from common.utils import AbstractMessageProcessor, MyEncoder
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,6 +59,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             dateto = msg.f('dateto')
             if dateto is None:
                 dateto = 33134094791000
+            dateto = min(dateto, int(datetime.now().timestamp() * 1000))
             if x.rowid is not None:
                 c = x.conf
                 n = x.name
@@ -85,19 +83,22 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                 x.items = []
             resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid)
             if resp.rv == 0:
+                n_new = 0
                 for i in resp.items:
                     if i not in x.items:
                         x.items.append(i)
                         _LOGGER.debug("PlsItem new %s" % str(i))
+                        n_new += 1
                     else:
                         idx = x.items.index(i)
                         _LOGGER.debug("PlsItem exists %s. Is %s [%d]" % (str(i), x.items[idx], not x.items[idx].seen))
                         if not x.items[idx].seen:
                             x.items[idx] = i
                 try:
+                    x.dateupdate = dateto
                     rv = await x.toDB(self.db)
                     if rv:
-                        return msg.ok(playlist=x)
+                        return msg.ok(playlist=x, n_new=n_new)
                     else:
                         return msg.err(18, MSG_DB_ERROR, playlist=None)
                 except Exception:

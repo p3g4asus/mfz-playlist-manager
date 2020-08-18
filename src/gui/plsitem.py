@@ -6,6 +6,8 @@ from functools import partial
 
 from jnius import autoclass, cast
 from kivy.app import App
+from kivy.clock import Clock
+from kivy.effects.dampedscroll import DampedScrollEffect
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.metrics import dp
@@ -40,6 +42,10 @@ from .updatewidget import UpdateWidget
 
 Builder.load_string(
     '''
+#:import CircularProgressBar gui.circular_progress_bar.CircularProgressBar
+#:import datetime datetime.datetime
+#:import Label kivy.core.text.Label
+#:set _label Label(text="")
 <RenameContent>
     orientation: "vertical"
     padding: dp(5)
@@ -49,12 +55,54 @@ Builder.load_string(
         error: True
         helper_text_mode: "on_error"
         helper_text: "At least a letter is required"
+
+<UpdateContent>
+    orientation: "vertical"
+    padding: dp(5)
+    size_hint_: None
+    height: dp(210)
+    MDLabel:
+        size_hint_y: None
+        id: id_title
+        text: 'Updating...'
+        height: dp(30)
+        font_style: "H6"
+    CircularProgressBar:
+        id: id_progress
+        thickness: 3
+        cap_style: "RouND"
+        progress_colour: 0.9333333333333333, 1.0, 0.2549019607843137, 1
+        background_colour: 0, 0, 0, 0
+        cap_precision: 3
+        max: 100
+        min: 1
+        widget_size: 50
+        size_hint_y: None
+        height: dp(70)
+        label: _label
+    MDLabel:
+        id: id_l1
+        size_hint_y: None
+        text: f'From: {datetime.fromtimestamp(root.datefrom / 1000).strftime("%d/%m/%Y")}'
+        height: dp(30)
+    MDLabel:
+        id: id_l2
+        size_hint_y: None
+        height: dp(30)
+        text: f'To: {datetime.fromtimestamp(root.dateto / 1000).strftime("%d/%m/%Y")}'
+    MDLabel:
+        id: id_l3
+        size_hint_y: None
+        height: dp(30)
+        markup: True
+        id: id_newnum
     '''
 )
 
 Builder.load_string(
     '''
 #:import images_path kivymd.images_path
+#:import platform kivy.utils.platform
 <PlsRvItem>:
     source: root.img if root.img else f'{images_path}kivymd_logo.png'
     tile_text: root.format_duration(root.dur) + f'    ({root.iorder})'
@@ -69,6 +117,7 @@ Builder.load_string(
     PlsRv:
         id: id_rv
         title: 'Playlist'
+        bar_width: dp(10) if platform == "win" else dp(2)
         ysize: root.cardsize
         cardtype: root.cardtype
         viewclass: 'PlsRvItem'
@@ -80,6 +129,14 @@ Builder.load_string(
             orientation: 'vertical'
     '''
 )
+
+
+class UpdateContent(BoxLayout):
+    datefrom = NumericProperty()
+    dateto = NumericProperty()
+
+    def __init__(self, *args, **kwargs):
+        super(UpdateContent, self).__init__(*args, **kwargs)
 
 
 class RenameContent(BoxLayout):
@@ -276,6 +333,26 @@ class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
             rv, index, dbitem)
 
 
+class OpacityScrollEffect(DampedScrollEffect):
+    '''OpacityScrollEffect class. Uses the overscroll
+    information to reduce the opacity of the scrollview widget. When the user
+    stops the drag, the opacity is set back to 1.
+    '''
+    tab = ObjectProperty(None, allownone=True)
+
+    def __init__(self, *args, **kwargs):
+        super(OpacityScrollEffect, self).__init__(*args, **kwargs)
+
+    def on_overscroll(self, *args):
+        if self.target_widget and self.target_widget.height != 0:
+            alpha = (1.0 -
+                     abs(self.overscroll / float(self.target_widget.height)))
+            if alpha < 1:
+                self.tab.on_new_update(None)
+            self.target_widget.opacity = min(1, alpha)
+        self.trigger_velocity_update()
+
+
 class PlsRv(RecycleView):
     ysize = NumericProperty(150)
     cardtype = StringProperty('RESIZE')
@@ -293,7 +370,13 @@ class PlsItem(BoxLayout, MDTabsBase):
     def __init__(self, playlist=None, **kwargs):
         self.playlist = playlist
         super(PlsItem, self).__init__(**kwargs)
+        self.ids.id_rv.effect_cls = partial(OpacityScrollEffect, tab=self)
         self.popup = None
+        self.update_dialog_cont = None
+        self.update_dialog = None
+        self.update_dialog_event = None
+        self.update_dialog_processed = False
+        self.playlist_max_date = 0
         self.load_list()
 
     def play_pls(self):
@@ -309,7 +392,10 @@ class PlsItem(BoxLayout, MDTabsBase):
             self.text = self.playlist.name
             del self.ids.id_rv.data[:]
             data = []
+            self.playlist_max_date = 0
             for d in self.playlist.items:
+                if not self.playlist_max_date or d.datepub > self.playlist_max_date:
+                    self.playlist_max_date = d.datepub
                 if not d.seen:
                     dct = dict(vars(d))
                     dct['launch'] = self.launchconf
@@ -321,6 +407,8 @@ class PlsItem(BoxLayout, MDTabsBase):
                     except Exception:
                         pass
                     data.append(dct)
+            self.playlist_max_date = int(datetime.strptime(self.playlist_max_date, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)\
+                if self.playlist_max_date else 0
             self.ids.id_rv.data = data
 
     def on_new_name(self, but, renc=None):
@@ -356,16 +444,29 @@ class PlsItem(BoxLayout, MDTabsBase):
         self.load_list()
 
     async def on_new_update_result(self, client, sent, received):
+        if self.update_dialog:
+            self.update_dialog.buttons[0].disabled = False
+        if self.update_dialog_event:
+            Clock.unschedule(self.update_dialog_event)
+            self.update_dialog_event = None
+        if self.update_dialog_cont:
+            self.update_dialog_cont.ids.id_title.text = 'Updated'
+            self.update_dialog_cont.ids.id_progress.progress_colour =\
+                [1.0, 0.4392156862745098, 0.2627450980392157, 1]\
+                if not received or received.rv else\
+                [0.4627450980392157, 1.0, 0.011764705882352941, 1]
+            self.update_dialog_cont.ids.id_progress.value = 100
         if not received:
-            toast("Timeout error waiting for server response")
+            self.update_dialog_cont.ids.id_newnum.text = '[color=#ff7043]Timeout error waiting for server response[/color]'
         elif received.rv == 0:
+            self.update_dialog_cont.ids.id_newnum.text = f'[color=#76ff03]Update OK: new items were {received.n_new}[/color]'
             try:
                 Logger.debug("PlsItem: Sent PL: %s Received PL: %s" % (str(sent.playlist), str(received.playlist)))
             except Exception:
                 pass
             self.set_playlist(received.playlist)
         else:
-            toast("[E %d] %s" % (received.rv, received.err))
+            self.update_dialog_cont.ids.id_newnum.text = f'[color=#ff7043][E {received.rv}] {received.err}'
             self.tabcont.ws_dump(playlist_to_ask=self.playlist.rowid)
 
     async def on_new_del_result(self, client, sent, received):
@@ -459,7 +560,57 @@ class PlsItem(BoxLayout, MDTabsBase):
                     removed_item,
                     removed_item=removed_item))
 
-    def on_new_update(self, inst, df, dt):
+    def on_new_update(self, inst, df=None, dt=None):
+        if not self.update_dialog:
+            if df is None:
+                df = self.playlist.dateupdate if self.playlist.dateupdate else self.playlist_max_date
+            elif isinstance(df, datetime):
+                df = int(df.timestamp() * 1000)
+            if dt is None:
+                dt = int(datetime.now().timestamp() * 1000)
+            elif isinstance(dt, datetime):
+                dt = int(dt.timestamp() * 1000)
+            self.update_dialog_processed = False
+            self.update_dialog_cont = UpdateContent(datefrom=df, dateto=dt)
+            self.update_dialog = MDDialog(
+                on_dismiss=self.update_dialog_on_dismiss,
+                on_open=partial(self.update_dialog_on_open, df=df, dt=dt),
+                content_cls=self.update_dialog_cont,
+                type="custom",
+                buttons=[
+                    MDFlatButton(
+                        text="OK", on_release=self.update_dialog_on_ok, disabled=True
+                    )
+                ])
+            self.update_dialog.open()
+
+    def update_dialog_on_dismiss(self, *args):
+        if not self.update_dialog_processed:
+            return True
+        if self.update_dialog_event:
+            Clock.unschedule(self.update_dialog_event)
+            self.update_dialog_event = None
+        self.update_dialog_processed = False
+        self.update_dialog = None
+        self.update_dialog_cont = None
+
+    def update_dialog_animate(self, *args):
+        bar = self.update_dialog_cont.ids.id_progress
+        if bar.value < bar.max:
+            bar.value += 1
+        else:
+            bar.value = bar.min
+        if not (bar.value % 5):
+            txt = self.update_dialog_cont.ids.id_title
+            txt.text = 'Updating' + (((txt.text.count('.') % 3) + 1) * '.')
+
+    def update_dialog_on_ok(self, *args, **kwargs):
+        self.update_dialog_processed = True
+        self.update_dialog.dismiss()
+
+    def update_dialog_on_open(self, *args, df=None, dt=None):
+        Logger.debug(f'Win s1 = {self.update_dialog.size}, s2 = {self.update_dialog_cont.size}')
+        self.update_dialog_event = Clock.schedule_interval(self.update_dialog_animate, 0.05)
         self.client.enqueue(PlaylistMessage(
             cmd=CMD_REFRESH,
             playlist=self.playlist,
@@ -513,11 +664,13 @@ class PlsItem(BoxLayout, MDTabsBase):
 
     def update_pls(self, show_date_selection):
         if show_date_selection:
-            updatew = UpdateWidget(on_update=self.on_new_update)
+            updatew = UpdateWidget(on_update=self.on_new_update, datefrom=self.playlist.dateupdate)
             self.manager.add_widget(updatew)
             self.manager.current = updatew.name
         else:
-            self.on_new_update(None, 0, int(datetime.now().timestamp() * 1000))
+            self.on_new_update(None,
+                               self.playlist.dateupdate if self.playlist.dateupdate is not None else self.playlist_max_date,
+                               int(datetime.now().timestamp() * 1000))
 
     def conf_pls(self):
         if self.playlist and self.confclass:

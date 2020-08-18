@@ -1,9 +1,9 @@
-from kivy.lang import Builder
-from kivy.logger import Logger
-from kivy.properties import ObjectProperty
-from kivy.uix.screenmanager import Screen
 from datetime import datetime, timedelta
 
+from kivy.lang import Builder
+from kivy.logger import Logger
+from kivy.properties import NumericProperty, ObjectProperty
+from kivy.uix.screenmanager import Screen
 
 Builder.load_string(
     '''
@@ -48,11 +48,12 @@ Builder.load_string(
 
 class UpdateWidget(Screen):
     box_buttons_ref = ObjectProperty()
+    datefrom = NumericProperty(None, allownone=True)
 
     def __init__(self, **kwargs):
         self.register_event_type('on_update')
         super(UpdateWidget, self).__init__(**kwargs)
-        dt = datetime.now() - timedelta(days=60)
+        dt = datetime.now() - timedelta(days=60) if not self.datefrom else datetime.fromtimestamp(self.datefrom / 1000)
         self.ids.id_datefrom.set_date(dt)
         self.ids.id_dateto.set_date(datetime.now())
 

@@ -126,6 +126,7 @@ CREATE_DB_IF_NOT_EXIST = [
         name TEXT NOT NULL,
         user INTEGER NOT NULL,
         type INTEGER NOT NULL,
+        dateupdate INTEGER,
         conf TEXT,
         FOREIGN KEY (user)
             REFERENCES user (rowid)
