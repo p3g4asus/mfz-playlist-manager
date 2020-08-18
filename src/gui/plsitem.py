@@ -346,13 +346,16 @@ class OpacityScrollEffect(DampedScrollEffect):
 
     def on_overscroll(self, *args):
         Logger.debug(f'OVSC args {args}')
-        if self.target_widget and self.target_widget.height != 0:
-            alpha = (1.0 -
-                     abs(self.overscroll / float(self.target_widget.height)))
-            if alpha < 1:
-                self.tab.on_new_update(None)
-            self.target_widget.opacity = min(1, alpha)
-        self.trigger_velocity_update()
+        if platform == 'win':
+            if self.target_widget and self.target_widget.height != 0:
+                alpha = (1.0 -
+                         abs(self.overscroll / float(self.target_widget.height)))
+                if alpha < 1:
+                    self.tab.on_new_update(None)
+                self.target_widget.opacity = min(1, alpha)
+            self.trigger_velocity_update()
+        else:
+            super(OpacityScrollEffect, self).on_overscroll(self, *args)
 
 
 class PlsRv(RecycleView):
@@ -372,8 +375,7 @@ class PlsItem(BoxLayout, MDTabsBase):
     def __init__(self, playlist=None, **kwargs):
         self.playlist = playlist
         super(PlsItem, self).__init__(**kwargs)
-        if platform == 'win':
-            self.ids.id_rv.effect_cls = partial(OpacityScrollEffect, tab=self)
+        self.ids.id_rv.effect_cls = partial(OpacityScrollEffect, tab=self)
         self.popup = None
         self.update_dialog_cont = None
         self.update_dialog = None
