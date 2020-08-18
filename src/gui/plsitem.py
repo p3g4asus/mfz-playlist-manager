@@ -43,6 +43,7 @@ from .updatewidget import UpdateWidget
 Builder.load_string(
     '''
 #:import CircularProgressBar gui.circular_progress_bar.CircularProgressBar
+#:import platform kivy.utils.platform
 #:import datetime datetime.datetime
 #:import Label kivy.core.text.Label
 #:set _label Label(text="")
@@ -69,14 +70,14 @@ Builder.load_string(
         font_style: "H6"
     CircularProgressBar:
         id: id_progress
-        thickness: 3
+        thickness: dp(4)
         cap_style: "RouND"
         progress_colour: 0.9333333333333333, 1.0, 0.2549019607843137, 1
         background_colour: 0, 0, 0, 0
         cap_precision: 3
         max: 100
         min: 1
-        widget_size: 50
+        widget_size: dp(50)
         size_hint_y: None
         height: dp(70)
         label: _label
@@ -370,7 +371,8 @@ class PlsItem(BoxLayout, MDTabsBase):
     def __init__(self, playlist=None, **kwargs):
         self.playlist = playlist
         super(PlsItem, self).__init__(**kwargs)
-        self.ids.id_rv.effect_cls = partial(OpacityScrollEffect, tab=self)
+        if platform == 'win':
+            self.ids.id_rv.effect_cls = partial(OpacityScrollEffect, tab=self)
         self.popup = None
         self.update_dialog_cont = None
         self.update_dialog = None

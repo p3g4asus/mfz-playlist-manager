@@ -102,7 +102,7 @@ class CircularProgressBar(Widget):
 
     @thickness.setter
     def thickness(self, value):
-        if type(value) != int:
+        if not isinstance(value, (int, float)):
             raise TypeError("Circular bar thickness only accepts an integer value, not {}!".format(type(value)))
         elif value <= 0:
             raise ValueError("Circular bar thickness must be a positive integer, not {}!".format(value))
@@ -207,8 +207,8 @@ class CircularProgressBar(Widget):
         return self._widget_size
 
     @widget_size.setter
-    def widget_size(self, value: int):
-        if type(value) != int:
+    def widget_size(self, value: (int, float)):
+        if not isinstance(value, (int, float)):
             raise TypeError("Size of this widget must be an integer value, not {}!".format(type(value)))
         elif value <= 0:
             raise ValueError("Size of this widget must be a positive integer, not {}!".format(value))
