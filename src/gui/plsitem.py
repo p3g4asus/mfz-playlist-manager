@@ -345,6 +345,7 @@ class OpacityScrollEffect(DampedScrollEffect):
         super(OpacityScrollEffect, self).__init__(*args, **kwargs)
 
     def on_overscroll(self, *args):
+        Logger.debug(f'OVSC args {args}')
         if self.target_widget and self.target_widget.height != 0:
             alpha = (1.0 -
                      abs(self.overscroll / float(self.target_widget.height)))
