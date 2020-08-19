@@ -357,11 +357,9 @@ class OpacityScrollEffect(DampedScrollEffect):
             self.trigger_velocity_update()
         else:
             pixels = args[1]
-            if pixels < -cm(1.8) and self.start_point is None:
+            if (self.start_point is None and pixels < -cm(1.8)) or (self.start_point and pixels < self.start_point):
                 self.start_point = pixels
                 self.in_interval = 0
-            elif self.start_point and pixels < self.start_point:
-                self.start_point = pixels
             elif self.start_point and pixels >= self.start_point and pixels < -cm(1):
                 self.in_interval += 1
             elif self.start_point and pixels >= -cm(1) and self.in_interval > 5:
