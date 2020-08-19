@@ -360,9 +360,9 @@ class OpacityScrollEffect(DampedScrollEffect):
             if pixels < -cm(1.8) and self.start_point is None:
                 self.start_point = pixels
                 self.in_interval = 0
-            elif self.start_point and pixels < -self.start_point:
+            elif self.start_point and pixels < self.start_point:
                 self.start_point = pixels
-            elif self.start_point and pixels >= -self.start_point and pixels < -cm(1):
+            elif self.start_point and pixels >= self.start_point and pixels < -cm(1):
                 self.in_interval += 1
             elif self.start_point and pixels >= -cm(1) and self.in_interval > 5:
                 self.start_point = None
