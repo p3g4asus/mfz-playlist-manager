@@ -10,7 +10,7 @@ from kivy.clock import Clock
 from kivy.effects.dampedscroll import DampedScrollEffect
 from kivy.lang import Builder
 from kivy.logger import Logger
-from kivy.metrics import dp
+from kivy.metrics import dp, cm
 from kivy.properties import NumericProperty, ObjectProperty, StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.recycleview import RecycleView
@@ -345,7 +345,7 @@ class OpacityScrollEffect(DampedScrollEffect):
         super(OpacityScrollEffect, self).__init__(*args, **kwargs)
 
     def on_overscroll(self, *args):
-        Logger.debug(f'OVSC args {args}')
+        Logger.debug(f'OVSC args {args[1]} cm={cm(1.5)} cm2={cm(2)}')
         if platform == 'win':
             if self.target_widget and self.target_widget.height != 0:
                 alpha = (1.0 -
