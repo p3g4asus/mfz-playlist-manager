@@ -347,8 +347,6 @@ class OpacityScrollEffect(DampedScrollEffect):
         self.in_interval = 0
 
     def on_overscroll(self, *args):
-        pixels = args[1]
-        Logger.debug(f'OVSC args {pixels}')
         if platform == 'win':
             if self.target_widget and self.target_widget.height != 0:
                 alpha = (1.0 -
@@ -358,6 +356,7 @@ class OpacityScrollEffect(DampedScrollEffect):
                 self.target_widget.opacity = min(1, alpha)
             self.trigger_velocity_update()
         else:
+            pixels = args[1]
             if pixels < -cm(1.8) and self.start_point is None:
                 self.start_point = pixels
                 self.in_interval = 0
@@ -370,6 +369,7 @@ class OpacityScrollEffect(DampedScrollEffect):
                 self.tab.on_new_update(None)
             else:
                 self.start_point = None
+            Logger.debug(f'OVSC args {pixels} sp={self.start_point} int={self.in_interval}')
             super(OpacityScrollEffect, self).on_overscroll(self, *args)
 
 
