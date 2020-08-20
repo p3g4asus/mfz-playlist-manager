@@ -10,18 +10,19 @@ Builder.load_string(
 #:import MDList kivymd.uix.list.MDList
 <PlaylistSelectWidget>:
     name: 'playlistselect'
-    GridLayout:
+    BoxLayout:
         spacing: dp(5)
         height: self.minimum_height
-        rows: 3
-        cols: 1
+        orientation: 'vertical'
         MDToolbar:
             pos_hint: {'top': 1}
-            size_hint: (1, 0.2)
             title: 'New Playlist'
             md_bg_color: app.theme_cls.primary_color
             left_action_items: [["arrow-left", lambda x: root.dispatch_on_playlist('Cancel')]]
             elevation: 10
+            size_hint_x: 1
+            size_hint_y: None
+            height: dp(60)
         ScrollView:
             size_hint: (1, 0.8)
             MDList:

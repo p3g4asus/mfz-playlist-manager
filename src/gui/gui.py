@@ -711,7 +711,7 @@ class MainApp(MDApp):
     def _on_keyboard(self, win, scancode, *largs):
         if scancode == 27:
             if self.root.ids.nav_drawer.state == 'open':
-                self.root.ids.nav_drawer.animation_close()
+                self.root.ids.nav_drawer.set_state("close")
             else:
                 self.stop_me()
             return True
@@ -730,7 +730,7 @@ class MainApp(MDApp):
                 on_player_path=self.rec_player_path
             )
             self.close_settings()
-            self.root.ids.nav_drawer.animation_close()
+            self.root.ids.nav_drawer.set_state("close")
             self.root.ids.id_screen_manager.add_widget(plwidget)
             self.root.ids.id_screen_manager.current = plwidget.name
         if section == "gui" and key == "cardtype":
