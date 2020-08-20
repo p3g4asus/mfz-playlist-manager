@@ -190,8 +190,8 @@ class PlsClient:
 
     def stop(self):
         self.stopped = True
-        self.ws_event.set()
         del self.ws_queue[:]
+        self.ws_event.set()
         if self.single_action_task:
             self.single_action_task.cancel()
             self.single_action_task = None
@@ -215,6 +215,9 @@ class PlsClient:
                     Logger.error("Client: " + traceback.format_exc())
                     if self.stopped:
                         return
+                except ConnectionResetError as cre:
+                    await it.call(self, rv)
+                    raise cre
                 except json.decoder.JSONDecodeError:
                     Logger.error("Client: " + traceback.format_exc())
             del self.ws_queue[0]
