@@ -24,7 +24,6 @@ Builder.load_string(
         MDToolbar:
             id: id_toolbar
             pos_hint: {'top': 1}
-            size_hint: (1, 0.2)
             title: 'Player path'
             md_bg_color: app.theme_cls.primary_color
             left_action_items: [["arrow-left", lambda x: root.manager.remove_widget(root)]]
