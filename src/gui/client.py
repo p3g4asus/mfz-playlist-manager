@@ -188,12 +188,18 @@ class PlsClient:
         else:
             return None
 
-    def stop(self):
+    async def stop(self):
         self.stopped = True
+        for it in self.ws_queue:
+            await it.call(self, None)
         del self.ws_queue[:]
         self.ws_event.set()
         if self.single_action_task:
             self.single_action_task.cancel()
+            try:
+                await self.single_action_task
+            except asyncio.CancelledError:
+                pass
             self.single_action_task = None
         if self.login_t:
             self.login_t.cancel()
@@ -206,23 +212,18 @@ class PlsClient:
             it = self.ws_queue[0]
             rv = None
             for i in range(self.retry):
+                if self.stopped:
+                    return
                 try:
                     self.single_action_task = asyncio.ensure_future(self.single_action(ws, it))
                     rv = await asyncio.wait_for(self.single_action_task, self.timeout)
                     self.single_action_task = None
                     break
-                except asyncio.TimeoutError:
-                    Logger.error("Client: " + traceback.format_exc())
-                    if self.stopped:
-                        return
-                except ConnectionResetError as cre:
-                    await it.call(self, rv)
-                    raise cre
-                except json.decoder.JSONDecodeError:
+                except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                     Logger.error("Client: " + traceback.format_exc())
             del self.ws_queue[0]
             await it.call(self, rv)
-        else:
+        elif not self.stopped:
             self.ws_event.clear()
             await self.ws_event.wait()
 
@@ -248,7 +249,7 @@ class PlsClient:
                 except asyncio.CancelledError:
                     break
                 except Exception:
-                    self.stop()
+                    await self.stop()
                     self.timer_login()
                     Logger.error("Client: " + traceback.format_exc())
                     break

@@ -557,7 +557,11 @@ class MainApp(MDApp):
             if self.osc_transport:
                 self.osc_transport.close()
                 self.osc_transport = None
-        self.client.stop()
+        Timer(0, self.stop_client_gracefully)
+
+    async def stop_client_gracefully(self):
+        if self.client:
+            await self.client.stop()
         self.stop()
 
     def true_stop(self):
@@ -763,12 +767,15 @@ class MainApp(MDApp):
                     self.client.start_login_process(self.on_login)
             elif section == "registration" and key.startswith("regbuttons"):
                 if value == "btn_reg":
-                    self.client.stop()
-                    Timer(0, partial(self.client.register, callback=self.on_register))
+                    Timer(0, self.do_register)
                 elif value == "btn_out":
                     Timer(0, partial(self.client.logout, callback=self.on_logout))
                 elif value == "btn_mod":
                     Timer(0, partial(self.client.register, urlpart="modifypw", callback=self.on_modify_pw))
+
+    async def do_register(self):
+        await self.client.stop()
+        await self.client.register(callback=self.on_register)
 
     async def on_register(self, client, rv, **kwargs):
         toast("Registration OK" if not rv else rv)
