@@ -180,7 +180,7 @@ class OrderContent(RenameContent):
 #             elevation: 10
 
 
-async def launch_link(lnk, launchconf):
+async def launch_link(lnk, launchconf, typeitem=None):
     Logger.debug(f'lnk to launch: {lnk}')
     if platform == "win":
         if not launchconf:
@@ -196,7 +196,8 @@ async def launch_link(lnk, launchconf):
             Uri = autoclass('android.net.Uri')
             u = Uri.parse(lnk)
             intent = Intent(Intent.ACTION_VIEW, u)
-            intent.setDataAndType(u, "video/*")
+            if typeitem != 'youtube':
+                intent.setDataAndType(u, "video/*")
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
             currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
             currentActivity.startActivity(intent)
@@ -299,7 +300,7 @@ class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
         self.height = lo
 
     def on_lineright(self, *args, **kwargs):
-        Timer(0, partial(launch_link, self.link, self.launch))
+        Timer(0, partial(launch_link, self.link, self.launch, self.tab.playlist.type))
 
     def refresh_view_attrs(self, rv, index, dbitem):
         ''' Catch and handle the view changes '''
@@ -414,17 +415,16 @@ class PlsItem(BoxLayout, MDTabsBase):
             for d in self.playlist.items:
                 if not self.playlist_max_date or d.datepub > self.playlist_max_date:
                     self.playlist_max_date = d.datepub
-                if not d.seen:
-                    dct = dict(vars(d))
-                    dct['launch'] = self.launchconf
-                    dct['tab'] = self
-                    dct['uuid'] = dct['uid']
-                    del dct['uid']
-                    try:
-                        Logger.debug("Adding %s" % str(dct))
-                    except Exception:
-                        pass
-                    data.append(dct)
+                dct = dict(vars(d))
+                dct['launch'] = self.launchconf
+                dct['tab'] = self
+                dct['uuid'] = dct['uid']
+                del dct['uid']
+                try:
+                    Logger.debug("Adding %s" % str(dct))
+                except Exception:
+                    pass
+                data.append(dct)
             self.playlist_max_date = int(datetime.strptime(self.playlist_max_date, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)\
                 if self.playlist_max_date else 0
             self.ids.id_rv.data = data

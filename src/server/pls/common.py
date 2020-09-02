@@ -15,7 +15,7 @@ from common.const import (
     MSG_PLAYLIST_NOT_FOUND,
     MSG_PLAYLISTITEM_NOT_FOUND
 )
-from common.playlist import Playlist, PlaylistItem
+from common.playlist import LOAD_ITEMS_ALL, LOAD_ITEMS_NO, Playlist, PlaylistItem
 import json
 import logging
 
@@ -34,7 +34,7 @@ class MessageProcessor(AbstractMessageProcessor):
         itx = msg.playlistItemId()
         if pdst and itx:
             if pdst.rowid:
-                pdst = await Playlist.loadbyid(self.db, rowid=pdst.rowid, loaditems=True)
+                pdst = await Playlist.loadbyid(self.db, rowid=pdst.rowid)
                 if not pdst:
                     return msg.err(10, MSG_PLAYLIST_NOT_FOUND, playlist=None)
                 else:
@@ -44,7 +44,7 @@ class MessageProcessor(AbstractMessageProcessor):
             it = await PlaylistItem.loadbyid(self.db, itx)
             if not it:
                 return msg.err(14, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-            psrc = await Playlist.loadbyid(self.db, rowid=it.playlist)
+            psrc = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
             if not psrc:
                 return msg.err(16, MSG_PLAYLIST_NOT_FOUND, playlist=None)
             else:
@@ -91,7 +91,7 @@ class MessageProcessor(AbstractMessageProcessor):
     async def processRen(self, msg, userid):
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=False)
+            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
@@ -111,7 +111,7 @@ class MessageProcessor(AbstractMessageProcessor):
         if x is not None:
             it = await PlaylistItem.loadbyid(self.db, rowid=x)
             if it:
-                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=False)
+                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
                 if pls:
                     if pls[0].useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
@@ -131,25 +131,34 @@ class MessageProcessor(AbstractMessageProcessor):
         if x is not None:
             it = await PlaylistItem.loadbyid(self.db, rowid=x)
             if it:
-                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=True)
+                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_ALL)
                 if pls:
-                    if pls[0].useri != userid:
+                    pl = pls[0]
+                    items = pl.items
+                    if pl.useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                     dest_iorder = msg.f("iorder")
                     round_iorder = dest_iorder if (dest_iorder % 10) == 0 else (dest_iorder // 10 + 1) * 10
                     plus_idx = -1
-                    for idx, other_it in enumerate(pls[0].items):
+                    await pl.cleanItems(self.db, commit=False)
+                    for idx, other_it in enumerate(items):
                         if other_it.rowid != x and other_it.iorder >= dest_iorder:
                             plus_idx = idx
                             break
                     if plus_idx >= 0:
-                        cur_iorder = round_iorder + (len(pls[0].items) - plus_idx) * 10
-                        for idx in range(len(pls[0].items) - 1, plus_idx - 1, -1):
-                            if not await pls[0].items[idx].setIOrder(self.db, cur_iorder, commit=False):
+                        _LOGGER.debug(f"PlusIdx {plus_idx}")
+                        cur_iorder = round_iorder + (len(items) - plus_idx) * 10
+                        for idx in range(len(items) - 1, plus_idx - 1, -1):
+                            _LOGGER.debug(f"SetIorder {items[idx]} -> {cur_iorder}")
+                            if not await items[idx].setIOrder(self.db, -cur_iorder, commit=False):
                                 return msg.err(5, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                            items[idx].iorder = -items[idx].iorder
                             cur_iorder -= 10
-                    if await it.setIOrder(self.db, round_iorder, commit=True):
-                        return msg.ok(playlistitem=it)
+                    if await it.setIOrder(self.db, round_iorder, commit=False):
+                        if not await pl.fix_iorder(self.db, commit=True):
+                            return msg.err(6, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                        else:
+                            return msg.ok(playlistitem=it)
                     else:
                         return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                 else:
@@ -162,7 +171,7 @@ class MessageProcessor(AbstractMessageProcessor):
     async def processDel(self, msg, userid):
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=False)
+            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
@@ -179,20 +188,22 @@ class MessageProcessor(AbstractMessageProcessor):
     async def processSort(self, msg, userid):
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=True, sort_item_field='datepub')
+            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_ALL, sort_item_field='datepub')
             if pls:
-                if pls[0].useri != userid:
+                pl = pls[0]
+                if pl.useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                await pl.cleanItems(self.db, commit=False)
                 cur_iorder = 10
-                for other_it in pls[0].items:
+                for other_it in pl.items:
                     if not await other_it.setIOrder(self.db, -cur_iorder, commit=False):
                         return msg.err(5, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                     other_it.iorder = -other_it.iorder
                     cur_iorder += 10
-                if pls[0].items:
-                    if not await pls[0].fix_iorder(self.db, commit=True):
+                if pl.items:
+                    if not await pl.fix_iorder(self.db, commit=True):
                         return msg.err(2, MSG_PLAYLIST_NOT_FOUND, playlist=None)
-                return msg.ok(playlist=pls[0])
+                return msg.ok(playlist=pl)
             else:
                 msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
         else:

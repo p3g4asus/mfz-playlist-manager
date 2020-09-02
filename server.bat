@@ -18,5 +18,5 @@ set KCFG_KIVY_LOG_LEVEL=debug
 set KCFG_KIVY_LOG_ENABLE=1
 set KCFG_KIVY_LOG_DIR=%~dp0logs
 pushd %~dp0src
-python -m server --dbfile "%~dp0maindb.db" -v
+python -m server --dbfile "%~dp0maindb.db" -v > ..\serv.txt 2>&1
 pause

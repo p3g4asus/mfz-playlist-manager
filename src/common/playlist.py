@@ -6,6 +6,10 @@ from .utils import Fieldable, JSONAble
 
 _LOGGER = logging.getLogger(__name__)
 
+LOAD_ITEMS_NO = 0
+LOAD_ITEMS_ALL = 1
+LOAD_ITEMS_UNSEEN = 2
+
 
 class Playlist(JSONAble, Fieldable):
     def __init__(self, dbitem=None, rowid=None, name=None, items=None, typei=None, type=None, useri=None, user=None, conf=None, dateupdate=None, **kwargs):
@@ -59,7 +63,7 @@ class Playlist(JSONAble, Fieldable):
         return s
 
     @staticmethod
-    async def loadbyid(db, rowid=None, useri=None, name=None, username=None, loaditems=True, sort_item_field='iorder'):
+    async def loadbyid(db, rowid=None, useri=None, name=None, username=None, loaditems=LOAD_ITEMS_UNSEEN, sort_item_field='iorder'):
         pls = []
         commontxt = '''
             SELECT P.name AS name,
@@ -93,21 +97,12 @@ class Playlist(JSONAble, Fieldable):
                 commontxt
             )
         async for row in cursor:
-            subcursor = await db.execute(
-                f'''
-                SELECT * FROM playlist_item WHERE playlist=? ORDER BY {sort_item_field}
-                ''',
-                (row['rowid'],)
-            )
-            items = []
             dctr = dict(row)
             _LOGGER.debug("Row %s" % str(dctr))
-            if loaditems:
-                async for subrow in subcursor:
-                    dctsr = dict(subrow)
-                    osr = PlaylistItem(dbitem=dctsr)
-                    _LOGGER.debug("SubRow %s / %s" % (str(dctsr), str(osr)))
-                    items.append(osr)
+            if loaditems != LOAD_ITEMS_NO:
+                items = await PlaylistItem.loadbyid(db, None, playlist=row['rowid'], loaditems=loaditems, sortby=sort_item_field)
+            else:
+                items = []
             pl = Playlist(dbitem=dctr, items=items)
             _LOGGER.debug("Playlist %s" % str(pl))
             pls.append(pl)
@@ -185,6 +180,18 @@ class Playlist(JSONAble, Fieldable):
         if commit:
             await db.commit()
         return True
+
+    async def cleanItems(self, db, commit=True):
+        items = self.items
+        rv = True
+        for idx in range(len(items) - 1, -1, -1):
+            other_it = items[idx]
+            if other_it.seen:
+                if other_it.isOk():
+                    if rv:
+                        rv = await other_it.delete(db, commit=commit)
+                del items[idx]
+        return rv
 
     async def toDB(self, db):
         if isinstance(self.conf, str):
@@ -302,18 +309,38 @@ class PlaylistItem(JSONAble, Fieldable):
         return None
 
     @staticmethod
-    async def loadbyid(db, rowid):
-        subcursor = await db.execute(
-            '''
-            SELECT * FROM playlist_item WHERE rowid=?
-            ''',
-            (rowid,)
-        )
-        data = await subcursor.fetchone()
-        if data:
-            return PlaylistItem(dbitem=data)
-        else:
+    async def loadbyid(db, rowid, playlist=None, loaditems=LOAD_ITEMS_UNSEEN, sortby='iorder'):
+        if isinstance(rowid, int):
+            where = f'WHERE rowid={rowid}'
+            listresult = False
+        elif not isinstance(playlist, int):
             return None
+        else:
+            where = f'WHERE PI.playlist = {playlist}'
+            if loaditems == LOAD_ITEMS_UNSEEN:
+                where += ' AND seen IS NULL AND PI.link IS NOT NULL'
+            listresult = True
+        subcursor = await db.execute(
+            f'''
+            SELECT PI.*,
+                   seen
+                   FROM playlist_item AS PI
+                   LEFT JOIN playlist_item_seen AS PS ON PI.uid = PS.uid AND PI.playlist = PS.playlist
+                   {where}
+                   ORDER BY {sortby}
+            '''
+        )
+        if not listresult:
+            data = await subcursor.fetchone()
+            return PlaylistItem(dbitem=data) if data else None
+        else:
+            items = []
+            async for subrow in subcursor:
+                dctsr = dict(subrow)
+                osr = PlaylistItem(dbitem=dctsr)
+                _LOGGER.debug("SubRow %s / %s" % (str(dctsr), str(osr)))
+                items.append(osr)
+            return items
 
     async def setSeen(self, db, value=True, commit=True):
         rv = False
@@ -321,12 +348,12 @@ class PlaylistItem(JSONAble, Fieldable):
             async with db.cursor() as cursor:
                 if value:
                     await cursor.execute(
-                        "UPDATE playlist_item SET seen=datetime('now') WHERE rowid=?",
-                        (self.rowid,))
+                        "UPDATE playlist_item_seen SET seen=datetime('now') WHERE uid=? and playlist=?",
+                        (self.uid, self.playlist))
                 else:
                     await cursor.execute(
-                        "UPDATE playlist_item SET seen=NULL WHERE rowid=?",
-                        (self.rowid,))
+                        "UPDATE playlist_item_seen SET seen=NULL WHERE uid=? and playlist=?",
+                        (self.uid, self.playlist))
                 rv = cursor.rowcount > 0
         if rv:
             await db.commit()
@@ -363,7 +390,7 @@ class PlaylistItem(JSONAble, Fieldable):
                 return data > 0
             return False
 
-    async def delete(self, db):
+    async def delete(self, db, commit=True):
         rv = False
         if self.rowid:
             async with db.cursor() as cursor:
@@ -371,9 +398,9 @@ class PlaylistItem(JSONAble, Fieldable):
                 rv = cursor.rowcount > 0
         elif self.uid and self.playlist:
             async with db.cursor() as cursor:
-                await cursor.execute("DELETE FROM playlist_item WHERE uid=?", (self.uid,))
+                await cursor.execute("DELETE FROM playlist_item WHERE uid=? AND playlist=?", (self.uid, self.playlist))
                 rv = cursor.rowcount > 0
-        if rv:
+        if rv and commit:
             await db.commit()
         return rv
 
@@ -394,16 +421,6 @@ class PlaylistItem(JSONAble, Fieldable):
         else:
             c = json.dumps(self.conf)
         if self.isOk():
-            seen = None
-            async with db.execute(
-                '''
-                SELECT seen FROM playlist_item
-                WHERE uid = ? AND playlist = ?
-                ''', (self.uid, self.playlist)
-            ) as cursor:
-                seen = await cursor.fetchone()
-                if seen:
-                    seen = seen[0]
             if self.iorder is None:
                 async with db.execute(
                     '''
@@ -419,8 +436,8 @@ class PlaylistItem(JSONAble, Fieldable):
                 await cursor.execute(
                     '''
                     INSERT OR REPLACE INTO playlist_item(
-                        rowid,uid,link,title,playlist,conf,datepub,img,dur,seen,iorder
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                        rowid,uid,link,title,playlist,conf,datepub,img,dur,iorder
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?)
                     ''',
                     (self.rowid,
                      self.uid,
@@ -431,10 +448,17 @@ class PlaylistItem(JSONAble, Fieldable):
                      self.datepub,
                      self.img,
                      self.dur,
-                     seen,
                      self.iorder))
-                self.seen = seen
                 self.rowid = cursor.lastrowid
+                await cursor.execute(
+                    '''
+                    INSERT OR REPLACE INTO playlist_item_seen(
+                        uid,playlist,seen
+                    ) VALUES (?,?,?)
+                    ''',
+                    (self.uid,
+                     self.playlist,
+                     self.seen))
             if commit:
                 await db.commit()
             return True

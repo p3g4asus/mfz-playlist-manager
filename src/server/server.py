@@ -140,6 +140,18 @@ CREATE_DB_IF_NOT_EXIST = [
     )
     ''',
     '''
+    CREATE TABLE IF NOT EXISTS playlist_item_seen(
+        uid TEXT NOT NULL,
+        playlist INTEGER NOT NULL,
+        seen DATETIME,
+        PRIMARY KEY (uid, playlist),
+        FOREIGN KEY (playlist)
+            REFERENCES playlist (rowid)
+            ON UPDATE CASCADE
+            ON DELETE CASCADE
+    )
+    ''',
+    '''
     CREATE TABLE IF NOT EXISTS playlist_item(
         rowid INTEGER PRIMARY KEY,
         title TEXT,
@@ -150,7 +162,6 @@ CREATE_DB_IF_NOT_EXIST = [
         playlist INTEGER NOT NULL,
         dur INTEGER NOT NULL,
         conf TEXT,
-        seen DATETIME,
         iorder INTEGER NOT NULL,
         UNIQUE(uid, playlist),
         UNIQUE(playlist, iorder),
@@ -159,6 +170,10 @@ CREATE_DB_IF_NOT_EXIST = [
             ON UPDATE CASCADE
             ON DELETE CASCADE
     )
+    ''',
+    '''
+    CREATE INDEX IF NOT EXISTS playlist_item_iorder
+        ON playlist_item (iorder)
     ''',
     '''
     PRAGMA foreign_keys = ON

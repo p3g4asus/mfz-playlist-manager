@@ -6,7 +6,7 @@ from datetime import datetime
 
 from common.const import (CMD_REFRESH, MSG_DB_ERROR, MSG_PLAYLIST_NOT_FOUND,
                           MSG_UNAUTHORIZED)
-from common.playlist import Playlist
+from common.playlist import LOAD_ITEMS_ALL, Playlist
 from common.utils import AbstractMessageProcessor, MyEncoder
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             if x.rowid is not None:
                 c = x.conf
                 n = x.name
-                x = await Playlist.loadbyid(self.db, rowid=x.rowid)
+                x = await Playlist.loadbyid(self.db, rowid=x.rowid, loaditems=LOAD_ITEMS_ALL)
                 if x and len(x):
                     x = x[0]
                 else:
@@ -84,17 +84,21 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid)
             if resp.rv == 0:
                 n_new = 0
+                items = x.items
                 for i in resp.items:
-                    if i not in x.items:
-                        x.items.append(i)
+                    if i not in items:
+                        items.append(i)
                         _LOGGER.debug("PlsItem new %s" % str(i))
                         n_new += 1
                     else:
-                        idx = x.items.index(i)
-                        _LOGGER.debug("PlsItem exists %s. Is %s [%d]" % (str(i), x.items[idx], not x.items[idx].seen))
-                        if not x.items[idx].seen:
-                            x.items[idx] = i
+                        idx = items.index(i)
+                        _LOGGER.debug("PlsItem exists %s. Is %s [%d]" % (str(i), items[idx], not items[idx].seen))
+                        if not items[idx].seen and items[idx].isOk():
+                            i.iorder = items[idx].iorder
+                            items[idx] = i
                 try:
+                    await x.cleanItems(self.db, commit=False)
+                    _LOGGER.debug(f"BTDB PL={x} Items: {items}")
                     x.dateupdate = dateto
                     rv = await x.toDB(self.db)
                     if rv:
