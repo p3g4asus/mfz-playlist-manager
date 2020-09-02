@@ -145,6 +145,7 @@ class MessageProcessor(AbstractMessageProcessor):
                         if other_it.rowid != x and other_it.iorder >= dest_iorder:
                             plus_idx = idx
                             break
+                    fix_order = False
                     if plus_idx >= 0:
                         _LOGGER.debug(f"PlusIdx {plus_idx}")
                         cur_iorder = round_iorder + (len(items) - plus_idx) * 10
@@ -154,8 +155,9 @@ class MessageProcessor(AbstractMessageProcessor):
                                 return msg.err(5, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                             items[idx].iorder = -items[idx].iorder
                             cur_iorder -= 10
-                    if await it.setIOrder(self.db, round_iorder, commit=False):
-                        if not await pl.fix_iorder(self.db, commit=True):
+                            fix_order = True
+                    if await it.setIOrder(self.db, round_iorder, commit=not fix_order):
+                        if fix_order and not await pl.fix_iorder(self.db, commit=fix_order):
                             return msg.err(6, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                         else:
                             return msg.ok(playlistitem=it)
