@@ -304,10 +304,7 @@ class PlsRvItem(RecycleDataViewBehavior, SwipeToDeleteItem):
 
     def refresh_view_attrs(self, rv, index, dbitem):
         ''' Catch and handle the view changes '''
-        try:
-            Logger.debug("PlsItem: r_v_a data = %s" % str(dbitem))
-        except Exception:
-            pass
+        Logger.debug(f"PlsItem: index {self.index} -> {index}")
         self.index = index
         self.rowid = dbitem['rowid']
         self.uuid = dbitem['uuid']
@@ -386,7 +383,7 @@ class PlsItem(BoxLayout, MDTabsBase):
     cardtype = StringProperty('RESIZE')
     cardsize = NumericProperty(150)
 
-    def __init__(self, playlist=None, **kwargs):
+    def __init__(self, playlist=None, fast_videoidx=None, fast_videostep=None, **kwargs):
         self.playlist = playlist
         super(PlsItem, self).__init__(**kwargs)
         self.ids.id_rv.effect_cls = partial(OpacityScrollEffect, tab=self)
@@ -396,25 +393,26 @@ class PlsItem(BoxLayout, MDTabsBase):
         self.update_dialog_event = None
         self.update_dialog_processed = False
         self.playlist_max_date = 0
-        self.load_list()
+        self.load_list(fast_videoidx=fast_videoidx, fast_videostep=fast_videostep)
 
     def play_pls(self):
         lnk = self.client.m3u_lnk(self.playlist.name)
         Timer(0, partial(launch_link, lnk, self.launchconf))
 
-    def load_list(self):
-        try:
-            Logger.debug("Loading list in tab: %s" % str(self.playlist))
-        except Exception:
-            pass
+    def load_list(self, fast_videoidx=None, fast_videostep=None):
+        Logger.debug(f"Loading list in tab: {self.playlist.name} {fast_videoidx}/{fast_videostep}")
         if self.playlist:
             self.text = self.playlist.name
-            del self.ids.id_rv.data[:]
-            data = []
-            self.playlist_max_date = 0
-            for d in self.playlist.items:
-                if not self.playlist_max_date or d.datepub > self.playlist_max_date:
-                    self.playlist_max_date = d.datepub
+            if fast_videoidx is None or fast_videoidx == 0:
+                fast_videoidx = 0
+                self.playlist_max_date = 0
+                del self.ids.id_rv.data[:]
+            data = self.ids.id_rv.data
+            for x in range(fast_videoidx, len(self.playlist.items)):
+                d = self.playlist.items[x]
+                datepub = int(datetime.strptime(d.datepub, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)
+                if datepub > self.playlist_max_date:
+                    self.playlist_max_date = datepub
                 dct = dict(vars(d))
                 dct['launch'] = self.launchconf
                 dct['tab'] = self
@@ -425,9 +423,7 @@ class PlsItem(BoxLayout, MDTabsBase):
                 except Exception:
                     pass
                 data.append(dct)
-            self.playlist_max_date = int(datetime.strptime(self.playlist_max_date, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)\
-                if self.playlist_max_date else 0
-            self.ids.id_rv.data = data
+            # self.ids.id_rv.data = data
 
     def on_new_name(self, but, renc=None):
         if but.text == "OK":
@@ -457,9 +453,19 @@ class PlsItem(BoxLayout, MDTabsBase):
             toast("New playlist name " + received)
             self.text = received
 
-    def set_playlist(self, p):
-        self.playlist = p
-        self.load_list()
+    def set_playlist(self, p, fast_videoidx=None, fast_videostep=None):
+        if fast_videoidx == 0 or fast_videoidx is None:
+            self.playlist = p
+        elif p.items:
+            if len(self.playlist.items) != fast_videoidx:
+                toast(f'Error loading playlist {p.name} ({len(self.playlist.items)}!={fast_videoidx})')
+                return
+            else:
+                self.playlist.items.extend(p.items)
+        else:
+            toast(f'Error loading playlist {p.name}')
+            return
+        self.load_list(fast_videoidx=fast_videoidx, fast_videostep=fast_videostep)
 
     async def on_new_update_result(self, client, sent, received):
         if self.update_dialog:

@@ -21,6 +21,8 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+DUMP_LIMIT = 10
+
 
 class MessageProcessor(AbstractMessageProcessor):
 
@@ -82,10 +84,11 @@ class MessageProcessor(AbstractMessageProcessor):
         if u:
             if u != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-            pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), useri=u)
+            vidx = msg.f('fast_videoidx')
+            pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), useri=u, offset=vidx, limit=DUMP_LIMIT)
             _LOGGER.debug("Playlists are %s" % str(pl))
             if len(pl):
-                return msg.ok(playlist=None, playlists=pl)
+                return msg.ok(playlist=None, playlists=pl, fast_videoidx=vidx, fast_videostep=DUMP_LIMIT if vidx is not None else None)
         return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
     async def processRen(self, msg, userid):

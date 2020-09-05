@@ -63,7 +63,7 @@ class Playlist(JSONAble, Fieldable):
         return s
 
     @staticmethod
-    async def loadbyid(db, rowid=None, useri=None, name=None, username=None, loaditems=LOAD_ITEMS_UNSEEN, sort_item_field='iorder'):
+    async def loadbyid(db, rowid=None, useri=None, name=None, username=None, loaditems=LOAD_ITEMS_UNSEEN, sort_item_field='iorder', offset=None, limit=None):
         pls = []
         commontxt = '''
             SELECT P.name AS name,
@@ -100,7 +100,7 @@ class Playlist(JSONAble, Fieldable):
             dctr = dict(row)
             _LOGGER.debug("Row %s" % str(dctr))
             if loaditems != LOAD_ITEMS_NO:
-                items = await PlaylistItem.loadbyid(db, None, playlist=row['rowid'], loaditems=loaditems, sortby=sort_item_field)
+                items = await PlaylistItem.loadbyid(db, None, playlist=row['rowid'], loaditems=loaditems, sortby=sort_item_field, offset=offset, limit=limit)
             else:
                 items = []
             pl = Playlist(dbitem=dctr, items=items)
@@ -309,7 +309,7 @@ class PlaylistItem(JSONAble, Fieldable):
         return None
 
     @staticmethod
-    async def loadbyid(db, rowid, playlist=None, loaditems=LOAD_ITEMS_UNSEEN, sortby='iorder'):
+    async def loadbyid(db, rowid, playlist=None, loaditems=LOAD_ITEMS_UNSEEN, sortby='iorder', offset=None, limit=None):
         if isinstance(rowid, int):
             where = f'WHERE rowid={rowid}'
             listresult = False
@@ -320,6 +320,10 @@ class PlaylistItem(JSONAble, Fieldable):
             if loaditems == LOAD_ITEMS_UNSEEN:
                 where += ' AND seen IS NULL AND PI.link IS NOT NULL'
             listresult = True
+        if limit is not None and offset is not None:
+            lc = f'LIMIT {offset},{limit}'
+        else:
+            lc = ''
         subcursor = await db.execute(
             f'''
             SELECT PI.*,
@@ -328,6 +332,7 @@ class PlaylistItem(JSONAble, Fieldable):
                    LEFT JOIN playlist_item_seen AS PS ON PI.uid = PS.uid AND PI.playlist = PS.playlist
                    {where}
                    ORDER BY {sortby}
+                   {lc}
             '''
         )
         if not listresult:

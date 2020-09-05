@@ -313,8 +313,8 @@ class MyTabs(MDTabs):
             self.add_widget(tab)
             tab.conf_pls()
 
-    def ws_dump(self, playlist_to_ask=None):
-        self.client.enqueue(PlaylistMessage(cmd=CMD_DUMP, playlist=playlist_to_ask, useri=self.useri), self.on_ws_dump)
+    def ws_dump(self, playlist_to_ask=None, fast_videoidx=None):
+        self.client.enqueue(PlaylistMessage(cmd=CMD_DUMP, playlist=playlist_to_ask, useri=self.useri, fast_videoidx=fast_videoidx), self.on_ws_dump)
 
     async def on_ws_dump(self, client, sent, received):
         if not received:
@@ -322,17 +322,27 @@ class MyTabs(MDTabs):
         elif received.rv:
             toast("[E %d] %s" % (received.rv, received.err))
         else:
-            self.fill_PlsListRV(received.f('playlists'), sent.f('playlist'))
+            self.fill_PlsListRV(
+                received.f('playlists'),
+                sent.f('playlist'),
+                fast_videoidx=received.f('fast_videoidx'),
+                fast_videostep=received.f('fast_videostep'))
 
-    def fill_PlsListRV(self, playlists, playlist_asked=None):
+    def fill_PlsListRV(self, playlists, playlist_asked=None, fast_videoidx=None, fast_videostep=None):
+        Logger.debug(f'Dump OK: filling {fast_videoidx}/{fast_videostep}')
         d = self.tab_list
         processed = dict()
         removelist = []
+        no_items = True
         for t in d:
             try:
                 idx = playlists.index(t.playlist)
                 processed[str(idx)] = True
-                t.set_playlist(playlists[idx])
+                Logger.debug(f'Playlist {playlists[idx].name} nitems={len(playlists[idx].items)}')
+                if playlists[idx].items or not fast_videostep or fast_videoidx == 0:
+                    t.set_playlist(playlists[idx], fast_videoidx=fast_videoidx, fast_videostep=fast_videostep)
+                if fast_videostep is not None and len(playlists[idx].items) == fast_videostep:
+                    no_items = False
             except ValueError:
                 if t.playlist.rowid is not None and playlist_asked is None:
                     removelist.append(t)
@@ -342,6 +352,8 @@ class MyTabs(MDTabs):
             if str(x) not in processed:
                 self.add_widget(PlsItem(
                     playlist=playlists[x],
+                    fast_videoidx=fast_videoidx,
+                    fast_videostep=fast_videostep,
                     manager=self.manager,
                     tabcont=self,
                     cardsize=self.cardsize,
@@ -350,10 +362,17 @@ class MyTabs(MDTabs):
                     confclass=TypeWidget.type2class(playlists[x].type),
                     cardtype=self.cardtype
                 ))
+                if fast_videostep is not None and len(playlists[x].items) == fast_videostep:
+                    no_items = False
         if self.sel_tab >= 0:
             Logger.debug(f'Setting sel_tab {self.sel_tab}')
             self.select_tab(self.sel_tab, is_rowid=True)
             self.sel_tab = -1
+        if not no_items:
+            Logger.debug(f'Calling dump again with idx = {fast_videoidx + fast_videostep}')
+            self.ws_dump(playlist_to_ask=playlist_asked, fast_videoidx=fast_videoidx + fast_videostep)
+        elif fast_videostep is not None:
+            toast('Load Playlists Ended OK')
 
 
 def find_free_port():
@@ -792,7 +811,7 @@ class MainApp(MDApp):
         toast("Login OK" if not rv else rv)
         if not rv:
             self.root.ids.id_tabcont.useri = userid
-            self.root.ids.id_tabcont.ws_dump()
+            self.root.ids.id_tabcont.ws_dump(fast_videoidx=0)
             await client.estabilish_connection()
 
     def close_settings(self, settings=None):
