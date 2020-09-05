@@ -106,7 +106,9 @@ async def login(request):
     _LOGGER.debug("Ver = " + str(verified))
     if verified:
         await remember(request, response, verified)
-        response.set_cookie(COOKIE_USERID, str(identity2id(verified)))
+        userid = identity2id(verified)
+        request.app.p.locked[userid] = False
+        response.set_cookie(COOKIE_USERID, str(userid))
         return response
 
     return web.HTTPUnauthorized(body='Invalid username / password combination')
