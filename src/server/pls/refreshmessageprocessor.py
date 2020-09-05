@@ -28,9 +28,9 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             resp = await self.getResponse(msg, userid)
         if resp:
             await ws.send_str(json.dumps(resp, cls=MyEncoder))
-            return True
+            return resp
         else:
-            return False
+            return None
 
     @abc.abstractmethod
     def get_name(self):

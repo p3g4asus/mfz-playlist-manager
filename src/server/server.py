@@ -192,6 +192,7 @@ async def init_db(app):
         await app.p.db.commit()
         import importlib
         app.p.processors = dict()
+        app.p.locked = dict()
         modules = glob.glob(join(dirname(__file__), "pls", "*.py*"))
         pls = [splitext(basename(f))[0] for f in modules if isfile(f)]
         for x in pls:

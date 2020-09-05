@@ -1,14 +1,14 @@
 import asyncio
 import json
 import traceback
+from functools import partial
 
 import aiohttp
-from kivy.logger import Logger
-
 from common.const import COOKIE_LOGIN, COOKIE_USERID
 from common.playlist import PlaylistMessage
 from common.timer import Timer
 from common.utils import MyEncoder
+from kivy.logger import Logger
 
 
 class PlsClientJob:
@@ -16,6 +16,12 @@ class PlsClientJob:
         self.msg = msg
         self.callback = callback
         self.waitfor = waitfor
+        self.timer = None
+
+    def stop(self):
+        if self.timer:
+            self.timer.cancel()
+            self.timer = None
 
     async def call(self, client, m):
         if self.callback:
@@ -173,6 +179,9 @@ class PlsClient:
         Logger.debug("Client: exiting %s" % urlpart)
         return False
 
+    async def _re_queue(self, job):
+        self.enqueue(job.msg, job.callback, job.waitfor)
+
     async def single_action(self, ws, job):
         Logger.debug("Client: Sending %s" % job.msg)
         await ws.send_str(json.dumps(job.msg, cls=MyEncoder))
@@ -181,10 +190,11 @@ class PlsClient:
             Logger.debug("Client: Received {}".format(resp.data))
             p = PlaylistMessage(None, json.loads(resp.data))
             Logger.debug("Client: Converted {}".format(str(p)))
-            x = p.playlistObj()
-            if x:
-                Logger.debug("Client: Playlistobj {}".format(str(x)))
-            return p
+            waitv = p.f('wait')
+            if waitv and not self.stopped:
+                Logger.debug(f'I have to wait {waitv}')
+                job.timer = Timer(waitv, partial(self._re_queue, job))
+            return waitv if waitv else p
         else:
             return None
 
@@ -222,7 +232,8 @@ class PlsClient:
                 except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                     Logger.error("Client: " + traceback.format_exc())
             del self.ws_queue[0]
-            await it.call(self, rv)
+            if not isinstance(rv, int):
+                await it.call(self, rv)
         elif not self.stopped:
             self.ws_event.clear()
             await self.ws_event.wait()

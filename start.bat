@@ -25,5 +25,5 @@ set KCFG_KIVY_LOG_LEVEL=debug
 set KCFG_KIVY_LOG_ENABLE=1
 set KCFG_KIVY_LOG_DIR=%~dp0logs
 pushd %~dp0src
-python -m gui -d
+python -m gui -d > ..\client.txt 2>&1
 pause

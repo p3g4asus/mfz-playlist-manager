@@ -538,6 +538,8 @@ class PlsItem(BoxLayout, MDTabsBase):
                 toast("[E %d] %s" % (received.rv, received.err))
                 self.tabcont.ws_dump(playlist_to_ask=self.playlist.rowid)
             else:
+                if len(self.ids.id_rv.data) <= received.index or self.ids.id_rv.data[received.index]['rowid'] != received.playlistitem:
+                    return
                 received = received.index
         if isinstance(received, int):
             it = dict(data=self.ids.id_rv.data[received], index=received)

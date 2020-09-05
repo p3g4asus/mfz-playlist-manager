@@ -135,13 +135,22 @@ async def pls_h(request):
                 await ws.send_str(json.dumps(pl.err(100, "Not authorized"), cls=MyEncoder))
                 break
             userid = identity2id(identity)
+            locked = request.app.p.locked
             for k, p in request.app.p.processors.items():
-                _LOGGER.debug("Checking " + k)
+                _LOGGER.debug(f'Checking {k}')
                 if p.interested(pl):
-                    if await p.process(ws, pl, userid):
+                    if userid in locked and locked[userid] and pl.f('fast_videoidx') is None:
+                        await ws.send_str(json.dumps(pl.ok(wait=2), cls=MyEncoder))
+                        _LOGGER.debug(f'User {userid} should wait')
                         break
                     else:
-                        return ws
+                        out = await p.process(ws, pl, userid)
+                        if out:
+                            if out.f('fast_videoidx') is not None:
+                                locked[userid] = out.f('lock')
+                            break
+                        else:
+                            return ws
         elif msg.type == WSMsgType.ERROR:
             _LOGGER.error('ws connection closed with exception %s' %
                           ws.exception())
