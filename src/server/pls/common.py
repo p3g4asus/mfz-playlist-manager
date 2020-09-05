@@ -93,12 +93,8 @@ class MessageProcessor(AbstractMessageProcessor):
                     for p in pl:
                         if len(p.items) >= DUMP_LIMIT:
                             still_loading = True
-                            if vidx == 0:
-                                _LOGGER.debug("Locking")
                             break
-                    if not still_loading:
-                        _LOGGER.debug("UNLocking")
-                return msg.ok(lock=still_loading, playlist=None, playlists=pl, fast_videoidx=vidx, fast_videostep=DUMP_LIMIT if vidx is not None else None)
+                return msg.ok(multicmd=msg.f('multicmd') if still_loading else False, playlist=None, playlists=pl, fast_videoidx=vidx, fast_videostep=DUMP_LIMIT if vidx is not None else None)
         return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
     async def processRen(self, msg, userid):

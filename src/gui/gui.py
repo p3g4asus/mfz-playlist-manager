@@ -13,6 +13,7 @@ import os
 import socket
 import traceback
 from contextlib import closing
+from datetime import datetime
 from functools import partial
 from os.path import expanduser, join, dirname, exists
 
@@ -313,8 +314,12 @@ class MyTabs(MDTabs):
             self.add_widget(tab)
             tab.conf_pls()
 
-    def ws_dump(self, playlist_to_ask=None, fast_videoidx=None):
-        self.client.enqueue(PlaylistMessage(cmd=CMD_DUMP, playlist=playlist_to_ask, useri=self.useri, fast_videoidx=fast_videoidx), self.on_ws_dump)
+    def ws_dump(self, playlist_to_ask=None, fast_videoidx=None, multicmd=0):
+        if fast_videoidx is None:
+            multicmd = 0
+        elif not multicmd:
+            multicmd = int(datetime.now().timestamp() * 1000)
+        self.client.enqueue(PlaylistMessage(cmd=CMD_DUMP, multicmd=multicmd, playlist=playlist_to_ask, useri=self.useri, fast_videoidx=fast_videoidx), self.on_ws_dump)
 
     async def on_ws_dump(self, client, sent, received):
         if not received:
@@ -326,9 +331,10 @@ class MyTabs(MDTabs):
                 received.f('playlists'),
                 sent.f('playlist'),
                 fast_videoidx=received.f('fast_videoidx'),
-                fast_videostep=received.f('fast_videostep'))
+                fast_videostep=received.f('fast_videostep'),
+                multicmd=received.f('multicmd'))
 
-    def fill_PlsListRV(self, playlists, playlist_asked=None, fast_videoidx=None, fast_videostep=None):
+    def fill_PlsListRV(self, playlists, playlist_asked=None, fast_videoidx=None, fast_videostep=None, multicmd=0):
         Logger.debug(f'Dump OK: filling {fast_videoidx}/{fast_videostep}')
         d = self.tab_list
         processed = dict()
@@ -370,7 +376,7 @@ class MyTabs(MDTabs):
             self.sel_tab = -1
         if not no_items:
             Logger.debug(f'Calling dump again with idx = {fast_videoidx + fast_videostep}')
-            self.ws_dump(playlist_to_ask=playlist_asked, fast_videoidx=fast_videoidx + fast_videostep)
+            self.ws_dump(playlist_to_ask=playlist_asked, fast_videoidx=fast_videoidx + fast_videostep, multicmd=multicmd)
         elif fast_videostep is not None:
             toast('Load Playlists Ended OK')
 

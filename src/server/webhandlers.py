@@ -141,15 +141,16 @@ async def pls_h(request):
             for k, p in request.app.p.processors.items():
                 _LOGGER.debug(f'Checking {k}')
                 if p.interested(pl):
-                    if userid in locked and locked[userid] and pl.f('fast_videoidx') is None:
+                    multicmd = pl.f('multicmd')
+                    _LOGGER.debug(f'Lck = {locked[userid] if userid in locked else False} mcmd={multicmd}')
+                    if userid in locked and locked[userid] and locked[userid] != multicmd:
                         await ws.send_str(json.dumps(pl.ok(wait=2), cls=MyEncoder))
-                        _LOGGER.debug(f'User {userid} should wait')
                         break
                     else:
                         out = await p.process(ws, pl, userid)
                         if out:
-                            if out.f('fast_videoidx') is not None:
-                                locked[userid] = out.f('lock')
+                            if multicmd and (userid not in locked or not locked[userid] or locked[userid] == multicmd):
+                                locked[userid] = out.f('multicmd')
                             break
                         else:
                             return ws
