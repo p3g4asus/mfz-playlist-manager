@@ -539,8 +539,12 @@ class PlsItem(BoxLayout, MDTabsBase):
                 self.tabcont.ws_dump(playlist_to_ask=self.playlist.rowid)
             else:
                 if len(self.ids.id_rv.data) <= received.index or self.ids.id_rv.data[received.index]['rowid'] != received.playlistitem:
-                    return
-                received = received.index
+                    for index, d in enumerate(self.ids.id_rv.data):
+                        if d['rowid'] == received.playlistitem:
+                            received = index
+                            break
+                else:
+                    received = received.index
         if isinstance(received, int):
             it = dict(data=self.ids.id_rv.data[received], index=received)
             del self.ids.id_rv.data[received]
