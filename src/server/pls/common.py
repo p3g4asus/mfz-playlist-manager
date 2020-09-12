@@ -21,7 +21,7 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
-DUMP_LIMIT = 10
+DUMP_LIMIT = 50
 
 
 class MessageProcessor(AbstractMessageProcessor):
