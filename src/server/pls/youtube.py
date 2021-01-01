@@ -204,7 +204,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                     if datepubi <= dateto or dateto < datefrom:
                                                         programs[pr.uid] = pr
                                                         _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
-                                                        atleastone = True
+                                                    atleastone = True
                                         except Exception:
                                             _LOGGER.error(traceback.format_exc())
                                     if not atleastone or 'video' not in js or len(js['video']) < 100:
