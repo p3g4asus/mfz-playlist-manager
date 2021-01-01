@@ -194,6 +194,7 @@ class MessageProcessor(RefreshMessageProcessor):
                             async with session.get(MessageProcessor.programsUrl(set, startFrom)) as resp:
                                 if resp.status == 200:
                                     js = await resp.json()
+                                    atleastone = False
                                     for it in js['video']:
                                         try:
                                             (pr, datepubi) = self.entry2Program(it, set, playlist)
@@ -203,12 +204,10 @@ class MessageProcessor(RefreshMessageProcessor):
                                                     if datepubi <= dateto or dateto < datefrom:
                                                         programs[pr.uid] = pr
                                                         _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
-                                                else:
-                                                    startFrom = 0
-                                                    break
+                                                        atleastone = True
                                         except Exception:
                                             _LOGGER.error(traceback.format_exc())
-                                    if not startFrom or 'video' not in js or len(js['video']) < 100:
+                                    if not atleastone or 'video' not in js or len(js['video']) < 100:
                                         break
                                     else:
                                         startFrom += 100
