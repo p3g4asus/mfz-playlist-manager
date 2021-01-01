@@ -412,6 +412,30 @@ class MainApp(MDApp):
             os.mkdir(pth)
         return pth
 
+    def _get_user_data_dir(self):
+        # Determine and return the user_data_dir.
+        if platform == 'android':
+            from jnius import autoclass, cast
+            Environment = autoclass('android.os.Environment')
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            ctx = PythonActivity.mActivity
+            strg = ctx.getExternalFilesDirs(None)
+            if strg:
+                dest = strg[0]
+                for f in strg:
+                    if Environment.isExternalStorageRemovable(f):
+                        dest = f
+                        break
+                data_dir = dest.getAbsolutePath()
+            else:
+                file_p = cast('java.io.File', ctx.getFilesDir())
+                data_dir = file_p.getAbsolutePath()
+            if not exists(data_dir):
+                os.mkdir(data_dir)
+            return data_dir
+        else:
+            super(MainApp, self)._get_user_data_dir()
+
     def format_version(self):
         return "%d.%d.%d" % __version__
 
