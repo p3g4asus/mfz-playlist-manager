@@ -149,7 +149,7 @@ class MessageProcessor(AbstractMessageProcessor):
                     dest_iorder = msg.f("iorder")
                     round_iorder = dest_iorder if (dest_iorder % 10) == 0 else (dest_iorder // 10 + 1) * 10
                     plus_idx = -1
-                    await pl.cleanItems(self.db, commit=False)
+                    # await pl.cleanItems(self.db, commit=False)
                     for idx, other_it in enumerate(items):
                         if other_it.rowid != x and other_it.iorder >= dest_iorder:
                             plus_idx = idx
@@ -204,7 +204,7 @@ class MessageProcessor(AbstractMessageProcessor):
                 pl = pls[0]
                 if pl.useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                await pl.cleanItems(self.db, commit=False)
+                # await pl.cleanItems(self.db, commit=False)
                 cur_iorder = 10
                 for other_it in pl.items:
                     if not await other_it.setIOrder(self.db, -cur_iorder, commit=False):
@@ -214,6 +214,11 @@ class MessageProcessor(AbstractMessageProcessor):
                 if pl.items:
                     if not await pl.fix_iorder(self.db, commit=True):
                         return msg.err(2, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                    items = pl.items
+                    for idx in range(len(items) - 1, -1, -1):
+                      other_it = items[idx]
+                      if other_it.seen:
+                          del items[idx]
                 return msg.ok(playlist=pl)
             else:
                 msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)

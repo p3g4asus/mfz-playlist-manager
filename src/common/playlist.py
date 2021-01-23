@@ -181,13 +181,14 @@ class Playlist(JSONAble, Fieldable):
             await db.commit()
         return True
 
-    async def cleanItems(self, db, commit=True):
+    async def cleanItems(self, db, datelimit, commit=True):
         items = self.items
         rv = True
         for idx in range(len(items) - 1, -1, -1):
             other_it = items[idx]
+            dp = other_it.parsed_datepub()
             if other_it.seen:
-                if other_it.isOk():
+                if other_it.isOk() and (dp is None or int(dp.timestamp() * 1000) < datelimit):
                     if rv:
                         rv = await other_it.delete(db, commit=commit)
                 del items[idx]

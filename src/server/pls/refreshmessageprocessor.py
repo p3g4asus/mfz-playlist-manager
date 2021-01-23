@@ -97,9 +97,9 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                             i.iorder = items[idx].iorder
                             items[idx] = i
                 try:
-                    await x.cleanItems(self.db, commit=False)
+                    await x.cleanItems(self.db, dateto - 86400 * 120000, commit=False)
                     _LOGGER.debug(f"BTDB PL={x} Items: {items}")
-                    x.dateupdate = dateto - 86400*3000
+                    x.dateupdate = dateto - 86400 * 3000
                     rv = await x.toDB(self.db)
                     if rv:
                         return msg.ok(playlist=x, n_new=n_new)
