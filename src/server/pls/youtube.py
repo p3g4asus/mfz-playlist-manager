@@ -158,9 +158,14 @@ class MessageProcessor(RefreshMessageProcessor):
                     author=it['author'])
         title = it['title']
         uid = it['encrypted_id']
-        datepubi = it['time_created']
-        datepubo = datetime.fromtimestamp(datepubi)
-        datepubi = datepubi * 1000
+        try:
+            datepubo = datetime.strptime(it['added'] + ' 12:30','%m/%d/%y %H:%M')
+            datepubi = int(datepubo.timestamp() * 1000)
+        except ValueError:
+            _LOGGER.debug("Invalid added field is %s" % str(it))
+            datepubi = it['time_created']
+            datepubo = datetime.fromtimestamp(datepubi)
+            datepubi = datepubi * 1000
         datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
         img = it['thumbnail']
         if img.endswith('default.jpg'):
@@ -191,7 +196,10 @@ class MessageProcessor(RefreshMessageProcessor):
                     for set in sets:
                         startFrom = 1
                         while True:
-                            async with session.get(MessageProcessor.programsUrl(set, startFrom)) as resp:
+                            async with session.get(
+                                    MessageProcessor.programsUrl(set, startFrom),
+                                    headers={'User-Agent': r'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
+                                             'Accept-language': 'en-US'}) as resp:
                                 if resp.status == 200:
                                     js = await resp.json()
                                     atleastone = False
