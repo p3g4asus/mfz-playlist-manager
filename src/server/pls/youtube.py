@@ -201,24 +201,26 @@ class MessageProcessor(RefreshMessageProcessor):
                                     headers={'User-Agent': r'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
                                              'Accept-language': 'en-US'}) as resp:
                                 if resp.status == 200:
-                                    js = await resp.json()
                                     atleastone = False
-                                    for it in js['video']:
-                                        try:
-                                            (pr, datepubi) = self.entry2Program(it, set, playlist)
-                                            _LOGGER.debug("Found [%s] = %s" % (pr.uid, str(pr)))
-                                            if pr.uid not in programs:
-                                                if datepubi >= datefrom:
-                                                    if datepubi <= dateto or dateto < datefrom:
-                                                        programs[pr.uid] = pr
-                                                        _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
-                                                    atleastone = True
-                                        except Exception:
-                                            _LOGGER.error(traceback.format_exc())
-                                    if not atleastone or 'video' not in js or len(js['video']) < 100:
+                                    js = await resp.json()
+                                    if 'video' in js:
+                                        _LOGGER.debug("Startfrom = %d nitems = %d" % (startFrom, len(js['video'])))
+                                        for it in js['video']:
+                                            try:
+                                                (pr, datepubi) = self.entry2Program(it, set, playlist)
+                                                _LOGGER.debug("Found [%s] = %s" % (pr.uid, str(pr)))
+                                                if pr.uid not in programs:
+                                                    if datepubi >= datefrom:
+                                                        if datepubi <= dateto or dateto < datefrom:
+                                                            programs[pr.uid] = pr
+                                                            _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
+                                                        atleastone = True
+                                            except Exception:
+                                                _LOGGER.error(traceback.format_exc())
+                                    if not atleastone:
                                         break
                                     else:
-                                        startFrom += 100
+                                        startFrom += len(js['video'])
                                 else:
                                     break
                     if not len(programs):
