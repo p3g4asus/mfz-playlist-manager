@@ -1,6 +1,7 @@
 import logging
 import re
 import traceback
+import youtube_dl
 from datetime import datetime
 
 import aiohttp
@@ -24,9 +25,9 @@ class MessageProcessor(RefreshMessageProcessor):
         return "youtube"
 
     @staticmethod
-    def programsUrl(plid, startFrom):
-        return ('http://www.youtube.com/list_ajax?action_get_list=1&style=json&index=%d&list=%s') %\
-            (startFrom, plid)
+    def programsUrl(plid):
+        return ('https://m.youtube.com/playlist?list=%s') %\
+            (plid)
 
     @staticmethod
     def channelUrl(user, vers):
@@ -191,44 +192,65 @@ class MessageProcessor(RefreshMessageProcessor):
             return msg.err(11, MSG_BACKEND_ERROR)
         if sets:
             try:
-                async with aiohttp.ClientSession() as session:
-                    programs = dict()
-                    for set in sets:
-                        startFrom = 1
-                        while True:
-                            async with session.get(
-                                    MessageProcessor.programsUrl(set, startFrom),
-                                    headers={'User-Agent': r'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
-                                             'Accept-language': 'en-US'}) as resp:
-                                if resp.status == 200:
-                                    atleastone = False
-                                    js = await resp.json()
-                                    if 'video' in js:
-                                        _LOGGER.debug("Startfrom = %d nitems = %d" % (startFrom, len(js['video'])))
-                                        for it in js['video']:
-                                            try:
-                                                (pr, datepubi) = self.entry2Program(it, set, playlist)
-                                                _LOGGER.debug("Found [%s] = %s" % (pr.uid, str(pr)))
-                                                if pr.uid not in programs:
-                                                    if datepubi >= datefrom:
-                                                        if datepubi <= dateto or dateto < datefrom:
-                                                            programs[pr.uid] = pr
-                                                            _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
-                                                        atleastone = True
-                                            except Exception:
-                                                _LOGGER.error(traceback.format_exc())
-                                    if not atleastone:
-                                        break
-                                    else:
-                                        startFrom += len(js['video'])
-                                else:
-                                    break
-                    if not len(programs):
-                        return msg.err(13, MSG_NO_VIDEOS)
-                    else:
-                        programs = list(programs.values())
-                        programs.sort(key=lambda item: item.datepub)
-                        return msg.ok(items=programs)
+                ydl_opts = {
+                    'ignoreerrors': True,
+                    'quiet': False,
+                    'playliststart': 1,
+                    'playlistend': 1
+                }
+                programs = dict()
+                for set in sets:
+                    startFrom = 1
+                    current_url = MessageProcessor.programsUrl(set)
+                    while True:
+                        lastadded = False
+                        ydl_opts['playliststart'] = startFrom
+                        ydl_opts['playlistend'] = startFrom + 2
+                        _LOGGER.debug("Set = %s url = %s startFrom = %d" % (set, current_url, startFrom))
+                        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                            playlist_dict = ydl.extract_info(current_url, download=False)
+                            if playlist_dict and playlist_dict['entries']:
+                                for video in playlist_dict['entries']:
+                                    try:
+                                        _LOGGER.debug("Found [%s] = %s | %s | %s" % (video.get('id'),
+                                                                                     video.get('title'),
+                                                                                     video.get('upload_date'),
+                                                                                     video.get('duration')))
+                                        datepubo = datetime.strptime(video['upload_date'] + ' 12:30', '%Y%m%d %H:%M')
+                                        datepubi = int(datepubo.timestamp() * 1000)
+                                        lastadded = False
+                                        if video['id'] not in programs:
+                                            if datepubi >= datefrom:
+                                                if datepubi <= dateto or dateto < datefrom:
+                                                    datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                    conf = dict(playlist=set,
+                                                                userid=video.get('uploader_id'),
+                                                                author=video.get('uploader'))
+                                                    pr = PlaylistItem(
+                                                        link=f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager",
+                                                        title=video['title'],
+                                                        datepub=datepub,
+                                                        dur=video['duration'],
+                                                        conf=conf,
+                                                        uid=video['id'],
+                                                        img=video['thumbnail'],
+                                                        playlist=set
+                                                    )
+                                                    programs[video['id']] = pr
+                                                    _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
+                                                lastadded = True
+                                    except Exception:
+                                        _LOGGER.error(traceback.format_exc())
+                        if lastadded:
+                            startFrom += 3
+                        else:
+                            break
+                if not len(programs):
+                    return msg.err(13, MSG_NO_VIDEOS)
+                else:
+                    programs = list(programs.values())
+                    programs.sort(key=lambda item: item.datepub)
+                    return msg.ok(items=programs)
             except Exception:
                 _LOGGER.error(traceback.format_exc())
                 return msg.err(11, MSG_BACKEND_ERROR)
