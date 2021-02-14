@@ -718,7 +718,7 @@ class MainApp(MDApp):
             to = int(self.config.get("network", "retry"))
         except Exception:
             to = -1
-        if to <= 1:
+        if to <= 0:
             toast('Please insert a valid retry value (int>=1)')
             return False
         return True
