@@ -160,7 +160,7 @@ class MessageProcessor(RefreshMessageProcessor):
         title = it['title']
         uid = it['encrypted_id']
         try:
-            datepubo = datetime.strptime(it['added'] + ' 12:30','%m/%d/%y %H:%M')
+            datepubo = datetime.strptime(it['added'] + ' 12:30', '%m/%d/%y %H:%M')
             datepubi = int(datepubo.timestamp() * 1000)
         except ValueError:
             _LOGGER.debug("Invalid added field is %s" % str(it))
@@ -194,31 +194,33 @@ class MessageProcessor(RefreshMessageProcessor):
             try:
                 ydl_opts = {
                     'ignoreerrors': True,
-                    'quiet': False,
+                    'quiet': True,
                     'playliststart': 1,
-                    'playlistend': 1
+                    'playlistend': 100,
+                    'extract_flat': True
                 }
                 programs = dict()
                 for set in sets:
                     startFrom = 1
-                    current_url = MessageProcessor.programsUrl(set)
-                    while True:
-                        lastadded = False
+                    while startFrom:
                         ydl_opts['playliststart'] = startFrom
-                        ydl_opts['playlistend'] = startFrom + 2
-                        _LOGGER.debug("Set = %s url = %s startFrom = %d" % (set, current_url, startFrom))
+                        ydl_opts['playlistend'] = startFrom + 99
                         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                            current_url = MessageProcessor.programsUrl(set)
+                            _LOGGER.debug("Set = %s url = %s startFrom = %d" % (set, current_url, startFrom))
                             playlist_dict = ydl.extract_info(current_url, download=False)
-                            if playlist_dict and playlist_dict['entries']:
+                            if playlist_dict and 'entries' in playlist_dict and playlist_dict['entries']:
                                 for video in playlist_dict['entries']:
                                     try:
+                                        current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
+                                        _LOGGER.debug("Set = %s url = %s" % (set, current_url))
+                                        video = ydl.extract_info(current_url, download=False)
                                         _LOGGER.debug("Found [%s] = %s | %s | %s" % (video.get('id'),
                                                                                      video.get('title'),
                                                                                      video.get('upload_date'),
                                                                                      video.get('duration')))
                                         datepubo = datetime.strptime(video['upload_date'] + ' 12:30', '%Y%m%d %H:%M')
                                         datepubi = int(datepubo.timestamp() * 1000)
-                                        lastadded = False
                                         if video['id'] not in programs:
                                             if datepubi >= datefrom:
                                                 if datepubi <= dateto or dateto < datefrom:
@@ -227,7 +229,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                 userid=video.get('uploader_id'),
                                                                 author=video.get('uploader'))
                                                     pr = PlaylistItem(
-                                                        link=f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager",
+                                                        link=current_url,
                                                         title=video['title'],
                                                         datepub=datepub,
                                                         dur=video['duration'],
@@ -238,13 +240,13 @@ class MessageProcessor(RefreshMessageProcessor):
                                                     )
                                                     programs[video['id']] = pr
                                                     _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
-                                                lastadded = True
+                                            else:
+                                                startFrom = 0
+                                                break
                                     except Exception:
                                         _LOGGER.error(traceback.format_exc())
-                        if lastadded:
-                            startFrom += 3
-                        else:
-                            break
+                                if startFrom:
+                                    startFrom += 100
                 if not len(programs):
                     return msg.err(13, MSG_NO_VIDEOS)
                 else:
