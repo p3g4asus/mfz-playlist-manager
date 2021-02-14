@@ -386,7 +386,6 @@ class PlsItem(BoxLayout, MDTabsBase):
     def __init__(self, playlist=None, fast_videoidx=None, fast_videostep=None, **kwargs):
         self.playlist = playlist
         super(PlsItem, self).__init__(**kwargs)
-        self.old_overscroll = self.ids.id_rv.effect_cls
         self.ids.id_rv.effect_cls = partial(OpacityScrollEffect, tab=self)
         self.popup = None
         self.update_dialog_cont = None
@@ -403,7 +402,6 @@ class PlsItem(BoxLayout, MDTabsBase):
     def load_list(self, fast_videoidx=None, fast_videostep=None):
         Logger.debug(f"Loading list in tab: {self.playlist.name} {fast_videoidx}/{fast_videostep}")
         if self.playlist:
-            self.ids.id_rv.effect_cls = self.old_overscroll
             self.text = self.playlist.name
             if fast_videoidx is None or fast_videoidx == 0:
                 fast_videoidx = 0
@@ -426,7 +424,6 @@ class PlsItem(BoxLayout, MDTabsBase):
                     pass
                 data.append(dct)
             # self.ids.id_rv.data = data
-            self.ids.id_rv.effect_cls = partial(OpacityScrollEffect, tab=self)
 
     def on_new_name(self, but, renc=None):
         if but.text == "OK":
