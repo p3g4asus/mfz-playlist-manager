@@ -236,7 +236,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                         conf=conf,
                                                         uid=video['id'],
                                                         img=video['thumbnail'],
-                                                        playlist=set
+                                                        playlist=playlist
                                                     )
                                                     programs[video['id']] = pr
                                                     _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
