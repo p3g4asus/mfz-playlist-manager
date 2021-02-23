@@ -80,12 +80,14 @@ async def playlist_m3u(request):
     else:
         return web.HTTPUnauthorized(body='Invalid username / password combination')
 
+    conv = int(request.query['conv']) if 'conv' in request.query else 0
+
     if 'name' in request.query:
         pl = await Playlist.loadbyid(request.app.p.db, useri=userid, username=username, name=request.query['name'])
         if pl:
-            txt = pl[0].toM3U()
+            txt = pl[0].toM3U(request.host if conv else '')
             return web.Response(
-                text=txt.replace('%myhost%', request.host),
+                text=txt,
                 content_type='text/plain',
             )
         else:

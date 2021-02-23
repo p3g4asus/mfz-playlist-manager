@@ -1,5 +1,6 @@
 import json
 import logging
+import urllib.parse
 from datetime import datetime
 
 from .utils import Fieldable, JSONAble
@@ -55,11 +56,11 @@ class Playlist(JSONAble, Fieldable):
         # del dct['useri']
         return dct
 
-    def toM3U(self):
+    def toM3U(self, conv):
         s = "#EXTM3U\r\n"
         for i in self.items:
             if not i.seen:
-                s += i.toM3U()
+                s += i.toM3U(conv)
         return s
 
     @staticmethod
@@ -379,8 +380,8 @@ class PlaylistItem(JSONAble, Fieldable):
                 await db.commit()
         return rv
 
-    def toM3U(self):
-        return "#EXTINF:0,%s\r\n%s\r\n\r\n" % (self.title if self.title else "N/A", self.link)
+    def toM3U(self, conv):
+        return "#EXTINF:0,%s\r\n%s\r\n\r\n" % (self.title if self.title else "N/A", f"http://{conv}/ytdl?{urllib.parse.urlencode(dict(link=self.link))}" if conv else self.link)
 
     async def isPresent(self, db):
         if not self.playlist or not self.uid:
