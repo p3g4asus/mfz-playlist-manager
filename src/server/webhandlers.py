@@ -5,6 +5,7 @@ from textwrap import dedent
 from aiohttp import WSMsgType, web
 from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
+import youtube_dl
 
 from common.const import COOKIE_USERID
 from common.playlist import Playlist, PlaylistMessage
@@ -65,6 +66,7 @@ async def modify_pw(request):
 
 
 async def playlist_m3u(request):
+    _LOGGER.debug("host is %s" % str(request.host))
     identity = await authorized_userid(request)
     if identity:
         userid = identity2id(identity)
@@ -83,13 +85,30 @@ async def playlist_m3u(request):
         if pl:
             txt = pl[0].toM3U()
             return web.Response(
-                text=txt,
+                text=txt.replace('%myhost%', request.host),
                 content_type='text/plain',
             )
         else:
             return web.HTTPNotFound(body='Playlist %s not found' % request.query['name'])
     else:
         return web.HTTPBadRequest(body='Playlist name not found')
+
+
+async def youtube_dl_do(request):
+    if 'link' in request.query:
+        ydl_opts = {
+            'ignoreerrors': True,
+            'quiet': True,
+            'extract_flat': True
+        }
+        current_url = request.query['link']
+        _LOGGER.debug("current_url is %s" % str(current_url))
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            playlist_dict = ydl.extract_info(current_url, download=False)
+            _LOGGER.debug("answ is %s" % str(playlist_dict))
+            return web.json_response(playlist_dict)
+    else:
+        return web.HTTPBadRequest(body='Link not found in URL')
 
 
 async def login(request):

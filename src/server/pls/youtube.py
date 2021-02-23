@@ -2,6 +2,7 @@ import logging
 import re
 import traceback
 import youtube_dl
+import urllib.parse
 from datetime import (datetime, timedelta)
 
 import aiohttp
@@ -232,7 +233,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                 userid=video.get('uploader_id'),
                                                                 author=video.get('uploader'))
                                                     pr = PlaylistItem(
-                                                        link=current_url,
+                                                        link=f"http://%myhost%/ytdl?{urllib.parse.urlencode(dict(link=current_url))}",
                                                         title=video['title'],
                                                         datepub=datepub,
                                                         dur=video['duration'],
