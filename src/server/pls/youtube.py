@@ -2,7 +2,7 @@ import logging
 import re
 import traceback
 import youtube_dl
-from datetime import datetime
+from datetime import (datetime, timedelta)
 
 import aiohttp
 
@@ -210,6 +210,7 @@ class MessageProcessor(RefreshMessageProcessor):
                             _LOGGER.debug("Set = %s url = %s startFrom = %d" % (set, current_url, startFrom))
                             playlist_dict = ydl.extract_info(current_url, download=False)
                             if playlist_dict and 'entries' in playlist_dict and playlist_dict['entries']:
+                                secadd = 86000
                                 for video in playlist_dict['entries']:
                                     try:
                                         current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
@@ -219,7 +220,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                                      video.get('title'),
                                                                                      video.get('upload_date'),
                                                                                      video.get('duration')))
-                                        datepubo = datetime.strptime(video['upload_date'] + ' 12:30', '%Y%m%d %H:%M')
+                                        datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
+                                        datepubo = datepubo + timedelta(seconds=secadd)
+                                        secadd -= 1
                                         datepubi = int(datepubo.timestamp() * 1000)
                                         if video['id'] not in programs:
                                             if datepubi >= datefrom:
