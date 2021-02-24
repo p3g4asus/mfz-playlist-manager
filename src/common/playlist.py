@@ -57,7 +57,7 @@ class Playlist(JSONAble, Fieldable):
         return dct
 
     def toM3U(self, host, conv):
-        s = "#EXTM3U\r\n"
+        s = "#EXTM3U\n"
         for i in self.items:
             if not i.seen:
                 s += i.toM3U(host, conv)
@@ -381,7 +381,7 @@ class PlaylistItem(JSONAble, Fieldable):
         return rv
 
     def toM3U(self, host, conv):
-        return "#EXTINF:0,%s\r\n%s\r\n\r\n" % (self.title if self.title else "N/A", f"http://{host}/{'ytdl' if conv==1 else 'ytto'}?{urllib.parse.urlencode(dict(link=self.link))}" if conv else self.link)
+        return "#EXTINF:0,%s\n%s\n" % (self.title if self.title else "N/A", f"http://{host}/{'ytdl' if conv==1 else 'ytto'}?{urllib.parse.urlencode(dict(link=self.link))}" if conv else self.link)
 
     async def isPresent(self, db):
         if not self.playlist or not self.uid:

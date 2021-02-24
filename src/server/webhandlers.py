@@ -89,6 +89,7 @@ async def playlist_m3u(request):
             return web.Response(
                 text=txt,
                 content_type='text/plain',
+                charset='utf-8'
             )
         else:
             return web.HTTPNotFound(body='Playlist %s not found' % request.query['name'])

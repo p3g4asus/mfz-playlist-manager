@@ -231,6 +231,7 @@ async def start_app(app):
     app.router.add_route('POST', '/register', register)
     app.router.add_route('GET', '/logout', logout)
     app.router.add_route('GET', '/m3u', playlist_m3u)
+    app.router.add_route('GET', '/m.m3u8', playlist_m3u)
     app.router.add_route('GET', '/ytdl', youtube_dl_do)
     app.router.add_route('GET', '/ytto', youtube_redir_do)
     app.router.add_route('GET', '/ws', pls_h)
