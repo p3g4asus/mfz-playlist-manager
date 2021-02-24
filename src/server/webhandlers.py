@@ -98,6 +98,8 @@ async def playlist_m3u(request):
 
 
 async def youtube_dl_do(request):
+    playlist_dict = dict()
+    current_url = ''
     if 'link' in request.query:
         ydl_opts = {
             'ignoreerrors': True,
@@ -105,16 +107,17 @@ async def youtube_dl_do(request):
             'extract_flat': True
         }
         current_url = request.query['link']
-        _LOGGER.debug("current_url is %s" % str(current_url))
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             playlist_dict = ydl.extract_info(current_url, download=False)
             if playlist_dict:
-                _LOGGER.debug("answ is %s" % str(playlist_dict))
                 return web.json_response(playlist_dict)
+    _LOGGER.debug("url = %s answ is %s" % (current_url, str(playlist_dict)))
     return web.HTTPBadRequest(body='Link not found in URL')
 
 
 async def youtube_redir_do(request):
+    playlist_dict = dict()
+    current_url = ''
     if 'link' in request.query:
         ydl_opts = {
             'ignoreerrors': True,
@@ -122,7 +125,6 @@ async def youtube_redir_do(request):
             'extract_flat': True
         }
         current_url = request.query['link']
-        _LOGGER.debug("current_url is %s" % str(current_url))
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             playlist_dict = ydl.extract_info(current_url, download=False)
             if playlist_dict:
@@ -168,12 +170,9 @@ async def youtube_redir_do(request):
                                     curr_a_acodec = acodec
 
                 if outurl or audiourl:
-                    _LOGGER.debug("answ is %s" % str(playlist_dict))
-                    _LOGGER.debug(f"codec {curr_v_vcodec}/{curr_v_acodec} oturl {outurl}")
-                    _LOGGER.debug(f"acodec {curr_a_acodec} oturl {audiourl}")
+                    _LOGGER.debug(f"codec {curr_v_vcodec}/{curr_v_acodec}/{curr_a_acodec}")
                     return web.HTTPFound(outurl if outurl else audiourl)
-                else:
-                    return web.HTTPNotFound(body='Link %s not found' % current_url)
+    _LOGGER.debug("url = %s answ is %s" % (current_url, str(playlist_dict)))
     return web.HTTPBadRequest(body='Link not found in URL')
 
 
