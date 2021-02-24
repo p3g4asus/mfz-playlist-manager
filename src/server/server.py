@@ -43,7 +43,6 @@ class Executor:
         self._loop = loop
 
     def __call__(self, f, *args, **kw):
-        from functools import partial
         return self._loop.run_in_executor(self._ex, partial(f, *args, **kw))
 
 
