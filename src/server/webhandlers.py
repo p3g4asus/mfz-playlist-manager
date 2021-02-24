@@ -97,20 +97,30 @@ async def playlist_m3u(request):
         return web.HTTPBadRequest(body='Playlist name not found')
 
 
+def youtube_dl_get_dict(current_url, out_dict):
+    ydl_opts = {
+        'ignoreerrors': True,
+        'quiet': True,
+        'extract_flat': True
+    }
+    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        playlist_dict = ydl.extract_info(current_url, download=False)
+        if playlist_dict:
+            out_dict.update(playlist_dict)
+        else:
+            out_dict.update(dict(_err=404))
+        return
+    out_dict.update(dict(_err=401))
+
+
 async def youtube_dl_do(request):
     playlist_dict = dict()
     current_url = ''
     if 'link' in request.query:
-        ydl_opts = {
-            'ignoreerrors': True,
-            'quiet': True,
-            'extract_flat': True
-        }
         current_url = request.query['link']
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            playlist_dict = ydl.extract_info(current_url, download=False)
-            if playlist_dict:
-                return web.json_response(playlist_dict)
+        await request.app.p.executor(youtube_dl_get_dict, current_url, playlist_dict)
+        if '_err' not in playlist_dict:
+            return web.json_response(playlist_dict)
     _LOGGER.debug("url = %s answ is %s" % (current_url, str(playlist_dict)))
     return web.HTTPBadRequest(body='Link not found in URL')
 
@@ -119,59 +129,53 @@ async def youtube_redir_do(request):
     playlist_dict = dict()
     current_url = ''
     if 'link' in request.query:
-        ydl_opts = {
-            'ignoreerrors': True,
-            'quiet': True,
-            'extract_flat': True
-        }
         current_url = request.query['link']
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            playlist_dict = ydl.extract_info(current_url, download=False)
-            if playlist_dict:
-                outurl = playlist_dict.get('url')
-                out_includes_audio = True
-                audiourl = None
-                curr_v_vcodec = 'N/A'
-                curr_v_acodec = 'N/A'
-                curr_a_acodec = 'N/A'
-                if not outurl:
-                    reqfrm = playlist_dict.get('requested_formats', tuple())
-                    for frm in reqfrm:
+        await request.app.p.executor(youtube_dl_get_dict, current_url, playlist_dict)
+        if '_err' not in playlist_dict:
+            outurl = playlist_dict.get('url')
+            out_includes_audio = True
+            audiourl = None
+            curr_v_vcodec = 'N/A'
+            curr_v_acodec = 'N/A'
+            curr_a_acodec = 'N/A'
+            if not outurl:
+                reqfrm = playlist_dict.get('requested_formats', tuple())
+                for frm in reqfrm:
+                    acodec = frm.get('acodec')
+                    if acodec.lower() == 'none':
+                        acodec = None
+                    vcodec = frm.get('vcodec')
+                    if vcodec.lower() == 'none':
+                        vcodec = None
+                    if vcodec:
+                        outurl = frm['manifest_url'] if 'manifest_url' in frm and frm['manifest_url'] else frm['url']
+                        out_includes_audio = acodec is not None
+                        curr_v_vcodec = vcodec
+                        curr_v_acodec = acodec
+
+                    if acodec:
+                        audiourl = frm['manifest_url'] if 'manifest_url' in frm and frm['manifest_url'] else frm['url']
+                        curr_a_acodec = acodec
+                if not reqfrm or (outurl and not curr_v_acodec):
+                    reqfrm = playlist_dict.get('formats', [])
+                    for i, frm in enumerate(reqfrm):
                         acodec = frm.get('acodec')
                         if acodec.lower() == 'none':
                             acodec = None
                         vcodec = frm.get('vcodec')
                         if vcodec.lower() == 'none':
                             vcodec = None
-                        if vcodec:
+                        if (vcodec and acodec) or (not outurl and i == len(reqfrm) - 1):
                             outurl = frm['manifest_url'] if 'manifest_url' in frm and frm['manifest_url'] else frm['url']
-                            out_includes_audio = acodec is not None
-                            curr_v_vcodec = vcodec
-                            curr_v_acodec = acodec
+                            if vcodec:
+                                curr_v_vcodec = vcodec
+                                curr_v_acodec = acodec
+                            if acodec:
+                                curr_a_acodec = acodec
 
-                        if acodec:
-                            audiourl = frm['manifest_url'] if 'manifest_url' in frm and frm['manifest_url'] else frm['url']
-                            curr_a_acodec = acodec
-                    if not reqfrm or (outurl and not curr_v_acodec):
-                        reqfrm = playlist_dict.get('formats', [])
-                        for i, frm in enumerate(reqfrm):
-                            acodec = frm.get('acodec')
-                            if acodec.lower() == 'none':
-                                acodec = None
-                            vcodec = frm.get('vcodec')
-                            if vcodec.lower() == 'none':
-                                vcodec = None
-                            if (vcodec and acodec) or (not outurl and i == len(reqfrm) - 1):
-                                outurl = frm['manifest_url'] if 'manifest_url' in frm and frm['manifest_url'] else frm['url']
-                                if vcodec:
-                                    curr_v_vcodec = vcodec
-                                    curr_v_acodec = acodec
-                                if acodec:
-                                    curr_a_acodec = acodec
-
-                if outurl or audiourl:
-                    _LOGGER.debug(f"codec {curr_v_vcodec}/{curr_v_acodec}/{curr_a_acodec}")
-                    return web.HTTPFound(outurl if outurl else audiourl)
+            if outurl or audiourl:
+                _LOGGER.debug(f"codec {curr_v_vcodec}/{curr_v_acodec}/{curr_a_acodec}")
+                return web.HTTPFound(outurl if outurl else audiourl)
     _LOGGER.debug("url = %s answ is %s" % (current_url, str(playlist_dict)))
     return web.HTTPBadRequest(body='Link not found in URL')
 

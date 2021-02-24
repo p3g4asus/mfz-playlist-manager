@@ -31,6 +31,22 @@ _LOGGER = logging.getLogger(__name__)
 # https://github.com/kivy/kivy/wiki/Background-Service-using-P4A-android.service
 
 
+class Executor:
+    """In most cases, you can just use the 'execute' instance as a
+    function, i.e. y = await execute(f, a, b, k=c) => run f(a, b, k=c) in
+    the executor, assign result to y. The defaults can be changed, though,
+    with your own instantiation of Executor, i.e. execute =
+    Executor(nthreads=4)"""
+    def __init__(self, loop=None, nthreads=1):
+        from concurrent.futures import ThreadPoolExecutor
+        self._ex = ThreadPoolExecutor(nthreads)
+        self._loop = loop
+
+    def __call__(self, f, *args, **kw):
+        from functools import partial
+        return self._loop.run_in_executor(self._ex, partial(f, *args, **kw))
+
+
 def stop_service(address, fixedlist, *args, **kwargs):
     app = fixedlist[0]
     _LOGGER.debug("Received stop command")
@@ -225,6 +241,7 @@ async def start_app(app):
     init_auth(app)
     runner = web.AppRunner(app)
     app.p.myrunners.append(runner)
+    app.p.executor = Executor(loop=app.p.loop, nthreads=app.p.args["executors"])
     app.router.add_route('GET', '/', index)
     app.router.add_route('POST', '/login', login)
     app.router.add_route('POST', '/modifypw', modify_pw)
@@ -272,6 +289,7 @@ def main():
         from pythonosc.dispatcher import Dispatcher
         from pythonosc.udp_client import SimpleUDPClient
         args = json.loads(p4a)
+        args['executors'] = 2
         app.p.osc_port = args["msgfrom"]
         app.p.osc_server = None
         app.p.osc_transport = None
@@ -288,6 +306,7 @@ def main():
     else:
         parser = argparse.ArgumentParser(prog=__prog__)
         parser.add_argument('--port', type=int, help='port number', required=False, default=8080)
+        parser.add_argument('--executors', type=int, help='executor number', required=False, default=2)
         parser.add_argument('--host', required=False, default="0.0.0.0")
         parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))
         parser.add_argument("-v", "--verbose", help="increase output verbosity",
