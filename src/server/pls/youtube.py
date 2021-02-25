@@ -184,7 +184,7 @@ class MessageProcessor(RefreshMessageProcessor):
             playlist=playlist
         ), datepubi)
 
-    def youtube_dl_get_dict(current_url, ydl_opts, out_dict):
+    def youtube_dl_get_dict(self, current_url, ydl_opts, out_dict):
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             playlist_dict = ydl.extract_info(current_url, download=False)
             if playlist_dict:
