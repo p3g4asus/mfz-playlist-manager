@@ -51,7 +51,7 @@ class MessageProcessor(RefreshMessageProcessor):
 # https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-all-programs?byCustomValue={brandId}{100000696},{subBrandId}{100000977}&sort=mediasetprogram$publishInfo_lastPublished|desc&count=true&entries=true&startIndex=1
 # https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-all-brands?byCustomValue={brandId}{100002223}&sort=mediasetprogram$order
 # https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-all-listings?byListingTime=1577001614000~1577001976000
-    async def processBrands(self, msg, userid):
+    async def processBrands(self, msg, userid, executor):
         brand = msg.f('brand', (int,))
         if brand:
             try:
@@ -95,7 +95,7 @@ class MessageProcessor(RefreshMessageProcessor):
         else:
             return msg.err(15, MSG_MEDIASET_INVALID_BRAND)
 
-    async def processListings(self, msg, userid):
+    async def processListings(self, msg, userid, executor):
         datestart = msg.f('datestart', (int,))
         if datestart:
             try:
@@ -176,7 +176,7 @@ class MessageProcessor(RefreshMessageProcessor):
             playlist=playlist
         ), datepubi)
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
         try:
             brand = conf['brand']['id']
             subbrands = [s['id'] for s in conf['subbrands']]
@@ -222,10 +222,10 @@ class MessageProcessor(RefreshMessageProcessor):
         else:
             return msg.err(16, MSG_MEDIASET_INVALID_BRAND)
 
-    async def getResponse(self, msg, userid):
+    async def getResponse(self, msg, userid, executor):
         resp = None
         if msg.c(CMD_MEDIASET_BRANDS):
-            resp = await self.processBrands(msg, userid)
+            resp = await self.processBrands(msg, userid, executor)
         elif msg.c(CMD_MEDIASET_LISTINGS):
-            resp = await self.processListings(msg, userid)
+            resp = await self.processListings(msg, userid, executor)
         return resp

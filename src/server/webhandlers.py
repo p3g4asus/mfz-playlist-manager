@@ -235,7 +235,7 @@ async def pls_h(request):
                         await ws.send_str(json.dumps(pl.ok(wait=2), cls=MyEncoder))
                         break
                     else:
-                        out = await p.process(ws, pl, userid)
+                        out = await p.process(ws, pl, userid, request.app.p.executor)
                         if out:
                             if multicmd and (userid not in locked or not locked[userid] or locked[userid] == multicmd):
                                 locked[userid] = out.f('multicmd')

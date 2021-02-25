@@ -21,11 +21,11 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                 return x.type == self.get_name()
         return self.interested_plus(msg)
 
-    async def process(self, ws, msg, userid):
+    async def process(self, ws, msg, userid, executor):
         if msg.c(CMD_REFRESH):
-            resp = await self.processRefresh(msg, userid)
+            resp = await self.processRefresh(msg, userid, executor)
         else:
-            resp = await self.getResponse(msg, userid)
+            resp = await self.getResponse(msg, userid, executor)
         if resp:
             await ws.send_str(json.dumps(resp, cls=MyEncoder))
             return resp
@@ -41,14 +41,14 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
         pass
 
     @abc.abstractmethod
-    async def getResponse(self, msg, userid):
+    async def getResponse(self, msg, userid, executor):
         pass
 
     @abc.abstractmethod
-    def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None):
+    def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
         pass
 
-    async def processRefresh(self, msg, userid):
+    async def processRefresh(self, msg, userid, executor):
         x = msg.playlistObj()
         if x:
             if x.useri != userid:
@@ -81,7 +81,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                         datefrom = 0
             elif x.items is None:
                 x.items = []
-            resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid)
+            resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid, executor=executor)
             if resp.rv == 0:
                 n_new = 0
                 items = x.items

@@ -31,7 +31,7 @@ class MessageProcessor(AbstractMessageProcessor):
             msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or\
             msg.c(CMD_IORDER) or msg.c(CMD_SORT)
 
-    async def processMove(self, msg, userid):
+    async def processMove(self, msg, userid, executor):
         pdst = msg.playlistObj()
         itx = msg.playlistItemId()
         if pdst and itx:
@@ -66,7 +66,7 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processAdd(self, msg, userid):
+    async def processAdd(self, msg, userid, executor):
         x = msg.playlistObj()
         if x:
             if x.useri != userid:
@@ -79,7 +79,7 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processDump(self, msg, userid):
+    async def processDump(self, msg, userid, executor):
         u = msg.f("useri", (int,))
         if u:
             if u != userid:
@@ -97,7 +97,7 @@ class MessageProcessor(AbstractMessageProcessor):
                 return msg.ok(multicmd=msg.f('multicmd') if still_loading else False, playlist=None, playlists=pl, fast_videoidx=vidx, fast_videostep=DUMP_LIMIT if vidx is not None else None)
         return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processRen(self, msg, userid):
+    async def processRen(self, msg, userid, executor):
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
@@ -115,7 +115,7 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processSeen(self, msg, userid):
+    async def processSeen(self, msg, userid, executor):
         x = msg.playlistItemId()
         if x is not None:
             it = await PlaylistItem.loadbyid(self.db, rowid=x)
@@ -135,7 +135,7 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
 
-    async def processIOrder(self, msg, userid):
+    async def processIOrder(self, msg, userid, executor):
         x = msg.playlistItemId()
         if x is not None:
             it = await PlaylistItem.loadbyid(self.db, rowid=x)
@@ -179,7 +179,7 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
 
-    async def processDel(self, msg, userid):
+    async def processDel(self, msg, userid, executor):
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
@@ -196,7 +196,7 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processSort(self, msg, userid):
+    async def processSort(self, msg, userid, executor):
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_ALL, sort_item_field='datepub')
@@ -216,33 +216,33 @@ class MessageProcessor(AbstractMessageProcessor):
                         return msg.err(2, MSG_PLAYLIST_NOT_FOUND, playlist=None)
                     items = pl.items
                     for idx in range(len(items) - 1, -1, -1):
-                      other_it = items[idx]
-                      if other_it.seen:
-                          del items[idx]
+                        other_it = items[idx]
+                        if other_it.seen:
+                            del items[idx]
                 return msg.ok(playlist=pl)
             else:
                 msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def process(self, ws, msg, userid):
+    async def process(self, ws, msg, userid, executor):
         resp = None
         if msg.c(CMD_DEL):
-            resp = await self.processDel(msg, userid)
+            resp = await self.processDel(msg, userid, executor)
         if msg.c(CMD_MOVE):
-            resp = await self.processMove(msg, userid)
+            resp = await self.processMove(msg, userid, executor)
         elif msg.c(CMD_ADD):
-            resp = await self.processAdd(msg, userid)
+            resp = await self.processAdd(msg, userid, executor)
         elif msg.c(CMD_REN):
-            resp = await self.processRen(msg, userid)
+            resp = await self.processRen(msg, userid, executor)
         elif msg.c(CMD_DUMP):
-            resp = await self.processDump(msg, userid)
+            resp = await self.processDump(msg, userid, executor)
         elif msg.c(CMD_SEEN):
-            resp = await self.processSeen(msg, userid)
+            resp = await self.processSeen(msg, userid, executor)
         elif msg.c(CMD_IORDER):
-            resp = await self.processIOrder(msg, userid)
+            resp = await self.processIOrder(msg, userid, executor)
         elif msg.c(CMD_SORT):
-            resp = await self.processSort(msg, userid)
+            resp = await self.processSort(msg, userid, executor)
         elif msg.c(CMD_CLOSE):
             await ws.close()
         if resp:

@@ -38,7 +38,7 @@ class AbstractMessageProcessor(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def process(self, ws, msg, userid):
+    async def process(self, ws, msg, userid, executor):
         pass
 
 

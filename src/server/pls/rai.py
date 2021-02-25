@@ -36,7 +36,7 @@ class MessageProcessor(RefreshMessageProcessor):
     def relativeUrl(part):
         return ('https://www.raiplay.it%s') % part
 
-    async def processContentSet(self, msg, userid):
+    async def processContentSet(self, msg, userid, executor):
         progid = msg.f('brand', (str,))
         if progid:
             try:
@@ -168,7 +168,7 @@ class MessageProcessor(RefreshMessageProcessor):
             playlist=playlist
         ), datepubi)
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
         try:
             progid = conf['brand']['id']
             sets = [s['id'] for s in conf['subbrands']]
@@ -223,7 +223,7 @@ class MessageProcessor(RefreshMessageProcessor):
                 )
         return rv
 
-    async def processListings(self, msg, userid):
+    async def processListings(self, msg, userid, executor):
         try:
             async with aiohttp.ClientSession() as session:
                 programs = dict()
@@ -249,10 +249,10 @@ class MessageProcessor(RefreshMessageProcessor):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
 
-    async def getResponse(self, msg, userid):
+    async def getResponse(self, msg, userid, executor):
         if msg.c(CMD_RAI_CONTENTSET):
-            return await self.processContentSet(msg, userid)
+            return await self.processContentSet(msg, userid, executor)
         elif msg.c(CMD_RAI_LISTINGS):
-            return await self.processListings(msg, userid)
+            return await self.processListings(msg, userid, executor)
         else:
             return None
