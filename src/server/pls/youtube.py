@@ -261,6 +261,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                     _LOGGER.error(traceback.format_exc())
                             if startFrom:
                                 startFrom += 100
+                        else:
+                            startFrom = 0
                 if not len(programs):
                     return msg.err(13, MSG_NO_VIDEOS)
                 else:

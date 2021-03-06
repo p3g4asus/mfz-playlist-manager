@@ -224,6 +224,12 @@ class MyTabs(MDTabs):
         else:
             toast("Please select a playlist tab")
 
+    def sync_pls(self, *args, **kwargs):
+        if self.current_tab:
+            self.current_tab.sync_pls()
+        else:
+            toast("Please select a playlist tab")
+
     def update_fast_pls(self, *args, **kwargs):
         if self.current_tab:
             self.current_tab.update_pls(False)

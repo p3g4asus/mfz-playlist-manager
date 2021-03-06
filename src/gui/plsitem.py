@@ -677,7 +677,7 @@ class PlsItem(BoxLayout, MDTabsBase):
     def sync_dialog_on_open(self, *args):
         Logger.debug(f'Win s1 = {self.update_dialog.size}, s2 = {self.update_dialog_cont.size}')
         self.update_dialog_event = Clock.schedule_interval(self.update_dialog_animate, 0.05)
-        self.client.enqueue(PlaylistMessage(cmd=CMD_SYNC, playlist=self.playlist.rowid),
+        self.client.enqueue(PlaylistMessage(cmd=CMD_SYNC, playlist=self.playlist),
                             self.on_new_update_result)
 
     def update_dialog_on_open(self, *args, df=None, dt=None):

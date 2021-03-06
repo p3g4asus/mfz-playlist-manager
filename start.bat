@@ -19,8 +19,8 @@ REM pip3 install git+https://github.com/kivy/kivy.git@20c14b2a2bac73288a4c280884
 REM pip3 install git+https://github.com/p3g4asus/KivyMD.git@HeaTTheatR-master
 REM pause
 call %~dp0venv\Scripts\activate.bat
-set JAVA_HOME=C:\Program Files\Java\jdk-13.0.2
-set PATH=C:\Program Files\Java\jdk-13.0.2\bin\server;%PATH%
+set JAVA_HOME=C:\Program Files\Java\jdk1.8.0_102
+set PATH=C:\Program Files\Java\jdk1.8.0_102\jre\bin\server;%PATH%
 set KCFG_KIVY_LOG_LEVEL=debug
 set KCFG_KIVY_LOG_ENABLE=1
 set KCFG_KIVY_LOG_DIR=%~dp0logs
