@@ -4,7 +4,7 @@ import logging
 import traceback
 from datetime import datetime
 
-from common.const import (CMD_REFRESH, MSG_DB_ERROR, MSG_PLAYLIST_NOT_FOUND,
+from common.const import (CMD_REFRESH, CMD_SYNC, MSG_DB_ERROR, MSG_PLAYLIST_NOT_FOUND,
                           MSG_UNAUTHORIZED)
 from common.playlist import LOAD_ITEMS_ALL, Playlist
 from common.utils import AbstractMessageProcessor, MyEncoder
@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 class RefreshMessageProcessor(AbstractMessageProcessor):
 
     def interested(self, msg):
-        if msg.c(CMD_REFRESH):
+        if msg.c(CMD_REFRESH) or msg.c(CMD_SYNC):
             x = msg.playlistObj()
             if x:
                 return x.type == self.get_name()
@@ -24,6 +24,8 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
     async def process(self, ws, msg, userid, executor):
         if msg.c(CMD_REFRESH):
             resp = await self.processRefresh(msg, userid, executor)
+        elif msg.c(CMD_SYNC):
+            resp = await self.processSync(msg, userid, executor)
         else:
             resp = await self.getResponse(msg, userid, executor)
         if resp:
@@ -47,6 +49,52 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
     @abc.abstractmethod
     def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
         pass
+
+    async def processSync(self, msg, userid, executor):
+        x = msg.playlistObj()
+        if x:
+            if x.useri != userid:
+                return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+            datefrom = 0
+            dateto = int(datetime.now().timestamp() * 1000)
+            if x.rowid is not None:
+                c = x.conf
+                n = x.name
+                x = await Playlist.loadbyid(self.db, rowid=x.rowid, loaditems=LOAD_ITEMS_ALL)
+                if x and len(x):
+                    x = x[0]
+                else:
+                    return msg.err(5, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                if x.useri != userid:
+                    return msg.err(502, MSG_UNAUTHORIZED, playlist=None)
+                x.conf = c
+                x.name = n
+            elif x.items is None:
+                x.items = []
+            resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid, executor=executor)
+            if resp.rv == 0:
+                n_new = len(resp.items)
+                items = x.items
+                if items:
+                    items[0].uid = None
+                    items[0].rowid = None
+                    items[0].delete(self.db, True)
+                items = x.items = resp.items
+                try:
+                    _LOGGER.debug(f"BTDB PL={x} Items: {items}")
+                    x.dateupdate = dateto - 86400 * 3000
+                    rv = await x.toDB(self.db)
+                    if rv:
+                        return msg.ok(playlist=x, n_new=n_new)
+                    else:
+                        return msg.err(18, MSG_DB_ERROR, playlist=None)
+                except Exception:
+                    _LOGGER.error(traceback.format_exc())
+                    return msg.err(20, MSG_DB_ERROR, playlist=None)
+            else:
+                return resp
+        else:
+            return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
     async def processRefresh(self, msg, userid, executor):
         x = msg.playlistObj()

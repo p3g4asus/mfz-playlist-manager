@@ -407,6 +407,10 @@ class PlaylistItem(JSONAble, Fieldable):
             async with db.cursor() as cursor:
                 await cursor.execute("DELETE FROM playlist_item WHERE uid=? AND playlist=?", (self.uid, self.playlist))
                 rv = cursor.rowcount > 0
+        elif self.playlist:
+            async with db.cursor() as cursor:
+                await cursor.execute("DELETE FROM playlist_item WHERE playlist=?", (self.playlist,))
+                rv = cursor.rowcount > 0
         if rv and commit:
             await db.commit()
         return rv

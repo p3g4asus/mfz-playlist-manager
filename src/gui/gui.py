@@ -460,7 +460,7 @@ class MainApp(MDApp):
                 divider=None
             ),
             dict(
-                text="Update (fast)",
+                text="Fast Upd",
                 icon="run-fast",
                 font_style="Caption",
                 height="36dp",
@@ -469,8 +469,17 @@ class MainApp(MDApp):
                 divider=None
             ),
             dict(
-                text="Update",
+                text="Update...",
                 icon="update",
+                font_style="Caption",
+                height="36dp",
+                top_pad="10dp",
+                bot_pad="10dp",
+                divider=None
+            ),
+            dict(
+                text="Sync",
+                icon="refresh-sync",
                 font_style="Caption",
                 height="36dp",
                 top_pad="10dp",
@@ -502,10 +511,12 @@ class MainApp(MDApp):
                 self.root.ids.id_tabcont.play_pls()
             elif instance.text == "Configure":
                 self.root.ids.id_tabcont.conf_pls()
-            elif instance.text == "Update (fast)":
+            elif instance.text == "Fast Upd":
                 self.root.ids.id_tabcont.update_fast_pls()
-            elif instance.text == "Update":
+            elif instance.text == "Update...":
                 self.root.ids.id_tabcont.update_pls()
+            elif instance.text == "Sync":
+                self.root.ids.id_tabcont.sync_pls()
             elif instance.text == "Rename":
                 self.root.ids.id_tabcont.rename_pls()
             elif instance.text == "Sort by date":

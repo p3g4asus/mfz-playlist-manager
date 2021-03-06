@@ -22,7 +22,7 @@ from kivymd.uix.dialog import MDDialog
 from kivymd.uix.snackbar import Snackbar
 from kivymd.uix.tab import MDTabsBase
 
-from common.const import CMD_DEL, CMD_IORDER, CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT
+from common.const import CMD_DEL, CMD_IORDER, CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT, CMD_SYNC
 from common.playlist import PlaylistMessage
 from common.timer import Timer
 
@@ -97,6 +97,37 @@ Builder.load_string(
         height: dp(30)
         markup: True
         id: id_newnum
+
+<SyncContent>
+    orientation: "vertical"
+    padding: dp(5)
+    size_hint_: None
+    height: dp(210)
+    MDLabel:
+        size_hint_y: None
+        id: id_title
+        text: 'Synching...'
+        height: dp(30)
+        font_style: "H6"
+    CircularProgressBar:
+        id: id_progress
+        thickness: dp(4)
+        cap_style: "RouND"
+        progress_colour: 0.9333333333333333, 1.0, 0.2549019607843137, 1
+        background_colour: 0, 0, 0, 0
+        cap_precision: 3
+        max: 100
+        min: 1
+        widget_size: dp(50)
+        size_hint_y: None
+        height: dp(70)
+        label: _label
+    MDLabel:
+        id: id_l3
+        size_hint_y: None
+        height: dp(30)
+        markup: True
+        id: id_newnum
     '''
 )
 
@@ -138,6 +169,11 @@ class UpdateContent(BoxLayout):
 
     def __init__(self, *args, **kwargs):
         super(UpdateContent, self).__init__(*args, **kwargs)
+
+
+class SyncContent(BoxLayout):
+    def __init__(self, *args, **kwargs):
+        super(SyncContent, self).__init__(*args, **kwargs)
 
 
 class RenameContent(BoxLayout):
@@ -638,6 +674,12 @@ class PlsItem(BoxLayout, MDTabsBase):
         self.update_dialog_processed = True
         self.update_dialog.dismiss()
 
+    def sync_dialog_on_open(self, *args):
+        Logger.debug(f'Win s1 = {self.update_dialog.size}, s2 = {self.update_dialog_cont.size}')
+        self.update_dialog_event = Clock.schedule_interval(self.update_dialog_animate, 0.05)
+        self.client.enqueue(PlaylistMessage(cmd=CMD_SYNC, playlist=self.playlist.rowid),
+                            self.on_new_update_result)
+
     def update_dialog_on_open(self, *args, df=None, dt=None):
         Logger.debug(f'Win s1 = {self.update_dialog.size}, s2 = {self.update_dialog_cont.size}')
         self.update_dialog_event = Clock.schedule_interval(self.update_dialog_animate, 0.05)
@@ -686,6 +728,43 @@ class PlsItem(BoxLayout, MDTabsBase):
                 self.client.enqueue(
                     PlaylistMessage(cmd=CMD_SORT, playlist=self.playlist.rowid),
                     self.on_new_sort_result)
+        while but:
+            but = but.parent
+            if isinstance(but, MDDialog):
+                but.dismiss()
+                break
+
+    def sync_pls(self):
+        dialog = MDDialog(
+            title="Delete confirmation",
+            size_hint=(0.8, 0.3),
+            text="Are you sure?",
+            type="alert",
+            buttons=[
+                MDFlatButton(
+                    text="Yes", on_release=self.on_new_sync
+                ),
+                MDRaisedButton(
+                    text="No", on_release=self.on_new_sync
+                ),
+            ])
+        dialog.open()
+
+    def on_new_sync(self, but):
+        if but.text == 'Yes' and self.playlist.rowid:
+            self.update_dialog_processed = False
+            self.update_dialog_cont = SyncContent()
+            self.update_dialog = MDDialog(
+                on_dismiss=self.update_dialog_on_dismiss,
+                on_open=self.sync_dialog_on_open,
+                content_cls=self.update_dialog_cont,
+                type="custom",
+                buttons=[
+                    MDFlatButton(
+                        text="OK", on_release=self.update_dialog_on_ok, disabled=True
+                    )
+                ])
+            self.update_dialog.open()
         while but:
             but = but.parent
             if isinstance(but, MDDialog):
