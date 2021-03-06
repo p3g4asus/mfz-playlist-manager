@@ -485,7 +485,7 @@ class MainApp(MDApp):
             ),
             dict(
                 text="Sync",
-                icon="refresh-sync",
+                icon="cloud-refresh",
                 font_style="Caption",
                 height="36dp",
                 top_pad="10dp",
