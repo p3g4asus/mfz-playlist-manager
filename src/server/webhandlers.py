@@ -1,5 +1,6 @@
 import json
 import logging
+from functools import partial
 from textwrap import dedent
 
 from aiohttp import WSMsgType, web
@@ -7,8 +8,9 @@ from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
 import youtube_dl
 
-from common.const import COOKIE_USERID
+from common.const import (COOKIE_USERID, CMD_PING)
 from common.playlist import Playlist, PlaylistMessage
+from common.timer import Timer
 from common.utils import MyEncoder
 from server.sqliteauth import check_credentials, identity2id, identity2username
 
@@ -212,6 +214,12 @@ async def logout(request):
     return response
 
 
+async def send_ping(ws, control_dict):
+    if not control_dict['end']:
+        await ws.send_str(json.dumps(PlaylistMessage(dict(cmd=CMD_PING, waiting=control_dict['cmd'].cmd)), cls=MyEncoder))
+        Timer(30, partial(send_ping, ws, control_dict))
+
+
 async def pls_h(request):
     identity = await authorized_userid(request)
     ws = web.WebSocketResponse()
@@ -235,7 +243,10 @@ async def pls_h(request):
                         await ws.send_str(json.dumps(pl.ok(wait=2), cls=MyEncoder))
                         break
                     else:
+                        control_dict = dict(end=False, msg=p)
+                        Timer(30, partial(send_ping, ws, control_dict))
                         out = await p.process(ws, pl, userid, request.app.p.executor)
+                        control_dict["end"] = True
                         if out:
                             if multicmd and (userid not in locked or not locked[userid] or locked[userid] == multicmd):
                                 locked[userid] = out.f('multicmd')

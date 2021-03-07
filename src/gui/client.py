@@ -4,7 +4,7 @@ import traceback
 from functools import partial
 
 import aiohttp
-from common.const import COOKIE_LOGIN, COOKIE_USERID
+from common.const import CMD_PING, COOKIE_LOGIN, COOKIE_USERID
 from common.playlist import PlaylistMessage
 from common.timer import Timer
 from common.utils import MyEncoder
@@ -182,9 +182,10 @@ class PlsClient:
     async def _re_queue(self, job):
         self.enqueue(job.msg, job.callback, job.waitfor)
 
-    async def single_action(self, ws, job):
-        Logger.debug("Client: Sending %s" % job.msg)
-        await ws.send_str(json.dumps(job.msg, cls=MyEncoder))
+    async def single_action(self, ws, job, send=True):
+        if send:
+            Logger.debug("Client: Sending %s" % job.msg)
+            await ws.send_str(json.dumps(job.msg, cls=MyEncoder))
         if job.waitfor:
             resp = await ws.receive()
             Logger.debug("Client: Received {}".format(resp.data))
@@ -221,16 +222,25 @@ class PlsClient:
         if len(self.ws_queue):
             it = self.ws_queue[0]
             rv = None
-            for i in range(self.retry):
+            i = 0
+            while i < self.retry:
+                send = True
+                i += 1
                 if self.stopped:
                     return
-                try:
-                    self.single_action_task = asyncio.ensure_future(self.single_action(ws, it))
-                    rv = await asyncio.wait_for(self.single_action_task, self.timeout)
-                    self.single_action_task = None
-                    break
-                except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
-                    Logger.error("Client: " + traceback.format_exc())
+                while True:
+                    try:
+                        self.single_action_task = asyncio.ensure_future(self.single_action(ws, it, send=send))
+                        rv = await asyncio.wait_for(self.single_action_task, self.timeout)
+                        self.single_action_task = None
+                        if isinstance(rv, int) or not rv.c(CMD_PING):
+                            i = self.retry
+                            break
+                        else:
+                            send = False
+                    except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
+                        break
+                        Logger.error("Client: " + traceback.format_exc())
             del self.ws_queue[0]
             if not isinstance(rv, int):
                 await it.call(self, rv)

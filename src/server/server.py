@@ -52,7 +52,7 @@ def stop_service(address, fixedlist, *args, **kwargs):
     app.p.loop.stop()
 
 
-def ping_app(app):
+async def ping_app(app):
     app.p.osc_client.send_message('/server_ping', app.p.osc_port)
     app.p.osc_ping_timer = Timer(2, partial(ping_app, app))
 
