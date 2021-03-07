@@ -87,41 +87,41 @@ class MessageProcessor(RefreshMessageProcessor):
                         plid = "&" + mo2.group(1)
                     else:
                         mo2 = re.search(r'list=([^&]+)', text)
-                    if not plid and mo2:
-                        plid = mo2.group(1)
-                    else:
-                        vers = None
-                        channelfound = re.search(r'/channel/([^/?&]+)', text)
-                        if channelfound:
-                            res = await self.channelid2user(session, channelfound.group(1))
-                            if isinstance(res, int):
-                                chanid = channelfound.group(1)
-                                vers = 3
-                            else:
-                                chanid = res
-                        userfound = re.search(r'/c/([^/?&]+)', text)
-                        if userfound:
-                            chanid = userfound.group(1)
-                        elif not channelfound:
-                            mo1 = re.search(r'/([^/]+)$', text)
-                            if mo1:
-                                chanid = mo1.group(1)
-                            else:
-                                chanid = text
-                        if vers:
-                            res = await self.channel2playlist(session, chanid, vers)
+                        if mo2:
+                            plid = mo2.group(1)
                         else:
-                            res = await self.channel2playlist(session, chanid, 2)
-                            if isinstance(res, int):
-                                res = await self.channel2playlist(session, chanid, 1)
-                        if isinstance(res, int):
-                            if userfound or channelfound:
-                                return msg.err(res, MSG_YT_INVALID_CHANNEL)
+                            vers = None
+                            channelfound = re.search(r'/channel/([^/?&]+)', text)
+                            if channelfound:
+                                res = await self.channelid2user(session, channelfound.group(1))
+                                if isinstance(res, int):
+                                    chanid = channelfound.group(1)
+                                    vers = 3
+                                else:
+                                    chanid = res
+                            userfound = re.search(r'/c/([^/?&]+)', text)
+                            if userfound:
+                                chanid = userfound.group(1)
+                            elif not channelfound:
+                                mo1 = re.search(r'/([^/]+)$', text)
+                                if mo1:
+                                    chanid = mo1.group(1)
+                                else:
+                                    chanid = text
+                            if vers:
+                                res = await self.channel2playlist(session, chanid, vers)
                             else:
-                                plid = chanid
-                        else:
-                            plid = res
-                    url = MessageProcessor.programsUrl(plid, 1)
+                                res = await self.channel2playlist(session, chanid, 2)
+                                if isinstance(res, int):
+                                    res = await self.channel2playlist(session, chanid, 1)
+                            if isinstance(res, int):
+                                if userfound or channelfound:
+                                    return msg.err(res, MSG_YT_INVALID_CHANNEL)
+                                else:
+                                    plid = chanid
+                            else:
+                                plid = res
+                    url = MessageProcessor.programsUrl(plid)
                     _LOGGER.debug("Youtube: Getting processPlaylistCheck " + url)
                     ydl_opts = {
                         'ignoreerrors': True,
