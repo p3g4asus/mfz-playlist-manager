@@ -216,7 +216,9 @@ async def logout(request):
 
 async def send_ping(ws, control_dict):
     if not control_dict['end']:
-        await ws.send_str(json.dumps(PlaylistMessage(dict(cmd=CMD_PING, waiting=control_dict['cmd'].cmd)), cls=MyEncoder))
+        waiting = control_dict['msg'].cmd
+        _LOGGER.debug(f"Sending ping for {waiting}")
+        await ws.send_str(json.dumps(PlaylistMessage(CMD_PING, dict(waiting=waiting)), cls=MyEncoder))
         Timer(30, partial(send_ping, ws, control_dict))
 
 
@@ -243,7 +245,7 @@ async def pls_h(request):
                         await ws.send_str(json.dumps(pl.ok(wait=2), cls=MyEncoder))
                         break
                     else:
-                        control_dict = dict(end=False, msg=p)
+                        control_dict = dict(end=False, msg=pl)
                         Timer(30, partial(send_ping, ws, control_dict))
                         out = await p.process(ws, pl, userid, request.app.p.executor)
                         control_dict["end"] = True

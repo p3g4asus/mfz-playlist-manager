@@ -237,11 +237,12 @@ class PlsClient:
                             i = self.retry
                             break
                         else:
+                            Logger.debug("Ping received: waiting")
                             send = False
                     except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
                         self.single_action_task = None
-                        break
                         Logger.error("Client: " + traceback.format_exc())
+                        break
             del self.ws_queue[0]
             if not isinstance(rv, int):
                 await it.call(self, rv)
