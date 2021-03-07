@@ -245,7 +245,7 @@ class MessageProcessor(RefreshMessageProcessor):
                             if set[0] == '&':
                                 startFrom = 0
                                 try:
-                                    playlist_dict['entries'] = dict(**playlist_dict)
+                                    playlist_dict['entries'] = [dict(**playlist_dict)]
                                 except Exception:
                                     _LOGGER.error(traceback.format_exc())
                             if 'entries' in playlist_dict and playlist_dict['entries']:
