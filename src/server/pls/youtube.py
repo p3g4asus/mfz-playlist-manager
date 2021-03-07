@@ -26,8 +26,8 @@ class MessageProcessor(RefreshMessageProcessor):
 
     @staticmethod
     def programsUrl(plid):
-        return r'https://m.youtube.com/playlist?list={plid}' if plid[0] != '&' else\
-            r'https://m.youtube.com/watch?v={plid[1:]}'
+        return f'https://m.youtube.com/playlist?list={plid}' if plid[0] != '&' else\
+            f'https://m.youtube.com/watch?v={plid[1:]}'
 
     @staticmethod
     def channelUrl(user, vers):
