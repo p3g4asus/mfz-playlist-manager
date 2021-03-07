@@ -62,7 +62,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     if '_err' not in playlist_dict:
                         plinfo = dict(
                             title=playlist_dict['title'],
-                            channel=playlist_dict['uploader'],
+                            channel=playlist_dict.get('uploader', playlist_dict['title']),
                             id=plid if plid else "|" + playlist_dict['id'],
                             description=playlist_dict.get('description', playlist_dict['title'])
                         )
