@@ -226,9 +226,9 @@ class PlsClient:
             while i < self.retry:
                 send = True
                 i += 1
-                if self.stopped:
-                    return
                 while True:
+                    if self.stopped:
+                        return
                     try:
                         self.single_action_task = asyncio.ensure_future(self.single_action(ws, it, send=send))
                         rv = await asyncio.wait_for(self.single_action_task, self.timeout)
@@ -239,6 +239,7 @@ class PlsClient:
                         else:
                             send = False
                     except (asyncio.TimeoutError, json.decoder.JSONDecodeError):
+                        self.single_action_task = None
                         break
                         Logger.error("Client: " + traceback.format_exc())
             del self.ws_queue[0]
