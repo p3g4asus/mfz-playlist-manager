@@ -26,8 +26,8 @@ class MessageProcessor(RefreshMessageProcessor):
 
     @staticmethod
     def programsUrl(plid):
-        return ('https://m.youtube.com/playlist?list=%s') %\
-            (plid)
+        return r'https://m.youtube.com/playlist?list={plid}' if plid[0] != '&' else\
+            r'https://m.youtube.com/watch?v={plid[1:]}'
 
     @staticmethod
     def channelUrl(user, vers):
@@ -80,9 +80,14 @@ class MessageProcessor(RefreshMessageProcessor):
         text = msg.f('text', (str,))
         if text:
             try:
+                plid = ''
                 async with aiohttp.ClientSession() as session:
-                    mo2 = re.search(r'list=([^&]+)', text)
+                    mo2 = re.search(r'v=([^&?/]+)', text)
                     if mo2:
+                        plid = "&" + mo2.group(1)
+                    else:
+                        mo2 = re.search(r'list=([^&]+)', text)
+                    if not plid and mo2:
                         plid = mo2.group(1)
                     else:
                         vers = None
@@ -118,19 +123,36 @@ class MessageProcessor(RefreshMessageProcessor):
                             plid = res
                     url = MessageProcessor.programsUrl(plid, 1)
                     _LOGGER.debug("Youtube: Getting processPlaylistCheck " + url)
+                    ydl_opts = {
+                        'ignoreerrors': True,
+                        'quiet': True,
+                        'playliststart': 1,
+                        'playlistend': 100,
+                        'extract_flat': True
+                    }
+                    playlist_dict = dict()
+                    plinfo = dict()
                     try:
-                        async with session.get(url) as resp:
-                            if resp.status == 200:
-                                js = await resp.json()
+                        await executor(self.youtube_dl_get_dict, url, ydl_opts, playlist_dict)
+                        if '_err' not in playlist_dict:
+                            if plid[0] != '&':
                                 plinfo = dict(
-                                    title=js['title'],
-                                    channel=js['author'],
+                                    title=playlist_dict['title'],
+                                    channel=playlist_dict['uploader'],
                                     id=plid,
-                                    description=js['description']
+                                    description=playlist_dict['title']
                                 )
-                                return msg.ok(playlistinfo=plinfo)
                             else:
-                                return msg.err(15, MSG_YT_INVALID_PLAYLIST)
+                                plinfo = dict(
+                                    title=playlist_dict['title'],
+                                    channel=playlist_dict['uploader'],
+                                    id=plid,
+                                    description=playlist_dict['description']
+                                )
+                        if plinfo:
+                            return msg.ok(playlistinfo=plinfo)
+                        else:
+                            return msg.err(15, MSG_YT_INVALID_PLAYLIST)
                     except Exception:
                         _LOGGER.error(traceback.format_exc())
                         return msg.err(16, MSG_YT_INVALID_PLAYLIST)
@@ -219,48 +241,58 @@ class MessageProcessor(RefreshMessageProcessor):
                         _LOGGER.debug("Set = %s url = %s startFrom = %d" % (set, current_url, startFrom))
                         playlist_dict = dict()
                         await executor(self.youtube_dl_get_dict, current_url, ydl_opts, playlist_dict)
-                        if '_err' not in playlist_dict and 'entries' in playlist_dict and playlist_dict['entries']:
-                            secadd = 86000
-                            for video in playlist_dict['entries']:
+                        if '_err' not in playlist_dict:
+                            if set[0] == '&':
+                                startFrom = 0
                                 try:
-                                    current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
-                                    _LOGGER.debug("Set = %s url = %s" % (set, current_url))
-                                    video = dict()
-                                    await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
-                                    _LOGGER.debug("Found [%s] = %s | %s | %s" % (video.get('id'),
-                                                                                 video.get('title'),
-                                                                                 video.get('upload_date'),
-                                                                                 video.get('duration')))
-                                    datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
-                                    datepubo = datepubo + timedelta(seconds=secadd)
-                                    secadd -= 1
-                                    datepubi = int(datepubo.timestamp() * 1000)
-                                    if video['id'] not in programs:
-                                        if datepubi >= datefrom:
-                                            if datepubi <= dateto or dateto < datefrom:
-                                                datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
-                                                conf = dict(playlist=set,
-                                                            userid=video.get('uploader_id'),
-                                                            author=video.get('uploader'))
-                                                pr = PlaylistItem(
-                                                    link=current_url,
-                                                    title=video['title'],
-                                                    datepub=datepub,
-                                                    dur=video['duration'],
-                                                    conf=conf,
-                                                    uid=video['id'],
-                                                    img=video['thumbnail'],
-                                                    playlist=playlist
-                                                )
-                                                programs[video['id']] = pr
-                                                _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
-                                        else:
-                                            startFrom = 0
-                                            break
+                                    playlist_dict['entries'] = dict(**playlist_dict)
                                 except Exception:
                                     _LOGGER.error(traceback.format_exc())
-                            if startFrom:
-                                startFrom += 100
+                            if 'entries' in playlist_dict and playlist_dict['entries']:
+                                secadd = 86000
+                                for video in playlist_dict['entries']:
+                                    try:
+                                        if 'upload_date' not in video:
+                                            current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
+                                            _LOGGER.debug("Set = %s url = %s" % (set, current_url))
+                                            video = dict()
+                                            await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                        _LOGGER.debug("Found [%s] = %s | %s | %s" % (video.get('id'),
+                                                                                     video.get('title'),
+                                                                                     video.get('upload_date'),
+                                                                                     video.get('duration')))
+                                        datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
+                                        datepubo = datepubo + timedelta(seconds=secadd)
+                                        secadd -= 1
+                                        datepubi = int(datepubo.timestamp() * 1000)
+                                        if video['id'] not in programs:
+                                            if datepubi >= datefrom:
+                                                if datepubi <= dateto or dateto < datefrom:
+                                                    datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                    conf = dict(playlist=set,
+                                                                userid=video.get('uploader_id'),
+                                                                author=video.get('uploader'))
+                                                    pr = PlaylistItem(
+                                                        link=current_url,
+                                                        title=video['title'],
+                                                        datepub=datepub,
+                                                        dur=video['duration'],
+                                                        conf=conf,
+                                                        uid=video['id'],
+                                                        img=video['thumbnail'],
+                                                        playlist=playlist
+                                                    )
+                                                    programs[video['id']] = pr
+                                                    _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
+                                            else:
+                                                startFrom = 0
+                                                break
+                                    except Exception:
+                                        _LOGGER.error(traceback.format_exc())
+                                if startFrom:
+                                    startFrom += 100
+                            else:
+                                startFrom = 0
                         else:
                             startFrom = 0
                 if not len(programs):
