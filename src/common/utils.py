@@ -5,7 +5,7 @@ import asyncio
 
 class JSONAble(abc.ABC):
     @abc.abstractmethod
-    async def toJSON(self):
+    async def toJSON(self, **kwargs):
         pass
 
 
@@ -24,9 +24,13 @@ class Fieldable:
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, JSONAble):
-            return obj.toJSON()
+            return obj.toJSON(** self.args if hasattr(self, "args") else dict())
         else:
             return super().default(obj)
+
+
+def get_json_encoder(name, **kwargs):
+    return type(name, ('MyEncoder',), dict(args=kwargs))
 
 
 class AbstractMessageProcessor(abc.ABC):

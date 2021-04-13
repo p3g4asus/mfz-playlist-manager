@@ -11,7 +11,7 @@ import youtube_dl
 from common.const import (COOKIE_USERID, CMD_PING)
 from common.playlist import Playlist, PlaylistMessage
 from common.timer import Timer
-from common.utils import MyEncoder
+from common.utils import get_json_encoder, MyEncoder
 from server.sqliteauth import check_credentials, identity2id, identity2username
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,16 +83,27 @@ async def playlist_m3u(request):
         return web.HTTPUnauthorized(body='Invalid username / password combination')
 
     conv = int(request.query['conv']) if 'conv' in request.query else 0
+    fmt = request.query['fmt'] if 'fmt' in request.query else 'm3u'
 
     if 'name' in request.query:
         pl = await Playlist.loadbyid(request.app.p.db, useri=userid, username=username, name=request.query['name'])
         if pl:
-            txt = pl[0].toM3U(request.host, conv)
-            return web.Response(
-                text=txt,
-                content_type='text/plain',
-                charset='utf-8'
-            )
+            if fmt == 'm3u':
+                txt = pl[0].toM3U(request.host, conv)
+                return web.Response(
+                    text=txt,
+                    content_type='text/plain',
+                    charset='utf-8'
+                )
+            elif fmt == 'json':
+                js = json.dumps(pl[0], cls=get_json_encoder(f'MyEnc{conv}', host=request.host, conv=conv))
+                return web.Response(
+                    text=js,
+                    content_type='application/json',
+                    charset='utf-8'
+                )
+            else:
+                return web.HTTPBadRequest(body='Invalid format')
         else:
             return web.HTTPNotFound(body='Playlist %s not found' % request.query['name'])
     else:
@@ -229,7 +240,7 @@ async def pls_h(request):
     async for msg in ws:
         if msg.type == WSMsgType.TEXT:
             pl = PlaylistMessage(None, msg.json())
-            _LOGGER.info("Message "+str(pl))
+            _LOGGER.info("Message " + str(pl))
             if not identity:
                 _LOGGER.info("Unauthorized")
                 await ws.send_str(json.dumps(pl.err(100, "Not authorized"), cls=MyEncoder))

@@ -21,7 +21,7 @@ class MessageProcessor(RefreshMessageProcessor):
                 'byCustomValue={brandId}{%d},{subBrandId}{%d}'
                 '&sort=mediasetprogram$publishInfo_lastPublished|desc'
                 '&count=true&entries=true&startIndex=%d') %\
-                (brand, subbrand, startFrom)
+               (brand, subbrand, startFrom)
 
     @staticmethod
     def brandsUrl(brand, startFrom):
@@ -29,7 +29,7 @@ class MessageProcessor(RefreshMessageProcessor):
                 'f/PR1GhC/mediaset-prod-all-brands?'
                 'byCustomValue={brandId}{%d}&sort=mediasetprogram$order'
                 '&count=true&entries=true&startIndex=%d') %\
-                (brand, startFrom)
+               (brand, startFrom)
 
     @staticmethod
     def listingsUrl(startmillis, startFrom):
@@ -37,7 +37,7 @@ class MessageProcessor(RefreshMessageProcessor):
                 'f/PR1GhC/mediaset-prod-all-listings?'
                 'byListingTime=%d~%d'
                 '&count=true&entries=true&startIndex=%d') %\
-                (startmillis, startmillis+2000*3600000/60, startFrom)
+               (startmillis, startmillis + 2000 * 3600000 / 60, startFrom)
 
     def interested_plus(self, msg):
         return msg.c(CMD_MEDIASET_BRANDS) or msg.c(CMD_MEDIASET_LISTINGS)
@@ -111,14 +111,14 @@ class MessageProcessor(RefreshMessageProcessor):
                                 _LOGGER.debug("Mediaset: Rec " + str(js))
                                 for e in js['entries']:
                                     if 'listings' in e:
-                                        for l in e['listings']:
-                                            if 'program' in l:
-                                                if 'mediasetprogram$brandId' in l['program'] and\
-                                                   'mediasetprogram$brandTitle' in l['program'] and\
-                                                   l['program']['mediasetprogram$brandId'] not in brands:
-                                                    title = l['program']['mediasetprogram$brandTitle']
-                                                    id = l['program']['mediasetprogram$brandId']
-                                                    starttime = l['startTime']
+                                        for lst in e['listings']:
+                                            if 'program' in lst:
+                                                if 'mediasetprogram$brandId' in lst['program'] and\
+                                                   'mediasetprogram$brandTitle' in lst['program'] and\
+                                                   lst['program']['mediasetprogram$brandId'] not in brands:
+                                                    title = lst['program']['mediasetprogram$brandTitle']
+                                                    id = lst['program']['mediasetprogram$brandId']
+                                                    starttime = lst['startTime']
                                                     brands[id] = dict(
                                                         title=title,
                                                         id=int(id),
@@ -155,8 +155,8 @@ class MessageProcessor(RefreshMessageProcessor):
         _LOGGER.debug("ThumbMed = %s" % str(e['thumbnails'].values()))
         for imgo in e['thumbnails'].values():
             if 'title' in imgo and\
-                (imgo['title'] == 'Keyframe_Poster Image' or
-                 imgo['title'].startswith('image_keyframe_poster')) and\
+                (imgo['title'] == 'Keyframe_Poster Image'
+                 or imgo['title'].startswith('image_keyframe_poster')) and\
                (not img or imgo['height'] < minheight):
                 minheight = imgo['height']
                 img = imgo['url']

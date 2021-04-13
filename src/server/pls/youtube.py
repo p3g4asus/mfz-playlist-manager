@@ -87,7 +87,7 @@ class MessageProcessor(RefreshMessageProcessor):
             return int(mo.group(1)) * 60 + int(mo.group(2))
         mo = re.search(r"^([0-9]+):([0-9]{2}):([0-9]{2})$", val)
         if mo:
-            return int(mo.group(1))*3600+int(mo.group(2))*60+int(mo.group(3))
+            return int(mo.group(1)) * 3600 + int(mo.group(2)) * 60 + int(mo.group(3))
         else:
             return 0
 

@@ -213,7 +213,7 @@ async def init_db(app):
         for x in pls:
             if x not in app.p.processors:
                 try:
-                    m = importlib.import_module("server.pls."+x)
+                    m = importlib.import_module("server.pls." + x)
                     cla = getattr(m, "MessageProcessor")
                     if cla:
                         app.p.processors[x] = cla(app.p.db)

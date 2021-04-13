@@ -50,7 +50,7 @@ class Playlist(JSONAble, Fieldable):
         for key in kwargs:
             setattr(self, key, kwargs[key])
 
-    def toJSON(self):
+    def toJSON(self, **kwargs):
         dct = vars(self)
         # del dct['typei']
         # del dct['useri']
@@ -77,10 +77,8 @@ class Playlist(JSONAble, Fieldable):
             U.username AS user
             FROM playlist AS P, user AS U, type AS T
             WHERE P.type=T.rowid AND P.user=U.rowid%s%s
-        ''' % (
-                "" if not isinstance(rowid, int) else (" AND P.rowid=%d" % rowid),
-                "" if not isinstance(useri, int) else (" AND P.user=%d" % useri),
-              )
+        ''' % ("" if not isinstance(rowid, int) else (" AND P.rowid=%d" % rowid),
+               "" if not isinstance(useri, int) else (" AND P.user=%d" % useri),)
         if isinstance(name, str) and len(name) and isinstance(username, str) and len(username):
             cursor = await db.execute(
                 commontxt + " AND P.name=? AND U.username=?", (name, username)
@@ -163,9 +161,8 @@ class Playlist(JSONAble, Fieldable):
         if self.rowid is not None and other.rowid is not None:
             return self.rowid == other.rowid
         elif self.rowid is None and other.rowid is None:
-            return ((self.useri and self.useri == other.useri) or
-                    (self.user and self.user == other.user)) and\
-                    self.name == other.name
+            return ((self.useri and self.useri == other.useri)
+                    or (self.user and self.user == other.user)) and self.name == other.name
         else:
             return False
 
@@ -294,8 +291,11 @@ class PlaylistItem(JSONAble, Fieldable):
             return self.uid and self.uid == other.uid and\
                 self.playlist == other.playlist and self.playlist
 
-    def toJSON(self):
+    def toJSON(self, host='', conv=0, **kwargs):
         dct = vars(self)
+        if conv:
+            dct = dict(**dct)
+            dct['link'] = f"http://{host}/{'ytdl' if conv==1 else 'ytto'}?{urllib.parse.urlencode(dict(link=self.link))}"
         # del dct['playlist']
         return dct
 
@@ -535,5 +535,5 @@ class PlaylistMessage(JSONAble, Fieldable):
                 return x
         return None
 
-    def toJSON(self):
+    def toJSON(self, **kwargs):
         return vars(self)
