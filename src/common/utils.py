@@ -30,7 +30,7 @@ class MyEncoder(json.JSONEncoder):
 
 
 def get_json_encoder(name, **kwargs):
-    return type(name, ('MyEncoder',), dict(args=kwargs))
+    return type(name, (MyEncoder,), dict(args=kwargs))
 
 
 class AbstractMessageProcessor(abc.ABC):
