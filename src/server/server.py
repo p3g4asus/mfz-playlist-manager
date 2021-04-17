@@ -16,6 +16,7 @@ from aiohttp_session import setup as setup_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from cryptography import fernet
 
+import aiohttp_cors
 import aiosqlite
 from common.const import PORT_OSC_CONST, COOKIE_LOGIN
 from common.timer import Timer
@@ -236,6 +237,7 @@ def init_auth(app):
 
 
 async def start_app(app):
+    cors = aiohttp_cors.setup(app)
     _LOGGER.info("Setting up")
     init_auth(app)
     runner = web.AppRunner(app)
@@ -246,7 +248,10 @@ async def start_app(app):
     app.router.add_route('POST', '/modifypw', modify_pw)
     app.router.add_route('POST', '/register', register)
     app.router.add_route('GET', '/logout', logout)
-    app.router.add_route('GET', '/m3u', playlist_m3u)
+    resource = cors.add(app.router.add_resource("/m3u"))
+    cors.add(resource.add_route('GET', '/m3u', playlist_m3u), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False),
+    })
     app.router.add_route('GET', '/m.m3u8', playlist_m3u)
     app.router.add_route('GET', '/ytdl', youtube_dl_do)
     app.router.add_route('GET', '/ytto', youtube_redir_do)
