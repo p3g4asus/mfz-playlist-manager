@@ -250,7 +250,7 @@ async def start_app(app):
     app.router.add_route('GET', '/logout', logout)
     resource = cors.add(app.router.add_resource("/m3u"))
     cors.add(resource.add_route('GET', playlist_m3u), {
-        "*": aiohttp_cors.ResourceOptions(allow_credentials=False),
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
     app.router.add_route('GET', '/m.m3u8', playlist_m3u)
     app.router.add_route('GET', '/ytdl', youtube_dl_do)
