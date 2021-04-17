@@ -249,7 +249,7 @@ async def start_app(app):
     app.router.add_route('POST', '/register', register)
     app.router.add_route('GET', '/logout', logout)
     resource = cors.add(app.router.add_resource("/m3u"))
-    cors.add(resource.add_route('GET', '/m3u', playlist_m3u), {
+    cors.add(resource.add_route('GET', playlist_m3u), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False),
     })
     app.router.add_route('GET', '/m.m3u8', playlist_m3u)
