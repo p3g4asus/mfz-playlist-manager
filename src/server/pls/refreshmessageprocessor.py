@@ -6,7 +6,7 @@ from datetime import datetime
 
 from common.const import (CMD_REFRESH, CMD_SYNC, MSG_DB_ERROR, MSG_PLAYLIST_NOT_FOUND,
                           MSG_UNAUTHORIZED)
-from common.playlist import LOAD_ITEMS_ALL, Playlist
+from common.playlist import PlaylistMessage, LOAD_ITEMS_ALL, LOAD_ITEMS_NO, Playlist
 from common.utils import AbstractMessageProcessor, MyEncoder
 
 _LOGGER = logging.getLogger(__name__)
@@ -95,6 +95,21 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                 return resp
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+
+    async def processAutoRefresh(self, executor):
+        pls = await Playlist.loadbyid(self.db, loaditems=LOAD_ITEMS_NO)
+        for p in pls:
+            if p.autoupdate:
+                pm = PlaylistMessage(cmd=CMD_REFRESH,
+                                     playlist=p,
+                                     datefrom=p.dateupdate,
+                                     dateto=None)
+                _LOGGER.debug(f"Msg {self.get_name()} = {pm}")
+                if self.interested(pm):
+                    outmsg = await self.processRefresh(pm, p.useri, executor)
+                    _LOGGER.debug(f"OutMsg {self.get_name()} = {outmsg}")
+                else:
+                    _LOGGER.debug("Ignored")
 
     async def processRefresh(self, msg, userid, executor):
         x = msg.playlistObj()

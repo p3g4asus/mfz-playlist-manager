@@ -13,12 +13,13 @@ LOAD_ITEMS_UNSEEN = 2
 
 
 class Playlist(JSONAble, Fieldable):
-    def __init__(self, dbitem=None, rowid=None, name=None, items=None, typei=None, type=None, useri=None, user=None, conf=None, dateupdate=None, **kwargs):
+    def __init__(self, dbitem=None, rowid=None, name=None, items=None, typei=None, type=None, useri=None, user=None, conf=None, dateupdate=None, autoupdate=None, **kwargs):
         if dbitem:
             if isinstance(dbitem, str):
                 dbitem = json.loads(dbitem)
             self.rowid = dbitem['rowid']
             self.dateupdate = dbitem['dateupdate']
+            self.autoupdate = dbitem['autoupdate']
             self.name = dbitem['name']
             self.typei = dbitem['typei'] if 'typei' in dbitem else None
             self.type = dbitem['type'] if 'type' in dbitem else None
@@ -39,6 +40,7 @@ class Playlist(JSONAble, Fieldable):
             self.user = user
             self.items = items if items else []
             self.dateupdate = dateupdate
+            self.autoupdate = autoupdate
             self.conf = conf
         for i in range(len(self.items)):
             it = self.items[i]
@@ -73,6 +75,7 @@ class Playlist(JSONAble, Fieldable):
             P.user AS useri,
             P.conf AS conf,
             P.dateupdate AS dateupdate,
+            P.autoupdate AS autoupdate,
             T.name AS type,
             U.username AS user
             FROM playlist AS P, user AS U, type AS T
@@ -215,8 +218,8 @@ class Playlist(JSONAble, Fieldable):
                 async with db.cursor() as cursor:
                     await cursor.execute(
                         '''
-                        UPDATE playlist SET name=?, dateupdate=?, conf=? WHERE rowid=?
-                        ''', (self.name, self.dateupdate, c, self.rowid)
+                        UPDATE playlist SET name=?, dateupdate=?, autoupdate=?, conf=? WHERE rowid=?
+                        ''', (self.name, self.dateupdate, self.autoupdate, c, self.rowid)
                     )
                     if cursor.rowcount <= 0:
                         return False
@@ -233,9 +236,9 @@ class Playlist(JSONAble, Fieldable):
                 async with db.cursor() as cursor:
                     await cursor.execute(
                         '''
-                        INSERT OR IGNORE into playlist(name,user,type,dateupdate,conf) VALUES (?,?,?,?,?)
+                        INSERT OR IGNORE into playlist(name,user,type,dateupdate,autoupdate,conf) VALUES (?,?,?,?,?,?)
                         ''',
-                        (self.name, self.useri, self.typei, self.dateupdate, c)
+                        (self.name, self.useri, self.typei, self.dateupdate, self.autoupdate, c)
                     )
                     if cursor.rowcount <= 0:
                         return False

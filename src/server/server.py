@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import traceback
+from datetime import datetime, timedelta
 from functools import partial
 from os.path import basename, dirname, isfile, join, splitext
 
@@ -21,6 +22,7 @@ import aiosqlite
 from common.const import PORT_OSC_CONST, COOKIE_LOGIN
 from common.timer import Timer
 from common.utils import asyncio_graceful_shutdown
+from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.sqliteauth import SqliteAuthorizationPolicy
 from server.webhandlers import index, logout, login, modify_pw, pls_h, register, playlist_m3u, youtube_dl_do, youtube_redir_do
 
@@ -143,6 +145,7 @@ CREATE_DB_IF_NOT_EXIST = [
         user INTEGER NOT NULL,
         type INTEGER NOT NULL,
         dateupdate INTEGER,
+        autoupdate INTEGER,
         conf TEXT,
         FOREIGN KEY (user)
             REFERENCES user (rowid)
@@ -236,6 +239,28 @@ def init_auth(app):
     setup_security(app, policy, SqliteAuthorizationPolicy(app.p.db))
 
 
+async def wait_until(dt):
+    # sleep until the specified datetime
+    now = datetime.now()
+    await asyncio.sleep((dt - now).total_seconds())
+
+
+async def run_at(dt, coro):
+    olddate = dt if dt else datetime.now()
+    if dt:
+        _LOGGER.info(f'I will wait till {dt.strftime("%d/%m/%Y, %H:%M:%S")}')
+        await wait_until(dt)
+    await coro
+    await run_at(olddate + timedelta(days=1), coro)
+
+
+async def do_auto_refresh(app):
+    for k, p in app.p.processors.items():
+        _LOGGER.debug(f'Checking {k}')
+        if isinstance(p, RefreshMessageProcessor):
+            await p.processAutoRefresh(app.p.executor)
+
+
 async def start_app(app):
     cors = aiohttp_cors.setup(app)
     _LOGGER.info("Setting up")
@@ -260,6 +285,18 @@ async def start_app(app):
     _LOGGER.info("Creating site (%s:%d)" % (app.p.args["host"], app.p.args["port"]))
     site = web.TCPSite(runner, app.p.args["host"], app.p.args["port"])
     await site.start()
+    au = app.p.args["autoupdate"]
+    if au >= 0 and au <= 23:
+        now = datetime.now()
+        if now.hour > au:
+            now += timedelta(days=1)
+            now = now.replace(hour=au)
+            await run_at(now, do_auto_refresh(app))
+        elif now.hour == au:
+            await run_at(None, do_auto_refresh(app))
+        else:
+            now = now.replace(hour=au)
+            await run_at(now, do_auto_refresh(app))
     _LOGGER.info("Start finished")
 
 
@@ -294,6 +331,7 @@ def main():
         from pythonosc.udp_client import SimpleUDPClient
         args = json.loads(p4a)
         args['executors'] = 2
+        args['autoupdate'] = 25
         app.p.osc_port = args["msgfrom"]
         app.p.osc_server = None
         app.p.osc_transport = None
@@ -310,6 +348,7 @@ def main():
     else:
         parser = argparse.ArgumentParser(prog=__prog__)
         parser.add_argument('--port', type=int, help='port number', required=False, default=8080)
+        parser.add_argument('--autoupdate', type=int, help='autoupdate time', required=False, default=25)
         parser.add_argument('--executors', type=int, help='executor number', required=False, default=2)
         parser.add_argument('--host', required=False, default="0.0.0.0")
         parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))
