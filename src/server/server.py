@@ -250,7 +250,7 @@ async def run_at(dt, coro):
     if dt:
         _LOGGER.info(f'I will wait till {dt.strftime("%d/%m/%Y, %H:%M:%S")}')
         await wait_until(dt)
-    await coro
+    await coro()
     await run_at(olddate + timedelta(days=1), coro)
 
 
@@ -291,12 +291,12 @@ async def start_app(app):
         if now.hour > au:
             now += timedelta(days=1)
             now = now.replace(hour=au)
-            await run_at(now, do_auto_refresh(app))
+            await run_at(now, partial(do_auto_refresh, app))
         elif now.hour == au:
-            await run_at(None, do_auto_refresh(app))
+            await run_at(None, partial(do_auto_refresh, app))
         else:
             now = now.replace(hour=au)
-            await run_at(now, do_auto_refresh(app))
+            await run_at(now, partial(do_auto_refresh, app))
     _LOGGER.info("Start finished")
 
 
