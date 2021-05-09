@@ -210,7 +210,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                 return -1
                             else:
                                 return a.datepub - b.datepub
-                        programs.sort(key=lambda item: cmp_to_key(compare_items))
+                        programs.sort(key=cmp_to_key(compare_items))
                         return msg.ok(items=programs)
             except Exception:
                 _LOGGER.error(traceback.format_exc())
