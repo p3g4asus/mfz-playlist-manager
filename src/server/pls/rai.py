@@ -208,8 +208,12 @@ class MessageProcessor(RefreshMessageProcessor):
                                 return 1
                             elif b.conf['order'] > 0:
                                 return -1
+                            elif a.datepub < b.datepub:
+                                return -1
+                            elif a.datepub > b.datepub:
+                                return 1
                             else:
-                                return a.datepub - b.datepub
+                                return 0
                         programs.sort(key=cmp_to_key(compare_items))
                         return msg.ok(items=programs)
             except Exception:
