@@ -2,6 +2,7 @@ import logging
 import re
 import traceback
 from datetime import datetime
+from functools import cmp_to_key
 
 import aiohttp
 
@@ -199,7 +200,17 @@ class MessageProcessor(RefreshMessageProcessor):
                         return msg.err(13, MSG_NO_VIDEOS)
                     else:
                         programs = list(programs.values())
-                        programs.sort(key=lambda item: item.conf['order'] if item.conf['order'] > 0 else item.datepub)
+
+                        def compare_items(a, b):
+                            if a.conf['order'] > 0 and b.conf['order'] > 0:
+                                return a.conf['order'] - b.conf['order']
+                            elif a.conf['order'] > 0:
+                                return 1
+                            elif b.conf['order'] > 0:
+                                return -1
+                            else:
+                                return a.datepub - b.datepub
+                        programs.sort(key=lambda item: cmp_to_key(compare_items))
                         return msg.ok(items=programs)
             except Exception:
                 _LOGGER.error(traceback.format_exc())
