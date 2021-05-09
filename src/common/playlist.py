@@ -13,13 +13,13 @@ LOAD_ITEMS_UNSEEN = 2
 
 
 class Playlist(JSONAble, Fieldable):
-    def __init__(self, dbitem=None, rowid=None, name=None, items=None, typei=None, type=None, useri=None, user=None, conf=None, dateupdate=None, autoupdate=None, **kwargs):
+    def __init__(self, dbitem=None, rowid=None, name=None, items=None, typei=None, type=None, useri=None, user=None, conf=None, dateupdate=None, autoupdate=True, **kwargs):
         if dbitem:
             if isinstance(dbitem, str):
                 dbitem = json.loads(dbitem)
             self.rowid = dbitem['rowid']
             self.dateupdate = dbitem['dateupdate']
-            self.autoupdate = dbitem['autoupdate']
+            self.autoupdate = dbitem['autoupdate'] if 'autoupdate' in dbitem else 1
             self.name = dbitem['name']
             self.typei = dbitem['typei'] if 'typei' in dbitem else None
             self.type = dbitem['type'] if 'type' in dbitem else None
