@@ -20,84 +20,6 @@
 </head>
 
 <body>
-    <div id="update-modal" class="modal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Modal title</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="input-daterange input-group" id="datepicker">
-                        <input type="text" class="input-sm form-control" id="update-date-start" name="start" />
-                        <span class="input-group-addon">to</span>
-                        <input type="text" class="input-sm form-control" id="update-date-end" name="end" />
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary">Refresh</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div id="add-modal" class="modal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Playlist</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div id="main-add-container" class="container">
-                        <div class="row">
-                            <form id="main-add-form" class="form">
-                                <div class="form-row">
-                                    <div class="col-md-12 mb-3">
-                                        <label for="main-add-name">Name</label>
-                                        <input type="text" class="form-control" id="main-add-name" required pattern="[a-zA-Z0-9_\-@+*?]+">
-                                        <div class="invalid-feedback">
-                                            Please choose a valid name.
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="form-row">
-                                    <div class="col-md-12 mb-3">
-                                        <label for="main-add-type">Type</label>
-                                        <select class="custom-select" id="main-add-type" required>
-                                            <option selected disabled value="">Choose...</option>
-                                            <option value="youtube">youtube</option>
-                                            <option value="rai">rai</option>
-                                            <option value="mediaset">mediaset</option>
-                                        </select>
-                                        <div class="invalid-feedback">
-                                            Please select a valid type.
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" checked="" value="" id="main-add-autoupdate">
-                                        <label class="form-check-label" for="main-add-autoupdate">
-                                        Auto-Update
-                                        </label>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                    <button type="button" id="main-add-confirm" class="btn btn-primary">Add</button>
-                </div>
-            </div>
-        </div>
-    </div>
     <div class="container-fluid">
         <div class="row" id="alert-row"></div>
         <div class="row row-buffer">
@@ -145,9 +67,9 @@
                     <div class="form-row">
                         <label for="pl-update-view-datepicker">Update dates</label>
                         <div class="input-daterange input-group" id="pl-update-view-datepicker">
-                            <input type="text" class="input-sm form-control" id="pl-update-view-date-start" name="start" />
+                            <input type="text" class="input-lg form-control" id="pl-update-view-date-start" name="start" />
                             <span class="input-group-addon"><p class="h1">&nbsp;&nbsp;&nbsp;<i class="fas fa-arrow-right"></i>&nbsp;&nbsp;&nbsp;</p></span>
-                            <input type="text" class="input-sm form-control" id="pl-update-view-date-end" name="end" />
+                            <input type="text" class="input-lg form-control" id="pl-update-view-date-end" name="end" />
                         </div>
                     </div>
                     <div class="form-row">
@@ -168,7 +90,7 @@
                         <div class="form-row">
                             <div class="col-md-12 mb-3">
                                 <label for="pl-add-view-name">Name</label>
-                                <input type="text" class="form-control" id="pl-add-view-name" required pattern="[a-zA-Z0-9_\-@+*?]+">
+                                <input type="text" class="form-control input-lg" id="pl-add-view-name" required pattern="[a-zA-Z0-9_\-@+*?]+">
                                 <div class="invalid-feedback">
                                     Please choose a valid name.
                                 </div>
@@ -177,7 +99,7 @@
                         <div class="form-row">
                             <div class="col-md-12 mb-3">
                                 <label for="pl-add-view-type">Type</label>
-                                <select class="custom-select" id="pl-add-view-type" required>
+                                <select class="custom-select input-lg" id="pl-add-view-type" required>
                                     <option selected disabled value="">Choose...</option>
                                     <option value="youtube">youtube</option>
                                     <option value="rai">rai</option>
@@ -189,9 +111,9 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" checked="" value="" id="pl-add-view-autoupdate">
-                                <label class="form-check-label" for="pl-add-view-autoupdate">
+                            <div class="form-check custom-control-lg">
+                                <input class="form-check-input custom-control-input" type="checkbox" checked="" value="" id="pl-add-view-autoupdate">
+                                <label class="form-check-label custom-control-label" for="pl-add-view-autoupdate">
                                 Auto-Update
                                 </label>
                             </div>

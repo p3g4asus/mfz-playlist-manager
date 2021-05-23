@@ -156,16 +156,16 @@ let playlist_types = {
                                 <div class="form-row">
                                     <div class="col-md-12 mb-3">
                                         <label for="pl-add-view-youtube-link">ID or page<br /></label>
-                                        <input type="text" class="form-control-plaintext" id="pl-add-view-youtube-link"/>
+                                        <input type="text" class="form-control-plaintext input-lg" id="pl-add-view-youtube-link"/>
                                         <div class="invalid-feedback">
                                             Please insert a valid youtube link or playlist ID
                                         </div>
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" checked="true" value="" id="pl-add-view-youtube-ordered">
-                                        <label class="form-check-label" for="pl-add-view-youtube-ordered">
+                                    <div class="form-check custom-control-lg">
+                                        <input class="form-check-input custom-control-input" type="checkbox" checked="true" value="" id="pl-add-view-youtube-ordered">
+                                        <label class="form-check-label custom-control-label" for="pl-add-view-youtube-ordered">
                                         Ordered
                                         </label>
                                     </div>
