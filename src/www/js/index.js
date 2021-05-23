@@ -701,8 +701,7 @@ function bootstrap_table_info_formatter(value, row, index, field) {
         tpstr += '<span class="badge badge-primary even-larger-badge">rai</span>&nbsp;&nbsp;';
     else
         tpstr += '<span class="badge badge-secondary even-larger-badge">mediaset</span>&nbsp;&nbsp;';
-    tpstr+=(row.autoupdate?'<i class="fas fa-check"></i>':'<i class="fas fa-times"></i>');
-    tpstr += '<br /><small class="text-muted">Last Updated: ' + d.format('yyyy/mm/dd') + ' (' +row.items.length + ' items)</small>';
+    tpstr += '<p class="h1">Last Updated: ' + d.format('yyyy/mm/dd') + ' (' +row.items.length + ' items) - AutoUpdate ' + (row.autoupdate?'<i class="fas fa-check">':'<i class="fas fa-times">')+ '</i></p>';
     return tpstr;
 }
 
