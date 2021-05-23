@@ -1,0 +1,1100 @@
+let selected_playlist = null;
+
+let test = {
+    'rowid': 1,
+    'dateupdate': 1620869765867,
+    'autoupdate': 1,
+    'name': 'subs',
+    'typei': 1,
+    'type': 'youtube',
+    'useri': 1,
+    'user': 'matteoz',
+    'items': [{
+        'rowid': 16124,
+        'uid': '4WNazjuOI9I',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D4WNazjuOI9I%26src%3Dplsmanager',
+        'title': 'Il miglior social network (secondo me!) \u2013 Podcast',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi_webp/4WNazjuOI9I/maxresdefault.webp?v=609d3835',
+        'datepub': '2021-05-13 23:53:19.000000',
+        'conf': {
+            'playlist': 'UUohqjDGw0sKlUha-eV1J0hQ',
+            'userid': 'androidworldit',
+            'author': 'AndroidWorld x SmartWorld'
+        },
+        'dur': 1593,
+        'seen': null,
+        'iorder': 12400
+    }, {
+        'rowid': 16125,
+        'uid': 'gCknUW_l5qA',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DgCknUW_l5qA%26src%3Dplsmanager',
+        'title': 'Recensione GARMIN VENU 2 migliora il gi\u00e0 ottimo 1',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi_webp/gCknUW_l5qA/maxresdefault.webp',
+        'datepub': '2021-05-13 23:53:18.000000',
+        'conf': {
+            'playlist': 'UU5yXB_ThsufRJYMRlzIGoeQ',
+            'userid': 'UC5yXB_ThsufRJYMRlzIGoeQ',
+            'author': 'andreagaleazzi.com'
+        },
+        'dur': 822,
+        'seen': null,
+        'iorder': 12410
+    }, {
+        'rowid': 16126,
+        'uid': 'G_u71UjKAwE',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DG_u71UjKAwE%26src%3Dplsmanager',
+        'title': 'Recensione Dreame T10: per 180 euro non si pu\u00f2 avere aspirapolvere migliore',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi/G_u71UjKAwE/maxresdefault.jpg',
+        'datepub': '2021-05-13 23:53:19.000000',
+        'conf': {
+            'playlist': 'UUK3apxzVTvP5BIcKSBWMaHA',
+            'userid': 'GizChinait',
+            'author': 'GizChina Italia'
+        },
+        'dur': 451,
+        'seen': null,
+        'iorder': 12420
+    }, {
+        'rowid': 16127,
+        'uid': 'aOdCx8aHn8U',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DaOdCx8aHn8U%26src%3Dplsmanager',
+        'title': 'Hai un SAMSUNG? Ecco alcuni TRUCCHI e SEGRETI che DEVI assolutamente CONOSCERE!!!',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi/aOdCx8aHn8U/maxresdefault.jpg',
+        'datepub': '2021-05-13 23:53:20.000000',
+        'conf': {
+            'playlist': 'UU5_i4k9IMYCSKpiuvsBllQA',
+            'userid': 'guerz86',
+            'author': 'Evosmart'
+        },
+        'dur': 496,
+        'seen': null,
+        'iorder': 12430
+    }, {
+        'rowid': 16128,
+        'uid': 'vbPu_rP9_ks',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DvbPu_rP9_ks%26src%3Dplsmanager',
+        'title': 'HO COMPRATO UN PC ECONOMICO DA AMAZON | Meglio un PREASSEMBLATO?',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi/vbPu_rP9_ks/maxresdefault.jpg',
+        'datepub': '2021-05-13 23:53:21.000000',
+        'conf': {
+            'playlist': 'UUfjhlq3uTObV6SEHKS35W1g',
+            'userid': 'UCfjhlq3uTObV6SEHKS35W1g',
+            'author': 'Ghela'
+        },
+        'dur': 592,
+        'seen': null,
+        'iorder': 12440
+    }, {
+        'rowid': 16129,
+        'uid': 'y_apJQsSxtQ',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dy_apJQsSxtQ%26src%3Dplsmanager',
+        'title': 'INSTALLO IL SISTEMA DI ORDISSIMO OS SU TUTTI I MIEI PC! \ud83e\udd2f *follia*',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi_webp/y_apJQsSxtQ/maxresdefault.webp',
+        'datepub': '2021-05-13 23:53:21.000000',
+        'conf': {
+            'playlist': 'UUDhPiDSDgU3Rz0CVGC9Qwgw',
+            'userid': 'stockdroid',
+            'author': 'Stockdroid'
+        },
+        'dur': 946,
+        'seen': null,
+        'iorder': 12450
+    }, {
+        'rowid': 16130,
+        'uid': 'yPV7MJOVW5M',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DyPV7MJOVW5M%26src%3Dplsmanager',
+        'title': 'C\'\u00e8 vita per i giochi in AR dopo Pok\u00e9mon GO?',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi_webp/yPV7MJOVW5M/maxresdefault.webp?v=609e9172',
+        'datepub': '2021-05-14 23:53:20.000000',
+        'conf': {
+            'playlist': 'UUohqjDGw0sKlUha-eV1J0hQ',
+            'userid': 'androidworldit',
+            'author': 'AndroidWorld x SmartWorld'
+        },
+        'dur': 1308,
+        'seen': null,
+        'iorder': 12460
+    }, {
+        'rowid': 16131,
+        'uid': 'QUaSP0PkBuo',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DQUaSP0PkBuo%26src%3Dplsmanager',
+        'title': 'La POSTAZIONE DEFINITIVA! Game e office su ENCELADO. PLAY da ZENFONE 8',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi_webp/QUaSP0PkBuo/maxresdefault.webp',
+        'datepub': '2021-05-14 23:53:19.000000',
+        'conf': {
+            'playlist': 'UU5yXB_ThsufRJYMRlzIGoeQ',
+            'userid': 'UC5yXB_ThsufRJYMRlzIGoeQ',
+            'author': 'andreagaleazzi.com'
+        },
+        'dur': 805,
+        'seen': null,
+        'iorder': 12470
+    }, {
+        'rowid': 16132,
+        'uid': 'WYSFrJzzMgM',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DWYSFrJzzMgM%26src%3Dplsmanager',
+        'title': 'NON SI PARLA abbastanza di queste cuffie APPLE',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi/WYSFrJzzMgM/hqdefault.jpg?sqp=-oaymwEcCNACELwBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAy6y5BNQ2-WLieRBT4ApHZ3e7sRg',
+        'datepub': '2021-05-14 23:53:21.000000',
+        'conf': {
+            'playlist': 'UUohqjDGw0sKlUha-eV1J0hQ',
+            'userid': 'androidworldit',
+            'author': 'AndroidWorld x SmartWorld'
+        },
+        'dur': 534,
+        'seen': null,
+        'iorder': 12490
+    }, {
+        'rowid': 16133,
+        'uid': '6P6xH0kfZzs',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D6P6xH0kfZzs%26src%3Dplsmanager',
+        'title': 'UNBOXING CHE SMARTPHONE E\'?',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi/6P6xH0kfZzs/maxresdefault.jpg',
+        'datepub': '2021-05-14 23:53:20.000000',
+        'conf': {
+            'playlist': 'UU5yXB_ThsufRJYMRlzIGoeQ',
+            'userid': 'UC5yXB_ThsufRJYMRlzIGoeQ',
+            'author': 'andreagaleazzi.com'
+        },
+        'dur': 938,
+        'seen': null,
+        'iorder': 12500
+    }, {
+        'rowid': 16134,
+        'uid': 'F2vuTAsK-WA',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DF2vuTAsK-WA%26src%3Dplsmanager',
+        'title': 'Recensione Xiaomi Mi 11i: sar\u00e0 meglio di Xiaomi Mi 11?',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi/F2vuTAsK-WA/maxresdefault.jpg',
+        'datepub': '2021-05-14 23:53:20.000000',
+        'conf': {
+            'playlist': 'UUK3apxzVTvP5BIcKSBWMaHA',
+            'userid': 'GizChinait',
+            'author': 'GizChina Italia'
+        },
+        'dur': 780,
+        'seen': null,
+        'iorder': 12510
+    }, {
+        'rowid': 16135,
+        'uid': 'orWe-fy8dI8',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DorWe-fy8dI8%26src%3Dplsmanager',
+        'title': 'XIAOMI MI 11i VS XIAOMI MI 11 VS POCO F3: INDECISO? GUARDA QUESTO VIDEO!',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi/orWe-fy8dI8/maxresdefault.jpg',
+        'datepub': '2021-05-14 23:53:21.000000',
+        'conf': {
+            'playlist': 'UU5_i4k9IMYCSKpiuvsBllQA',
+            'userid': 'guerz86',
+            'author': 'Evosmart'
+        },
+        'dur': 589,
+        'seen': null,
+        'iorder': 12520
+    }, {
+        'rowid': 16136,
+        'uid': 'M2yqSi-TJAg',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DM2yqSi-TJAg%26src%3Dplsmanager',
+        'title': 'Scherzi ai Genitori delle Ragazze di OnlyFans - MAMMA STAVO SCHERZANDO EP.1 - theShow',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi_webp/M2yqSi-TJAg/maxresdefault.webp',
+        'datepub': '2021-05-14 23:53:21.000000',
+        'conf': {
+            'playlist': 'UUYZ3uwiIy1LrwrAywLeQSlQ',
+            'userid': 'theshowisyou',
+            'author': 'theShow'
+        },
+        'dur': 1196,
+        'seen': null,
+        'iorder': 12530
+    }, {
+        'rowid': 16137,
+        'uid': 'XwgS8oOUnKM',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DXwgS8oOUnKM%26src%3Dplsmanager',
+        'title': 'LA PRINCIPESSA E IL RANOCCHIO: IL MIO SOGNO SI REALIZZER\u00c0 || WHEN WE\'RE HUMAN Cover ITA | ft. Luna',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi_webp/XwgS8oOUnKM/maxresdefault.webp',
+        'datepub': '2021-05-14 23:53:21.000000',
+        'conf': {
+            'playlist': 'UU8xbgtJcIxn4EdxSOjnEizg',
+            'userid': 'AlbertPagnos88',
+            'author': 'Alberto Pagnotta'
+        },
+        'dur': 265,
+        'seen': null,
+        'iorder': 12540
+    }, {
+        'rowid': 16138,
+        'uid': 'D6ykMBVhqsM',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DD6ykMBVhqsM%26src%3Dplsmanager',
+        'title': 'L\'HO CONGELATO, BOLLITO, LANCIATO dal QUINTO PIANO. Recensione T REX pro SMARTWATCH RUGGED',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi/D6ykMBVhqsM/maxresdefault.jpg',
+        'datepub': '2021-05-15 23:53:21.000000',
+        'conf': {
+            'playlist': 'UU5yXB_ThsufRJYMRlzIGoeQ',
+            'userid': 'UC5yXB_ThsufRJYMRlzIGoeQ',
+            'author': 'andreagaleazzi.com'
+        },
+        'dur': 877,
+        'seen': null,
+        'iorder': 12550
+    }, {
+        'rowid': 16139,
+        'uid': 'ZOEsqRflxQI',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DZOEsqRflxQI%26src%3Dplsmanager',
+        'title': 'Xiaomi, OnePlus, OPPO e vivo: c\'\u00e8 ancora da lavorare sugli aggiornamenti Android',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi_webp/ZOEsqRflxQI/maxresdefault.webp',
+        'datepub': '2021-05-15 23:53:21.000000',
+        'conf': {
+            'playlist': 'UUK3apxzVTvP5BIcKSBWMaHA',
+            'userid': 'GizChinait',
+            'author': 'GizChina Italia'
+        },
+        'dur': 660,
+        'seen': null,
+        'iorder': 12560
+    }, {
+        'rowid': 16140,
+        'uid': 'poK1Ar_2qWs',
+        'link': 'http://192.168.25.4:23000/ytdl?link=http%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DpoK1Ar_2qWs%26src%3Dplsmanager',
+        'title': 'Awesome Tech - May 2021',
+        'playlist': 1,
+        'img': 'https://i.ytimg.com/vi_webp/poK1Ar_2qWs/maxresdefault.webp',
+        'datepub': '2021-05-15 23:53:21.000000',
+        'conf': {
+            'playlist': 'UUgfZazkz3uwmbVmvkl0cTbg',
+            'userid': 'UCgfZazkz3uwmbVmvkl0cTbg',
+            'author': 'TechLine'
+        },
+        'dur': 854,
+        'seen': null,
+        'iorder': 12570
+    }],
+    'conf': {
+        'playlists': [{
+            'title': 'Video caricati da Lo chiamavano Vicky Wen',
+            'channel': 'Lo chiamavano Vicky Wen',
+            'id': 'UUMZ6BKIA_wqCuT1TDr8XGhA',
+            'description': null
+        }, {
+            'title': 'Video caricati da link4universe',
+            'channel': 'link4universe',
+            'id': 'UUHRTziAevLPgAE9Y5VhSs5g',
+            'description': null
+        }, {
+            'title': 'Video caricati da Breaking Italy',
+            'channel': 'Breaking Italy',
+            'id': 'UU4V3oCikXeSqYQr0hBMARwg',
+            'description': null
+        }, {
+            'title': 'Video caricati da AndroidWorld x SmartWorld',
+            'channel': 'AndroidWorld x SmartWorld',
+            'id': 'UUohqjDGw0sKlUha-eV1J0hQ',
+            'description': null
+        }, {
+            'title': 'Video caricati da andreagaleazzi.com',
+            'channel': 'andreagaleazzi.com',
+            'id': 'UU5yXB_ThsufRJYMRlzIGoeQ',
+            'description': null
+        }, {
+            'title': 'Video caricati da GizChina Italia',
+            'channel': 'GizChina Italia',
+            'id': 'UUK3apxzVTvP5BIcKSBWMaHA',
+            'description': null
+        }, {
+            'title': 'Video caricati da Evosmart',
+            'channel': 'Evosmart',
+            'id': 'UU5_i4k9IMYCSKpiuvsBllQA',
+            'description': null
+        }, {
+            'title': 'Video caricati da TubeRadio',
+            'channel': 'TubeRadio',
+            'id': 'UUBzYNjzEJkcPl2OOCHdxivA',
+            'description': null
+        }, {
+            'title': 'Video caricati da HDblog',
+            'channel': 'HDblog',
+            'id': 'UUdufkvMrmyR1TMhDG8PhsJw',
+            'description': null
+        }, {
+            'title': 'Video caricati da theShow',
+            'channel': 'theShow',
+            'id': 'UUYZ3uwiIy1LrwrAywLeQSlQ',
+            'description': null
+        }, {
+            'title': 'Video caricati da Ghela',
+            'channel': 'Ghela',
+            'id': 'UUfjhlq3uTObV6SEHKS35W1g',
+            'description': null
+        }, {
+            'title': 'Video caricati da Alberto Pagnotta',
+            'channel': 'Alberto Pagnotta',
+            'id': 'UU8xbgtJcIxn4EdxSOjnEizg',
+            'description': null
+        }, {
+            'title': 'Video caricati da TechLine',
+            'channel': 'TechLine',
+            'id': 'UUgfZazkz3uwmbVmvkl0cTbg',
+            'description': null
+        }, {
+            'title': 'Video caricati da Marques Brownlee',
+            'channel': 'Marques Brownlee',
+            'id': 'UUBJycsmduvYEL83R_U4JriQ',
+            'description': null
+        }, {
+            'title': 'Video caricati da Stockdroid',
+            'channel': 'Stockdroid',
+            'id': 'UUDhPiDSDgU3Rz0CVGC9Qwgw',
+            'description': null
+        }, {
+            'title': 'Video caricati da Niccol\u00f2 Arcostanzo',
+            'channel': 'Niccol\u00f2 Arcostanzo',
+            'id': 'UUu7KmgLNNmFIEmFSg1rnF1Q',
+            'description': null
+        }, {
+            'title': 'Video caricati da TechMagnet',
+            'channel': 'TechMagnet',
+            'id': 'UUtT2VnurQKOAA0I1EKKHSPA',
+            'description': null
+        }, {
+            'title': 'Video caricati da Francesco Sgnaolin',
+            'channel': 'Francesco Sgnaolin',
+            'id': 'UUO_SA_eFRJbVyfqWV8BKzCQ',
+            'description': null
+        }, {
+            'title': 'Video caricati da Andrea Bentivegna - BlackGeek',
+            'channel': 'Andrea Bentivegna - BlackGeek',
+            'id': 'UUXDorkXBjDsh0wNethPe-zQ',
+            'description': ''
+        }]
+    }
+};
+
+let playlists_all = [];
+
+function set_button_enabled(btn, enabled) {
+    let b = $(btn);
+    if (b.prop('tagName') == 'A') {
+        if (!enabled)
+            b.addClass('disabled');
+        else
+            b.removeClass('disabled');
+    }
+    else {
+        b.prop('disabled', !enabled);
+    }
+}
+
+function playlist_item_seen(ev) {
+    let $ev = $(ev);
+    let tmr = $ev.data('timer');
+    let restoreDelButton = function($ev) {
+        $ev.removeData('timer');
+        $ev.removeData('countdown');
+        $ev.html('<p class="h1"><i class="fas fa-trash-alt"></i></p>');
+        $ev.closest('.container-fluid').find('.pl-item-func').show();
+    };
+    if (tmr !== undefined && tmr!==null) {
+        clearTimeout(parseInt(tmr));
+        restoreDelButton($ev);
+    }
+    else {
+        $ev.html('<p class="h1"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;5</p>');
+        $ev.closest('.container-fluid').find('.pl-item-func').hide();
+        let funDel = function() {
+            let sec = parseInt(this.data('countdown')) - 1;
+            if (sec) {
+                this.html('<p class="h1"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;'+ sec +'</p>');
+                this.data('countdown', sec);
+                this.data('timer', setTimeout(funDel.bind(this), 1000));
+            }
+            else {
+                restoreDelButton(this);
+                let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:parseInt(this.data('rowid')), seen:1}, function(msg) {
+                    return msg.cmd === CMD_SEEN? msg:null;
+                }, 20000, 1);
+                qel.enqueue().then(function(msg) {
+                    if (!manage_errors(msg)) {
+                        let row = $('#playlist-items-table').bootstrapTable('getRowByUniqueId', msg.playlistitem);
+                        toast_msg('Playlist item ' + row.title+' removed', 'success');
+                        $('#playlist-items-table').bootstrapTable('removeByUniqueId', msg.playlistitem);
+                        selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(msg.playlistitem), 1);
+                    }
+                })
+                    .catch(function(err) {
+                        console.log(err);
+                        let errmsg = 'Exception detected: '+err;
+                        toast_msg(errmsg, 'danger');
+                    });
+            }
+        };
+        $ev.data('countdown', 5);
+        $ev.data('timer', setTimeout(funDel.bind($ev), 1000));
+    }
+}
+
+function playlist_item_move(ev) {
+    let $ev = $(ev);
+    let $iorder = $ev.closest('.container-fluid').find('.pl-item-func-iorder');
+    if ($iorder.is(':visible')) {
+        $iorder.hide();
+    }
+    else {
+        let $input = $iorder.children('input');
+        let $btn = $iorder.children('a');
+        $iorder.show();
+        $input.val($ev.text());
+        $input.change(function() {
+            let nn = parseInt($(this).val());
+            set_button_enabled($btn, !isNaN(nn));
+        });
+        $btn.click(function() {
+            $iorder.hide();
+            let rid = $btn.data('rowid');
+            let qel = new MainWSQueueElement({cmd: CMD_IORDER, playlistitem:parseInt(rid), iorder:parseInt($input.val())}, function(msg) {
+                return msg.cmd === CMD_IORDER? msg:null;
+            }, 20000, 1);
+            qel.enqueue().then(function(msg) {
+                if (!manage_errors(msg)) {
+                    playlist_dump(selected_playlist.rowid);
+                }
+            })
+                .catch(function(err) {
+                    console.log(err);
+                    let errmsg = 'Exception detected: '+err;
+                    toast_msg(errmsg, 'danger');
+                });
+            return false;
+        });
+        $iorder.show();
+    }
+}
+
+function bootstrap_table_uid_formatter(value, row, index, field) {
+    let p = $('<p class="h3">');
+    p.text(row.title);
+    let p3, dti;
+    if (row.datepub && row.datepub.length && !isNaN(dti = Date.parse(row.datepub))) {
+        let utcSeconds = Math.round(dti / 1000);
+        let d = new Date(0); // The 0 there is the key, which sets the date to the epoch
+        d.setUTCSeconds(utcSeconds);
+        p3 = 'Date: ' + d.format('yy/mm/dd HH:MM');
+    }
+    else
+        p3 = 'Date: N/A';
+    //let p2 = '<p class="h6">Duration: ' + format_duration(row.dur) + '</p>';
+    let up = $('<p class="h4">');
+    up.text(p3 + ' (' + (row?.conf?.author || 'N/A') + ')');
+    return `
+        <div class="container-fluid">
+            <div class="row">${p.prop('outerHTML') + up.prop('outerHTML')}</div>
+            <div class="row row-buffer">
+                <a class="btn btn-danger btn-lg col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_seen(this); return false;"><p class="h1"><i class="fas fa-trash-alt"></i></p></a>
+            </div>
+            <div class="row row-buffer pl-item-func">
+                <a class="btn btn-info btn-lg col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_move(this); return false;"><p class="h1">${row.iorder}</p></a>
+            </div>
+            <div class="row row-buffer pl-item-func pl-item-func-iorder" style="display: none;">
+                <input type="number" class="col-6 input-lg"/><a class="btn btn-info btn-lg col-6 btn-block" data-rowid="${row.rowid}" href="#" role="button"><p class="h1"><i class="fas fa-dolly"></i></p></a>
+            </div>
+        </div>
+        `;
+    //return p.prop('outerHTML') + p3 + up.prop('outerHTML') + '<br />' +
+    //'<a class="btn btn-danger btn-lg col-12 btn-block" data-rowid="'+row.rowid+'" href="#" role="button" onclick="playlist_tiem_seen(this); return false;"><p class="h1"><i class="fas fa-trash-alt"></i></p></a><br />' +
+    //'<a class="btn btn-info btn-lg col-12 btn-block" data-rowid="'+row.rowid+'" href="#" role="button" onclick="playlist_tiem_move(this); return false;"><p class="h1">'+ row.iorder +'</p></a>';
+}
+
+function bootstrap_table_img_formatter(value, row, index, field) {
+    return `
+    <a href="${row.link}"><div class="thumb-container">
+        <img src="${value}" class="thumb-image">
+        <div class="thumb-duration-overlay">${format_duration(row.dur)}</div>
+    </div></a>
+        `;
+}
+
+let playlist_types = {
+    youtube: {
+        on_add: function(pl) {
+            return pl.conf.playlists.length;
+        },
+        add: function(pl) {
+            let el = $(`
+                <div id="pl-add-view-youtube">
+                    <div class="row row-buffer pl-add-view-youtube-row1">
+                        <div class="col-12">
+                            <form id="pl-add-view-youtube-form" class="form">
+                                <div class="form-row">
+                                    <div class="col-md-12 mb-3">
+                                        <label for="pl-add-view-youtube-link">ID or page<br /></label>
+                                        <input type="text" class="form-control-plaintext" id="pl-add-view-youtube-link"/>
+                                        <div class="invalid-feedback">
+                                            Please insert a valid youtube link or playlist ID
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" checked="true" value="" id="pl-add-view-youtube-ordered">
+                                        <label class="form-check-label" for="pl-add-view-youtube-ordered">
+                                        Ordered
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="col-12">
+                                        <a id="pl-add-view-youtube-search" class="btn btn-primary btn-lg col-12 btn-block disabled" href="#" role="button"><p class="h1 font-enlarged"><i class="fas fa-search"></i>&nbsp;&nbsp;Search</p></a>
+                                        <div id="pl-add-view-youtube-progress" class="progress bigger-progress">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `);
+            let single_el = function(c, pl, type) {
+                let div = $('<p class="h1">');
+                let alert = $(
+                    `
+                    <div class="row">
+                        <div class="col-12 alert alert-${type} alert-dismissible fade show" role="alert">
+                            ${div.text(c.title).prop('outerHTML')}
+                            <p class="h2">${c.id} (${c.ordered === undefined || c.ordered? 'Ordered': 'Unordered'})</p>
+                            <button type="button" data-idpl="${c.id}" class="close" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                    </div>
+                    `);
+                alert.find('button').click(function() {
+                    let id = $(this).data('idpl');
+                    let pls = pl.conf.playlists;
+                    for (let i = 0; i<pls.length; i++) {
+                        if (pls[i].id == id) {
+                            pls.splice(i, 1);
+                            break;
+                        }
+                    }
+                    let row = $(this).closest('.row');
+                    $(this).closest('.alert').alert('close');
+                    row.remove();
+                    set_button_enabled('#pl-add-view-add', pls.length);
+                });
+                alert.children('.alert').alert();
+                return alert.addClass(PL_ADD_VIEW_TYPE_CLASS);
+            };
+            let i = 0;
+            let types = ['primary', 'secondary', 'success', 'warning', 'danger', 'info', 'light', 'dark'];
+            for(let c2 of pl.conf.playlists) {
+                el.append(single_el(c2, pl, types[i%types.length]));
+                i++;
+            }
+            let $link = el.find('#pl-add-view-youtube-link');
+            let $progress = el.find('#pl-add-view-youtube-progress');
+            $progress.hide();
+            let $search = el.find('#pl-add-view-youtube-search');
+            $search.click(function() {
+                let reqs = $link.val().split(',');
+                $search.hide();
+                $progress.show();
+                let found = {};
+                for (let t of reqs) {
+                    if (!found[t]) {
+                        found[t] = 1;
+                        let qel = new MainWSQueueElement({cmd: CMD_YT_PLAYLISTCHECK, text:t}, function(msg) {
+                            return msg.cmd === CMD_YT_PLAYLISTCHECK? msg:null;
+                        }, 20000, 1);
+                        qel.enqueue().then(function(msg) {
+                            $progress.hide();
+                            $search.show();
+                            if (!manage_errors(msg)) {
+                                let brandinfo = msg.playlistinfo;
+                                for (let p of pl.conf.playlists) {
+                                    if (p.id == brandinfo.id) {
+                                        toast_msg('Playlist ' + p.title+' already present!', 'warning');
+                                        return;
+                                    }
+                                }
+                                toast_msg('Playlist ' + brandinfo.title+' added', 'success');
+                                brandinfo.ordered = $('#pl-add-view-youtube-ordered').is(':checked');
+                                pl.conf.playlists.push(brandinfo);
+                                $($('.pl-add-view-youtube-row1').parents('div')[0]).append(single_el(brandinfo, pl, types[(pl.conf.playlists.length-1)%types.length]));
+                                $link.val('');
+                                set_button_enabled('#pl-add-view-youtube-search', false);
+                                set_button_enabled('#pl-add-view-add', true);
+                            }
+                        })
+                            .catch(function(err) {
+                                console.log(err);
+                                let errmsg = 'Exception detected: '+err;
+                                toast_msg(errmsg, 'danger');
+                                $progress.hide();
+                                $search.show();
+                            });
+                    }
+                }
+            });
+            $link.on('input', function() {
+                let v = $(this).val();
+                let valid =  /[a-zA-Z0-9\\/&\-\\+]+/.exec(v);
+                let wasvalid = !$(this).hasClass('is-invalid');
+                set_button_enabled('#pl-add-view-youtube-search',valid);
+                if (!wasvalid && valid)
+                    $(this).removeClass('is-invalid');
+                else if (wasvalid && !valid)
+                    $(this).addClass('is-invalid');
+            });
+            set_button_enabled('#pl-add-view-add', pl.conf.playlists.length);
+            return el.children().addClass(PL_ADD_VIEW_TYPE_CLASS);
+        }
+    }
+};
+
+function playlist_update(playlist) {
+    let utcSeconds = Math.round(playlist.dateupdate / 1000);
+    let d = new Date(0); // The 0 there is the key, which sets the date to the epoch
+    d.setUTCSeconds(utcSeconds);
+    $('#pl-update-view-date-start').val(d.format('yyyy-mm-dd'));
+    $('#pl-update-view-date-end').val(new Date().format('yyyy-mm-dd'));
+    $('#pl-update-view-progress').hide();
+    $('#pl-update-view-update').show();
+}
+
+function playlist_add(playlist) {
+    let tp = $('#pl-add-view-type');
+    if (playlist.type)
+        tp.val(playlist.type);
+    else
+        tp.val('');
+    playlist_change_type(playlist, playlist.type || '');
+    $('#pl-add-view-name').val(playlist.name);
+    $('#pl-add-view-autoupdate').prop('checked', playlist.autoupdate);
+    
+}
+
+function playlist_change_type(pl, tp) {
+    current_playlist = pl;
+    $('#pl-add-view-container').find('.' + PL_ADD_VIEW_TYPE_CLASS).remove();
+    if (tp.length)
+        $('#pl-add-view-container').append(playlist_types[tp].add(current_playlist));
+}
+
+let current_playlist = null;
+
+
+function playlist_add_button_change_function(func)  {
+    if (func == 'add')
+        $('#add-button').removeClass('btn-secondary').addClass('btn-success').html('<p class="h1 font-enlarged"><i class="fas fa-plus"></i>&nbsp;&nbsp;Add</p>').data('func', func);
+    else 
+        $('#add-button').removeClass('btn-success').addClass('btn-secondary').html('<p class="h1 font-enlarged"><i class="fas fa-arrow-left"></i>&nbsp;&nbsp;Back</p>').data('func', func);
+}
+
+function bootstrap_table_show_pagination(sel, val) {
+    if (val)
+        $(sel).closest('.bootstrap-table').find('.fixed-table-pagination').show();
+    else
+        $(sel).closest('.bootstrap-table').find('.fixed-table-pagination').fadeOut(1000);
+}
+
+function playlist_interface_manage(func) {
+    if (func == 'add') {
+        $('.pl-select-view').hide();
+        $('.pl-list-view').fadeIn(1000);
+        playlist_add_button_change_function(func);
+    }
+    else if (func == 'back-playlist-add') {
+        $('.pl-select-view').hide();
+        $('.pl-edit-view').hide();
+        $('.pl-add-view').fadeIn(1000);
+        playlist_add_button_change_function(func);
+    }
+    else if (func == 'back-playlist-update') {
+        $('.pl-select-view').hide();
+        $('.pl-add-view').hide();
+        $('.pl-update-view').fadeIn(1000);
+        playlist_add_button_change_function(func);
+    }
+    else if (func == 'back-list-update') {
+        $('.pl-list-view').hide();
+        $('.pl-add-view').hide();
+        $('.pl-select-view').hide();
+        $('.pl-update-view').fadeIn(1000);
+        playlist_add_button_change_function(func);
+    }
+    else if (func == 'back-list-add') {
+        $('.pl-list-view').hide();
+        $('.pl-update-view').hide();
+        $('.pl-select-view').hide();
+        $('.pl-add-view').fadeIn(1000);
+        playlist_add_button_change_function(func);
+    }
+    else if (func == 'back-list') {
+        $('.pl-list-view').hide();
+        $('.pl-add-view').hide();
+        $('.pl-update-view').hide();
+        $('.pl-select-view').fadeIn(1000);
+        playlist_add_button_change_function(func);
+    }
+}
+
+function playlist_sort() {
+    let qel = new MainWSQueueElement({cmd: CMD_SORT, playlist:selected_playlist.rowid}, function(msg) {
+        return msg.cmd === CMD_SORT? msg:null;
+    }, 20000, 1);
+    qel.enqueue().then(function(msg) {
+        if (!manage_errors(msg)) {
+            playlist_dump(selected_playlist.rowid);
+        }
+    })
+        .catch(function(err) {
+            console.log(err);
+            let errmsg = 'Exception detected: '+err;
+            toast_msg(errmsg, 'danger');
+        });
+}
+
+function playlist_remove(ev) {
+    let $ev = $(ev);
+    let tmr = $ev.data('timer');
+    let restoreDelButton = function($ev) {
+        $ev.removeData('timer');
+        $ev.removeData('countdown');
+        $ev.html('<p class="h1 font-enlarged"><i class="fas fa-minus"></i>&nbsp;&nbsp;Remove</p>');
+        $ev.closest('.container-fluid').find('.pl-select-func').show();
+    };
+    if (tmr !== undefined && tmr!==null) {
+        clearTimeout(parseInt(tmr));
+        restoreDelButton($ev);
+    }
+    else {
+        $ev.html('<p class="h1 font-enlarged"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;5</p>');
+        $ev.closest('.container-fluid').find('.pl-select-func').hide();
+        let funDel = function() {
+            let sec = parseInt(this.data('countdown')) - 1;
+            if (sec) {
+                this.html('<p class="h1 font-enlarged"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;'+ sec +'</p>');
+                this.data('countdown', sec);
+                this.data('timer', setTimeout(funDel.bind(this), 1000));
+            }
+            else {
+                restoreDelButton(this);
+                let qel = new MainWSQueueElement({cmd: CMD_DEL, playlist:selected_playlist.rowid}, function(msg) {
+                    return msg.cmd === CMD_DEL? msg:null;
+                }, 20000, 1);
+                qel.enqueue().then(function(msg) {
+                    if (!manage_errors(msg)) {
+                        playlists_all.splice(playlists_all.map(function(e) { return e.rowid; }).indexOf(selected_playlist.rowid), 1);
+                        $('#output-table').bootstrapTable('removeByUniqueId', selected_playlist.rowid);
+                        selected_playlist = null;
+                        playlist_interface_manage('add');
+                    }
+                })
+                    .catch(function(err) {
+                        console.log(err);
+                        let errmsg = 'Exception detected: '+err;
+                        toast_msg(errmsg, 'danger');
+                    });
+            }
+        };
+        $ev.data('countdown', 5);
+        $ev.data('timer', setTimeout(funDel.bind($ev), 1000));
+    }
+}
+
+function index_global_init() {
+    $('#playlist-items-table').bootstrapTable();
+    $('.pl-select-view').hide();
+    $('.pl-add-view').hide();
+    $('.pl-update-view').hide();
+    let $table =  $('#output-table');
+    $table.bootstrapTable({showHeader: false});
+    $('#update-button').click(function() {
+        playlist_interface_manage('back-playlist-update');
+        playlist_update(current_playlist = selected_playlist);
+        return;
+    });
+    $('#sort-button').click(function() {
+        playlist_sort();
+        return false;
+    });
+    $('#add-button').click(function() {
+        let func = $(this).data('func');
+        if (func == 'back-playlist-add')
+            playlist_interface_manage('back-list');
+        else if (func == 'back-list-update') {
+            selected_playlist = null;
+            playlist_interface_manage('add');
+        }
+        else if (func == 'back-playlist-update')
+            playlist_interface_manage('back-list');
+        else if (func == 'back-list') {
+            selected_playlist = null;
+            playlist_interface_manage('add');
+        }
+        else if (func == 'back-list-add') {
+            selected_playlist = null;
+            playlist_interface_manage('add');
+        }
+        else {
+            playlist_interface_manage('back-list-add');
+            playlist_add(new Playlist(null, find_user_cookie()));
+        }
+        return false;
+    });
+    $('#remove-button').click(function() {
+        playlist_remove(this);
+        return false;
+    });
+    $('#edit-button').click(function() {
+        let pl = {};
+        $.extend(true, pl, selected_playlist);
+        playlist_interface_manage('back-playlist-add');
+        playlist_add(pl);
+        return false;
+    });
+    $('#pl-update-view-datepicker').datepicker({
+        format: 'yyyy/mm/dd',
+        todayHighlight: true
+    });
+    $('#pl-add-view-type').change(function () {
+        playlist_change_type(new Playlist(null, find_user_cookie()), $(this).val());
+    });
+    $('#pl-update-view-update').click(function () {
+        $('#pl-update-view-progress').show();
+        $('#pl-update-view-update').hide();
+        let qel = new MainWSQueueElement({
+            cmd: CMD_REFRESH, 
+            playlist:current_playlist,
+            datefrom:Date.parse($('#pl-update-view-date-start').val()),
+            dateto:Date.parse($('#pl-update-view-date-end').val()),
+        }, function(msg) {
+            if (msg.cmd == CMD_PING)
+                return 0;
+            else if (msg.cmd == CMD_REFRESH)
+                return msg;
+            else
+                return null;
+        }, 45000, 1);
+        qel.enqueue().then(function(msg) {
+            if (manage_errors(msg)) {
+                $('#pl-update-view-progress').hide();
+                $('#pl-update-view-update').show();
+            }
+            else {
+                if (!msg.n_new)
+                    toast_msg('No new video found', 'warning');
+                else
+                    toast_msg('I have found ' + msg.n_new +' new video(s).', 'success');
+                if (selected_playlist) {
+                    let idx = playlists_all.map(function(e) { return e.rowid; }).indexOf(selected_playlist.rowid);
+                    $('#output-table').bootstrapTable('updateRow', {index: idx, row: msg.playlist, replace: true});
+                    playlists_all[idx] = selected_playlist = msg.playlist;
+                    $('#playlist-items-table').bootstrapTable('load', selected_playlist.items);
+                }
+                else {
+                    playlists_all.push(msg.playlist);
+                    $('#output-table').bootstrapTable('append', [msg.playlist]);
+                    playlist_select(msg.playlist);
+                }
+                playlist_interface_manage('back-list');
+            }
+        })
+            .catch(function(err) {
+                console.log(err);
+                let errmsg = 'Exception detected: '+err;
+                toast_msg(errmsg, 'danger');
+                $('#pl-update-view-progress').hide();
+                $('#pl-update-view-update').show();
+            });
+    });
+    $('#pl-add-view-add').click(function () {
+        let form = $('#pl-add-view-form'), type;
+        if (form[0].checkValidity() && playlist_types[type = $('#pl-add-view-type').val()].on_add(current_playlist)) {
+            current_playlist.name = $('#pl-add-view-name').val();
+            current_playlist.type = type;
+            current_playlist.autoupdate = $('#pl-add-view-autoupdate').is(':checked');
+            playlist_interface_manage(selected_playlist? 'back-playlist-update': 'back-list-update');
+            playlist_update(current_playlist);
+        }
+        else {
+            toast_msg('Please add at least a playlist and make sure tu specify a valid name', 'warning');
+        }
+        form.addClass('was-validated'); 
+    });
+
+}
+
+function playlist_dump(plid) {
+    let useri = find_user_cookie();
+    let el = new MainWSQueueElement({cmd: CMD_DUMP, useri:useri, playlist: plid}, function(msg) {
+        return msg.cmd === CMD_DUMP? msg:null;
+    }, 3000, 1);
+    el.enqueue().then(function(msg) {
+        let errmsg;
+        if (!manage_errors(msg)) {
+            if (msg.playlists.length) {
+                playlists_all[playlists_all.map(function(e) { return e.rowid; }).indexOf(plid)] = msg.playlists[0];
+                playlist_select(msg.playlists[0]);
+            }
+        }
+    })
+        .catch(function(err) {
+            console.log(err);
+            let errmsg = 'Exception detected: '+err;
+            toast_msg(errmsg, 'danger');
+        });
+}
+
+
+function playlists_dump(params, useri, fast_videoidx, fast_videostep, multicmd) {
+    if (useri === undefined) {
+        useri = find_user_cookie();
+        if (useri === null) {
+            if (params)
+                params.error('No User Cookie Found. Redirecting to login');
+            toast_msg('No User Cookie Found. Redirecting to login', 'danger');
+            setTimeout(function() {
+                window.location.assign(MAIN_PATH + 'login.htm');
+            }, 5000);
+            return;
+        }
+    }
+    let content_obj = {
+        cmd: CMD_DUMP,
+        multicmd: multicmd || 0,
+        playlist: null,
+        useri: useri,
+        fast_videoidx: fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ null:fast_videoidx + fast_videostep
+    };
+
+    let el = new MainWSQueueElement(content_obj, function(msg) {
+        return msg.cmd === CMD_DUMP? msg:null;
+    }, 3000, 1);
+    el.enqueue().then(function(msg) {
+        let errmsg;
+        if ((errmsg = manage_errors(msg))) {
+            if (params)
+                params.error(errmsg);
+        }
+        else {
+            let no_more = true;
+            for (let p of msg.playlists) {
+                let pos = playlists_all.map(function(e) { return e.rowid; }).indexOf(p.rowid);
+                if (pos >= 0)
+                    playlists_all[pos].items.push(...p.items);
+                else
+                    playlists_all.push(p);
+                if (p.items.length === msg.fast_videostep)
+                    no_more = false;
+            }
+            if (params) {
+                params.success({
+                    rows: msg.playlists,
+                    total: msg.playlists.length
+                });
+            }
+            if (!no_more) {
+                console.log('More items to come...');
+                if (!msg.multicmd) {
+                    msg.multicmd = new Date().getTime();
+                }
+                playlists_dump(null, useri, msg.fast_videoidx, msg.fast_videostep, msg.multicmd);
+            }
+        }
+    })
+        .catch(function(err) {
+            console.log(err);
+            let errmsg = 'Exception detected: '+err;
+            if (params)
+                params.error(errmsg);
+            toast_msg(errmsg, 'danger');
+        });
+}
+
+function bootstrap_table_get_data_ws(params) {
+    main_ws_connect();
+    playlists_all = [];
+    playlists_dump(params);
+}
+
+function playlist_select(ev) {
+    if (ev.rowid !== undefined) {
+        selected_playlist = ev;
+    }
+    else {
+        let rid = parseInt($(ev).data('rowid'));
+        playlist_interface_manage('back-list');
+        selected_playlist = playlists_all[playlists_all.map(function(e) { return e.rowid; }).indexOf(rid)];
+    }
+    $('#playlist-items-table').bootstrapTable('load', selected_playlist.items);
+}
+
+function manage_errors(msg) {
+    if (msg.rv) {
+        let errmsg = 'E [' + msg.rv + '] ' + msg.err+ '.'; 
+        if (msg.rv == 501 || msg.rv == 502)
+            errmsg +=' Redirecting to login.';
+        toast_msg(errmsg, 'danger');
+        if (msg.rv == 501 || msg.rv == 502)
+            setTimeout(function() {
+                window.location.assign(MAIN_PATH + 'login.htm');
+            }, 5000);
+        return errmsg;
+    }
+    else
+        return null;
+    
+}
+
+function bootstrap_table_name_formatter(value, row, index, field) {
+    if (row.items.length) {
+        return `
+        <a data-rowid="${row.rowid}" href="#" onclick="playlist_select(this); return false;"><div class="thumb-container">
+            <img src="${row.items[0].img}" class="thumb-image">
+            <div class="thumb-name-overlay">${value}</div>
+        </div></a>
+            ` + '<br />' + bootstrap_table_info_formatter(value, row, index, field);
+    }
+    else
+        return value;
+}
+
+function bootstrap_table_info_formatter(value, row, index, field) {
+    let utcSeconds = Math.round(row.dateupdate / 1000);
+    let d = new Date(0); // The 0 there is the key, which sets the date to the epoch
+    d.setUTCSeconds(utcSeconds);
+    let tpstr = '';
+    if (row.type == 'youtube')
+        tpstr += '<span class="badge badge-danger even-larger-badge">youtube</span>&nbsp;&nbsp;';
+    else if (row.type == 'rai')
+        tpstr += '<span class="badge badge-primary even-larger-badge">rai</span>&nbsp;&nbsp;';
+    else
+        tpstr += '<span class="badge badge-secondary even-larger-badge">mediaset</span>&nbsp;&nbsp;';
+    tpstr+=(row.autoupdate?'<i class="fas fa-check"></i>':'<i class="fas fa-times"></i>');
+    tpstr += '<br /><small class="text-muted">Last Updated: ' + d.format('yyyy/mm/dd') + ' (' +row.items.length + ' items)</small>';
+    return tpstr;
+}
+
+$(window).on('load', function() {
+    let bp =  bootstrapDetectBreakpoint();
+    console.log('BP = ' + JSON.stringify(bp));
+    if (bp && bp.name && (bp.name == 'xs' || bp.name == 'sm')) {
+        $('th[data-field="img"]').addClass('col-10');
+    }
+    console.log(new Date().format('yyyy/mm/dd'));
+    index_global_init();
+});

@@ -268,6 +268,8 @@ async def start_app(app):
     runner = web.AppRunner(app)
     app.p.myrunners.append(runner)
     app.p.executor = Executor(loop=app.p.loop, nthreads=app.p.args["executors"])
+    if app.p.args["static"] is not None:
+        app.router.add_static('/static', app.p.args["static"])
     app.router.add_route('GET', '/', index)
     app.router.add_route('POST', '/login', login)
     app.router.add_route('POST', '/modifypw', modify_pw)
@@ -332,6 +334,7 @@ def main():
         args = json.loads(p4a)
         args['executors'] = 2
         args['autoupdate'] = 25
+        args["static"] = os.path.dirname(os.path.abspath(__file__)).join('..', 'www')
         app.p.osc_port = args["msgfrom"]
         app.p.osc_server = None
         app.p.osc_transport = None
@@ -350,6 +353,7 @@ def main():
         parser.add_argument('--port', type=int, help='port number', required=False, default=8080)
         parser.add_argument('--autoupdate', type=int, help='autoupdate time', required=False, default=25)
         parser.add_argument('--executors', type=int, help='executor number', required=False, default=2)
+        parser.add_argument('--static', required=False, default=None)
         parser.add_argument('--host', required=False, default="0.0.0.0")
         parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))
         parser.add_argument("-v", "--verbose", help="increase output verbosity",

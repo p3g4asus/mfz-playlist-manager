@@ -8,7 +8,7 @@ from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
 import youtube_dl
 
-from common.const import (COOKIE_USERID, CMD_PING)
+from common.const import (COOKIE_USERID, CMD_PING, MSG_UNAUTHORIZED)
 from common.playlist import Playlist, PlaylistMessage
 from common.timer import Timer
 from common.utils import get_json_encoder, MyEncoder
@@ -243,7 +243,7 @@ async def pls_h(request):
             _LOGGER.info("Message " + str(pl))
             if not identity:
                 _LOGGER.info("Unauthorized")
-                await ws.send_str(json.dumps(pl.err(100, "Not authorized"), cls=MyEncoder))
+                await ws.send_str(json.dumps(pl.err(501, MSG_UNAUTHORIZED), cls=MyEncoder))
                 break
             userid = identity2id(identity)
             locked = request.app.p.locked

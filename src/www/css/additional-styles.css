@@ -1,0 +1,84 @@
+.row-buffer {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.width-set {
+    max-width: 300px;
+}
+
+.height-set {
+    max-height: 300px;
+}
+
+.thumb-container {
+    position: relative;
+    width: 100%;
+    text-align: center;
+}
+
+/* Make the image to responsive */
+.thumb-image {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* The overlay effect - lays on top of the container and over the image */
+.thumb-duration-overlay {
+    position: absolute;
+    bottom: 0;
+    background: rgb(0, 0, 0);
+    background: rgba(0, 0, 0, 0.6);
+    /* Black see-through */
+    color: #f1f1f1;
+    width: 100%;
+    transition: .5s ease;
+    opacity: 1;
+    color: white;
+    font-size: 40px;
+    padding: 3px;
+    text-align: right;
+}
+
+.thumb-name-overlay {
+    position: absolute;
+    bottom: 0;
+    background: rgb(0, 0, 0);
+    background: rgba(0, 0, 0, 0.6);
+    /* Black see-through */
+    color: #f1f1f1;
+    width: 100%;
+    transition: .5s ease;
+    opacity: 1;
+    color: white;
+    font-size: 40px;
+    padding: 3px;
+    text-align: center;
+}
+
+/* When you mouse over the container, fade in the overlay title */
+/* .thumb-container:hover .thumb-duration-overlay {
+    opacity: 1;
+}*/
+
+.even-larger-badge {
+    font-size: 1.1em;
+}
+
+.big-line {
+    line-height: 300%;
+}
+
+
+.font-enlarged {
+    font-size: 600%;
+}
+
+.bigger-progress {
+    height: 96px;
+}
+
+.input-lg {
+    font-size: 2.5rem;
+}

@@ -134,7 +134,7 @@ class MessageProcessor(RefreshMessageProcessor):
 
     async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
         try:
-            sets = [s['id'] for s in conf['playlists']]
+            sets = [(s['id'], s['ordered'] if 'ordered' in s else True) for s in conf['playlists']]
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
@@ -148,7 +148,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     'extract_flat': True
                 }
                 programs = dict()
-                for set in sets:
+                for set, ordered in sets:
                     startFrom = 1
                     while startFrom:
                         ydl_opts['playliststart'] = startFrom
@@ -200,7 +200,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                     )
                                                     programs[video['id']] = pr
                                                     _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
-                                            else:
+                                            elif ordered:
                                                 startFrom = 0
                                                 break
                                     except Exception:
