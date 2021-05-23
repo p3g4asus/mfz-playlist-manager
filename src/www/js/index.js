@@ -47,6 +47,7 @@ function playlist_item_seen(ev) {
                         let row = $('#playlist-items-table').bootstrapTable('getRowByUniqueId', msg.playlistitem);
                         toast_msg('Playlist item ' + row.title+' removed', 'success');
                         $('#playlist-items-table').bootstrapTable('removeByUniqueId', msg.playlistitem);
+                        bootstrap_table_pagination_fix();
                         selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(msg.playlistitem), 1);
                     }
                 })
@@ -416,6 +417,7 @@ function playlist_remove(ev) {
                     if (!manage_errors(msg)) {
                         playlists_all.splice(playlists_all.map(function(e) { return e.rowid; }).indexOf(selected_playlist.rowid), 1);
                         $('#output-table').bootstrapTable('removeByUniqueId', selected_playlist.rowid);
+                        bootstrap_table_pagination_fix();
                         selected_playlist = null;
                         playlist_interface_manage('add');
                     }
@@ -432,13 +434,22 @@ function playlist_remove(ev) {
     }
 }
 
+function bootstrap_table_pagination_fix() {
+    $('.fixed-table-pagination').addClass('input-lg');
+    $('.page-size').addClass('input-lg');
+    $('.page-list').find('.dropdown-menu').addClass('input-lg');
+}
+
 function index_global_init() {
-    $('#playlist-items-table').bootstrapTable();
+    $('#playlist-items-table').bootstrapTable({showHeader: false});
     $('.pl-select-view').hide();
     $('.pl-add-view').hide();
     $('.pl-update-view').hide();
     let $table =  $('#output-table');
     $table.bootstrapTable({showHeader: false});
+    $table.on('load-success.bs.table', function() {
+        bootstrap_table_pagination_fix();
+    });
     $('#update-button').click(function() {
         playlist_interface_manage('back-playlist-update');
         playlist_update(current_playlist = selected_playlist);
@@ -521,10 +532,12 @@ function index_global_init() {
                     $('#output-table').bootstrapTable('updateRow', {index: idx, row: msg.playlist, replace: true});
                     playlists_all[idx] = selected_playlist = msg.playlist;
                     $('#playlist-items-table').bootstrapTable('load', selected_playlist.items);
+                    bootstrap_table_pagination_fix();
                 }
                 else {
                     playlists_all.push(msg.playlist);
                     $('#output-table').bootstrapTable('append', [msg.playlist]);
+                    bootstrap_table_pagination_fix();
                     playlist_select(msg.playlist);
                 }
                 playlist_interface_manage('back-list');
@@ -658,6 +671,7 @@ function playlist_select(ev) {
         selected_playlist = playlists_all[playlists_all.map(function(e) { return e.rowid; }).indexOf(rid)];
     }
     $('#playlist-items-table').bootstrapTable('load', selected_playlist.items);
+    bootstrap_table_pagination_fix();
 }
 
 function manage_errors(msg) {
