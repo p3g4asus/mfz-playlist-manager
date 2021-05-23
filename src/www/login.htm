@@ -8,30 +8,33 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ho+j7jyWK8fNQe+A12Hb8AhRq26LrZ/JpcUGGOn+Y7RsweNrtN/tE3MoK7ZeZDyx" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" integrity="sha512-iBBXm8fW90+nuLcSKlbmrPcLa0OT92xO1BIsZ+ywDWZCvqsWgccV3gFoRBv0z+8dLJgyAHIhR35VZc2oM/gI1w==" crossorigin="anonymous" />
+    <link rel="stylesheet" type="text/css" href="./css/additional-styles.css">
     <script src="./js/const.js"></script>
     <script src="./js/login.js"></script>
 </head>
 
 <body>
-    <div class="container">
+    <div class="container-fluid">
         <div class="row">
-            <form autocomplete="on">
-                <div class="form-group">
-                    <label for="input-user-name">User Name</label>
-                    <input type="text" class="form-control" name="username" id="input-user-name" aria-describedby="input-user-name-help" required>
-                    <small id="input-user-name-help" class="form-text text-muted">Please insert username.</small>
-                </div>
-                <div class="form-group">
-                    <label for="input-password">Password</label>
-                    <input type="password" class="form-control" name="password" id="input-password" aria-describedby="input-password-help" required>
-                    <small id="input-password-help" class="form-text text-muted">Please insert password.</small>
-                </div>
-                <!--<div class="form-group form-check">
-            <input type="checkbox" class="form-check-input" id="check-remember">
-            <label class="form-check-label" name="remember" for="check-remember">Remember</label>
-        </div>-->
-                <button id="login-submit" class="btn btn-primary" type="button">Submit</button>
-            </form>
+            <div class="col-12">
+                <form autocomplete="on">
+                    <div class="form-group">
+                        <label for="input-user-name">User Name</label>
+                        <input type="text" class="form-control input-lg" name="username" id="input-user-name" aria-describedby="input-user-name-help" required>
+                        <small id="input-user-name-help" class="form-text text-muted">Please insert username.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-password">Password</label>
+                        <input type="password" class="form-control input-lg" name="password" id="input-password" aria-describedby="input-password-help" required>
+                        <small id="input-password-help" class="form-text text-muted">Please insert password.</small>
+                    </div>
+                    <!--<div class="form-group form-check">
+                <input type="checkbox" class="form-check-input" id="check-remember">
+                <label class="form-check-label" name="remember" for="check-remember">Remember</label>
+            </div>-->
+                    <button id="login-submit" class="btn btn-primary btn-lg btn-block" type="button"><p class="h1 font-enlarged"><i class="fas fa-sign-in-alt"></i>&nbsp;&nbsp;Submit</p></button>
+                </form>
+            </div>
         </div>
         <div class="row" id="alert-row">
 
