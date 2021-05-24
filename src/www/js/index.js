@@ -133,7 +133,8 @@ function bootstrap_table_uid_formatter(value, row, index, field) {
     up.text(p3 + ' (' + (row?.conf?.author || 'N/A') + ')');
     return `
         <div class="container-fluid">
-            <div class="row">${p.prop('outerHTML') + up.prop('outerHTML')}</div>
+            <div class="row">${p.prop('outerHTML')}</div>
+            <div class="row">${up.prop('outerHTML')}</div>
             <div class="row row-buffer pl-item-func-seen">
                 <a class="btn btn-danger btn-lg col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_seen(this); return false;"><p class="h1"><i class="fas fa-trash-alt"></i></p></a>
             </div>
