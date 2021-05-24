@@ -1,5 +1,7 @@
 let selected_playlist = null;
 let playlists_all = [];
+let playlist_selected_del_tmr = -1;
+let playlist_selected_del_cnt = 5;
 
 function set_button_enabled(btn, enabled) {
     let b = $(btn);
@@ -14,58 +16,72 @@ function set_button_enabled(btn, enabled) {
     }
 }
 
-function playlist_item_seen(ev) {
-    let $ev = $(ev);
-    let tmr = $ev.data('timer');
-    let restoreDelButton = function($ev) {
-        $ev.removeData('timer');
-        $ev.removeData('countdown');
-        $ev.html('<p class="h1"><i class="fas fa-trash-alt"></i></p>');
-        $ev.closest('.container-fluid').find('.pl-item-func').show();
-    };
-    if (tmr !== undefined && tmr!==null) {
-        clearTimeout(parseInt(tmr));
-        restoreDelButton($ev);
+function  playlist_selected_del_restore($ev) {
+    $ev.html('<p class="h1"><i class="fas fa-trash-alt"></i></p>');
+    $ev.closest('.container-fluid').find('.pl-item-func-iorder').show();
+    $ev.removeAttr('data-timer');
+}
+
+function playlist_selected_del_tmr_fun() {
+    playlist_selected_del_cnt--;
+    let waiting_del = $('.pl-item-func-seen').children('a[data-timer]');
+    if (playlist_selected_del_cnt) {
+        waiting_del.html('<p class="h1"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;'+ playlist_selected_del_cnt +'</p>');
+        playlist_selected_del_tmr = setTimeout(playlist_selected_del_tmr_fun, 1000);
     }
     else {
+        playlist_selected_del_restore(waiting_del);
+        playlist_selected_del_cnt = 5;
+        playlist_selected_del_tmr = -1;
+        waiting_del.each(function() {
+            let rid = parseInt($(this).data('rowid'));
+            let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:rid, seen:1}, function(msg) {
+                return msg.cmd === CMD_SEEN && msg.playlistitem == rid? msg:null;
+            }, 20000, 1);
+            qel.enqueue().then(function(msg) {
+                if (!manage_errors(msg)) {
+                    let row = $('#playlist-items-table').bootstrapTable('getRowByUniqueId', msg.playlistitem);
+                    toast_msg('Playlist item ' + row.title+' removed', 'success');
+                    $('#playlist-items-table').bootstrapTable('removeByUniqueId', msg.playlistitem);
+                    bootstrap_table_pagination_fix();
+                    selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(msg.playlistitem), 1);
+                }
+            })
+                .catch(function(err) {
+                    console.log(err);
+                    let errmsg = 'Exception detected: '+err;
+                    toast_msg(errmsg, 'danger');
+                });
+        });
+    }
+
+}
+
+function playlist_item_seen(ev) {
+    let $ev = $(ev);
+    let tmr = $ev.attr('data-timer');
+    playlist_selected_del_cnt = 5;
+    let waiting_del = $('.pl-item-func-seen').children('a[data-timer]');
+    if (tmr) {
+        if (waiting_del.length == 1 && playlist_selected_del_tmr>=0) {
+            clearTimeout(playlist_selected_del_tmr);
+            playlist_selected_del_tmr = -1;
+        }
+        playlist_selected_del_restore($ev);
+    }
+    else {
+        if (!waiting_del.length) {
+            playlist_selected_del_tmr = setTimeout(playlist_selected_del_tmr_fun, 1000);
+        }
         $ev.html('<p class="h1"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;5</p>');
         $ev.closest('.container-fluid').find('.pl-item-func').hide();
-        let funDel = function() {
-            let sec = parseInt(this.data('countdown')) - 1;
-            if (sec) {
-                this.html('<p class="h1"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;'+ sec +'</p>');
-                this.data('countdown', sec);
-                this.data('timer', setTimeout(funDel.bind(this), 1000));
-            }
-            else {
-                restoreDelButton(this);
-                let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:parseInt(this.data('rowid')), seen:1}, function(msg) {
-                    return msg.cmd === CMD_SEEN? msg:null;
-                }, 20000, 1);
-                qel.enqueue().then(function(msg) {
-                    if (!manage_errors(msg)) {
-                        let row = $('#playlist-items-table').bootstrapTable('getRowByUniqueId', msg.playlistitem);
-                        toast_msg('Playlist item ' + row.title+' removed', 'success');
-                        $('#playlist-items-table').bootstrapTable('removeByUniqueId', msg.playlistitem);
-                        bootstrap_table_pagination_fix();
-                        selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(msg.playlistitem), 1);
-                    }
-                })
-                    .catch(function(err) {
-                        console.log(err);
-                        let errmsg = 'Exception detected: '+err;
-                        toast_msg(errmsg, 'danger');
-                    });
-            }
-        };
-        $ev.data('countdown', 5);
-        $ev.data('timer', setTimeout(funDel.bind($ev), 1000));
+        $ev.attr('data-timer', 1);
     }
 }
 
 function playlist_item_move(ev) {
     let $ev = $(ev);
-    let $iorder = $ev.closest('.container-fluid').find('.pl-item-func-iorder');
+    let $iorder = $ev.closest('.container-fluid').find('.pl-item-func-iorder-sec');
     if ($iorder.is(':visible')) {
         $iorder.hide();
     }
@@ -118,13 +134,13 @@ function bootstrap_table_uid_formatter(value, row, index, field) {
     return `
         <div class="container-fluid">
             <div class="row">${p.prop('outerHTML') + up.prop('outerHTML')}</div>
-            <div class="row row-buffer">
+            <div class="row row-buffer pl-item-func-seen">
                 <a class="btn btn-danger btn-lg col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_seen(this); return false;"><p class="h1"><i class="fas fa-trash-alt"></i></p></a>
             </div>
-            <div class="row row-buffer pl-item-func">
+            <div class="row row-buffer pl-item-func pl-item-func-iorder">
                 <a class="btn btn-info btn-lg col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_move(this); return false;"><p class="h1">${row.iorder}</p></a>
             </div>
-            <div class="row row-buffer pl-item-func pl-item-func-iorder" style="display: none;">
+            <div class="row row-buffer pl-item-func pl-item-func-iorder-sec" style="display: none;">
                 <input type="number" class="col-6 input-lg"/><a class="btn btn-info btn-lg col-6 btn-block" data-rowid="${row.rowid}" href="#" role="button"><p class="h1"><i class="fas fa-dolly"></i></p></a>
             </div>
         </div>
