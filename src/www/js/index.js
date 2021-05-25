@@ -470,13 +470,15 @@ function bootstrap_table_pagination_fix() {
 }
 
 function index_global_init() {
-    $('#playlist-items-table').bootstrapTable({showHeader: false});
+    $('#playlist-items-table').bootstrapTable({showHeader: false}).on('load-success.bs.table page-change.bs.table', function() {
+        bootstrap_table_pagination_fix();
+    });
     $('.pl-select-view').hide();
     $('.pl-add-view').hide();
     $('.pl-update-view').hide();
     let $table =  $('#output-table');
     $table.bootstrapTable({showHeader: false});
-    $table.on('load-success.bs.table', function() {
+    $table.on('load-success.bs.table page-change.bs.table', function() {
         bootstrap_table_pagination_fix();
     });
     $('#update-button').click(function() {
