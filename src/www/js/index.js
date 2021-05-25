@@ -42,10 +42,11 @@ function playlist_selected_del_tmr_fun() {
         }, 20000, 1);
         qel.enqueue().then(function(msg) {
             if (!manage_errors(msg)) {
+                let $plitemsTable = $('#playlist-items-table');
                 for (let rid of lids) {
-                    let row = $('#playlist-items-table').bootstrapTable('getRowByUniqueId', rid);
+                    let row = $plitemsTable.bootstrapTable('getRowByUniqueId', rid);
                     toast_msg('Playlist item ' + row.title+' removed', 'success');
-                    $('#playlist-items-table').bootstrapTable('removeByUniqueId', rid);
+                    $plitemsTable.bootstrapTable('removeByUniqueId', rid);
                     bootstrap_table_pagination_fix();
                     selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(rid), 1);
                 }
