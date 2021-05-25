@@ -33,26 +33,30 @@ function playlist_selected_del_tmr_fun() {
         playlist_selected_del_restore(waiting_del);
         playlist_selected_del_cnt = 5;
         playlist_selected_del_tmr = -1;
+        let lids = [];
         waiting_del.each(function() {
-            let rid = parseInt($(this).data('rowid'));
-            let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:rid, seen:1}, function(msg) {
-                return msg.cmd === CMD_SEEN && msg.playlistitem == rid? msg:null;
-            }, 20000, 1);
-            qel.enqueue().then(function(msg) {
-                if (!manage_errors(msg)) {
-                    let row = $('#playlist-items-table').bootstrapTable('getRowByUniqueId', msg.playlistitem);
-                    toast_msg('Playlist item ' + row.title+' removed', 'success');
-                    $('#playlist-items-table').bootstrapTable('removeByUniqueId', msg.playlistitem);
-                    bootstrap_table_pagination_fix();
-                    selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(msg.playlistitem), 1);
-                }
-            })
-                .catch(function(err) {
-                    console.log(err);
-                    let errmsg = 'Exception detected: '+err;
-                    toast_msg(errmsg, 'danger');
-                });
+            lids.push(parseInt($(this).data('rowid')));
         });
+        let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:lids, seen:1}, function(msg) {
+            return msg.cmd === CMD_SEEN? msg:null;
+        }, 20000, 1);
+        qel.enqueue().then(function(msg) {
+            if (!manage_errors(msg)) {
+                for (let rid of lids) {
+                    let row = $('#playlist-items-table').bootstrapTable('getRowByUniqueId', rid);
+                    toast_msg('Playlist item ' + row.title+' removed', 'success');
+                    $('#playlist-items-table').bootstrapTable('removeByUniqueId', rid);
+                    bootstrap_table_pagination_fix();
+                    selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(rid), 1);
+                }
+            }
+        })
+            .catch(function(err) {
+                console.log(err);
+                let errmsg = 'Exception detected: '+err;
+                toast_msg(errmsg, 'danger');
+            });
+        
     }
 
 }
@@ -114,6 +118,13 @@ function playlist_item_move(ev) {
         });
         $iorder.show();
     }
+}
+
+function playlist_total_duration (pl) {
+    let durt = 0;
+    for (let i of pl.items)
+        durt += i.dur;
+    return durt;
 }
 
 function bootstrap_table_uid_formatter(value, row, index, field) {
@@ -436,6 +447,7 @@ function playlist_remove(ev) {
                         $('#output-table').bootstrapTable('removeByUniqueId', selected_playlist.rowid);
                         bootstrap_table_pagination_fix();
                         selected_playlist = null;
+                        docCookies.setItem(COOKIE_SELECTEDPL, -1);
                         playlist_interface_manage('add');
                     }
                 })
@@ -482,16 +494,19 @@ function index_global_init() {
             playlist_interface_manage('back-list');
         else if (func == 'back-list-update') {
             selected_playlist = null;
+            docCookies.setItem(COOKIE_SELECTEDPL, -1);
             playlist_interface_manage('add');
         }
         else if (func == 'back-playlist-update')
             playlist_interface_manage('back-list');
         else if (func == 'back-list') {
             selected_playlist = null;
+            docCookies.setItem(COOKIE_SELECTEDPL, -1);
             playlist_interface_manage('add');
         }
         else if (func == 'back-list-add') {
             selected_playlist = null;
+            docCookies.setItem(COOKIE_SELECTEDPL, -1);
             playlist_interface_manage('add');
         }
         else {
@@ -649,10 +664,18 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep, multicmd) 
                     no_more = false;
             }
             if (params) {
+                let rid = docCookies.getItem(COOKIE_SELECTEDPL);
                 params.success({
                     rows: msg.playlists,
                     total: msg.playlists.length
                 });
+                if (rid !== null) {
+                    let idxOf = msg.playlists.map(function(e) { return e.rowid; }).indexOf(parseInt(rid));
+                    if (idxOf >= 0) {
+                        playlist_select(msg.playlists[idxOf]);
+                        playlist_interface_manage('back-list');
+                    }
+                }
             }
             if (!no_more) {
                 console.log('More items to come...');
@@ -688,6 +711,7 @@ function playlist_select(ev) {
         selected_playlist = playlists_all[playlists_all.map(function(e) { return e.rowid; }).indexOf(rid)];
     }
     $('#playlist-items-table').bootstrapTable('load', selected_playlist.items);
+    docCookies.setItem(COOKIE_SELECTEDPL, selected_playlist.rowid);
     bootstrap_table_pagination_fix();
 }
 
@@ -732,7 +756,7 @@ function bootstrap_table_info_formatter(value, row, index, field) {
         tpstr += '<span class="badge badge-primary even-larger-badge">rai</span>&nbsp;&nbsp;';
     else
         tpstr += '<span class="badge badge-secondary even-larger-badge">mediaset</span>&nbsp;&nbsp;';
-    tpstr += '<p class="h1">Last Updated: ' + d.format('yyyy/mm/dd') + ' (' +row.items.length + ' items) - AutoUpdate ' + (row.autoupdate?'<i class="fas fa-check">':'<i class="fas fa-times">')+ '</i></p>';
+    tpstr += '<p class="h1">Last Updated: ' + d.format('yyyy/mm/dd') + ' (' +row.items.length + ' items - '+format_duration(playlist_total_duration(row)) +') - AutoUpdate ' + (row.autoupdate?'<i class="fas fa-check">':'<i class="fas fa-times">')+ '</i></p>';
     return tpstr;
 }
 

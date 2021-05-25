@@ -1,5 +1,6 @@
 const COOKIE_LOGIN = 'API_SESSION';
 const COOKIE_USERID = 'Userid';
+const COOKIE_SELECTEDPL = 'SelectedPl';
 const MAIN_PATH = '/static/';
 const CMD_DEL = 'del';
 const CMD_REN = 'ren';
@@ -48,7 +49,8 @@ function toast_msg(msg, type, html) {
 function find_user_cookie() {
     let cookies = document.cookie.split(';');
     for (let c of cookies) {
-        let splt = c.split('=');
+        console.log('cccc ' + c);
+        let splt = c.trim().split('=');
         if (splt[0] == COOKIE_USERID)
             return parseInt(splt[1]);
     }

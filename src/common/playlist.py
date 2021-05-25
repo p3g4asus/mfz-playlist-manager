@@ -520,6 +520,14 @@ class PlaylistMessage(JSONAble, Fieldable):
                 return x.rowid
             elif isinstance(x, int):
                 return x
+            elif isinstance(x, (list, tuple)):
+                xx = []
+                for z in x:
+                    if isinstance(z, PlaylistItem):
+                        xx.append(z.rowid)
+                    elif isinstance(z, int):
+                        xx.append(z)
+                return xx
         return None
 
     def playlistId(self):

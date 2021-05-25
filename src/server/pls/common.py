@@ -116,24 +116,25 @@ class MessageProcessor(AbstractMessageProcessor):
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
     async def processSeen(self, msg, userid, executor):
-        x = msg.playlistItemId()
-        if x is not None:
-            it = await PlaylistItem.loadbyid(self.db, rowid=x)
-            if it:
-                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
-                if pls:
-                    if pls[0].useri != userid:
-                        return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                    if await it.setSeen(self.db, msg.f("seen"), commit=True):
-                        return msg.ok(playlistitem=x)
+        llx = msg.playlistItemId()
+        if llx is not None:
+            lx = llx if isinstance(llx, list) else [llx]
+            for x in lx:
+                it = await PlaylistItem.loadbyid(self.db, rowid=x)
+                if it:
+                    pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+                    if pls:
+                        if pls[0].useri != userid:
+                            return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                        if not await it.setSeen(self.db, msg.f("seen"), commit=True):
+                            return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                     else:
-                        return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                        return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
                 else:
-                    msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
-            else:
-                return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                    return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+        return msg.ok(playlistitem=llx)
 
     async def processIOrder(self, msg, userid, executor):
         x = msg.playlistItemId()
