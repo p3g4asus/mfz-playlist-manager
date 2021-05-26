@@ -566,7 +566,7 @@ function index_global_init() {
                     let idx = playlists_all.map(function(e) { return e.rowid; }).indexOf(selected_playlist.rowid);
                     $('#output-table').bootstrapTable('updateRow', {index: idx, row: msg.playlist, replace: true});
                     playlists_all[idx] = selected_playlist = msg.playlist;
-                    $('#playlist-items-table').bootstrapTable('load', selected_playlist.items);
+                    $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);
                     bootstrap_table_pagination_fix();
                 }
                 else {
@@ -643,9 +643,10 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep, multicmd) 
         multicmd: multicmd || 0,
         playlist: null,
         useri: useri,
-        fast_videoidx: fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ null:fast_videoidx + fast_videostep
+        fast_videoidx: fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ 0:fast_videoidx + fast_videostep
     };
-
+    let $table = $('#output-table');
+    let $plitemsTable = $('#playlist-items-table');
     let el = new MainWSQueueElement(content_obj, function(msg) {
         return msg.cmd === CMD_DUMP? msg:null;
     }, 30000, 1);
@@ -659,8 +660,13 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep, multicmd) 
             let no_more = true;
             for (let p of msg.playlists) {
                 let pos = playlists_all.map(function(e) { return e.rowid; }).indexOf(p.rowid);
-                if (pos >= 0)
+                if (pos >= 0) {
                     playlists_all[pos].items.push(...p.items);
+                    $table.bootstrapTable('updateRow', {index:pos, row:playlists_all[pos], replace:true});
+                    if (selected_playlist && selected_playlist.rowid == playlists_all[pos].rowid) {
+                        $plitemsTable.bootstrapTable('append', p.items);
+                    }
+                }
                 else
                     playlists_all.push(p);
                 if (p.items.length === msg.fast_videostep)
@@ -713,7 +719,7 @@ function playlist_select(ev) {
         playlist_interface_manage('back-list');
         selected_playlist = playlists_all[playlists_all.map(function(e) { return e.rowid; }).indexOf(rid)];
     }
-    $('#playlist-items-table').bootstrapTable('load', selected_playlist.items);
+    $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);
     docCookies.setItem(COOKIE_SELECTEDPL, selected_playlist.rowid);
     bootstrap_table_pagination_fix();
 }
