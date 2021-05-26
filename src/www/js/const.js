@@ -47,14 +47,8 @@ function toast_msg(msg, type, html) {
 }
 
 function find_user_cookie() {
-    let cookies = document.cookie.split(';');
-    for (let c of cookies) {
-        console.log('cccc ' + c);
-        let splt = c.trim().split('=');
-        if (splt[0] == COOKIE_USERID)
-            return parseInt(splt[1]);
-    }
-    return null;
+    let rid = docCookies.getItem(COOKIE_USERID);
+    return rid !== null?parseInt(rid):null;
 }
 
 function format_duration(secs) {
