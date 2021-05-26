@@ -50,6 +50,7 @@ function playlist_selected_del_tmr_fun() {
                     bootstrap_table_pagination_fix();
                     selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(rid), 1);
                 }
+                playlist_update_in_list(selected_playlist);
             }
         })
             .catch(function(err) {
@@ -470,6 +471,13 @@ function bootstrap_table_pagination_fix() {
     $('.page-list').find('.dropdown-menu').addClass('input-lg');
 }
 
+function playlist_update_in_list(p) {
+    let idxof = playlists_all.map(function(e) { return e.rowid; }).indexOf(p.rowid);
+    if (idxof >= 0)
+        $('#output-table').bootstrapTable('updateRow', {index: idxof, row: p, replace: true});
+    return idxof;
+}
+
 function index_global_init() {
     $('#playlist-items-table').bootstrapTable({showHeader: false}).on('load-success.bs.table page-change.bs.table', function() {
         bootstrap_table_pagination_fix();
@@ -563,8 +571,7 @@ function index_global_init() {
                 else
                     toast_msg('I have found ' + msg.n_new +' new video(s).', 'success');
                 if (selected_playlist) {
-                    let idx = playlists_all.map(function(e) { return e.rowid; }).indexOf(selected_playlist.rowid);
-                    $('#output-table').bootstrapTable('updateRow', {index: idx, row: msg.playlist, replace: true});
+                    let idx = playlist_update_in_list(msg.playlist);
                     playlists_all[idx] = selected_playlist = msg.playlist;
                     $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);
                     bootstrap_table_pagination_fix();
@@ -612,7 +619,8 @@ function playlist_dump(plid) {
         let errmsg;
         if (!manage_errors(msg)) {
             if (msg.playlists.length) {
-                playlists_all[playlists_all.map(function(e) { return e.rowid; }).indexOf(plid)] = msg.playlists[0];
+                let idx = playlist_update_in_list(msg.playlists[0]);
+                playlists_all[idx] = msg.playlists[0];
                 playlist_select(msg.playlists[0]);
             }
         }
