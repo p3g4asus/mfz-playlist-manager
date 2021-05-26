@@ -143,7 +143,7 @@ function bootstrap_table_uid_formatter(value, row, index, field) {
         p3 = 'Date: N/A';
     //let p2 = '<p class="h6">Duration: ' + format_duration(row.dur) + '</p>';
     let up = $('<p class="h4">');
-    up.text(p3 + ' (' + (row?.conf?.author || 'N/A') + ')');
+    up.text(p3 + ' (' + (row.conf && row.conf.author?row.conf.author:'N/A') + ')');
     return `
         <div class="container-fluid">
             <div class="row">${p.prop('outerHTML')}</div>
