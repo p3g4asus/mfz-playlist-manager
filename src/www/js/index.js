@@ -750,16 +750,12 @@ function manage_errors(msg) {
 }
 
 function bootstrap_table_name_formatter(value, row, index, field) {
-    if (row.items.length) {
-        return `
-        <a data-rowid="${row.rowid}" href="#" onclick="playlist_select(this); return false;"><div class="thumb-container">
-            <img src="${row.items[0].img}" class="thumb-image">
-            <div class="thumb-name-overlay">${value}</div>
-        </div></a>
-            ` + '<br />' + bootstrap_table_info_formatter(value, row, index, field);
-    }
-    else
-        return value;
+    return `
+    <a data-rowid="${row.rowid}" href="#" onclick="playlist_select(this); return false;"><div class="thumb-container">
+        <img src="${row.items[0]?row.items[0].img:'./img/no-videos.png'}" class="thumb-image">
+        <div class="thumb-name-overlay">${value}</div>
+    </div></a>
+        ` + '<br />' + bootstrap_table_info_formatter(value, row, index, field);
 }
 
 function bootstrap_table_info_formatter(value, row, index, field) {
