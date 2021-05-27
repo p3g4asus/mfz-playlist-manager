@@ -208,7 +208,6 @@ async def login(request):
     if verified:
         await remember(request, response, verified)
         userid = identity2id(verified)
-        request.app.p.locked[userid] = False
         response.set_cookie(COOKIE_USERID, str(userid))
         return response
 
@@ -246,26 +245,17 @@ async def pls_h(request):
                 await ws.send_str(json.dumps(pl.err(501, MSG_UNAUTHORIZED), cls=MyEncoder))
                 break
             userid = identity2id(identity)
-            locked = request.app.p.locked
             for k, p in request.app.p.processors.items():
                 _LOGGER.debug(f'Checking {k}')
                 if p.interested(pl):
-                    multicmd = pl.f('multicmd')
-                    _LOGGER.debug(f'Lck = {locked[userid] if userid in locked else False} mcmd={multicmd}')
-                    if userid in locked and locked[userid] and locked[userid] != multicmd:
-                        await ws.send_str(json.dumps(pl.ok(wait=2), cls=MyEncoder))
+                    control_dict = dict(end=False, msg=pl)
+                    Timer(30, partial(send_ping, ws, control_dict))
+                    out = await p.process(ws, pl, userid, request.app.p.executor)
+                    control_dict["end"] = True
+                    if out:
                         break
                     else:
-                        control_dict = dict(end=False, msg=pl)
-                        Timer(30, partial(send_ping, ws, control_dict))
-                        out = await p.process(ws, pl, userid, request.app.p.executor)
-                        control_dict["end"] = True
-                        if out:
-                            if multicmd and (userid not in locked or not locked[userid] or locked[userid] == multicmd):
-                                locked[userid] = out.f('multicmd')
-                            break
-                        else:
-                            return ws
+                        return ws
         elif msg.type == WSMsgType.ERROR:
             _LOGGER.error('ws connection closed with exception %s' %
                           ws.exception())

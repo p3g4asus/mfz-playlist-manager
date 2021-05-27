@@ -88,13 +88,7 @@ class MessageProcessor(AbstractMessageProcessor):
             pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), useri=u, offset=vidx, limit=DUMP_LIMIT)
             _LOGGER.debug("Playlists are %s" % str(pl))
             if len(pl):
-                still_loading = False
-                if vidx is not None:
-                    for p in pl:
-                        if len(p.items) >= DUMP_LIMIT:
-                            still_loading = True
-                            break
-                return msg.ok(multicmd=msg.f('multicmd') if still_loading else False, playlist=None, playlists=pl, fast_videoidx=vidx, fast_videostep=DUMP_LIMIT if vidx is not None else None)
+                return msg.ok(playlist=None, playlists=pl, fast_videoidx=vidx, fast_videostep=DUMP_LIMIT if vidx is not None else None)
         return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
     async def processRen(self, msg, userid, executor):

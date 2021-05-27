@@ -633,7 +633,7 @@ function playlist_dump(plid) {
 }
 
 
-function playlists_dump(params, useri, fast_videoidx, fast_videostep, multicmd) {
+function playlists_dump(params, useri, fast_videoidx, fast_videostep) {
     if (useri === undefined) {
         useri = find_user_cookie();
         if (useri === null) {
@@ -648,7 +648,6 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep, multicmd) 
     }
     let content_obj = {
         cmd: CMD_DUMP,
-        multicmd: multicmd || 0,
         playlist: null,
         useri: useri,
         fast_videoidx: fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ 0:fast_videoidx + fast_videostep
@@ -696,10 +695,7 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep, multicmd) 
             }
             if (!no_more) {
                 console.log('More items to come...');
-                if (!msg.multicmd) {
-                    msg.multicmd = new Date().getTime();
-                }
-                playlists_dump(null, useri, msg.fast_videoidx, msg.fast_videostep, msg.multicmd);
+                playlists_dump(null, useri, msg.fast_videoidx, msg.fast_videostep);
             }
         }
     })
