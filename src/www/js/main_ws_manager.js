@@ -112,6 +112,7 @@ function main_ws_queue_process(msg) {
 function main_ws_reconnect() {
     if (main_ws) {
         main_ws.close();
+        main_ws = null;
     }
     else {
         main_ws_connect();
