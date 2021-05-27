@@ -709,11 +709,12 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep, multicmd) 
             if (params)
                 params.error(errmsg);
             toast_msg(errmsg, 'danger');
+            bootstrap_table_get_data_ws(params);
         });
 }
 
 function bootstrap_table_get_data_ws(params) {
-    main_ws_connect();
+    main_ws_reconnect();
     playlists_all = [];
     playlists_dump(params);
 }

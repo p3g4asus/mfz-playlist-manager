@@ -109,6 +109,15 @@ function main_ws_queue_process(msg) {
     }
 }
 
+function main_ws_reconnect() {
+    if (main_ws) {
+        main_ws.close();
+    }
+    else {
+        main_ws_connect();
+    }
+}
+
 
 function main_ws_connect() {
     let socket = new WebSocket('ws://' + location.host + '/ws');
@@ -119,10 +128,10 @@ function main_ws_connect() {
     };
     socket.onclose = function(e) {
         main_ws = null;
-        console.log('Socket is closed. Reconnect will be attempted in 30 second.', e.reason);
+        console.log('Socket is closed. Reconnect will be attempted in 10 second.', e.reason);
         setTimeout(function() {
             main_ws_connect();
-        }, 30000);
+        }, 10000);
     };
 
     socket.onerror = function(err) {
