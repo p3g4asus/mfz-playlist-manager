@@ -230,7 +230,11 @@ async def send_ping(ws, control_dict):
             waiting = control_dict['msg'].cmd
             _LOGGER.debug(f"Sending ping for {waiting}")
             await ws.send_str(json.dumps(PlaylistMessage(CMD_PING, dict(waiting=waiting)), cls=MyEncoder))
-            Timer(30, partial(send_ping, ws, control_dict))
+            if not ws.closed and not ws.wxception():
+                Timer(30, partial(send_ping, ws, control_dict))
+            else:
+                control_dict['end'] = True
+                _LOGGER.debug("Websocket is closed: ping not done")
         except Exception:
             control_dict['end'] = True
 
