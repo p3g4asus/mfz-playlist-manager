@@ -124,6 +124,6 @@
     line-height: 48px;
   }
 
-.datepicker .datepicker-months th, .datepicker .datepicker-years th {
+.datepicker .datepicker-months th, .datepicker .datepicker-years th, .datepicker .datepicker-centuries th, .datepicker .datepicker-decades th {
     padding: 40px 50px;
 }
