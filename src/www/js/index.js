@@ -563,12 +563,10 @@ function index_global_init() {
                 return null;
         }, 45000, 1);
         qel.enqueue().then(function(msg) {
-            if (manage_errors(msg)) {
-                $('#pl-update-view-progress').hide();
-                $('#pl-update-view-wake').trigger('pause');
-                $('#pl-update-view-update').show();
-            }
-            else {
+            $('#pl-update-view-progress').hide();
+            $('#pl-update-view-wake').trigger('pause');
+            $('#pl-update-view-update').show();
+            if (!manage_errors(msg)) {
                 if (!msg.n_new)
                     toast_msg('No new video found', 'warning');
                 else
