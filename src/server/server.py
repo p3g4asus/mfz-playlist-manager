@@ -4,6 +4,7 @@ import base64
 import glob
 import json
 import logging
+import logging.config
 import os
 import traceback
 from datetime import datetime, timedelta
@@ -29,6 +30,42 @@ from server.webhandlers import index, logout, login, modify_pw, pls_h, register,
 __prog__ = "pls-server"
 
 _LOGGER = logging.getLogger(__name__)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'local': {
+            'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        }
+    },
+    'handlers': {
+        'console2': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'local',
+        },
+    },
+    'root': {
+        'handlers': ['console2'],
+    },
+    # 'loggers': {
+    #     'server': {
+    #         'handlers': ['console2']
+    #     },
+    #     'webhandlers': {
+    #         'handlers': ['console2']
+    #     },
+    #     'sqliteauth': {
+    #         'handlers': ['console2']
+    #     },
+    #     'common': {
+    #         'handlers': ['console2']
+    #     },
+    #     'pls': {
+    #         'handlers': ['console2']
+    #     },
+    # }
+}
 
 # https://github.com/AndreMiras/p4a-service-sticky/blob/develop/main.py
 # https://github.com/kivy/kivy/wiki/Background-Service-using-P4A-android.service
@@ -360,6 +397,7 @@ def main():
         args = vars(parser.parse_args())
     if args["verbose"]:
         logging.basicConfig(level=logging.DEBUG)
+    logging.config.dictConfig(LOGGING)
 
     app.p.args = args
     loop = asyncio.get_event_loop()

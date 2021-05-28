@@ -177,13 +177,15 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                                      video.get('title'),
                                                                                      video.get('upload_date'),
                                                                                      video.get('duration')))
+                                        datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
                                         datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
                                         datepubo = datepubo + timedelta(seconds=secadd)
                                         secadd -= 1
-                                        datepubi = int(datepubo.timestamp() * 1000)
+                                        # datepubi = int(datepubo.timestamp() * 1000)
+                                        datepubi_conf = int(datepubo_conf.timestamp() * 1000)
                                         if video['id'] not in programs:
-                                            if datepubi >= datefrom:
-                                                if datepubi <= dateto or dateto < datefrom:
+                                            if datepubi_conf >= datefrom:
+                                                if datepubi_conf <= dateto or dateto < datefrom:
                                                     datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                                     conf = dict(playlist=set,
                                                                 userid=video.get('uploader_id'),

@@ -2,6 +2,7 @@ import json
 import logging
 from functools import partial
 from textwrap import dedent
+import traceback
 
 from aiohttp import WSMsgType, web
 from aiohttp_security import (authorized_userid, check_authorized, forget,
@@ -230,12 +231,13 @@ async def send_ping(ws, control_dict):
             waiting = control_dict['msg'].cmd
             _LOGGER.debug(f"Sending ping for {waiting}")
             await ws.send_str(json.dumps(PlaylistMessage(CMD_PING, dict(waiting=waiting)), cls=MyEncoder))
-            if not ws.closed and not ws.wxception():
+            if not ws.closed and not ws.exception():
                 Timer(30, partial(send_ping, ws, control_dict))
             else:
                 control_dict['end'] = True
                 _LOGGER.debug("Websocket is closed: ping not done")
         except Exception:
+            _LOGGER.debug(f"Exception detected {traceback.format_exc()}: Stop pinging")
             control_dict['end'] = True
 
 

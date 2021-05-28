@@ -319,6 +319,7 @@ function playlist_update(playlist) {
     $('#pl-update-view-date-start').val(d.format('yyyy-mm-dd'));
     $('#pl-update-view-date-end').val(new Date().format('yyyy-mm-dd'));
     $('#pl-update-view-progress').hide();
+    $('#pl-update-view-wake').trigger('pause');
     $('#pl-update-view-update').show();
 }
 
@@ -546,6 +547,7 @@ function index_global_init() {
     });
     $('#pl-update-view-update').click(function () {
         $('#pl-update-view-progress').show();
+        $('#pl-update-view-wake').trigger('play');
         $('#pl-update-view-update').hide();
         let qel = new MainWSQueueElement({
             cmd: CMD_REFRESH, 
@@ -563,6 +565,7 @@ function index_global_init() {
         qel.enqueue().then(function(msg) {
             if (manage_errors(msg)) {
                 $('#pl-update-view-progress').hide();
+                $('#pl-update-view-wake').trigger('pause');
                 $('#pl-update-view-update').show();
             }
             else {
@@ -590,6 +593,7 @@ function index_global_init() {
                 let errmsg = 'Exception detected: '+err;
                 toast_msg(errmsg, 'danger');
                 $('#pl-update-view-progress').hide();
+                $('#pl-update-view-wake').trigger('pause');
                 $('#pl-update-view-update').show();
             });
     });
