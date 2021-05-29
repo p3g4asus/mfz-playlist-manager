@@ -621,6 +621,8 @@ function playlist_add_button_change_function(func)  {
 function playlist_interface_manage(func) {
     if (func == 'add') {
         $('.pl-select-view').hide();
+        $('.pl-add-view').hide();
+        $('.' + PL_ADD_VIEW_TYPE_CLASS).remove();
         $('.pl-list-view').fadeIn(1000);
         playlist_add_button_change_function(func);
     }
@@ -633,12 +635,14 @@ function playlist_interface_manage(func) {
     else if (func == 'back-playlist-update') {
         $('.pl-select-view').hide();
         $('.pl-add-view').hide();
+        $('.' + PL_ADD_VIEW_TYPE_CLASS).remove();
         $('.pl-update-view').fadeIn(1000);
         playlist_add_button_change_function(func);
     }
     else if (func == 'back-list-update') {
         $('.pl-list-view').hide();
         $('.pl-add-view').hide();
+        $('.' + PL_ADD_VIEW_TYPE_CLASS).remove();
         $('.pl-select-view').hide();
         $('.pl-update-view').fadeIn(1000);
         playlist_add_button_change_function(func);
@@ -653,6 +657,7 @@ function playlist_interface_manage(func) {
     else if (func == 'back-list') {
         $('.pl-list-view').hide();
         $('.pl-add-view').hide();
+        $('.' + PL_ADD_VIEW_TYPE_CLASS).remove();
         $('.pl-update-view').hide();
         $('.pl-select-view').fadeIn(1000);
         playlist_add_button_change_function(func);
