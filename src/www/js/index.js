@@ -252,6 +252,10 @@ function playlist_medrai_get_subbrands(brandid, type) {
 function playlist_medrai_get_listings_ws(listings_cmd, params) {
     let $listingsTable = $('#pl-add-view-medrai-listings-table');
     $listingsTable.bootstrapTable('removeAll');
+    let $progress = $('#pl-add-view-medrai-progress');
+    let $search = $('#pl-add-view-medrai-search');
+    $progress.show();
+    $search.hide();
     let qel = new MainWSQueueElement(listings_cmd, function(msg) {
         if (msg.cmd == CMD_PING)
             return 0;
@@ -261,7 +265,11 @@ function playlist_medrai_get_listings_ws(listings_cmd, params) {
             return null;
     }, 45000, 1);
     qel.enqueue().then(function(msg) {
+        let $progress = $('#pl-add-view-medrai-progress');
+        let $search = $('#pl-add-view-medrai-search');
         let errmsg;
+        $progress.hide();
+        $search.show();
         if ((errmsg = manage_errors(msg))) {
             if (params)
                 params.error(errmsg);
@@ -278,6 +286,10 @@ function playlist_medrai_get_listings_ws(listings_cmd, params) {
         }
     })
         .catch(function(err) {
+            let $progress = $('#pl-add-view-medrai-progress');
+            let $search = $('#pl-add-view-medrai-search');
+            $progress.hide();
+            $search.show();
             console.log(err);
             let errmsg = 'Exception detected: '+err;
             toast_msg(errmsg, 'danger');
@@ -392,9 +404,8 @@ let playlist_types = {
             $brandsTable.bootstrapTable('load', pl.conf.subbrands?pl.conf.subbrands:[]);
             $brandsTable.bootstrapTable('checkAll');
 
-            let $progress = el.find('#pl-add-view-medrai-progress');
-            $progress.hide();
             let $search = el.find('#pl-add-view-medrai-search');
+            $search.hide();
             $search.click(function() {
                 playlist_medrai_get_subbrands($man.val(), type);
                 return false;
