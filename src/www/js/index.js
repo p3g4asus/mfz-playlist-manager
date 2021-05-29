@@ -2,6 +2,7 @@ let selected_playlist = null;
 let playlists_all = [];
 let playlist_selected_del_tmr = -1;
 let playlist_selected_del_cnt = 5;
+const bootstrap_styles = ['primary', 'secondary', 'success', 'warning', 'danger', 'info', 'light', 'dark'];
 
 function set_button_enabled(btn, enabled) {
     let b = $(btn);
@@ -47,7 +48,6 @@ function playlist_selected_del_tmr_fun() {
                     let row = $plitemsTable.bootstrapTable('getRowByUniqueId', rid);
                     toast_msg('Playlist item ' + row.title+' removed', 'success');
                     $plitemsTable.bootstrapTable('removeByUniqueId', rid);
-                    bootstrap_table_pagination_fix();
                     selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(rid), 1);
                 }
                 playlist_update_in_list(selected_playlist);
@@ -173,7 +173,274 @@ function bootstrap_table_img_formatter(value, row, index, field) {
         `;
 }
 
+function playlist_medrai_listings_formatter(value, row, index, field, type) {
+    return `
+    <a data-id="${row.id}" data-type="${type}" href="#" onclick="playlist_listings_select(this); return false;">
+    ${playlist_medrai_brands_formatter(value, row, index, field, type)}
+    </a>`;
+}
+
+function playlist_mediaset_listings_formatter(value, row, index, field) {
+    return playlist_medrai_listings_formatter(value, row, index, field, 'mediaset');
+}
+
+function playlist_rai_listings_formatter(value, row, index, field) {
+    return playlist_medrai_listings_formatter(value, row, index, field, 'rai');
+}
+
+function playlist_medrai_brands_formatter(value, row, index, field, type) {
+    return `
+        <span class="col-12 badge badge-${bootstrap_styles[index%bootstrap_styles.length]}">
+        <p class="h1">${row.desc?row.desc:(row.title?row.title:'N/A')} (${(row.desc?row.title + '/':'') + row.id})</p></span>`;
+    // <p class="h1">${row.desc?row.desc:row.title}</p>
+    // <p class="h2">${(row.desc?row.title + '/':'') + row.id}</p>`;
+}
+
+function playlist_rai_brands_formatter(value, row, index, field) {
+    return playlist_medrai_brands_formatter(value, row, index, field, 'rai');
+}
+
+function playlist_mediaset_brands_formatter(value, row, index, field) {
+    return playlist_medrai_brands_formatter(value, row, index, field, 'mediaset');
+}
+
+function playlist_medrai_get_subbrands(brandid, type) {
+    let msg_obj = {};
+    current_playlist.conf.subbrands = [];
+    $('#pl-add-view-medrai-brands-table').bootstrapTable('removeAll');
+    
+    if (type == 'mediaset') {
+        msg_obj = {
+            cmd: CMD_MEDIASET_BRANDS,
+            brand: parseInt(brandid)
+        };
+    }
+    else {
+        msg_obj = {
+            cmd: CMD_RAI_CONTENTSET,
+            brand: brandid
+        };
+    }
+    let $progress = $('#pl-add-view-medrai-progress');
+    let $search = $('#pl-add-view-medrai-search');
+    $progress.show();
+    $search.hide();
+    let qel = new MainWSQueueElement(msg_obj, function(msg) {
+        if (msg.cmd == CMD_PING)
+            return 0;
+        else if (msg.cmd == msg_obj.cmd)
+            return msg;
+        else
+            return null;
+    }, 45000, 1);
+    qel.enqueue().then(function(msg) {
+        $progress.hide();
+        $search.show();
+        if (!manage_errors(msg)) {
+            $('#pl-add-view-medrai-brands-table').bootstrapTable('load', msg.brands);
+        }
+    })
+        .catch(function(err) {
+            $progress.hide();
+            $search.show();
+            console.log(err);
+            let errmsg = 'Exception detected: '+err;
+            toast_msg(errmsg, 'danger');
+        });
+}
+
+function playlist_medrai_get_listings_ws(listings_cmd, params) {
+    let $listingsTable = $('#pl-add-view-medrai-listings-table');
+    $listingsTable.bootstrapTable('removeAll');
+    let qel = new MainWSQueueElement(listings_cmd, function(msg) {
+        if (msg.cmd == CMD_PING)
+            return 0;
+        else if (msg.cmd == listings_cmd.cmd)
+            return msg;
+        else
+            return null;
+    }, 45000, 1);
+    qel.enqueue().then(function(msg) {
+        let errmsg;
+        if ((errmsg = manage_errors(msg))) {
+            if (params)
+                params.error(errmsg);
+        }
+        else {
+            if (params)
+                params.success({
+                    rows: msg.brands,
+                    total: msg.brands.length
+                });
+            else {
+                $listingsTable.bootstrapTable('load', msg.brands);
+            }
+        }
+    })
+        .catch(function(err) {
+            console.log(err);
+            let errmsg = 'Exception detected: '+err;
+            toast_msg(errmsg, 'danger');
+            if (params)
+                params.error(errmsg);
+        });
+}
+
+function playlist_rai_get_listings_ws(params) {
+    playlist_medrai_get_listings_ws({cmd: CMD_RAI_LISTINGS}, params);
+}
+
+function playlist_mediaset_get_listings_ws(params) {
+    playlist_medrai_get_listings_ws({cmd: CMD_MEDIASET_LISTINGS, datestart: new Date().getTime()}, params);
+}
+
+function playlist_listings_select(ael) {
+    let $ael = $(ael);
+    let did = $ael.data('id');
+    let $man = $('#pl-add-view-medrai-manual');
+    current_playlist.conf.brand = {id: did};
+    $man.val(did);
+
+    playlist_medrai_get_subbrands(did, $ael.data('type'));
+}
+
 let playlist_types = {
+    medrai: {
+        on_add: function(pl) {
+            return pl.conf.subbrands && pl.conf.subbrands.length;
+        },
+        add: function(pl, type) {
+            let el = $(`
+                <div id="pl-add-view-medrai">
+                    <div class="row row-buffer">
+                        <div class="col-12">
+                            <form id="pl-add-view-medrai-form" class="form">
+                                <div class="form-row">
+                                    <div class="col-md-12 mb-3">
+                                        <label for="pl-add-view-medrai-manual">Program ID<br /></label>
+                                        <input type="text" class="form-control-plaintext input-lg" id="pl-add-view-medrai-manual" required/>
+                                        <div class="invalid-feedback">
+                                            Please insert a valid Program ID
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="col-12">
+                                        <a id="pl-add-view-medrai-search" class="btn btn-primary btn-lg col-12 btn-block disabled" href="#" role="button"><p class="h1 font-enlarged"><i class="fas fa-search"></i>&nbsp;&nbsp;Search</p></a>
+                                        <div id="pl-add-view-medrai-progress" class="progress bigger-progress">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row" id="pl-add-view-medrai-append">
+                                </div>
+                                <div class="form-row">
+                                    <div class="col-12">
+                                        <table id="pl-add-view-medrai-listings-table" data-maintain-meta-data="true" data-page-size="10" data-pagination="true" data-show-header="false" data-classes="table table-borderless table-hover table-condensed" data-single-select="true" data-search="true" data-ajax="playlist_${type}_get_listings_ws">
+                                            <thead>
+                                                <tr>
+                                                    <th data-field="id" data-visible="true" data-formatter="playlist_${type}_listings_formatter">Name</th>
+                                                </tr>
+                                            </thead>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="col-12">
+                                        <table id="pl-add-view-medrai-brands-table" data-page-size="10" data-pagination="true" data-show-header="false" data-classes="table table-borderless table-hover table-condensed" data-multiple-select-row="true" data-click-to-select="true">
+                                            <thead>
+                                                <tr>
+                                                    <th data-field="state" data-checkbox="true"></th>
+                                                    <th data-field="id" data-visible="true" data-formatter="playlist_${type}_brands_formatter">Name</th>
+                                                </tr>
+                                            </thead>
+                                        </table>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `);
+            let $man = el.find('#pl-add-view-medrai-manual');
+            $man.on('input', function() {
+                let v = $(this).val();
+                let valid =  playlist_types[type].brand_regexp().exec(v);
+                let wasvalid = !$(this).hasClass('is-invalid');
+                set_button_enabled('#pl-add-view-medrai-search',valid);
+                if (!wasvalid && valid)
+                    $(this).removeClass('is-invalid');
+                else if (wasvalid && !valid)
+                    $(this).addClass('is-invalid');
+            });
+            let $brandsTable = el.find('#pl-add-view-medrai-brands-table');
+            $brandsTable.bootstrapTable().on('check.bs.table uncheck.bs.table ' +
+                'check-all.bs.table uncheck-all.bs.table', function() {
+                let sels = $brandsTable.bootstrapTable('getSelections');
+                pl.conf.brand = {id: playlist_types[type].id_convert($man.val())};
+                pl.conf.subbrands = [...sels];
+            });
+            let $app = playlist_types[type].append_row();
+            let $appTo = el.find('#pl-add-view-medrai-append');
+            if ($app)
+                $appTo.append($app);
+            else
+                $appTo.remove();
+            let $listingsTable = el.find('#pl-add-view-medrai-listings-table');
+            $listingsTable.bootstrapTable();
+            $man.val(pl.conf.brand?pl.conf.brand.id:'');
+            $brandsTable.bootstrapTable('load', pl.conf.subbrands?pl.conf.subbrands:[]);
+            $brandsTable.bootstrapTable('checkAll');
+
+            let $progress = el.find('#pl-add-view-medrai-progress');
+            $progress.hide();
+            let $search = el.find('#pl-add-view-medrai-search');
+            $search.click(function() {
+                playlist_medrai_get_subbrands($man.val(), type);
+                return false;
+            });
+            return el.children().addClass(PL_ADD_VIEW_TYPE_CLASS);
+        }
+    },
+    rai: {
+        on_add: function(pl) {
+            return playlist_types.medrai.on_add(pl);
+        },
+        add: function(pl) {
+            return playlist_types.medrai.add(pl, 'rai');
+        },
+        brand_regexp() {
+            return /^[a-zA-Z0-9_&\-\\+]+$/;
+        },
+        append_row() {
+            return null;
+        },
+        id_convert(id) {
+            return id;
+        }
+    },
+    mediaset: {
+        on_add: function(pl) {
+            return playlist_types.medrai.on_add(pl);
+        },
+        add: function(pl) {
+            return playlist_types.medrai.add(pl, 'mediaset');
+        },
+        brand_regexp() {
+            return /^[0-9]+$/;
+        },
+        append_row() {
+            return $('<div>').datepicker({
+                todayHighlight: true
+            }).datepicker('update', new Date()).on('changeDate', function(e) {
+                playlist_medrai_get_listings_ws({cmd: CMD_MEDIASET_LISTINGS, datestart: e.date.getTime()}, null);
+                return false;
+            });
+        },
+        id_convert(id) {
+            return parseInt(id);
+        }
+    },
     youtube: {
         on_add: function(pl) {
             return pl.conf.playlists.length;
@@ -246,9 +513,8 @@ let playlist_types = {
                 return alert.addClass(PL_ADD_VIEW_TYPE_CLASS);
             };
             let i = 0;
-            let types = ['primary', 'secondary', 'success', 'warning', 'danger', 'info', 'light', 'dark'];
             for(let c2 of pl.conf.playlists) {
-                el.append(single_el(c2, pl, types[i%types.length]));
+                el.append(single_el(c2, pl, bootstrap_styles[i%bootstrap_styles.length]));
                 i++;
             }
             let $link = el.find('#pl-add-view-youtube-link');
@@ -280,7 +546,7 @@ let playlist_types = {
                                 toast_msg('Playlist ' + brandinfo.title+' added', 'success');
                                 brandinfo.ordered = $('#pl-add-view-youtube-ordered').is(':checked');
                                 pl.conf.playlists.push(brandinfo);
-                                $($('.pl-add-view-youtube-row1').parents('div')[0]).append(single_el(brandinfo, pl, types[(pl.conf.playlists.length-1)%types.length]));
+                                $($('.pl-add-view-youtube-row1').parents('div')[0]).append(single_el(brandinfo, pl, bootstrap_styles[(pl.conf.playlists.length-1)%bootstrap_styles.length]));
                                 $link.val('');
                                 set_button_enabled('#pl-add-view-youtube-search', false);
                                 set_button_enabled('#pl-add-view-add', true);
@@ -350,13 +616,6 @@ function playlist_add_button_change_function(func)  {
         $('#add-button').removeClass('btn-secondary').addClass('btn-success').html('<p class="h1 font-enlarged"><i class="fas fa-plus"></i>&nbsp;&nbsp;Add</p>').data('func', func);
     else 
         $('#add-button').removeClass('btn-success').addClass('btn-secondary').html('<p class="h1 font-enlarged"><i class="fas fa-arrow-left"></i>&nbsp;&nbsp;Back</p>').data('func', func);
-}
-
-function bootstrap_table_show_pagination(sel, val) {
-    if (val)
-        $(sel).closest('.bootstrap-table').find('.fixed-table-pagination').show();
-    else
-        $(sel).closest('.bootstrap-table').find('.fixed-table-pagination').fadeOut(1000);
 }
 
 function playlist_interface_manage(func) {
@@ -448,7 +707,6 @@ function playlist_remove(ev) {
                     if (!manage_errors(msg)) {
                         playlists_all.splice(playlists_all.map(function(e) { return e.rowid; }).indexOf(selected_playlist.rowid), 1);
                         $('#output-table').bootstrapTable('removeByUniqueId', selected_playlist.rowid);
-                        bootstrap_table_pagination_fix();
                         selected_playlist = null;
                         docCookies.setItem(COOKIE_SELECTEDPL, -1);
                         playlist_interface_manage('add');
@@ -464,12 +722,6 @@ function playlist_remove(ev) {
         $ev.data('countdown', 5);
         $ev.data('timer', setTimeout(funDel.bind($ev), 1000));
     }
-}
-
-function bootstrap_table_pagination_fix() {
-    $('.fixed-table-pagination').addClass('input-lg');
-    $('.page-size').addClass('input-lg');
-    $('.page-list').find('.dropdown-menu').addClass('input-lg');
 }
 
 function playlist_update_in_list(p) {
@@ -498,17 +750,12 @@ function playlist_update_destroy_wake() {
 }
 
 function index_global_init() {
-    $('#playlist-items-table').bootstrapTable({showHeader: false}).on('load-success.bs.table page-change.bs.table', function() {
-        bootstrap_table_pagination_fix();
-    });
+    $('#playlist-items-table').bootstrapTable({showHeader: false});
     $('.pl-select-view').hide();
     $('.pl-add-view').hide();
     $('.pl-update-view').hide();
     let $table =  $('#output-table');
     $table.bootstrapTable({showHeader: false});
-    $table.on('load-success.bs.table page-change.bs.table', function() {
-        bootstrap_table_pagination_fix();
-    });
     $('#update-button').click(function() {
         playlist_interface_manage('back-playlist-update');
         playlist_update(current_playlist = selected_playlist);
@@ -593,12 +840,10 @@ function index_global_init() {
                     let idx = playlist_update_in_list(msg.playlist);
                     playlists_all[idx] = selected_playlist = msg.playlist;
                     $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);
-                    bootstrap_table_pagination_fix();
                 }
                 else {
                     playlists_all.push(msg.playlist);
                     $('#output-table').bootstrapTable('append', [msg.playlist]);
-                    bootstrap_table_pagination_fix();
                     playlist_select(msg.playlist);
                 }
                 playlist_interface_manage('back-list');
@@ -746,7 +991,6 @@ function playlist_select(ev) {
     }
     $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);
     docCookies.setItem(COOKIE_SELECTEDPL, selected_playlist.rowid);
-    bootstrap_table_pagination_fix();
 }
 
 function manage_errors(msg) {

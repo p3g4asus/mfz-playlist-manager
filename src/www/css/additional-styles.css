@@ -127,3 +127,17 @@
 .datepicker .datepicker-months th, .datepicker .datepicker-years th, .datepicker .datepicker-centuries th, .datepicker .datepicker-decades th {
     padding: 40px 50px;
 }
+
+.datepicker.datepicker-inline td, .datepicker.datepicker-inline th {
+    font-size: 40px;
+    line-height: 48px;
+}
+
+.fixed-table-pagination span, .fixed-table-pagination .dropdown-item, .fixed-table-pagination .page-list, .fixed-table-pagination .page-size, .fixed-table-pagination .page-link,
+.fixed-table-loading .loading-text  {
+    font-size: 2.5rem;
+}
+
+.table-condensed>thead>tr>th, .table-condensed>tbody>tr>th, .table-condensed>tfoot>tr>th, .table-condensed>thead>tr>td, .table-condensed>tbody>tr>td, .table-condensed>tfoot>tr>td{
+    padding: 5px;
+}
