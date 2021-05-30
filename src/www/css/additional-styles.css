@@ -141,3 +141,14 @@
 .table-condensed>thead>tr>th, .table-condensed>tbody>tr>th, .table-condensed>tfoot>tr>th, .table-condensed>thead>tr>td, .table-condensed>tbody>tr>td, .table-condensed>tfoot>tr>td{
     padding: 5px;
 }
+
+.col-12.badge p {
+    text-align: left;
+}
+
+td.bs-checkbox input {
+    top: 0.1rem !important;
+    left: -2rem !important;
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+}

@@ -191,9 +191,9 @@ function playlist_rai_listings_formatter(value, row, index, field) {
 function playlist_medrai_brands_formatter(value, row, index, field, type) {
     return `
         <span class="col-12 badge badge-${bootstrap_styles[index%bootstrap_styles.length]}">
-        <p class="h1">${row.desc?row.desc:(row.title?row.title:'N/A')} (${(row.desc?row.title + '/':'') + row.id})</p></span>`;
-    // <p class="h1">${row.desc?row.desc:row.title}</p>
-    // <p class="h2">${(row.desc?row.title + '/':'') + row.id}</p>`;
+            <p class="h1">${row.desc?row.desc:(row.title?row.title:'N/A')}</p>
+            <p class="h2">${(row.desc?row.title + '/':'') + row.id}</p>
+        </span>`;
 }
 
 function playlist_rai_brands_formatter(value, row, index, field) {
