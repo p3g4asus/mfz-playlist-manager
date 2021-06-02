@@ -144,10 +144,10 @@ async def redirect_till_last(request):
         headers = {"range": "bytes=0-10", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
         async with ClientSession() as session:
             async with session.get(request.query['link'], headers=headers) as resp:
-                if resp.status == 200:
+                if resp.status >= 200 and resp.status < 300:
                     return web.HTTPFound(resp.url)
                 else:
-                    return resp
+                    return web.StreamResponse(status=resp.status, reason=resp.reason)
     return web.HTTPBadRequest(body='Link not found in URL')
 
 
