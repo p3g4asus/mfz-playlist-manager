@@ -315,10 +315,18 @@ async def start_app(app):
     cors.add(resource.add_route('GET', playlist_m3u), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
-    app.router.add_route('GET', '/m.m3u8', playlist_m3u)
-    app.router.add_route('GET', '/ytdl', youtube_dl_do)
-    app.router.add_route('GET', '/ytto', youtube_redir_do)
-    app.router.add_route('GET', '/red', redirect_till_last)
+    resource = cors.add(app.router.add_resource("/red"))
+    cors.add(resource.add_route('GET', redirect_till_last), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
+    })
+    resource = cors.add(app.router.add_resource("/ytdl"))
+    cors.add(resource.add_route('GET', youtube_dl_do), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
+    })
+    resource = cors.add(app.router.add_resource("/ytto"))
+    cors.add(resource.add_route('GET', youtube_redir_do), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
+    })
     app.router.add_route('GET', '/ws', pls_h)
     await runner.setup()
     _LOGGER.info("Creating site (%s:%d)" % (app.p.args["host"], app.p.args["port"]))
