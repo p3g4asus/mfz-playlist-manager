@@ -25,7 +25,7 @@ from common.timer import Timer
 from common.utils import asyncio_graceful_shutdown
 from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.sqliteauth import SqliteAuthorizationPolicy
-from server.webhandlers import index, logout, login, modify_pw, pls_h, register, playlist_m3u, youtube_dl_do, youtube_redir_do
+from server.webhandlers import index, logout, login, modify_pw, pls_h, register, playlist_m3u, youtube_dl_do, youtube_redir_do, redirect_till_last
 
 __prog__ = "pls-server"
 
@@ -318,6 +318,7 @@ async def start_app(app):
     app.router.add_route('GET', '/m.m3u8', playlist_m3u)
     app.router.add_route('GET', '/ytdl', youtube_dl_do)
     app.router.add_route('GET', '/ytto', youtube_redir_do)
+    app.router.add_route('GET', '/red', redirect_till_last)
     app.router.add_route('GET', '/ws', pls_h)
     await runner.setup()
     _LOGGER.info("Creating site (%s:%d)" % (app.p.args["host"], app.p.args["port"]))

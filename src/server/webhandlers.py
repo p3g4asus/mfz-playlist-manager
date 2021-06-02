@@ -4,7 +4,7 @@ from functools import partial
 from textwrap import dedent
 import traceback
 
-from aiohttp import WSMsgType, web
+from aiohttp import WSMsgType, web, ClientSession
 from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
 import youtube_dl
@@ -136,6 +136,18 @@ async def youtube_dl_do(request):
         if '_err' not in playlist_dict:
             return web.json_response(playlist_dict)
     _LOGGER.debug("url = %s answ is %s" % (current_url, str(playlist_dict)))
+    return web.HTTPBadRequest(body='Link not found in URL')
+
+
+async def redirect_till_last(request):
+    if 'link' in request.query:
+        headers = {"range": "bytes=0-10", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
+        async with ClientSession() as session:
+            async with session.get(request.query['link'], headers=headers) as resp:
+                if resp.status == 200:
+                    return web.HTTPFound(resp.url)
+                else:
+                    return resp
     return web.HTTPBadRequest(body='Link not found in URL')
 
 

@@ -294,11 +294,22 @@ class PlaylistItem(JSONAble, Fieldable):
             return self.uid and self.uid == other.uid and\
                 self.playlist == other.playlist and self.playlist
 
+    def get_conv_link(self, host, conv):
+        if conv == 0:
+            return self.link
+        elif conv == 1:
+            piece = 'ytdl'
+        elif conv == 2:
+            piece = 'ytto'
+        elif conv == 3:
+            piece = 'red'
+        return f"http://{host}/{piece}?{urllib.parse.urlencode(dict(link=self.link))}"
+
     def toJSON(self, host='', conv=0, **kwargs):
         dct = vars(self)
         if conv:
             dct = dict(**dct)
-            dct['link'] = f"http://{host}/{'ytdl' if conv==1 else 'ytto'}?{urllib.parse.urlencode(dict(link=self.link))}"
+            dct['link'] = self.get_conv_link(host, conv)
         # del dct['playlist']
         return dct
 
@@ -384,7 +395,7 @@ class PlaylistItem(JSONAble, Fieldable):
         return rv
 
     def toM3U(self, host, conv):
-        return "#EXTINF:0,%s\n%s\n" % (self.title if self.title else "N/A", f"http://{host}/{'ytdl' if conv==1 else 'ytto'}?{urllib.parse.urlencode(dict(link=self.link))}" if conv else self.link)
+        return "#EXTINF:0,%s\n%s\n" % (self.title if self.title else "N/A", self.get_conv_link(host, conv))
 
     async def isPresent(self, db):
         if not self.playlist or not self.uid:
