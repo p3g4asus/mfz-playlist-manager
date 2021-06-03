@@ -60,6 +60,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             if x.rowid is not None:
                 c = x.conf
                 n = x.name
+                u = x.autoupdate
                 x = await Playlist.loadbyid(self.db, rowid=x.rowid, loaditems=LOAD_ITEMS_ALL)
                 if x and len(x):
                     x = x[0]
@@ -69,6 +70,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                     return msg.err(502, MSG_UNAUTHORIZED, playlist=None)
                 x.conf = c
                 x.name = n
+                x.autoupdate = u
             elif x.items is None:
                 x.items = []
             resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid, executor=executor)
