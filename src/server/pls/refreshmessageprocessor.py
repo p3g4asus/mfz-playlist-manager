@@ -128,6 +128,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             if x.rowid is not None:
                 c = x.conf
                 n = x.name
+                u = x.autoupdate
                 x = await Playlist.loadbyid(self.db, rowid=x.rowid, loaditems=LOAD_ITEMS_ALL)
                 if x and len(x):
                     x = x[0]
@@ -137,6 +138,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                     return msg.err(502, MSG_UNAUTHORIZED, playlist=None)
                 x.conf = c
                 x.name = n
+                x.autoupdate = u
                 if not datefrom and len(x.items):
                     datefrom = x.items[-1].parsed_datepub()
                     _LOGGER.debug("Parsed datefrom %s" % str(datefrom))
