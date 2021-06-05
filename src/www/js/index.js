@@ -922,7 +922,7 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep) {
                 params.error('No User Cookie Found. Redirecting to login');
             toast_msg('No User Cookie Found. Redirecting to login', 'danger');
             setTimeout(function() {
-                window.location.assign(MAIN_PAYH_S + 'login.htm');
+                window.location.assign(MAIN_PATH_S + 'login.htm');
             }, 5000);
             return;
         }
@@ -1017,7 +1017,7 @@ function manage_errors(msg) {
         toast_msg(errmsg, 'danger');
         if (msg.rv == 501 || msg.rv == 502)
             setTimeout(function() {
-                window.location.assign(MAIN_PAYH_S + 'login.htm');
+                window.location.assign(MAIN_PATH_S + 'login.htm');
             }, 5000);
         return errmsg;
     }

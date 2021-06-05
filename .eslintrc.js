@@ -17,6 +17,7 @@ module.exports = {
         'main_ws_connect': true,
         'main_ws_reconnect': true,
         'MAIN_PATH': true,
+        'MAIN_PATH_S': true,
         'CMD_PING': true,
         'Playlist': true,
         'CMD_DUMP': true,
