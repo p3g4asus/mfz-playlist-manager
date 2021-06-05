@@ -28,12 +28,12 @@ function login_google_attach_signin(element) {
         function(googleUser) {
             console.log('Google User name ' + googleUser.getBasicProfile().getName());
             $.ajax({
-                url: window.location.origin + '/login_g',
+                url: window.location.origin + MAIN_PATH + '/login_g',
                 type: 'post',
                 data: 'idtoken=' + googleUser.getAuthResponse().id_token,
                 success: function(data, textStatus, request) {
                     console.log(listCookies());
-                    window.location.assign(MAIN_PATH + 'index.htm');
+                    window.location.assign(MAIN_PATH_S + 'index.htm');
 
                 },
                 error: function (request, status, error) {
@@ -51,12 +51,12 @@ function login_init() {
         let form = $('form');
         if (form[0].checkValidity()) {
             $.ajax({
-                url: window.location.origin + '/login',
+                url: window.location.origin + MAIN_PATH + '/login',
                 type: 'post',
                 data: form.serialize(),
                 success: function(data, textStatus, request) {
                     console.log(listCookies());
-                    window.location.assign(MAIN_PATH + 'index.htm');
+                    window.location.assign(MAIN_PATH_S + 'index.htm');
 
                 },
                 error: function (request, status, error) {

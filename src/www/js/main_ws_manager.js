@@ -121,7 +121,7 @@ function main_ws_reconnect() {
 
 
 function main_ws_connect() {
-    let socket = new WebSocket('ws://' + location.host + '/ws');
+    let socket = new WebSocket(location.protocol == 'https:'?'wss://' + location.host + '/pm-ws/':'ws://' + location.host + '/ws');
     socket.onopen = function (event) {
         console.log('Upgrade HTTP connection OK');
         main_ws = socket;
