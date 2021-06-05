@@ -2,12 +2,16 @@ import json
 import logging
 from functools import partial
 from textwrap import dedent
+from time import time
 import traceback
 
 from aiohttp import WSMsgType, web, ClientSession
 from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
 import youtube_dl
+
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
 from common.const import (COOKIE_USERID, CMD_PING, MSG_UNAUTHORIZED)
 from common.playlist import Playlist, PlaylistMessage
@@ -204,6 +208,56 @@ async def youtube_redir_do(request):
                 return web.HTTPFound(outurl if outurl else audiourl)
     _LOGGER.debug("url = %s answ is %s" % (current_url, str(playlist_dict)))
     return web.HTTPBadRequest(body='Link not found in URL')
+
+
+async def login_g(request):
+    form = await request.post()
+    token = form.get('idtoken')
+    # (Receive token by HTTPS POST)
+    # ...
+    try:
+        userid = None
+        # Specify the CLIENT_ID of the app that accesses the backend:
+        idinfo = id_token.verify_oauth2_token(token, requests.Request(), request.app.p.args['client_id'])
+
+        # Or, if multiple clients access the backend server:
+        # idinfo = id_token.verify_oauth2_token(token, requests.Request())
+        # if idinfo['aud'] not in [CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3]:
+        #     raise ValueError('Could not verify audience.')
+
+        # If auth request is from a G Suite domain:
+        # if idinfo['hd'] != GSUITE_DOMAIN_NAME:
+        #     raise ValueError('Wrong hosted domain.')
+
+        # ID token is valid. Get the user's Google Account ID from the decoded token.
+        password = idinfo['sub']
+        _LOGGER.debug(f"token is {idinfo}")
+        db = request.app.p.db
+        async with db.execute(
+            '''
+            SELECT U.rowid as rowid,
+                U.username as username,
+                U.password as password from user as U WHERE password=?
+            ''', (password,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                userid = row['rowid']
+            else:
+                async with db.execute('INSERT INTO user(username,password) VALUES (?,?)', (idinfo['email'], password)) as cursor2:
+                    userid = cursor2.lastrowid
+                    await db.commit()
+        if userid:
+            response = web.HTTPFound('/')
+            verified = json.dumps(
+                dict(rowid=userid, username=idinfo['email'], time=time()))
+            await remember(request, response, verified)
+            response.set_cookie(COOKIE_USERID, str(userid))
+            return response
+    except Exception:
+        _LOGGER.warning(f'Ecxception validationg token {traceback.format_exc()}')
+        pass
+    return web.HTTPUnauthorized(body='Invalid Google Token')
 
 
 async def login(request):

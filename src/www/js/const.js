@@ -21,6 +21,7 @@ const CMD_MEDIASET_BRANDS = 'mediaset.brands';
 const CMD_MEDIASET_LISTINGS = 'mediaset.listings';
 const CMD_RAI_LISTINGS = 'rai.listings';
 const PL_ADD_VIEW_TYPE_CLASS = 'pl-add-view-type-class';
+const GOOGLE_CLIENT_ID = '60860343069-fg6qgf1fogpjrb6femd2p7n0l9nsq4vt.apps.googleusercontent.com';
 
 function pad(num, size) {
     num = num.toString();

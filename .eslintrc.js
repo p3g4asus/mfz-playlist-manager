@@ -50,8 +50,8 @@ module.exports = {
         'format_duration': true,
         'toast_msg': true,
         'pad': true,
-        'get_search_start_char': true,
-        'init_width_height_from_url': true,
+        'gapi': true,
+        'GOOGLE_CLIENT_ID': true,
         'fetch': true
     },
     'rules': {

@@ -18,5 +18,5 @@ set KCFG_KIVY_LOG_LEVEL=debug
 set KCFG_KIVY_LOG_ENABLE=1
 set KCFG_KIVY_LOG_DIR=%~dp0logs
 pushd %~dp0src
-python -m server --dbfile "%~dp0main.sqlite" --static "%~dp0src\www" --port 5802 -v > ..\serv.txt 2>&1
+python -m server --dbfile "%~dp0main.sqlite" --static "%~dp0src\www" --port 5802 --client_id "60860343069-fg6qgf1fogpjrb6femd2p7n0l9nsq4vt.apps.googleusercontent.com" -v > ..\serv.txt 2>&1
 pause

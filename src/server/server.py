@@ -25,7 +25,7 @@ from common.timer import Timer
 from common.utils import asyncio_graceful_shutdown
 from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.sqliteauth import SqliteAuthorizationPolicy
-from server.webhandlers import index, logout, login, modify_pw, pls_h, register, playlist_m3u, youtube_dl_do, youtube_redir_do, redirect_till_last
+from server.webhandlers import index, logout, login, login_g, modify_pw, pls_h, register, playlist_m3u, youtube_dl_do, youtube_redir_do, redirect_till_last
 
 __prog__ = "pls-server"
 
@@ -307,6 +307,7 @@ async def start_app(app):
     if app.p.args["static"] is not None:
         app.router.add_static('/static', app.p.args["static"])
     app.router.add_route('GET', '/', index)
+    app.router.add_route('POST', '/login_g', login_g)
     app.router.add_route('POST', '/login', login)
     app.router.add_route('POST', '/modifypw', modify_pw)
     app.router.add_route('POST', '/register', register)
@@ -379,6 +380,7 @@ def main():
         args = json.loads(p4a)
         args['executors'] = 2
         args['autoupdate'] = 25
+        args['client_id'] = ''
         args["static"] = os.path.dirname(os.path.abspath(__file__)).join('..', 'www')
         app.p.osc_port = args["msgfrom"]
         app.p.osc_server = None
@@ -397,6 +399,7 @@ def main():
         parser = argparse.ArgumentParser(prog=__prog__)
         parser.add_argument('--port', type=int, help='port number', required=False, default=8080)
         parser.add_argument('--autoupdate', type=int, help='autoupdate time', required=False, default=25)
+        parser.add_argument('--client_id', help='Google client id', required=False, default='')
         parser.add_argument('--executors', type=int, help='executor number', required=False, default=2)
         parser.add_argument('--static', required=False, default=None)
         parser.add_argument('--host', required=False, default="0.0.0.0")
