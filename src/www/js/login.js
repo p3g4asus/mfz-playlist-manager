@@ -28,7 +28,7 @@ function login_google_attach_signin(element) {
         function(googleUser) {
             console.log('Google User name ' + googleUser.getBasicProfile().getName());
             $.ajax({
-                url: window.location.origin + MAIN_PATH + '/login_g',
+                url: window.location.origin + MAIN_PATH + 'login_g',
                 type: 'post',
                 data: 'idtoken=' + googleUser.getAuthResponse().id_token,
                 success: function(data, textStatus, request) {
@@ -51,7 +51,7 @@ function login_init() {
         let form = $('form');
         if (form[0].checkValidity()) {
             $.ajax({
-                url: window.location.origin + MAIN_PATH + '/login',
+                url: window.location.origin + MAIN_PATH + 'login',
                 type: 'post',
                 data: form.serialize(),
                 success: function(data, textStatus, request) {

@@ -2,7 +2,7 @@ const COOKIE_LOGIN = 'API_SESSION';
 const COOKIE_USERID = 'Userid';
 const COOKIE_SELECTEDPL = 'SelectedPl';
 const MAIN_PATH_S = location.protocol == 'https:'?'/pm-s/':'/static/';
-const MAIN_PATH = location.protocol == 'https:'?'/pm/':'';
+const MAIN_PATH = location.protocol == 'https:'?'/pm/':'/';
 const CMD_DEL = 'del';
 const CMD_REN = 'ren';
 const CMD_DUMP = 'dump';
