@@ -303,7 +303,7 @@ class PlaylistItem(JSONAble, Fieldable):
             piece = 'ytto'
         elif conv == 3:
             piece = 'red'
-        return f"http://{host}/{piece}?{urllib.parse.urlencode(dict(link=self.link))}"
+        return f"{host}/{piece}?{urllib.parse.urlencode(dict(link=self.link))}"
 
     def toJSON(self, host='', conv=0, **kwargs):
         dct = vars(self)
