@@ -26,7 +26,7 @@ function  playlist_selected_del_restore($ev) {
 function playlist_selected_del_tmr_fun() {
     playlist_selected_del_cnt--;
     let waiting_del = $('.pl-item-func-seen').children('a[data-timer]');
-    if (playlist_selected_del_cnt) {
+    if (waiting_del.length && playlist_selected_del_cnt) {
         waiting_del.html('<p class="h1"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;'+ playlist_selected_del_cnt +'</p>');
         playlist_selected_del_tmr = setTimeout(playlist_selected_del_tmr_fun, 1000);
     }
@@ -34,31 +34,33 @@ function playlist_selected_del_tmr_fun() {
         playlist_selected_del_restore(waiting_del);
         playlist_selected_del_cnt = 5;
         playlist_selected_del_tmr = -1;
-        let lids = [];
-        waiting_del.each(function() {
-            lids.push(parseInt($(this).data('rowid')));
-        });
-        let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:lids, seen:1}, function(msg) {
-            return msg.cmd === CMD_SEEN? msg:null;
-        }, 20000, 1);
-        qel.enqueue().then(function(msg) {
-            if (!manage_errors(msg)) {
-                let $plitemsTable = $('#playlist-items-table');
-                for (let rid of lids) {
-                    let row = $plitemsTable.bootstrapTable('getRowByUniqueId', rid);
-                    toast_msg('Playlist item ' + row.title+' removed', 'success');
-                    $plitemsTable.bootstrapTable('removeByUniqueId', rid);
-                    selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(rid), 1);
-                }
-                playlist_update_in_list(selected_playlist);
-            }
-        })
-            .catch(function(err) {
-                console.log(err);
-                let errmsg = 'Exception detected: '+err;
-                toast_msg(errmsg, 'danger');
+        if (waiting_del.length) {
+            let lids = [];
+            waiting_del.each(function() {
+                lids.push(parseInt($(this).data('rowid')));
             });
-        
+            let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:lids, seen:1}, function(msg) {
+                return msg.cmd === CMD_SEEN? msg:null;
+            }, 20000, 1);
+            qel.enqueue().then(function(msg) {
+                if (!manage_errors(msg)) {
+                    let $plitemsTable = $('#playlist-items-table');
+                    for (let rid of lids) {
+                        let row = $plitemsTable.bootstrapTable('getRowByUniqueId', rid);
+                        toast_msg('Playlist item ' + row.title+' removed', 'success');
+                        $plitemsTable.bootstrapTable('removeByUniqueId', rid);
+                        selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(rid), 1);
+                    }
+                    playlist_update_in_list(selected_playlist);
+                }
+            })
+                .catch(function(err) {
+                    console.log(err);
+                    let errmsg = 'Exception detected: '+err;
+                    toast_msg(errmsg, 'danger');
+                });
+        }
+            
     }
 
 }
@@ -337,10 +339,20 @@ let playlist_types = {
                                     </div>
                                 </div>
                                 <div class="form-row">
-                                    <div class="col-12">
+                                    <div class="col-md-12 mb-3 pa0">
                                         <a id="pl-add-view-medrai-search" class="btn btn-primary btn-lg col-12 btn-block disabled" href="#" role="button"><p class="h1 font-enlarged"><i class="fas fa-search"></i>&nbsp;&nbsp;Search</p></a>
-                                        <div id="pl-add-view-medrai-progress" class="progress bigger-progress">
+                                        <!--<div id="pl-add-view-medrai-progress" class="progress bigger-progress">
                                             <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
+                                        </div>-->
+                                        <div class="container" id="pl-add-view-medrai-progress">
+                                            <div class="row">
+                                            <span></span>
+                                            <span class="col-2"></span>
+                                            <span class="col-2"></span>
+                                            <span class="col-2"></span>
+                                            <span class="col-2"></span>
+                                            <span class="col-2"></span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
