@@ -153,64 +153,64 @@ td.bs-checkbox input {
     height: 1.25rem !important;
 }
 
-#pl-add-view-medrai-progress {
+#pl-add-view-medrai-progress2 {
     display: block;
     position: relative;
     margin: 0 0 0 0;
   }
   
-  #pl-add-view-medrai-progress span {
+  #pl-add-view-medrai-progress2 span {
     position: relative;
-      animation-name: pl-add-view-medrai-progress-1;
+      animation-name: pl-add-view-medrai-progress2-1;
     display: block;
     width: 100px;
     background: rgba(0, 0, 0, 0.25);
-    -webkit-animation: pl-add-view-medrai-progress 1.5s  infinite ease-in-out;
-            animation: pl-add-view-medrai-progress 1.5s  infinite ease-in-out;
+    -webkit-animation: pl-add-view-medrai-progress2 1.5s  infinite ease-in-out;
+            animation: pl-add-view-medrai-progress2 1.5s  infinite ease-in-out;
   }
   
-  #pl-add-view-medrai-progress span:nth-child(1) {
+  #pl-add-view-medrai-progress2 span:nth-child(1) {
       position: relative;
       display: block;
       height: 190px;
       width: 1px;
       background: rgba(0, 0, 0, 0);
   }
-  #pl-add-view-medrai-progress span:nth-child(2) {
+  #pl-add-view-medrai-progress2 span:nth-child(2) {
         left: 0%;
-      animation-name: pl-add-view-medrai-progress-1;
+      animation-name: pl-add-view-medrai-progress2-1;
     -webkit-animation-delay: 0.0s;
             animation-delay: 0.0s;
   }
   
-  #pl-add-view-medrai-progress span:nth-child(3) {
+  #pl-add-view-medrai-progress2 span:nth-child(3) {
     left: 20%;
-      animation-name: pl-add-view-medrai-progress-2;
+      animation-name: pl-add-view-medrai-progress2-2;
     -webkit-animation-delay: 0.2s;
             animation-delay: 0.2s;
   }
   
-  #pl-add-view-medrai-progress span:nth-child(4) {
+  #pl-add-view-medrai-progress2 span:nth-child(4) {
     left: 40%;
-      animation-name: pl-add-view-medrai-progress-3;
+      animation-name: pl-add-view-medrai-progress2-3;
     -webkit-animation-delay: 0.4s;
             animation-delay: 0.4s;
   }
   
-  #pl-add-view-medrai-progress span:nth-child(5) {
+  #pl-add-view-medrai-progress2 span:nth-child(5) {
     left: 60%;
-      animation-name: pl-add-view-medrai-progress-4;
+      animation-name: pl-add-view-medrai-progress2-4;
     -webkit-animation-delay: 0.6s;
             animation-delay: 0.6s;
   }
   
-  #pl-add-view-medrai-progress span:nth-child(6) {
+  #pl-add-view-medrai-progress2 span:nth-child(6) {
     left: 80%;
-      animation-name: pl-add-view-medrai-progress-5;
+      animation-name: pl-add-view-medrai-progress2-5;
     -webkit-animation-delay: 0.8s;
             animation-delay: 0.8s;
   }
-  @keyframes pl-add-view-medrai-progress-1 {
+  @keyframes pl-add-view-medrai-progress2-1 {
     0% {
       height: 50px;
       -webkit-transform: translateY(0px);
@@ -245,7 +245,7 @@ td.bs-checkbox input {
     }
   }
   
-  @keyframes pl-add-view-medrai-progress-2 {
+  @keyframes pl-add-view-medrai-progress2-2 {
     0% {
       height: 50px;
       -webkit-transform: translateY(0px);
@@ -280,7 +280,7 @@ td.bs-checkbox input {
     }
   }
   
-  @keyframes pl-add-view-medrai-progress-3 {
+  @keyframes pl-add-view-medrai-progress2-3 {
     0% {
       height: 50px;
       -webkit-transform: translateY(0px);
@@ -315,7 +315,7 @@ td.bs-checkbox input {
     }
   }
   
-  @keyframes pl-add-view-medrai-progress-4 {
+  @keyframes pl-add-view-medrai-progress2-4 {
     0% {
       height: 50px;
       -webkit-transform: translateY(0px);
@@ -350,7 +350,7 @@ td.bs-checkbox input {
     }
   }
   
-  @keyframes pl-add-view-medrai-progress-5 {
+  @keyframes pl-add-view-medrai-progress2-5 {
     0% {
       height: 50px;
       -webkit-transform: translateY(0px);
