@@ -91,17 +91,18 @@ async def playlist_m3u(request):
     fmt = request.query['fmt'] if 'fmt' in request.query else 'm3u'
 
     if 'name' in request.query:
+        host = request.query['host'] if 'host' in request.query else f"{request.scheme}://{request.host}"
         pl = await Playlist.loadbyid(request.app.p.db, useri=userid, username=username, name=request.query['name'])
         if pl:
             if fmt == 'm3u':
-                txt = pl[0].toM3U(f"{request.scheme}://{request.host}", conv)
+                txt = pl[0].toM3U(host, conv)
                 return web.Response(
                     text=txt,
                     content_type='text/plain',
                     charset='utf-8'
                 )
             elif fmt == 'json':
-                js = json.dumps(pl[0], cls=get_json_encoder(f'MyEnc{conv}', host=f"{request.scheme}://{request.host}", conv=conv))
+                js = json.dumps(pl[0], cls=get_json_encoder(f'MyEnc{conv}', host=host, conv=conv))
                 return web.Response(
                     text=js,
                     content_type='application/json',
