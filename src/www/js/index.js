@@ -1100,7 +1100,7 @@ $(window).on('load', function() {
     xl = bootstrap_breakpoint && bootstrap_breakpoint.name == 'xl';
     console.log('BP = ' + JSON.stringify(bootstrap_breakpoint));
     if (bootstrap_breakpoint && bootstrap_breakpoint.name && (bootstrap_breakpoint.name == 'xs' || bootstrap_breakpoint.name == 'sm')) {
-        $('th[data-field="img"]').addClass('col-10');
+        $('th[data-field="img"]').addClass('col-7');
     }
     console.log(new Date().format('yyyy/mm/dd'));
     index_global_init();
