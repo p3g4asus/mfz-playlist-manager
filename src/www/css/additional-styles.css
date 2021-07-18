@@ -36,7 +36,7 @@
     transition: .5s ease;
     opacity: 1;
     color: white;
-    font-size: 40px;
+    font-size: 15px;
     padding: 3px;
     text-align: right;
 }
@@ -52,7 +52,7 @@
     transition: .5s ease;
     opacity: 1;
     color: white;
-    font-size: 40px;
+    font-size: 15px;
     padding: 3px;
     text-align: center;
 }
@@ -63,7 +63,7 @@
 }*/
 
 .even-larger-badge {
-    font-size: 3em;
+    font-size: 1.5em;
 }
 
 .big-line {
@@ -75,11 +75,15 @@
     font-size: 600%;
 }
 
-.bigger-progress {
-    height: 96px;
+.font-reduced {
+    font-size: 90%;
 }
 
-.input-lg {
+.bigger-progress {
+    height: 40px;
+}
+
+/* .input-lg {
     font-size: 2.5rem;
 }
 
@@ -94,9 +98,9 @@
 .custom-control-lg .custom-control-label {
     margin-left: 0.5rem !important;
     font-size: 1rem !important;
-}
+} */
 
-.datepicker.dropdown-menu {
+/* .datepicker.dropdown-menu {
     position: absolute;
     top: 100%;
     left: 0;
@@ -136,7 +140,7 @@
 .fixed-table-pagination span, .fixed-table-pagination .dropdown-item, .fixed-table-pagination .page-list, .fixed-table-pagination .page-size, .fixed-table-pagination .page-link,
 .fixed-table-loading .loading-text  {
     font-size: 2.5rem;
-}
+} */
 
 .table-condensed>thead>tr>th, .table-condensed>tbody>tr>th, .table-condensed>tfoot>tr>th, .table-condensed>thead>tr>td, .table-condensed>tbody>tr>td, .table-condensed>tfoot>tr>td{
     padding: 5px;

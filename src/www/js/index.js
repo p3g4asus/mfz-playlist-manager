@@ -3,6 +3,8 @@ let playlists_all = [];
 let playlist_selected_del_tmr = -1;
 let playlist_selected_del_cnt = 5;
 const bootstrap_styles = ['primary', 'secondary', 'success', 'warning', 'danger', 'info', 'light', 'dark'];
+let bootstrap_breakpoint = {name: 'xs'};
+let xl = '';
 
 function set_button_enabled(btn, enabled) {
     let b = $(btn);
@@ -18,7 +20,7 @@ function set_button_enabled(btn, enabled) {
 }
 
 function  playlist_selected_del_restore($ev) {
-    $ev.html('<p class="h1"><i class="fas fa-trash-alt"></i></p>');
+    $ev.html(bootstrap_wrap_button('fas fa-trash-alt', '', xl ? 'h3':''));
     $ev.closest('.container-fluid').find('.pl-item-func-iorder').show();
     $ev.removeAttr('data-timer');
 }
@@ -27,7 +29,7 @@ function playlist_selected_del_tmr_fun() {
     playlist_selected_del_cnt--;
     let waiting_del = $('.pl-item-func-seen').children('a[data-timer]');
     if (waiting_del.length && playlist_selected_del_cnt) {
-        waiting_del.html('<p class="h1"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;'+ playlist_selected_del_cnt +'</p>');
+        waiting_del.html(bootstrap_wrap_button('fas fa-trash-restore', '' + playlist_selected_del_cnt, xl ? 'h3':''));
         playlist_selected_del_tmr = setTimeout(playlist_selected_del_tmr_fun, 1000);
     }
     else {
@@ -81,7 +83,7 @@ function playlist_item_seen(ev) {
         if (!waiting_del.length) {
             playlist_selected_del_tmr = setTimeout(playlist_selected_del_tmr_fun, 1000);
         }
-        $ev.html('<p class="h1"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;5</p>');
+        $ev.html(bootstrap_wrap_button('fas fa-trash-restore', '5', xl ? 'h3':''));
         $ev.closest('.container-fluid').find('.pl-item-func').hide();
         $ev.attr('data-timer', 1);
     }
@@ -131,9 +133,50 @@ function playlist_total_duration (pl) {
     return durt;
 }
 
+function bootstrap_wrap_button(ivalue, tvalue, classv) {
+    let tag = '';
+    if (classv.length) {
+        tag += `<p class="${classv}">`;
+    }
+    if (ivalue.length) {
+        tag += `<i class="${ivalue}"></i>`;
+    }
+    if (tvalue.length) {
+        if (ivalue.length)
+            tvalue = '&nbsp;&nbsp;' + $('<div>').text(tvalue).html();
+        tag += tvalue;
+    }
+    if (classv.length)
+        tag += '</p>';
+    return tag;
+}
+
 function bootstrap_table_uid_formatter(value, row, index, field) {
-    let p = $('<p class="h3">');
+    let p = $(xl?'<p class="h1">':'<p class="h6">');
     p.text(row.title);
+    let up = bootstrap_table_date_uploader_formatter(row, 'h2');
+    let s = xl?`<div class="row">${up.prop('outerHTML')}</div>`:'';
+    return `
+        <div class="container-fluid">
+            <div class="row">${p.prop('outerHTML')}</div>
+            ${s}
+            <div class="row row-buffer pl-item-func-seen">
+                <a class="btn btn-danger col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_seen(this); return false;">${bootstrap_wrap_button('fas fa-trash-alt', '', xl?'h3':'')}</a>
+            </div>
+            <div class="row row-buffer pl-item-func pl-item-func-iorder">
+                <a class="btn btn-info col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_move(this); return false;">${bootstrap_wrap_button('', '' + row.iorder, xl?'h3':'')}</a>
+            </div>
+            <div class="row row-buffer pl-item-func pl-item-func-iorder-sec" style="display: none;">
+                <input type="number" class="col-6"/><a class="btn btn-info col-6 btn-block" data-rowid="${row.rowid}" href="#" role="button">${bootstrap_wrap_button('fas fa-dolly', '', xl?'h3':'')}</a>
+            </div>
+        </div>
+        `;
+    //return p.prop('outerHTML') + p3 + up.prop('outerHTML') + '<br />' +
+    //'<a class="btn btn-danger col-12 btn-block" data-rowid="'+row.rowid+'" href="#" role="button" onclick="playlist_tiem_seen(this); return false;"><p class="h1"><i class="fas fa-trash-alt"></i></p></a><br />' +
+    //'<a class="btn btn-info col-12 btn-block" data-rowid="'+row.rowid+'" href="#" role="button" onclick="playlist_tiem_move(this); return false;"><p class="h1">'+ row.iorder +'</p></a>';
+}
+
+function bootstrap_table_date_uploader_formatter(row, classv) {
     let p3, dti;
     if (row.datepub && row.datepub.length && !isNaN(dti = Date.parse(row.datepub))) {
         let utcSeconds = Math.round(dti / 1000);
@@ -144,34 +187,20 @@ function bootstrap_table_uid_formatter(value, row, index, field) {
     else
         p3 = 'Date: N/A';
     //let p2 = '<p class="h6">Duration: ' + format_duration(row.dur) + '</p>';
-    let up = $('<p class="h4">');
+    let up = $(`<p class="${classv}">`);
     up.text(p3 + ' (' + (row.conf && row.conf.author?row.conf.author:'N/A') + ')');
-    return `
-        <div class="container-fluid">
-            <div class="row">${p.prop('outerHTML')}</div>
-            <div class="row">${up.prop('outerHTML')}</div>
-            <div class="row row-buffer pl-item-func-seen">
-                <a class="btn btn-danger btn-lg col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_seen(this); return false;"><p class="h1"><i class="fas fa-trash-alt"></i></p></a>
-            </div>
-            <div class="row row-buffer pl-item-func pl-item-func-iorder">
-                <a class="btn btn-info btn-lg col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_move(this); return false;"><p class="h1">${row.iorder}</p></a>
-            </div>
-            <div class="row row-buffer pl-item-func pl-item-func-iorder-sec" style="display: none;">
-                <input type="number" class="col-6 input-lg"/><a class="btn btn-info btn-lg col-6 btn-block" data-rowid="${row.rowid}" href="#" role="button"><p class="h1"><i class="fas fa-dolly"></i></p></a>
-            </div>
-        </div>
-        `;
-    //return p.prop('outerHTML') + p3 + up.prop('outerHTML') + '<br />' +
-    //'<a class="btn btn-danger btn-lg col-12 btn-block" data-rowid="'+row.rowid+'" href="#" role="button" onclick="playlist_tiem_seen(this); return false;"><p class="h1"><i class="fas fa-trash-alt"></i></p></a><br />' +
-    //'<a class="btn btn-info btn-lg col-12 btn-block" data-rowid="'+row.rowid+'" href="#" role="button" onclick="playlist_tiem_move(this); return false;"><p class="h1">'+ row.iorder +'</p></a>';
+    return up;
 }
 
 function bootstrap_table_img_formatter(value, row, index, field) {
+    let up = bootstrap_table_date_uploader_formatter(row, 'h5 font-reduced');
+    let s = xl?'':up.prop('outerHTML');
     return `
     <a href="${row.link}"><div class="thumb-container">
         <img src="${value}" class="thumb-image">
         <div class="thumb-duration-overlay">${format_duration(row.dur)}</div>
     </div></a>
+    ${s}
         `;
 }
 
@@ -193,8 +222,8 @@ function playlist_rai_listings_formatter(value, row, index, field) {
 function playlist_medrai_brands_formatter(value, row, index, field, type) {
     return `
         <span class="col-12 badge badge-${bootstrap_styles[index%bootstrap_styles.length]}">
-            <p class="h1">${row.desc?row.desc:(row.title?row.title:'N/A')}</p>
-            <p class="h2">${(row.desc?row.title + '/':'') + row.id}</p>
+            <p class="h5">${row.desc?row.desc:(row.title?row.title:'N/A')}</p>
+            <p class="h6">${(row.desc?row.title + '/':'') + row.id}</p>
         </span>`;
 }
 
@@ -340,7 +369,7 @@ let playlist_types = {
                                 </div>
                                 <div class="form-row">
                                     <div class="col-12">
-                                        <a id="pl-add-view-medrai-search" class="btn btn-primary btn-lg col-12 btn-block disabled" href="#" role="button"><p class="h1 font-enlarged"><i class="fas fa-search"></i>&nbsp;&nbsp;Search</p></a>
+                                        <a id="pl-add-view-medrai-search" class="btn btn-primary col-12 btn-block disabled" href="#" role="button"><p class="h3"><i class="fas fa-search"></i>&nbsp;&nbsp;Search</p></a>
                                         <div id="pl-add-view-medrai-progress" class="progress bigger-progress">
                                             <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
                                         </div>
@@ -493,7 +522,7 @@ let playlist_types = {
                                 </div>
                                 <div class="form-row">
                                     <div class="col-12">
-                                        <a id="pl-add-view-youtube-search" class="btn btn-primary btn-lg col-12 btn-block disabled" href="#" role="button"><p class="h1 font-enlarged"><i class="fas fa-search"></i>&nbsp;&nbsp;Search</p></a>
+                                        <a id="pl-add-view-youtube-search" class="btn btn-primary col-12 btn-block disabled" href="#" role="button"><p class="h3"><i class="fas fa-search"></i>&nbsp;&nbsp;Search</p></a>
                                         <div id="pl-add-view-youtube-progress" class="progress bigger-progress">
                                             <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
                                         </div>
@@ -505,13 +534,13 @@ let playlist_types = {
                 </div>
             `);
             let single_el = function(c, pl, type) {
-                let div = $('<p class="h1">');
+                let div = $('<p class="h5">');
                 let alert = $(
                     `
                     <div class="row">
                         <div class="col-12 alert alert-${type} alert-dismissible fade show" role="alert">
                             ${div.text(c.title).prop('outerHTML')}
-                            <p class="h2">${c.id} (${c.ordered === undefined || c.ordered? 'Ordered': 'Unordered'})</p>
+                            <p class="h6">${c.id} (${c.ordered === undefined || c.ordered? 'Ordered': 'Unordered'})</p>
                             <button type="button" data-idpl="${c.id}" class="close" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>
@@ -636,9 +665,9 @@ let current_playlist = null;
 
 function playlist_add_button_change_function(func)  {
     if (func == 'add')
-        $('#add-button').removeClass('btn-secondary').addClass('btn-success').html('<p class="h1 font-enlarged"><i class="fas fa-plus"></i>&nbsp;&nbsp;Add</p>').data('func', func);
+        $('#add-button').removeClass('btn-secondary').addClass('btn-success').html('<p class="h3"><i class="fas fa-plus"></i>&nbsp;&nbsp;Add</p>').data('func', func);
     else 
-        $('#add-button').removeClass('btn-success').addClass('btn-secondary').html('<p class="h1 font-enlarged"><i class="fas fa-arrow-left"></i>&nbsp;&nbsp;Back</p>').data('func', func);
+        $('#add-button').removeClass('btn-success').addClass('btn-secondary').html('<p class="h3"><i class="fas fa-arrow-left"></i>&nbsp;&nbsp;Back</p>').data('func', func);
 }
 
 function playlist_interface_manage(func) {
@@ -709,7 +738,7 @@ function playlist_remove(ev) {
     let restoreDelButton = function($ev) {
         $ev.removeData('timer');
         $ev.removeData('countdown');
-        $ev.html('<p class="h1 font-enlarged"><i class="fas fa-minus"></i>&nbsp;&nbsp;Remove</p>');
+        $ev.html('<p class="h3"><i class="fas fa-minus"></i>&nbsp;&nbsp;Remove</p>');
         $ev.closest('.container-fluid').find('.pl-select-func').show();
     };
     if (tmr !== undefined && tmr!==null) {
@@ -717,12 +746,12 @@ function playlist_remove(ev) {
         restoreDelButton($ev);
     }
     else {
-        $ev.html('<p class="h1 font-enlarged"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;5</p>');
+        $ev.html('<p class="h3"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;5</p>');
         $ev.closest('.container-fluid').find('.pl-select-func').hide();
         let funDel = function() {
             let sec = parseInt(this.data('countdown')) - 1;
             if (sec) {
-                this.html('<p class="h1 font-enlarged"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;'+ sec +'</p>');
+                this.html('<p class="h3"><i class="fas fa-trash-restore"></i>&nbsp;&nbsp;&nbsp;'+ sec +'</p>');
                 this.data('countdown', sec);
                 this.data('timer', setTimeout(funDel.bind(this), 1000));
             }
@@ -1062,14 +1091,15 @@ function bootstrap_table_info_formatter(value, row, index, field) {
         tpstr += '<span class="badge badge-primary even-larger-badge">rai</span>&nbsp;&nbsp;';
     else
         tpstr += '<span class="badge badge-secondary even-larger-badge">mediaset</span>&nbsp;&nbsp;';
-    tpstr += '<p class="h1">Last Updated: ' + d.format('yyyy/mm/dd') + ' (' +row.items.length + ' items - '+format_duration(playlist_total_duration(row)) +') - AutoUpdate ' + (row.autoupdate?'<i class="fas fa-check">':'<i class="fas fa-times">')+ '</i></p>';
+    tpstr += '<p class="h6">Last Updated: ' + d.format('yyyy/mm/dd') + ' (' +row.items.length + ' items - '+format_duration(playlist_total_duration(row)) +') - AutoUpdate ' + (row.autoupdate?'<i class="fas fa-check">':'<i class="fas fa-times">')+ '</i></p>';
     return tpstr;
 }
 
 $(window).on('load', function() {
-    let bp =  bootstrapDetectBreakpoint();
-    console.log('BP = ' + JSON.stringify(bp));
-    if (bp && bp.name && (bp.name == 'xs' || bp.name == 'sm')) {
+    bootstrap_breakpoint =  bootstrapDetectBreakpoint();
+    xl = bootstrap_breakpoint && bootstrap_breakpoint.name == 'xl';
+    console.log('BP = ' + JSON.stringify(bootstrap_breakpoint));
+    if (bootstrap_breakpoint && bootstrap_breakpoint.name && (bootstrap_breakpoint.name == 'xs' || bootstrap_breakpoint.name == 'sm')) {
         $('th[data-field="img"]').addClass('col-10');
     }
     console.log(new Date().format('yyyy/mm/dd'));
