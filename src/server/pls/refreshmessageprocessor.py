@@ -148,6 +148,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                         datefrom = 0
             elif x.items is None:
                 x.items = []
+            _LOGGER.debug(f"Datefrom = {datefrom}, dateto={dateto}")
             resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid, executor=executor)
             if resp.rv == 0:
                 n_new = 0

@@ -187,9 +187,9 @@ class Playlist(JSONAble, Fieldable):
         rv = True
         for idx in range(len(items) - 1, -1, -1):
             other_it = items[idx]
-            dp = other_it.seen
+            dp = datetime.strptime(other_it.seen, '%Y-%m-%d %H:%M:%S')
             if dp:
-                if other_it.isOk() and (dp is None or int(dp.timestamp() * 1000) < datelimit):
+                if other_it.isOk() and int(dp.timestamp() * 1000) < datelimit:
                     if rv:
                         rv = await other_it.delete(db, commit=commit)
                 del items[idx]
