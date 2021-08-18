@@ -6,6 +6,7 @@ import json
 import logging
 import logging.config
 import os
+import sqlite3
 import traceback
 from datetime import datetime, timedelta
 from functools import partial
@@ -238,7 +239,7 @@ CREATE_DB_IF_NOT_EXIST = [
 
 
 async def init_db(app):
-    app.p.db = await aiosqlite.connect(app.p.args['dbfile'])
+    app.p.db = await aiosqlite.connect(app.p.args['dbfile'], detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
     if not isinstance(app.p.db, aiosqlite.Connection):
         app.p.db = None
     else:
