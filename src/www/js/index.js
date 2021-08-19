@@ -730,7 +730,7 @@ function playlist_show_button_change_function(func)  {
         }
     }
     else {
-        $('#show-button').html('<p class="h3"><i class="fas fa-eye"></i>&nbsp;&nbsp;Hide Deleted</p>').data('func', func);
+        $('#show-button').html('<p class="h3"><i class="fas fa-eye-slash"></i>&nbsp;&nbsp;Hide Deleted</p>').data('func', func);
         $plitemsTable.bootstrapTable('filterBy', {}, {'filterAlgorithm': 'and'});
     }
 }
