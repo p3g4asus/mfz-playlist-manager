@@ -20,38 +20,64 @@ function set_button_enabled(btn, enabled) {
 }
 
 function  playlist_selected_del_restore($ev) {
-    $ev.html(bootstrap_wrap_button('fas fa-trash-alt', '', xl ? 'h3':''));
-    $ev.closest('.container-fluid').find('.pl-item-func-iorder').show();
-    $ev.removeAttr('data-timer');
+    $ev.each(function() {
+        let ths = $(this);
+        let seen = ths.data('seen');
+        if (seen)
+            seen = parseInt(seen);
+        ths.html(bootstrap_wrap_button(seen ? 'fas fa-trash-restore': 'fas fa-trash-alt', '', xl ? 'h3':''));
+        ths.closest('.container-fluid').find('.pl-item-func-iorder').show();
+        ths.removeAttr('data-timer');
+    });
 }
 
 function playlist_selected_del_tmr_fun() {
     playlist_selected_del_cnt--;
     let waiting_del = $('.pl-item-func-seen').children('a[data-timer]');
     if (waiting_del.length && playlist_selected_del_cnt) {
-        waiting_del.html(bootstrap_wrap_button('fas fa-trash-restore', '' + playlist_selected_del_cnt, xl ? 'h3':''));
+        waiting_del.each(function() {
+            let ths = $(this);
+            let seen = ths.data('seen');
+            if (seen)
+                seen = parseInt(seen);
+            ths.html(bootstrap_wrap_button(seen ? 'fas fa-trash-alt': 'fas fa-trash-restore', '' + playlist_selected_del_cnt, xl ? 'h3':''));
+        });
+        
         playlist_selected_del_tmr = setTimeout(playlist_selected_del_tmr_fun, 1000);
     }
     else {
         playlist_selected_del_restore(waiting_del);
         playlist_selected_del_cnt = 5;
         playlist_selected_del_tmr = -1;
+        let $plitemsTable = $('#playlist-items-table');
         if (waiting_del.length) {
             let lids = [];
+            let seens = [];
             waiting_del.each(function() {
-                lids.push(parseInt($(this).data('rowid')));
+                let ths = $(this);
+                let seen = ths.data('seen');
+                if (seen)
+                    seen = parseInt(seen);
+                let rid = parseInt(ths.data('rowid'));
+                lids.push(rid);
+                seens.push(seen? 0:1);
             });
-            let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:lids, seen:1}, function(msg) {
+            let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:lids, seen:seens}, function(msg) {
                 return msg.cmd === CMD_SEEN? msg:null;
             }, 20000, 1);
             qel.enqueue().then(function(msg) {
                 if (!manage_errors(msg)) {
-                    let $plitemsTable = $('#playlist-items-table');
                     for (let rid of lids) {
                         let row = $plitemsTable.bootstrapTable('getRowByUniqueId', rid);
-                        toast_msg('Playlist item ' + row.title+' removed', 'success');
-                        $plitemsTable.bootstrapTable('removeByUniqueId', rid);
-                        selected_playlist.items.splice(selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(rid), 1);
+                        toast_msg('Playlist item ' + row.title+ (row.seen?' restored': ' removed'), 'success');
+                        let rowcp = {... row};
+                        if (rowcp.seen)
+                            rowcp.seen = null;
+                        else
+                            rowcp.seen =  new Date().format('yyyy-mm-dd HH:MM:ss');
+                        let pos = selected_playlist.items.map(function(e) { return e.rowid; }).indexOf(rid);
+                        $plitemsTable.bootstrapTable('updateRow', {index:pos, row:rowcp, replace:true});
+                        selected_playlist.items[pos] = rowcp;
                     }
                     playlist_update_in_list(selected_playlist);
                 }
@@ -83,7 +109,10 @@ function playlist_item_seen(ev) {
         if (!waiting_del.length) {
             playlist_selected_del_tmr = setTimeout(playlist_selected_del_tmr_fun, 1000);
         }
-        $ev.html(bootstrap_wrap_button('fas fa-trash-restore', '5', xl ? 'h3':''));
+        let seen = $ev.data('seen');
+        if (seen)
+            seen = parseInt(seen);
+        $ev.html(bootstrap_wrap_button(seen?'fas fa-trash-alt': 'fas fa-trash-restore', '5', xl ? 'h3':''));
         $ev.closest('.container-fluid').find('.pl-item-func').hide();
         $ev.attr('data-timer', 1);
     }
@@ -128,8 +157,10 @@ function playlist_item_move(ev) {
 
 function playlist_total_duration (pl) {
     let durt = 0;
-    for (let i of pl.items)
-        durt += i.dur;
+    for (let i of pl.items) {
+        if (!i.seen)
+            durt += i.dur;
+    }
     return durt;
 }
 
@@ -152,7 +183,9 @@ function bootstrap_wrap_button(ivalue, tvalue, classv) {
 }
 
 function bootstrap_table_uid_formatter(value, row, index, field) {
-    let p = $(xl?'<p class="h1">':'<p class="h6">');
+    let seen = row.seen?1:0;
+    let style = seen?' style="color:red;">':'>';
+    let p = $((xl?'<p class="h1"':'<p class="h6"') + style);
     p.text(row.title);
     let up = bootstrap_table_date_uploader_formatter(row, 'h2');
     let s = xl?`<div class="row">${up.prop('outerHTML')}</div>`:'';
@@ -161,13 +194,13 @@ function bootstrap_table_uid_formatter(value, row, index, field) {
             <div class="row">${p.prop('outerHTML')}</div>
             ${s}
             <div class="row row-buffer pl-item-func-seen">
-                <a class="btn btn-danger col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_seen(this); return false;">${bootstrap_wrap_button('fas fa-trash-alt', '', xl?'h3':'')}</a>
+                <a class="btn btn-danger col-12 btn-block" data-rowid="${row.rowid}" data-seen="${seen}" href="#" role="button" onclick="playlist_item_seen(this); return false;">${bootstrap_wrap_button(seen? 'fas fa-trash-restore': 'fas fa-trash-alt', '', xl?'h3':'')}</a>
             </div>
             <div class="row row-buffer pl-item-func pl-item-func-iorder">
-                <a class="btn btn-info col-12 btn-block" data-rowid="${row.rowid}" href="#" role="button" onclick="playlist_item_move(this); return false;">${bootstrap_wrap_button('', '' + row.iorder, xl?'h3':'')}</a>
+                <a class="btn btn-info col-12 btn-block" data-rowid="${row.rowid}" data-seen="${seen}" href="#" role="button" onclick="playlist_item_move(this); return false;">${bootstrap_wrap_button('', '' + row.iorder, xl?'h3':'')}</a>
             </div>
             <div class="row row-buffer pl-item-func pl-item-func-iorder-sec" style="display: none;">
-                <input type="number" class="col-6"/><a class="btn btn-info col-6 btn-block" data-rowid="${row.rowid}" href="#" role="button">${bootstrap_wrap_button('fas fa-dolly', '', xl?'h3':'')}</a>
+                <input type="number" class="col-6"/><a class="btn btn-info col-6 btn-block" data-rowid="${row.rowid}" data-seen="${seen}" href="#" role="button">${bootstrap_wrap_button('fas fa-dolly', '', xl?'h3':'')}</a>
             </div>
         </div>
         `;
@@ -177,17 +210,26 @@ function bootstrap_table_uid_formatter(value, row, index, field) {
 }
 
 function bootstrap_table_date_uploader_formatter(row, classv) {
-    let p3, dti;
-    if (row.datepub && row.datepub.length && !isNaN(dti = Date.parse(row.datepub))) {
+    let p3, dto = null, style = '', dti;
+    if (row.seen) {
+        style = ' style="color:red;"';
+        p3 = 'Del: ';
+        dto = row.seen;
+    }
+    else {
+        dto = row.datepub;
+        p3 = 'Date: ';
+    }
+    if (dto && !isNaN(dti = Date.parse(dto))) {
         let utcSeconds = Math.round(dti / 1000);
         let d = new Date(0); // The 0 there is the key, which sets the date to the epoch
         d.setUTCSeconds(utcSeconds);
-        p3 = 'Date: ' + d.format('yy/mm/dd HH:MM');
+        p3 += d.format('yy/mm/dd HH:MM');
     }
     else
-        p3 = 'Date: N/A';
+        p3 += 'N/A';
     //let p2 = '<p class="h6">Duration: ' + format_duration(row.dur) + '</p>';
-    let up = $(`<p class="${classv}">`);
+    let up = $(`<p class="${classv}"${style}>`);
     up.text(p3 + ' (' + (row.conf && row.conf.author?row.conf.author:'N/A') + ')');
     return up;
 }
@@ -670,6 +712,29 @@ function playlist_add_button_change_function(func)  {
         $('#add-button').removeClass('btn-success').addClass('btn-secondary').html('<p class="h3"><i class="fas fa-arrow-left"></i>&nbsp;&nbsp;Back</p>').data('func', func);
 }
 
+function playlist_show_button_change_function(func)  {
+    let $plitemsTable = $('#playlist-items-table');
+    let fn;
+    if (!func && !(fn = $('#show-button').data('func')))
+        func = 'show';
+    else if (!func) {
+        func = fn == 'show'?'hide':'show';
+    }
+    else if (func == 'same') {
+        func = $('#show-button').data('func');
+    }
+    if (func == 'show' || !selected_playlist) {
+        $('#show-button').html('<p class="h3"><i class="fas fa-eye"></i>&nbsp;&nbsp;Show Deleted</p>').data('func', func);
+        if (selected_playlist) {
+            $plitemsTable.bootstrapTable('filterBy', 'custom', {'filterAlgorithm': function(row) { return row.seen == null; }});
+        }
+    }
+    else {
+        $('#show-button').html('<p class="h3"><i class="fas fa-eye"></i>&nbsp;&nbsp;Hide Deleted</p>').data('func', func);
+        $plitemsTable.bootstrapTable('filterBy', {}, {'filterAlgorithm': 'and'});
+    }
+}
+
 function playlist_interface_manage(func) {
     if (func == 'add') {
         $('.pl-select-view').hide();
@@ -857,6 +922,11 @@ function index_global_init() {
         playlist_remove(this);
         return false;
     });
+    playlist_show_button_change_function();
+    $('#show-button').click(function() {
+        playlist_show_button_change_function();
+        return false;
+    });
     $('#edit-button').click(function() {
         let pl = {};
         $.extend(true, pl, selected_playlist);
@@ -901,6 +971,7 @@ function index_global_init() {
                     let idx = playlist_update_in_list(msg.playlist);
                     playlists_all[idx] = selected_playlist = msg.playlist;
                     $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);
+                    playlist_show_button_change_function('same');
                 }
                 else {
                     playlists_all.push(msg.playlist);
@@ -976,7 +1047,8 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep) {
         cmd: CMD_DUMP,
         playlist: null,
         useri: useri,
-        fast_videoidx: fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ 0:fast_videoidx + fast_videostep
+        load_all: 1,
+        fast_videoidx: -9 //zip: alternativamente fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ 0:fast_videoidx + fast_videostep
     };
     let $table = $('#output-table');
     let $plitemsTable = $('#playlist-items-table');
@@ -991,6 +1063,20 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep) {
         }
         else {
             let no_more = true;
+            if (!Array.isArray(msg.playlists)) {
+                // Pako magic
+                let arr        = pako.inflate(new Uint8Array(atob(msg.playlists).split('').map(function(x){return x.charCodeAt(0);})));
+
+                // Convert gunzipped byteArray back to ascii string:
+                let s = '';
+                for(let i = 0; i< arr.length; i+=100) {
+                    let end = i + 100;
+                    if (end > arr.length)
+                        end = arr.length;
+                    s += String.fromCharCode(... arr.slice(i, end));
+                }
+                msg.playlists     = JSON.parse(s);
+            }
             for (let p of msg.playlists) {
                 let pos = playlists_all.map(function(e) { return e.rowid; }).indexOf(p.rowid);
                 if (pos >= 0) {
@@ -1002,7 +1088,7 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep) {
                 }
                 else
                     playlists_all.push(p);
-                if (p.items.length === msg.fast_videostep)
+                if (msg.fast_videostep && p.items.length === msg.fast_videostep)
                     no_more = false;
             }
             if (params) {
@@ -1051,6 +1137,7 @@ function playlist_select(ev) {
         selected_playlist = playlists_all[playlists_all.map(function(e) { return e.rowid; }).indexOf(rid)];
     }
     $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);
+    playlist_show_button_change_function('show');
     docCookies.setItem(COOKIE_SELECTEDPL, selected_playlist.rowid);
 }
 
@@ -1072,9 +1159,16 @@ function manage_errors(msg) {
 }
 
 function bootstrap_table_name_formatter(value, row, index, field) {
+    let unseen = null;
+    for (let r of row.items) {
+        if (!r.seen) {
+            unseen = r;
+            break;
+        }
+    }
     return `
     <a data-rowid="${row.rowid}" href="#" onclick="playlist_select(this); return false;"><div class="thumb-container">
-        <img src="${row.items[0]?row.items[0].img:'./img/no-videos.png'}" class="thumb-image">
+        <img src="${unseen?unseen.img:'./img/no-videos.png'}" class="thumb-image">
         <div class="thumb-name-overlay">${value}</div>
     </div></a>
         ` + '<br />' + bootstrap_table_info_formatter(value, row, index, field);
@@ -1091,7 +1185,12 @@ function bootstrap_table_info_formatter(value, row, index, field) {
         tpstr += '<span class="badge badge-primary even-larger-badge">rai</span>&nbsp;&nbsp;';
     else
         tpstr += '<span class="badge badge-secondary even-larger-badge">mediaset</span>&nbsp;&nbsp;';
-    tpstr += '<p class="h6">Last Updated: ' + d.format('yyyy/mm/dd') + ' (' +row.items.length + ' items - '+format_duration(playlist_total_duration(row)) +') - AutoUpdate ' + (row.autoupdate?'<i class="fas fa-check">':'<i class="fas fa-times">')+ '</i></p>';
+    let nitems = 0;
+    for (let r of row.items) {
+        if (!r.seen)
+            nitems ++;
+    }
+    tpstr += '<p class="h6">Last Updated: ' + d.format('yyyy/mm/dd') + ' (' + nitems + ' items - '+format_duration(playlist_total_duration(row)) +') - AutoUpdate ' + (row.autoupdate?'<i class="fas fa-check">':'<i class="fas fa-times">')+ '</i></p>';
     return tpstr;
 }
 

@@ -52,6 +52,7 @@ module.exports = {
         'toast_msg': true,
         'pad': true,
         'gapi': true,
+        'pako': true,
         'GOOGLE_CLIENT_ID': true,
         'fetch': true
     },

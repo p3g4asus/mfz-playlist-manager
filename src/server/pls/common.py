@@ -1,3 +1,4 @@
+from base64 import b64encode
 from common.utils import AbstractMessageProcessor, MyEncoder
 from common.const import (
     CMD_DEL,
@@ -11,13 +12,15 @@ from common.const import (
     CMD_CLOSE,
     MSG_NAME_TAKEN,
     MSG_BACKEND_ERROR,
+    MSG_INVALID_PARAM,
     MSG_UNAUTHORIZED,
     MSG_PLAYLIST_NOT_FOUND,
     MSG_PLAYLISTITEM_NOT_FOUND
 )
-from common.playlist import LOAD_ITEMS_ALL, LOAD_ITEMS_NO, Playlist, PlaylistItem
+from common.playlist import LOAD_ITEMS_ALL, LOAD_ITEMS_NO, LOAD_ITEMS_UNSEEN, Playlist, PlaylistItem
 import json
 import logging
+import zlib
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,9 +88,17 @@ class MessageProcessor(AbstractMessageProcessor):
             if u != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
             vidx = msg.f('fast_videoidx')
-            pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), useri=u, offset=vidx, limit=DUMP_LIMIT)
+            if vidx < 0:
+                zlibc = -vidx
+                vidx = None
+            else:
+                zlibc = -1
+            all = msg.f('load_all')
+            pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), useri=u, offset=vidx, limit=DUMP_LIMIT, loaditems=LOAD_ITEMS_UNSEEN if not all else LOAD_ITEMS_ALL)
             _LOGGER.debug("Playlists are %s" % str(pl))
             if len(pl):
+                if zlibc > 0:
+                    pl = str(b64encode(zlib.compress(bytes(json.dumps(pl, cls=MyEncoder), 'utf-8'), zlibc)), 'utf-8')
                 return msg.ok(playlist=None, playlists=pl, fast_videoidx=vidx, fast_videostep=DUMP_LIMIT if vidx is not None else None)
         return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
@@ -113,14 +124,19 @@ class MessageProcessor(AbstractMessageProcessor):
         llx = msg.playlistItemId()
         if llx is not None:
             lx = llx if isinstance(llx, list) else [llx]
-            for x in lx:
+            seen = msg.f("seen")
+            if isinstance(seen, list) and len(seen) != len(lx):
+                return msg.err(20, MSG_INVALID_PARAM, playlistitem=None)
+            elif not isinstance(seen, list):
+                seen = [seen] * len(lx)
+            for i, x in enumerate(lx):
                 it = await PlaylistItem.loadbyid(self.db, rowid=x)
                 if it:
                     pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
                     if pls:
                         if pls[0].useri != userid:
                             return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                        if not await it.setSeen(self.db, msg.f("seen"), commit=True):
+                        if not await it.setSeen(self.db, seen[i], commit=True):
                             return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                     else:
                         return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
