@@ -83,3 +83,7 @@ function bootstrapDetectBreakpoint() {
     }
     return null;
 }
+
+let URL_PARAMS_APPEND = location.protocol.startsWith('file')?window.location.hash:window.location.search;
+let URL_PARAMS = URL_PARAMS_APPEND.substring(1);
+let URL_PARAMS_SEPARATOR = location.protocol.startsWith('file')?'#':'?';

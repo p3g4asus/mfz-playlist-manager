@@ -1038,17 +1038,19 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep) {
                 params.error('No User Cookie Found. Redirecting to login');
             toast_msg('No User Cookie Found. Redirecting to login', 'danger');
             setTimeout(function() {
-                window.location.assign(MAIN_PATH_S + 'login.htm');
+                window.location.assign(MAIN_PATH_S + 'login.htm' + URL_PARAMS_APPEND);
             }, 5000);
             return;
         }
     }
+    let urlParams = new URLSearchParams(URL_PARAMS);
+    let tmpi;
     let content_obj = {
         cmd: CMD_DUMP,
         playlist: null,
         useri: useri,
-        load_all: 1,
-        fast_videoidx: -9 //zip: alternativamente fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ 0:fast_videoidx + fast_videostep
+        load_all: urlParams.has('all') && !isNaN(tmpi = parseInt(urlParams.get('all'))) && tmpi? 1: 0,
+        fast_videoidx: urlParams.has('vidx') && isNaN(tmpi = parseInt(urlParams.get('vidx')))? null: (urlParams.has('vidx')? tmpi: -9) //zip: alternativamente fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ 0:fast_videoidx + fast_videostep
     };
     let $table = $('#output-table');
     let $plitemsTable = $('#playlist-items-table');
@@ -1149,7 +1151,7 @@ function manage_errors(msg) {
         toast_msg(errmsg, 'danger');
         if (msg.rv == 501 || msg.rv == 502)
             setTimeout(function() {
-                window.location.assign(MAIN_PATH_S + 'login.htm');
+                window.location.assign(MAIN_PATH_S + 'login.htm' + URL_PARAMS_APPEND);
             }, 5000);
         return errmsg;
     }

@@ -54,6 +54,8 @@ module.exports = {
         'gapi': true,
         'pako': true,
         'GOOGLE_CLIENT_ID': true,
+        'URL_PARAMS': true,
+        'URL_PARAMS_APPEND': true,
         'fetch': true
     },
     'rules': {

@@ -30,7 +30,7 @@ function login_send_id_token(id_token, name) {
         data: 'idtoken=' + id_token,
         success: function(data, textStatus, request) {
             console.log(listCookies());
-            window.location.assign(MAIN_PATH_S + 'index.htm');
+            window.location.assign(MAIN_PATH_S + 'index.htm' + URL_PARAMS_APPEND);
 
         },
         error: function (request, status, error) {
@@ -60,7 +60,7 @@ function login_init() {
                 data: form.serialize(),
                 success: function(data, textStatus, request) {
                     console.log(listCookies());
-                    window.location.assign(MAIN_PATH_S + 'index.htm');
+                    window.location.assign(MAIN_PATH_S + 'index.htm' + URL_PARAMS_APPEND);
 
                 },
                 error: function (request, status, error) {
