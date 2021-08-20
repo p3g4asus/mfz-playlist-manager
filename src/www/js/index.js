@@ -1071,8 +1071,8 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep) {
 
                 // Convert gunzipped byteArray back to ascii string:
                 let s = '';
-                for(let i = 0; i< arr.length; i+=100) {
-                    let end = i + 100;
+                for(let i = 0; i< arr.length; i+=4096) {
+                    let end = i + 4096;
                     if (end > arr.length)
                         end = arr.length;
                     s += String.fromCharCode(... arr.slice(i, end));
