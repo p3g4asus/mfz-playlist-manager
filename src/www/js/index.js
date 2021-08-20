@@ -1050,7 +1050,7 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep) {
         playlist: null,
         useri: useri,
         load_all: urlParams.has('all') && !isNaN(tmpi = parseInt(urlParams.get('all'))) && tmpi? 1: 0,
-        fast_videoidx: urlParams.has('vidx') && isNaN(tmpi = parseInt(urlParams.get('vidx')))? null: (urlParams.has('vidx')? tmpi: -9) //zip: alternativamente fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ 0:fast_videoidx + fast_videostep
+        fast_videoidx: fast_videoidx == undefined?(urlParams.has('vidx') && isNaN(tmpi = parseInt(urlParams.get('vidx')))? null: (urlParams.has('vidx')? tmpi: -9)):fast_videoidx + fast_videostep //zip: alternativamente fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ 0:fast_videoidx + fast_videostep
     };
     let $table = $('#output-table');
     let $plitemsTable = $('#playlist-items-table');
