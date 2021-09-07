@@ -5,7 +5,7 @@ import asyncio
 
 class JSONAble(abc.ABC):
     @abc.abstractmethod
-    async def toJSON(self, **kwargs):
+    def toJSON(self, **kwargs):
         pass
 
 
