@@ -88,7 +88,7 @@ class MessageProcessor(AbstractMessageProcessor):
             if u != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
             vidx = msg.f('fast_videoidx')
-            if vidx < 0:
+            if isinstance(vidx, int) and vidx < 0:
                 zlibc = -vidx
                 vidx = None
             else:
