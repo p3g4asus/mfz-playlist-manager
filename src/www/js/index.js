@@ -138,7 +138,7 @@ function playlist_item_move(ev) {
             let rid = $btn.data('rowid');
             let qel = new MainWSQueueElement({cmd: CMD_IORDER, playlistitem:parseInt(rid), iorder:parseInt($input.val())}, function(msg) {
                 return msg.cmd === CMD_IORDER? msg:null;
-            }, 20000, 1);
+            }, 60000, 1);
             qel.enqueue().then(function(msg) {
                 if (!manage_errors(msg)) {
                     playlist_dump(selected_playlist.rowid);
@@ -784,7 +784,7 @@ function playlist_interface_manage(func) {
 function playlist_sort() {
     let qel = new MainWSQueueElement({cmd: CMD_SORT, playlist:selected_playlist.rowid}, function(msg) {
         return msg.cmd === CMD_SORT? msg:null;
-    }, 20000, 1);
+    }, 60000, 1);
     qel.enqueue().then(function(msg) {
         if (!manage_errors(msg)) {
             playlist_dump(selected_playlist.rowid);
