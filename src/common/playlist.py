@@ -177,9 +177,14 @@ class Playlist(JSONAble, Fieldable):
                 ''', (self.rowid,)
             )
             if cursor.rowcount <= 0:
+                _LOGGER.debug(f"Fix iorder No Items rowid={self.rowid}")
                 return False
         if commit:
             await db.commit()
+        for i in self.items:
+            if isinstance(i.iorder, int):
+                i.iorder = abs(i.iorder)
+        _LOGGER.debug("Fix iorder OK")
         return True
 
     async def cleanItems(self, db, datelimit, commit=True):
@@ -187,12 +192,26 @@ class Playlist(JSONAble, Fieldable):
         rv = True
         for idx in range(len(items) - 1, -1, -1):
             other_it = items[idx]
-            if other_it.seen:
-                dp = datetime.strptime(other_it.seen, '%Y-%m-%d %H:%M:%S')
-                if other_it.isOk() and int(dp.timestamp() * 1000) < datelimit:
-                    if rv:
-                        rv = await other_it.delete(db, commit=commit)
+            rvn = True
+            if not other_it.isOk():
+                rvn = await other_it.delete(db, commit=False)
                 del items[idx]
+            elif other_it.seen:
+                dp = datetime.strptime(other_it.seen, '%Y-%m-%d %H:%M:%S')
+                if int(dp.timestamp() * 1000) < datelimit:
+                    rvn = await other_it.delete(db, commit=False)
+                    del items[idx]
+                elif other_it.rowid is not None:
+                    rvn = await other_it.setIOrder(db, -(idx + 1) * 10, commit=False)
+                else:
+                    other_it.iorder = -(idx + 1) * 10
+            elif other_it.rowid is not None:
+                rvn = await other_it.setIOrder(db, -(idx + 1) * 10, commit=False)
+            else:
+                other_it.iorder = -(idx + 1) * 10
+            if not rvn:
+                rv = rvn
+        await self.fix_iorder(db, commit=commit)
         return rv
 
     async def toDB(self, db):
