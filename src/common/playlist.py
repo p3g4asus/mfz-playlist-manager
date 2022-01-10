@@ -194,7 +194,7 @@ class Playlist(JSONAble, Fieldable):
         for idx in range(len(items) - 1, -1, -1):
             other_it = items[idx]
             rvn = True
-            if not other_it.isOk():
+            if not other_it.isOk() and other_it.playlist is not None:
                 rvn = await other_it.delete(db, commit=False)
                 del items[idx]
             elif other_it.seen:
