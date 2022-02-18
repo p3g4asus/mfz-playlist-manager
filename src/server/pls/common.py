@@ -35,15 +35,14 @@ class MessageProcessor(AbstractMessageProcessor):
             msg.c(CMD_IORDER) or msg.c(CMD_SORT)
 
     async def processMove(self, msg, userid, executor):
-        pdst = msg.playlistObj()
+        pdst = msg.playlistId()
         itx = msg.playlistItemId()
         if pdst and itx:
-            if pdst.rowid:
-                pdst = await Playlist.loadbyid(self.db, rowid=pdst.rowid)
-                if not pdst:
-                    return msg.err(10, MSG_PLAYLIST_NOT_FOUND, playlist=None)
-                else:
-                    pdst = pdst[0]
+            pdst = await Playlist.loadbyid(self.db, rowid=pdst)
+            if not pdst:
+                return msg.err(10, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+            else:
+                pdst = pdst[0]
             if pdst.useri != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
             it = await PlaylistItem.loadbyid(self.db, itx)

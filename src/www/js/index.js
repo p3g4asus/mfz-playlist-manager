@@ -118,6 +118,26 @@ function playlist_item_seen(ev) {
     }
 }
 
+function playlist_item_movepls(ev) {
+    let $ev = $(ev);
+    let rid = $ev.data('rowid');
+    let plid = $ev.data('plid');
+    let qel = new MainWSQueueElement({cmd: CMD_MOVE, playlistitem:parseInt(rid), playlist: parseInt(plid)}, function(msg) {
+        return msg.cmd === CMD_MOVE? msg:null;
+    }, 20000, 1);
+    qel.enqueue().then(function(msg) {
+        if (!manage_errors(msg)) {
+            playlist_dump(plid);
+            playlist_dump(selected_playlist.rowid);
+        }
+    })
+        .catch(function(err) {
+            console.log(err);
+            let errmsg = 'Exception detected: '+err;
+            toast_msg(errmsg, 'danger');
+        });
+}
+
 function playlist_item_move(ev) {
     let $ev = $(ev);
     let $iorder = $ev.closest('.container-fluid').find('.pl-item-func-iorder-sec');
@@ -189,6 +209,12 @@ function bootstrap_table_uid_formatter(value, row, index, field) {
     p.text(row.title);
     let up = bootstrap_table_date_uploader_formatter(row, 'h2');
     let s = xl?`<div class="row">${up.prop('outerHTML')}</div>`:'';
+    let other_pls = '';
+    playlists_all.map(function(e) { 
+        if (e.rowid != row.playlist) {
+            other_pls += $('<a class="dropdown-item" onclick="playlist_item_movepls(this); return false;" href="#">').attr('data-plid', e.rowid).attr('data-rowid', row.rowid).text(e.name).prop('outerHTML');
+        }
+    });
     return `
         <div class="container-fluid">
             <div class="row">${p.prop('outerHTML')}</div>
@@ -201,6 +227,16 @@ function bootstrap_table_uid_formatter(value, row, index, field) {
             </div>
             <div class="row row-buffer pl-item-func pl-item-func-iorder-sec" style="display: none;">
                 <input type="number" class="col-6"/><a class="btn btn-info col-6 btn-block" data-rowid="${row.rowid}" data-seen="${seen}" href="#" role="button">${bootstrap_wrap_button('fas fa-dolly', '', xl?'h3':'')}</a>
+            </div>
+            <div class="row row-buffer pl-item-func pl-item-func-move">
+                <div class="btn-group col-12">
+                    <button type="button" class="btn btn-info ${xl?"btn-lg":""} dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    ${bootstrap_wrap_button('fas fa-truck-moving', '', '')}
+                    </button>
+                    <div class="dropdown-menu">
+                    ${other_pls}
+                    </div>
+                </div>
             </div>
         </div>
         `;
