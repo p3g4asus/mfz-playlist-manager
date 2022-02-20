@@ -2,6 +2,7 @@ let selected_playlist = null;
 let playlists_all = [];
 let playlist_selected_del_tmr = -1;
 let playlist_selected_del_cnt = 5;
+let back_list_scroll_top = 0;
 const bootstrap_styles = ['primary', 'secondary', 'success', 'warning', 'danger', 'info', 'light', 'dark'];
 let bootstrap_breakpoint = {name: 'xs'};
 let xl = '';
@@ -230,7 +231,7 @@ function bootstrap_table_uid_formatter(value, row, index, field) {
             </div>
             <div class="row row-buffer pl-item-func pl-item-func-move">
                 <div class="btn-group col-12">
-                    <button type="button" class="btn btn-info ${xl?"btn-lg":""} dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <button type="button" class="btn btn-info ${xl?'btn-lg':''} dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     ${bootstrap_wrap_button('fas fa-truck-moving', '', '')}
                     </button>
                     <div class="dropdown-menu">
@@ -778,6 +779,8 @@ function playlist_interface_manage(func) {
         $('.' + PL_ADD_VIEW_TYPE_CLASS).remove();
         $('.pl-list-view').fadeIn(1000);
         playlist_add_button_change_function(func);
+        $(window).scrollTop(back_list_scroll_top);
+        back_list_scroll_top = 0;
     }
     else if (func == 'back-playlist-add') {
         $('.pl-select-view').hide();
@@ -808,12 +811,13 @@ function playlist_interface_manage(func) {
         playlist_add_button_change_function(func);
     }
     else if (func == 'back-list') {
+        back_list_scroll_top = $(window).scrollTop();
+        playlist_add_button_change_function(func);
         $('.pl-list-view').hide();
         $('.pl-add-view').hide();
         $('.' + PL_ADD_VIEW_TYPE_CLASS).remove();
         $('.pl-update-view').hide();
         $('.pl-select-view').fadeIn(1000);
-        playlist_add_button_change_function(func);
     }
 }
 
@@ -1172,6 +1176,7 @@ function playlist_select(ev) {
     else {
         let rid = parseInt($(ev).data('rowid'));
         playlist_interface_manage('back-list');
+        $(window).scrollTop(0);
         selected_playlist = playlists_all[playlists_all.map(function(e) { return e.rowid; }).indexOf(rid)];
     }
     $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);

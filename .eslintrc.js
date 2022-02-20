@@ -27,6 +27,7 @@ module.exports = {
         'search_var': true,
         'PL_ADD_VIEW_TYPE_CLASS': true,
         'CMD_SEEN': true,
+        'CMD_MOVE': true,
         'CMD_MEDIASET_BRANDS': true,
         'host_url': true,
         'CMD_RAI_CONTENTSET': true,
