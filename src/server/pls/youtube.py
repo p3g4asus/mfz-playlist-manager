@@ -25,6 +25,8 @@ class MessageProcessor(RefreshMessageProcessor):
     def programsUrl(plid):
         if plid[0] == '&':
             return f'https://m.youtube.com/watch?v={plid[1:]}'
+        elif plid[0] == '%':
+            return plid[1:]
         elif plid[0] == '|':
             return f'https://www.youtube.com/channel/{plid[1:]}/videos'
         else:
@@ -35,18 +37,26 @@ class MessageProcessor(RefreshMessageProcessor):
         if text:
             try:
                 plid = ''
-                mo2 = re.search(r'v=([^&?/]+)', text)
-                if mo2:
-                    plid = "&" + mo2.group(1)
-                    url = MessageProcessor.programsUrl(plid)
+                if text.find('twitch.tv') >= 0:
+                    plid = '%'
+                    if text.find('/videos') >= 0:
+                        url = text
+                    else:
+                        url = text + '/videos?filter=archives&sort=time'
+                    plid += url
                 else:
-                    mo2 = re.search(r'list=([^&?/]+)', text)
+                    mo2 = re.search(r'v=([^&?/]+)', text)
                     if mo2:
-                        plid = mo2.group(1)
+                        plid = "&" + mo2.group(1)
                         url = MessageProcessor.programsUrl(plid)
                     else:
-                        mo2 = re.search(r'/videos$', text)
-                        url = text if mo2 else text + '/videos'
+                        mo2 = re.search(r'list=([^&?/]+)', text)
+                        if mo2:
+                            plid = mo2.group(1)
+                            url = MessageProcessor.programsUrl(plid)
+                        else:
+                            mo2 = re.search(r'/videos$', text)
+                            url = text if mo2 else text + '/videos'
                 _LOGGER.debug("Youtube: Getting processPlaylistCheck " + url)
                 ydl_opts = {
                     'ignoreerrors': True,
@@ -158,7 +168,7 @@ class MessageProcessor(RefreshMessageProcessor):
                         playlist_dict = dict()
                         await executor(self.youtube_dl_get_dict, current_url, ydl_opts, playlist_dict)
                         if '_err' not in playlist_dict:
-                            if set[0] == '&':
+                            if set[0] == '&' or 'entries' not in playlist_dict:
                                 startFrom = 0
                                 try:
                                     playlist_dict['entries'] = [dict(**playlist_dict)]
@@ -168,19 +178,43 @@ class MessageProcessor(RefreshMessageProcessor):
                                 secadd = 86000
                                 for video in playlist_dict['entries']:
                                     try:
-                                        if 'upload_date' not in video:
-                                            current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
-                                            _LOGGER.debug("Set = %s url = %s" % (set, current_url))
-                                            video = dict()
-                                            await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                        if set[0] == '%':
+                                            if 'timestamp' not in video:
+                                                mo = re.search(r'_([0-9]{7,})/+thumb', video["thumbnail"])
+                                                if mo:
+                                                    tsi = int(mo.group(1))
+                                                    if tsi >= 1590734846:
+                                                        try:
+                                                            datetime.fromtimestamp(tsi)
+                                                            video['timestamp'] = tsi
+                                                        except Exception:
+                                                            pass
+                                            if 'timestamp' not in video:
+                                                _LOGGER.debug("thumb does not match " + video["thumbnail"])
+                                                current_url = video['url']
+                                                _LOGGER.debug("SetTwitch = %s url = %s" % (set, current_url))
+                                                video = dict()
+                                                await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                            if 'timestamp' in video:
+                                                datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
+                                            else:
+                                                datepubo = datepubo_conf = datetime.now()
+                                            video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                            video['thumbnail'] = re.sub(r'[0-9]+x[0-9]+\.jpg', '0x0.jpg', video['thumbnail'])
+                                        else:
+                                            if 'upload_date' not in video:
+                                                current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
+                                                _LOGGER.debug("Set = %s url = %s" % (set, current_url))
+                                                video = dict()
+                                                await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                            datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
+                                            datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
+                                            datepubo = datepubo + timedelta(seconds=secadd)
+                                            secadd -= 1
                                         _LOGGER.debug("Found [%s] = %s | %s | %s" % (video.get('id'),
                                                                                      video.get('title'),
                                                                                      video.get('upload_date'),
                                                                                      video.get('duration')))
-                                        datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
-                                        datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
-                                        datepubo = datepubo + timedelta(seconds=secadd)
-                                        secadd -= 1
                                         # datepubi = int(datepubo.timestamp() * 1000)
                                         datepubi_conf = int(datepubo_conf.timestamp() * 1000)
                                         if video['id'] not in programs:
