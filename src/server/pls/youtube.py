@@ -195,6 +195,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                                 _LOGGER.debug("SetTwitch = %s url = %s" % (set, current_url))
                                                 video = dict()
                                                 await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                                if video['id'][0] == 'v':
+                                                    video['id'] = video['id'][1:]
                                             if 'timestamp' in video:
                                                 datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
                                             else:
