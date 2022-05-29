@@ -989,7 +989,7 @@ function index_global_init() {
             cmd: CMD_REFRESH, 
             playlist:current_playlist,
             datefrom:Date.parse($('#pl-update-view-date-start').val()),
-            dateto:Date.parse($('#pl-update-view-date-end').val()),
+            dateto:Date.parse($('#pl-update-view-date-end').val()) + 86399999,
         }, function(msg) {
             if (msg.cmd == CMD_PING)
                 return 0;
