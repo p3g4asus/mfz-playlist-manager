@@ -189,9 +189,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             video['timestamp'] = tsi
                                                         except Exception:
                                                             pass
+                                            current_url = video['url']
                                             if 'timestamp' not in video:
                                                 _LOGGER.debug("thumb does not match " + video["thumbnail"])
-                                                current_url = video['url']
                                                 _LOGGER.debug("SetTwitch = %s url = %s" % (set, current_url))
                                                 video = dict()
                                                 await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
@@ -204,8 +204,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                             video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                             video['thumbnail'] = re.sub(r'[0-9]+x[0-9]+\.jpg', '0x0.jpg', video['thumbnail'])
                                         else:
+                                            current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
                                             if 'upload_date' not in video:
-                                                current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
                                                 _LOGGER.debug("Set = %s url = %s" % (set, current_url))
                                                 video = dict()
                                                 await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
