@@ -256,7 +256,13 @@ async def init_db(app):
                     m = importlib.import_module("server.pls." + x)
                     cla = getattr(m, "MessageProcessor")
                     if cla:
-                        app.p.processors[x] = cla(app.p.db)
+                        dct = dict()
+                        for k, v in app.p.args.items():
+                            if k.startswith(x + '_'):
+                                k2 = k[len(x) + 1:]
+                                if k2:
+                                    dct[k2] = v
+                        app.p.processors[x] = cla(app.p.db, **dct)
                         if x != "common":
                             await app.p.db.execute("INSERT OR IGNORE INTO type(name) VALUES (?)", (x,))
                 except Exception:
@@ -381,6 +387,7 @@ def main():
         args['executors'] = 2
         args['autoupdate'] = 25
         args['client_id'] = ''
+        args['youtube_apikey'] = ''
         args["static"] = os.path.dirname(os.path.abspath(__file__)).join('..', 'www')
         app.p.osc_port = args["msgfrom"]
         app.p.osc_server = None
@@ -399,9 +406,10 @@ def main():
         parser = argparse.ArgumentParser(prog=__prog__)
         parser.add_argument('--port', type=int, help='port number', required=False, default=8080)
         parser.add_argument('--autoupdate', type=int, help='autoupdate time', required=False, default=25)
-        parser.add_argument('--client_id', help='Google client id', required=False, default='')
+        parser.add_argument('--client-id', help='Google client id', required=False, default='')
         parser.add_argument('--executors', type=int, help='executor number', required=False, default=2)
         parser.add_argument('--static', required=False, default=None)
+        parser.add_argument('--youtube-apikey', required=False, default="")
         parser.add_argument('--host', required=False, default="0.0.0.0")
         parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))
         parser.add_argument("-v", "--verbose", help="increase output verbosity",

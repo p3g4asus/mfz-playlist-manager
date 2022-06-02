@@ -34,7 +34,7 @@ def get_json_encoder(name, **kwargs):
 
 
 class AbstractMessageProcessor(abc.ABC):
-    def __init__(self, db):
+    def __init__(self, db, **kwargs):
         self.db = db
 
     @abc.abstractmethod

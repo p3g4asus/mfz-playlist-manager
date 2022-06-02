@@ -21,6 +21,15 @@ class MessageProcessor(RefreshMessageProcessor):
     def get_name(self):
         return "youtube"
 
+    def __init__(self, db, **kwargs):
+        super().__init__(db, **kwargs)
+        try:
+            from googleapiclient.discovery import build
+            self.apikey = kwargs.get('apikey', '')
+        except ImportError:
+            self.apikey = ''
+        self.youtube = None
+
     @staticmethod
     def programsUrl(plid):
         if plid[0] == '&':
@@ -179,6 +188,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                 for video in playlist_dict['entries']:
                                     try:
                                         if set[0] == '%':
+                                            current_url = video['url']
                                             if 'timestamp' not in video:
                                                 mo = re.search(r'_([0-9]{7,})/+thumb', video["thumbnail"])
                                                 if mo:
@@ -189,7 +199,6 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             video['timestamp'] = tsi
                                                         except Exception:
                                                             pass
-                                            current_url = video['url']
                                             if 'timestamp' not in video:
                                                 _LOGGER.debug("thumb does not match " + video["thumbnail"])
                                                 _LOGGER.debug("SetTwitch = %s url = %s" % (set, current_url))
@@ -205,14 +214,33 @@ class MessageProcessor(RefreshMessageProcessor):
                                             video['thumbnail'] = re.sub(r'[0-9]+x[0-9]+\.jpg', '0x0.jpg', video['thumbnail'])
                                         else:
                                             current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
+                                            if self.apikey:
+                                                if self.youtube is None:
+                                                    from googleapiclient.discovery import build
+                                                    self.youtube = build('youtube', 'v3', developerKey=self.apikey)
+                                                req = self.youtube.videos().list(part="snippet", id=video['id'])
+                                                resp = req.execute()
+                                                _LOGGER.debug(f'Using apikey: resp is {resp}')
+                                                if 'items' in resp and resp['items']:
+                                                    base = resp['items'][0]
+                                                    if 'snippet' in base:
+                                                        base = base['snippet']
+                                                        if 'publishedAt' in base and 'thumbnails' in base:
+                                                            datepubo = datepubo_conf = datetime.strptime(base['publishedAt'], "%Y-%m-%dT%H:%M:%S%z")
+                                                            video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                            ths = ['maxres', 'standard', 'medium', 'default']
+                                                            for x in ths:
+                                                                if x in base['thumbnails']:
+                                                                    video['thumbnail'] = base['thumbnails'][x]['url']
+                                                                    break
                                             if 'upload_date' not in video:
                                                 _LOGGER.debug("Set = %s url = %s" % (set, current_url))
                                                 video = dict()
                                                 await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
-                                            datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
-                                            datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
-                                            datepubo = datepubo + timedelta(seconds=secadd)
-                                            secadd -= 1
+                                                datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
+                                                datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
+                                                datepubo = datepubo + timedelta(seconds=secadd)
+                                                secadd -= 1
                                         _LOGGER.debug("Found [%s] = %s | %s | %s" % (video.get('id'),
                                                                                      video.get('title'),
                                                                                      video.get('upload_date'),
