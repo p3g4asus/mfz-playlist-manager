@@ -7,6 +7,7 @@ from datetime import (datetime, timedelta)
 from common.const import (CMD_YT_PLAYLISTCHECK, MSG_YT_INVALID_PLAYLIST,
                           MSG_BACKEND_ERROR, MSG_NO_VIDEOS)
 from common.playlist import PlaylistItem
+from common.utils import parse_isoduration
 
 from .refreshmessageprocessor import RefreshMessageProcessor
 
@@ -218,17 +219,19 @@ class MessageProcessor(RefreshMessageProcessor):
                                                 if self.youtube is None:
                                                     from googleapiclient.discovery import build
                                                     self.youtube = build('youtube', 'v3', developerKey=self.apikey)
-                                                req = self.youtube.videos().list(part="snippet", id=video['id'])
+                                                req = self.youtube.videos().list(part="snippet,contentDetails", id=video['id'])
                                                 resp = req.execute()
                                                 _LOGGER.debug(f'Using apikey: resp is {resp}')
                                                 if 'items' in resp and resp['items']:
                                                     base = resp['items'][0]
-                                                    if 'snippet' in base:
+                                                    if 'snippet' in base and 'contentDetails' in base:
+                                                        cdt = base['contentDetails']
                                                         base = base['snippet']
-                                                        if 'publishedAt' in base and 'thumbnails' in base:
+                                                        if 'publishedAt' in base and 'thumbnails' in base and 'duration' in cdt:
                                                             datepubo = datepubo_conf = datetime.strptime(base['publishedAt'], "%Y-%m-%dT%H:%M:%S%z")
                                                             video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                                             ths = ['maxres', 'standard', 'medium', 'default']
+                                                            video['duration'] = 0 if not cdt['duration'] else parse_isoduration(cdt['duration'])
                                                             for x in ths:
                                                                 if x in base['thumbnails']:
                                                                     video['thumbnail'] = base['thumbnails'][x]['url']
