@@ -207,6 +207,10 @@ class MessageProcessor(RefreshMessageProcessor):
                                                 await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
                                                 if video['id'][0] == 'v':
                                                     video['id'] = video['id'][1:]
+                                            else:
+                                                mo = re.search(r'twitch.tv/([^/]+)/videos', set)
+                                                if mo:
+                                                    video['uploader_id'] = video['uploader'] = mo.group(1)
                                             if 'timestamp' in video:
                                                 datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
                                             else:
