@@ -135,5 +135,5 @@ node_modules/
 logs/
 ca-bundle.crt
 server_local.sh
-google-client_id.txt
+google-client-id.txt
 youtube-apikey.txt
