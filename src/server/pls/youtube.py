@@ -232,6 +232,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                                             ths = ['maxres', 'standard', 'medium', 'default']
                                                             video['duration'] = 0 if not cdt['duration'] else parse_isoduration(cdt['duration'])
+                                                            video['uploader'] = base.get('channelTitle')
+                                                            video['uploader_id'] = base.get('channelId')
+                                                            video['title'] = base.get('title', video['title'])
                                                             for x in ths:
                                                                 if x in base['thumbnails']:
                                                                     video['thumbnail'] = base['thumbnails'][x]['url']
