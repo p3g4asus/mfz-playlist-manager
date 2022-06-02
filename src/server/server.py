@@ -20,6 +20,7 @@ from cryptography import fernet
 
 import aiohttp_cors
 import aiosqlite
+import certifi
 from common.const import PORT_OSC_CONST, COOKIE_LOGIN
 from common.timer import Timer
 from common.utils import asyncio_graceful_shutdown
@@ -378,6 +379,8 @@ def main():
     app = web.Application()
     app.p = Object()
     app.p.myrunners = []
+    # Here's all the magic !
+    os.environ['SSL_CERT_FILE'] = certifi.where()
     p4a = os.environ.get('PYTHON_SERVICE_ARGUMENT', '')
     _LOGGER.info("Starting server p4a = %s" % p4a)
     if len(p4a):
@@ -399,9 +402,6 @@ def main():
         app.p.osc_ping_timer = None
         app.p.osc_init_timer = Timer(0, partial(osc_init, app))
         insert_notification()
-        import certifi
-        # Here's all the magic !
-        os.environ['SSL_CERT_FILE'] = certifi.where()
     else:
         parser = argparse.ArgumentParser(prog=__prog__)
         parser.add_argument('--port', type=int, help='port number', required=False, default=8080)
