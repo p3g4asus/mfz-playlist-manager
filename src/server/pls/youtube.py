@@ -2,7 +2,7 @@ import logging
 import re
 import traceback
 import youtube_dl
-from datetime import (datetime, timedelta)
+from datetime import (datetime, timedelta, timezone)
 
 from common.const import (CMD_YT_PLAYLISTCHECK, MSG_YT_INVALID_PLAYLIST,
                           MSG_BACKEND_ERROR, MSG_NO_VIDEOS)
@@ -168,6 +168,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     'extract_flat': True
                 }
                 programs = dict()
+                localtz = datetime.now(timezone.utc).astimezone().tzinfo
                 for set, ordered in sets:
                     startFrom = 1
                     while startFrom:
@@ -232,7 +233,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                         cdt = base['contentDetails']
                                                         base = base['snippet']
                                                         if 'publishedAt' in base and 'thumbnails' in base and 'duration' in cdt:
-                                                            datepubo = datepubo_conf = datetime.strptime(base['publishedAt'], "%Y-%m-%dT%H:%M:%S%z")
+                                                            datepubo = datepubo_conf = datetime.strptime(base['publishedAt'], "%Y-%m-%dT%H:%M:%S%z").astimezone(localtz)
                                                             video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                                             ths = ['maxres', 'standard', 'medium', 'default']
                                                             video['duration'] = 0 if not cdt['duration'] else parse_isoduration(cdt['duration'])
