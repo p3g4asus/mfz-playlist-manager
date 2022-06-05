@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <title>Workout</title>
+    <meta charset="utf-8" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css"
+      integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2"
+      crossorigin="anonymous"
+    />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-ho+j7jyWK8fNQe+A12Hb8AhRq26LrZ/JpcUGGOn+Y7RsweNrtN/tE3MoK7ZeZDyx"
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://cdn.jsdelivr.net/gh/madmurphy/cookies.js@master/cookies.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/shaack/bootstrap-input-spinner@master/src/bootstrap-input-spinner.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/shaack/bootstrap-input-spinner@master/src/custom-editors.min.js"></script>
+    <script src="../js/const.js"></script>
+    <script src="./globals.js"></script>
+    <script src="./gui.js"></script>
+    <script src="../js/main_ws_manager.js"></script>
+    <script src="./video_manager.js"></script>
+    <!--<link rel="stylesheet" type="text/css" href="style.css" />-->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+      integrity="sha512-iBBXm8fW90+nuLcSKlbmrPcLa0OT92xO1BIsZ+ywDWZCvqsWgccV3gFoRBv0z+8dLJgyAHIhR35VZc2oM/gI1w=="
+      crossorigin="anonymous"
+    />
+  </head>
+
+  <body>
+    <p id="video_title" style="text-align: center" class="h2">Video view</p>
+    <div class="container-fluid">
+      <div class="row" id="player-content">
+        <div class="col-12" id="player"></div>
+      </div>
+      <div class="row row-space">
+        <div class="col-3">
+          <a
+            id="prev_button"
+            class="btn btn-warning btn-lg col-12 btn-block disabled"
+            href="#"
+            role="button"
+            onclick="button_video(this, -1);"
+            ><i class="fa fa-step-backward"></i>&nbsp;&nbsp;Prev</a
+          >
+        </div>
+        <div class="col-3">
+          <a
+            id="pause_button"
+            class="btn btn-danger btn-lg col-12 btn-block disabled"
+            href="#"
+            role="button"
+            onclick="button_video(this, null);"
+            ><i class="fas fa-pause"></i>&nbsp;&nbsp;Pause</a
+          >
+        </div>
+        <div class="col-3">
+          <a
+            id="next_button"
+            class="btn btn-success btn-lg col-12 btn-block disabled"
+            href="#"
+            role="button"
+            onclick="button_video(this, 1);"
+            >Next&nbsp;&nbsp;<i class="fa fa-step-forward"></i
+          ></a>
+        </div>
+        <div class="dropdown col-3" id="playlist_items_cont">
+          <button
+            class="btn btn-primary btn-lg col-12 btn-block disabled dropdown-toggle"
+            type="button"
+            id="playlist_items"
+            data-toggle="dropdown"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            Playlist
+          </button>
+          <div class="dropdown-menu" aria-labelledby="playlist_items"></div>
+        </div>
+      </div>
+      <div id="alert-row" class="row"></div>
+      <div id="dim-row" class="row">
+        <form class="col-md-6" autocomplete="on">
+          <div class="form-group">
+            <label for="video-width">Video Width</label>
+            <input
+              type="number"
+              placeholder="Video Width"
+              id="video-width"
+              value="900"
+              min="100"
+              max="4000"
+              step="1"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="video-height">Video Height</label>
+            <input
+              type="number"
+              placeholder="Video Height"
+              id="video-height"
+              value="660"
+              min="100"
+              max="4000"
+              step="1"
+              required
+            />
+          </div>
+        </form>
+        <form class="col-md-6" autocomplete="on">
+        <div class="form-check mt-5">
+            <input class="form-check-input" type="checkbox" value="" id="default-sett">
+            <label class="form-check-label" for="default-sett">
+                Set Default
+            </label>
+            </div>
+          <div class="form-group">
+            <a
+              id="reload_button"
+              class="btn btn-primary btn-lg btn-block disabled mt-4"
+              href="#"
+              role="button"
+              onclick="playlist_reload();"
+              >Reload&nbsp;&nbsp;<i class="fa fa-refresh"></i
+            ></a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>

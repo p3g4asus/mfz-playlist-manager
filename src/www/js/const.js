@@ -1,6 +1,7 @@
 const COOKIE_LOGIN = 'API_SESSION';
 const COOKIE_USERID = 'Userid';
 const COOKIE_SELECTEDPL = 'SelectedPl';
+const COOKIE_PLAYSETT = 'playsett';
 const MAIN_PATH_S = location.protocol == 'https:'?(location.href.indexOf('tst') > 0?'/tst-s/':'/pm-s/'):'/static/';
 const MAIN_PATH = location.protocol == 'https:'?(location.href.indexOf('tst') > 0?'/tst-n/':'/pm/'):'/';
 const CMD_DEL = 'del';
@@ -15,6 +16,8 @@ const CMD_IORDER = 'iorder';
 const CMD_CLOSE = 'close';
 const CMD_PING = 'ping';
 const CMD_REFRESH = 'refresh';
+const CMD_PLAYID = 'playid';
+const CMD_PLAYSETT = 'playsett';
 const CMD_LS = 'ls';
 const CMD_RAI_CONTENTSET = 'rai.contentset';
 const CMD_YT_PLAYLISTCHECK = 'youtube.playlistcheck';
@@ -28,6 +31,23 @@ function pad(num, size) {
     num = num.toString();
     while (num.length < size) num = '0' + num;
     return num;
+}
+
+function manage_errors(msg) {
+    if (msg.rv) {
+        let errmsg = 'E [' + msg.rv + '] ' + msg.err+ '.'; 
+        if (msg.rv == 501 || msg.rv == 502)
+            errmsg +=' Redirecting to login.';
+        toast_msg(errmsg, 'danger');
+        if (msg.rv == 501 || msg.rv == 502)
+            setTimeout(function() {
+                window.location.assign(MAIN_PATH_S + 'login.htm' + URL_PARAMS_APPEND);
+            }, 5000);
+        return errmsg;
+    }
+    else
+        return null;
+    
 }
 
 function toast_msg(msg, type, html) {
@@ -82,6 +102,19 @@ function bootstrapDetectBreakpoint() {
         }
     }
     return null;
+}
+
+function generate_rand_string(nchars) {
+    if (window.crypto && window.crypto.getRandomValues) {
+        nchars = nchars || 16;
+        var rnd = new Uint8Array(nchars);
+        window.crypto.getRandomValues(rnd);
+        var cpn = '';
+        for (var c = 0; c < nchars; c++)
+            cpn += 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'.charAt(rnd[c] & 63);
+        return cpn;
+    }
+    return '';
 }
 
 let URL_PARAMS_APPEND = location.protocol.startsWith('file')?window.location.hash:window.location.search;

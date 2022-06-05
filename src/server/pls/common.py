@@ -1,7 +1,10 @@
 from base64 import b64encode
+import traceback
 from common.utils import AbstractMessageProcessor, MyEncoder
 from common.const import (
     CMD_DEL,
+    CMD_PLAYID,
+    CMD_PLAYSETT,
     CMD_REN,
     CMD_DUMP,
     CMD_MOVE,
@@ -32,7 +35,8 @@ class MessageProcessor(AbstractMessageProcessor):
     def interested(self, msg):
         return msg.c(CMD_DEL) or msg.c(CMD_REN) or msg.c(CMD_DUMP) or\
             msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or\
-            msg.c(CMD_IORDER) or msg.c(CMD_SORT)
+            msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or\
+            msg.c(CMD_PLAYSETT)
 
     async def processMove(self, msg, userid, executor):
         pdst = msg.playlistId()
@@ -93,7 +97,7 @@ class MessageProcessor(AbstractMessageProcessor):
             else:
                 zlibc = -1
             all = msg.f('load_all')
-            pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), useri=u, offset=vidx, limit=DUMP_LIMIT, loaditems=LOAD_ITEMS_UNSEEN if not all else LOAD_ITEMS_ALL)
+            pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), name=msg.playlistName(), useri=u, offset=vidx, limit=DUMP_LIMIT, loaditems=LOAD_ITEMS_UNSEEN if not all else LOAD_ITEMS_ALL)
             _LOGGER.debug("Playlists are %s" % str(pl))
             if len(pl):
                 if zlibc > 0:
@@ -235,12 +239,68 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
+    async def processPlayId(self, msg, userid, executor):
+        x = msg.playlistId()
+        if x is not None:
+            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            if pls:
+                pl = pls[0]
+                if pl.useri != userid:
+                    return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                # await pl.cleanItems(self.db, commit=False)
+                play = pl.conf.get('play', dict())
+                pl.conf['play'] = play
+                play['id'] = msg.f('playid')
+                rv = await pl.toDB(self.db)
+                if not rv:
+                    return msg.err(20, MSG_INVALID_PARAM, playlist=None)
+                return msg.ok(playlist=pl)
+            else:
+                return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+        else:
+            return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+
+    async def processPlaySett(self, msg, userid, executor):
+        x = msg.playlistId()
+        if x is not None:
+            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            if pls:
+                pl = pls[0]
+                if pl.useri != userid:
+                    return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                # await pl.cleanItems(self.db, commit=False)
+                try:
+                    play = pl.conf.get('play', dict())
+                    pl.conf['play'] = play
+                    play['id'] = msg.f('playid')
+                    keys = msg.f('key')
+                    key = play.get(keys, dict())
+                    play[keys] = key
+                    if 'default' not in key or msg.f('default'):
+                        key['default'] = msg.f('content')
+                    key[msg.f('set')] = msg.f('content')
+                    rv = await pl.toDB(self.db)
+                    if not rv:
+                        return msg.err(20, MSG_INVALID_PARAM, playlist=None)
+                    return msg.ok(playlist=pl)
+                except Exception:
+                    _LOGGER.error(traceback.format_exc())
+                    return msg.err(30, MSG_INVALID_PARAM, playlist=None)
+            else:
+                return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+        else:
+            return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+
     async def process(self, ws, msg, userid, executor):
         resp = None
         if msg.c(CMD_DEL):
             resp = await self.processDel(msg, userid, executor)
-        if msg.c(CMD_MOVE):
+        elif msg.c(CMD_MOVE):
             resp = await self.processMove(msg, userid, executor)
+        elif msg.c(CMD_PLAYID):
+            resp = await self.processPlayId(msg, userid, executor)
+        elif msg.c(CMD_PLAYSETT):
+            resp = await self.processPlaySett(msg, userid, executor)
         elif msg.c(CMD_ADD):
             resp = await self.processAdd(msg, userid, executor)
         elif msg.c(CMD_REN):

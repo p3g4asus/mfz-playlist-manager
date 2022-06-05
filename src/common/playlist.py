@@ -573,6 +573,13 @@ class PlaylistMessage(JSONAble, Fieldable):
                 return x
         return None
 
+    def playlistName(self):
+        x = self.f("name")
+        if x:
+            if isinstance(x, str) and x:
+                return x
+        return None
+
     def playlistObj(self):
         x = self.f("playlist")
         if x:

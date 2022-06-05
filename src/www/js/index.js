@@ -80,6 +80,7 @@ function playlist_selected_del_tmr_fun() {
                         $plitemsTable.bootstrapTable('updateRow', {index:pos, row:rowcp, replace:true});
                         selected_playlist.items[pos] = rowcp;
                     }
+                    set_button_enabled('#play-button', selected_playlist.items.length);
                     playlist_update_in_list(selected_playlist);
                 }
             })
@@ -967,6 +968,11 @@ function index_global_init() {
         playlist_show_button_change_function();
         return false;
     });
+    $('#play-button').click(function() {
+        if (selected_playlist.items.length)
+            window.location.assign(MAIN_PATH_S + 'play/workout.htm?name=' + selected_playlist.name);
+        return false;
+    });
     $('#edit-button').click(function() {
         let pl = {};
         $.extend(true, pl, selected_playlist);
@@ -1012,6 +1018,7 @@ function index_global_init() {
                     playlists_all[idx] = selected_playlist = msg.playlist;
                     $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);
                     playlist_show_button_change_function('same');
+                    set_button_enabled('#play-button', selected_playlist.items.length);
                 }
                 else {
                     playlists_all.push(msg.playlist);
@@ -1179,26 +1186,10 @@ function playlist_select(ev) {
         $(window).scrollTop(0);
         selected_playlist = playlists_all[playlists_all.map(function(e) { return e.rowid; }).indexOf(rid)];
     }
+    set_button_enabled('#play-button', selected_playlist.items.length);
     $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);
     playlist_show_button_change_function('show');
     docCookies.setItem(COOKIE_SELECTEDPL, selected_playlist.rowid);
-}
-
-function manage_errors(msg) {
-    if (msg.rv) {
-        let errmsg = 'E [' + msg.rv + '] ' + msg.err+ '.'; 
-        if (msg.rv == 501 || msg.rv == 502)
-            errmsg +=' Redirecting to login.';
-        toast_msg(errmsg, 'danger');
-        if (msg.rv == 501 || msg.rv == 502)
-            setTimeout(function() {
-                window.location.assign(MAIN_PATH_S + 'login.htm' + URL_PARAMS_APPEND);
-            }, 5000);
-        return errmsg;
-    }
-    else
-        return null;
-    
 }
 
 function bootstrap_table_name_formatter(value, row, index, field) {
