@@ -871,7 +871,7 @@ function playlist_remove(ev) {
                         playlists_all.splice(playlists_all.map(function(e) { return e.rowid; }).indexOf(selected_playlist.rowid), 1);
                         $('#output-table').bootstrapTable('removeByUniqueId', selected_playlist.rowid);
                         selected_playlist = null;
-                        docCookies.setItem(COOKIE_SELECTEDPL, -1);
+                        docCookies.setItem(COOKIE_SELECTEDPL, -1, Infinity);
                         playlist_interface_manage('add');
                     }
                 })
@@ -938,19 +938,19 @@ function index_global_init() {
             playlist_interface_manage('back-list');
         else if (func == 'back-list-update') {
             selected_playlist = null;
-            docCookies.setItem(COOKIE_SELECTEDPL, -1);
+            docCookies.setItem(COOKIE_SELECTEDPL, -1, Infinity);
             playlist_interface_manage('add');
         }
         else if (func == 'back-playlist-update')
             playlist_interface_manage('back-list');
         else if (func == 'back-list') {
             selected_playlist = null;
-            docCookies.setItem(COOKIE_SELECTEDPL, -1);
+            docCookies.setItem(COOKIE_SELECTEDPL, -1, Infinity);
             playlist_interface_manage('add');
         }
         else if (func == 'back-list-add') {
             selected_playlist = null;
-            docCookies.setItem(COOKIE_SELECTEDPL, -1);
+            docCookies.setItem(COOKIE_SELECTEDPL, -1, Infinity);
             playlist_interface_manage('add');
         }
         else {
@@ -1189,7 +1189,7 @@ function playlist_select(ev) {
     set_button_enabled('#play-button', selected_playlist.items.length);
     $('#playlist-items-table').bootstrapTable('load', [...selected_playlist.items]);
     playlist_show_button_change_function('show');
-    docCookies.setItem(COOKIE_SELECTEDPL, selected_playlist.rowid);
+    docCookies.setItem(COOKIE_SELECTEDPL, selected_playlist.rowid, Infinity);
 }
 
 function bootstrap_table_name_formatter(value, row, index, field) {

@@ -298,7 +298,7 @@ function init_video_manager() {
     playlist_play_settings_key = docCookies.getItem(COOKIE_PLAYSETT);
     if (!playlist_play_settings_key) {
         playlist_play_settings_key = generate_rand_string(16);
-        docCookies.setItem(COOKIE_PLAYSETT, playlist_play_settings_key);
+        docCookies.setItem(COOKIE_PLAYSETT, playlist_play_settings_key, Infinity);
     }
     else {
         if (playlist_current.conf.play && playlist_current.conf.play[playlist_play_settings_key])
