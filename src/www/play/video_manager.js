@@ -269,8 +269,7 @@ function playlist_start_playing(idx) {
     set_reload_button_enabled(playlist_item_current != null);
     set_remove_button_enabled(playlist_item_current != null);
     if (playlist_item_current) {
-        $('#player-content').empty();
-        $('#player-content').append($('<div class="col-12" id="player">'));
+        playlist_rebuild_player();
         let pthis;
         if ((pthis = players_map[playlist_player])) {
             if (pthis.destroy)

@@ -89,6 +89,7 @@ module.exports = {
         'set_spinner_value': true,
         'get_default_check': true,
         'get_remove_check': true,
+        'playlist_rebuild_player': true,
     },
     'rules': {
         'indent': [

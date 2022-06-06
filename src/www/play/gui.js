@@ -77,6 +77,11 @@ function set_video_enabled(uid) {
     $('div.dropdown-menu a[data-uid=\'' + uid + '\']').addClass('active');
 }
 
+function playlist_rebuild_player() {
+    $('#player-content').empty();
+    $('#player-content').append($('<div class="col-12" id="player">'));
+}
+
 function page_set_title(title) {
     $(document).prop('title', title);
 }
