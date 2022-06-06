@@ -90,6 +90,9 @@ module.exports = {
         'get_default_check': true,
         'get_remove_check': true,
         'playlist_rebuild_player': true,
+        'set_remove_check': true,
+        'set_default_check': true,
+        'set_reset_button_enabled': true,
     },
     'rules': {
         'indent': [

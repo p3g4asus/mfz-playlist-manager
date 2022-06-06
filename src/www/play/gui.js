@@ -68,6 +68,13 @@ function set_remove_button_enabled(enabled) {
         $('#remove_button').removeClass('disabled');
 }
 
+function set_reset_button_enabled(enabled) {
+    if (!enabled)
+        $('#reset_button').addClass('disabled');
+    else
+        $('#reset_button').removeClass('disabled');
+}
+
 function set_video_title(title) {
     $('#video_title').text(title);
 }
@@ -100,6 +107,14 @@ function get_default_check() {
 
 function get_remove_check() {
     return $('#remove-end').is(':checked');
+}
+
+function set_remove_check(v) {
+    return $('#remove-end').prop('checked', v);
+}
+
+function set_default_check(v) {
+    return $('#default-sett').prop('checked', v);
 }
 
 $(window).on('load', function() {

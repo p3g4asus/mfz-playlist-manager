@@ -274,11 +274,15 @@ class MessageProcessor(AbstractMessageProcessor):
                     pl.conf['play'] = play
                     play['id'] = msg.f('playid')
                     keys = msg.f('key')
-                    key = play.get(keys, dict())
-                    play[keys] = key
-                    if 'default' not in key or msg.f('default'):
-                        key['default'] = msg.f('content')
-                    key[msg.f('set')] = msg.f('content')
+                    cont = msg.f('content')
+                    if cont:
+                        key = play.get(keys, dict())
+                        play[keys] = key
+                        if 'default' not in key or msg.f('default'):
+                            key['default'] = cont
+                        key[msg.f('set')] = cont
+                    elif keys in play:
+                        del play[keys]
                     rv = await pl.toDB(self.db)
                     if not rv:
                         return msg.err(20, MSG_INVALID_PARAM, playlist=None)

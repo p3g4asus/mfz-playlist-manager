@@ -44,12 +44,15 @@ function get_video_params_from_item(idx) {
         playlist_item_current = playlist_arr[pos];
         playlist_item_current_idx = pos;
     }
-    let plk;
-    if (playlist_item_current && playlist_play_settings[plk = playlist_key_from_item(playlist_item_current.conf)])
+    let plk = false;
+    if (playlist_item_current && playlist_play_settings[plk = playlist_key_from_item(playlist_item_current.conf)]) {
         playlist_item_play_settings = playlist_play_settings[plk];
+        plk = JSON.stringify(playlist_item_play_settings) == JSON.stringify(playlist_play_settings.default);
+    }
     else if (playlist_play_settings.default) {
         playlist_item_play_settings = playlist_play_settings.default;
         console.log('Using settings from default struct');
+        plk = true;
     }
     playlist_player = 'youtube';
 
@@ -68,6 +71,8 @@ function get_video_params_from_item(idx) {
     video_width = playlist_item_play_settings?.width? playlist_item_play_settings.width: 1880;
     set_spinner_value('width', video_width);
     set_spinner_value('height', video_height);
+    set_remove_check(playlist_item_play_settings?.remove_end?true:false);
+    set_default_check(plk === true);
 }
 
 function parse_list(json_list) {
@@ -268,6 +273,7 @@ function playlist_start_playing(idx) {
     get_video_params_from_item(idx);
     set_reload_button_enabled(playlist_item_current != null);
     set_remove_button_enabled(playlist_item_current != null);
+    set_reset_button_enabled(playlist_item_current != null);
     if (playlist_item_current) {
         playlist_rebuild_player();
         let pthis;
@@ -297,16 +303,16 @@ function playlist_del_current_video() {
     }
 }
 
-function playlist_reload() {
+function playlist_reload_settings(reset) {
     if (playlist_item_current) {
         let el = new MainWSQueueElement({
             cmd: CMD_PLAYSETT,
             playlist: playlist_current.rowid,
-            set: playlist_key_from_item(playlist_item_current.conf),
+            set: reset?'':playlist_key_from_item(playlist_item_current.conf),
             key: playlist_play_settings_key,
             playid: playlist_item_current.uid,
             default: get_default_check(),
-            content: {
+            content: reset?null: {
                 width: get_spinner_value('width'),
                 height: get_spinner_value('height'),
                 remove_end: get_remove_check()
@@ -317,7 +323,7 @@ function playlist_reload() {
         el.enqueue().then(function(msg) {
             if (!manage_errors(msg)) {
                 playlist_current.conf.play = msg.playlist.conf.play;
-                playlist_play_settings = msg.playlist.conf.play[playlist_play_settings_key];
+                playlist_play_settings = reset?{}:msg.playlist.conf.play[playlist_play_settings_key];
                 playlist_start_playing(0);
             }
             else {

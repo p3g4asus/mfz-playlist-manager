@@ -118,22 +118,30 @@
                 Remove at end
             </label>
           </div>
-        </form>
-        <form class="col-md-6" autocomplete="on">
-          <div class="form-check mt-5">
+          <div class="form-check">
               <input class="form-check-input" type="checkbox" value="" id="default-sett">
               <label class="form-check-label" for="default-sett">
-                Set Default
+                Default
               </label>
           </div>
+        </form>
+        <form class="col-md-6" autocomplete="on">
           <div class="form-group">
+            <a
+              id="reset_button"
+              class="btn btn-dark btn-lg btn-block disabled mt-4"
+              href="#"
+              role="button"
+              onclick="playlist_reload_settings(true); return false;"
+              >Reset&nbsp;&nbsp;<i class="fa fa-toilet-paper-slash"></i
+            ></a>
             <a
               id="reload_button"
               class="btn btn-primary btn-lg btn-block disabled"
               href="#"
               role="button"
-              onclick="playlist_reload(); return false;"
-              >Reload&nbsp;&nbsp;<i class="fa fa-refresh"></i
+              onclick="playlist_reload_settings(); return false;"
+              >Reload&nbsp;&nbsp;<i class="fas fa-undo"></i
             ></a>
             <a
               id="remove_button"
@@ -141,7 +149,7 @@
               href="#"
               role="button"
               onclick="playlist_del_current_video(); return false;"
-              >Remove&nbsp;&nbsp;<i class="fas fa-trash-alt"></i
+              >Remove video&nbsp;&nbsp;<i class="fas fa-trash-alt"></i
             ></a>
           </div>
         </form>
