@@ -42,8 +42,8 @@ function get_video_params_from_item(idx) {
         playlist_item_current = playlist_arr[pos];
         playlist_item_current_idx = pos;
     }
-    let plk = playlist_key_from_item(playlist_item_current.conf);
-    if (playlist_item_current && playlist_play_settings[plk])
+    let plk;
+    if (playlist_item_current && playlist_play_settings[plk = playlist_key_from_item(playlist_item_current.conf)])
         playlist_item_play_settings = playlist_play_settings[plk];
     else if (playlist_play_settings.default)
         playlist_item_play_settings = playlist_play_settings.default;
@@ -59,8 +59,8 @@ function get_video_params_from_item(idx) {
         playlist_player = 'dash';
     else if (playlist_current.type == 'rai')
         playlist_player = 'videojs';
-    video_height = playlist_item_play_settings.height? playlist_item_play_settings.height: 1200;    
-    video_width = playlist_item_play_settings.width? playlist_item_play_settings.width: 1880;
+    video_height = playlist_item_play_settings?.height? playlist_item_play_settings.height: 1200;    
+    video_width = playlist_item_play_settings?.width? playlist_item_play_settings.width: 1880;
     set_spinner_value('width', video_width);
     set_spinner_value('height', video_height);
 }

@@ -969,7 +969,7 @@ function index_global_init() {
         return false;
     });
     $('#play-button').click(function() {
-        if (selected_playlist.items.length)
+        if (!$('#play-button').hasClass('disabled') && selected_playlist.items.length)
             window.location.assign(MAIN_PATH_S + 'play/workout.htm?name=' + selected_playlist.name);
         return false;
     });
