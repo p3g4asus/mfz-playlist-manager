@@ -114,16 +114,30 @@
           </div>
         </form>
         <form class="col-md-6" autocomplete="on">
-        <div class="form-check mt-5">
-            <input class="form-check-input" type="checkbox" value="" id="default-sett">
-            <label class="form-check-label" for="default-sett">
-                Set Default
+          <div class="form-check mt-5">
+            <input class="form-check-input" type="checkbox" value="" id="remove-end">
+            <label class="form-check-label" for="remove-end">
+                Remove at end
             </label>
-            </div>
+          </div>
+          <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="" id="default-sett">
+              <label class="form-check-label" for="default-sett">
+                Set Default
+              </label>
+          </div>
           <div class="form-group">
             <a
+              id="remove_button"
+              class="btn btn-danger btn-lg btn-block disabled mt-4"
+              href="#"
+              role="button"
+              onclick="playlist_del_current_video(); return false;"
+              >Reload&nbsp;&nbsp;<i class="fas fa-trash-alt"></i
+            ></a>
+            <a
               id="reload_button"
-              class="btn btn-primary btn-lg btn-block disabled mt-4"
+              class="btn btn-primary btn-lg btn-block disabled"
               href="#"
               role="button"
               onclick="playlist_reload(); return false;"

@@ -61,6 +61,13 @@ function set_reload_button_enabled(enabled) {
         $('#reload_button').removeClass('disabled');
 }
 
+function set_remove_button_enabled(enabled) {
+    if (!enabled)
+        $('#remove_button').addClass('disabled');
+    else
+        $('#remove_button').removeClass('disabled');
+}
+
 function set_video_title(title) {
     $('#video_title').text(title);
 }
@@ -74,24 +81,6 @@ function page_set_title(title) {
     $(document).prop('title', title);
 }
 
-function toast_msg(msg, type) {
-    let div = $('<p class="h2">');
-    let el = $(
-        `
-        <div class="col-md-12 alert alert-${type} alert-dismissible fade show" role="alert">
-            ${div.text(msg).prop('outerHTML')}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </div>
-        `);
-    el.alert();
-    $('#alert-row').empty().append(el);
-    setTimeout(function() {
-        el.alert('close');
-    }, 6000);
-}
-
 function set_spinner_value(type, val) {
     $('#video-' + type).val(val);
 }
@@ -102,6 +91,10 @@ function get_spinner_value(type) {
 
 function get_default_check() {
     return $('#default-sett').is(':checked');
+}
+
+function get_remove_check() {
+    return $('#remove-end').is(':checked');
 }
 
 $(window).on('load', function() {

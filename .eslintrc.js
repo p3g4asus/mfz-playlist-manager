@@ -84,9 +84,11 @@ module.exports = {
         'manage_errors': true,
         'get_startup_settings': true,
         'set_reload_button_enabled': true,
+        'set_remove_button_enabled': true,
         'get_spinner_value': true,
         'set_spinner_value': true,
         'get_default_check': true,
+        'get_remove_check': true,
     },
     'rules': {
         'indent': [

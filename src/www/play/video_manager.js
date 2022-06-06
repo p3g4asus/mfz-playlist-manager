@@ -87,7 +87,7 @@ function parse_list(json_list) {
 
 
 function on_play_finished(event) {
-    let dir = event && typeof(event.dir) !== 'undefined'? event.dir:1;
+    let dir = event && typeof(event.dir) !== 'undefined'? event.dir:10535;
     let index;
     let vid = '';
     if (typeof(dir) == 'string') {
@@ -104,22 +104,37 @@ function on_play_finished(event) {
         return;
     }
     else {
+        if (dir == 10535) {
+            if (playlist_item_play_settings?.remove_end) {
+                let title = playlist_item_current.title;
+                let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:playlist_item_current.rowid, seen:1}, function(msg) {
+                    return msg.cmd === CMD_SEEN? msg:null;
+                }, 5000, 1);
+                qel.enqueue().then(function(msg) {
+                    if (!manage_errors(msg)) {
+                        console.log('Item deleted ' + title + '!');
+                    }
+                    else {
+                        console.log('Cannot delete item ' + title + '!');
+                    }
+                });
+            }
+            dir = 1;
+        }
         playlist_start_playing(dir);
         return;
     }
     let lnk = '';
     let title = '';
     console.log('Index found is ' + index);
-    if (index < playlist_arr.length) {
-        set_next_button_enabled(index < playlist_arr.length - 1);
-        set_prev_button_enabled(index > 0);
-        vid = playlist_item_current.uid;
-        lnk = playlist_item_current.link;
-        title = playlist_item_current.title;
-        set_video_title(title);
-        set_video_enabled(vid);
-        print_duration(index);
-    }
+    set_next_button_enabled(index < playlist_arr.length - 1);
+    set_prev_button_enabled(index > 0);
+    vid = playlist_item_current.uid;
+    lnk = playlist_item_current.link;
+    title = playlist_item_current.title;
+    set_video_title(title);
+    set_video_enabled(vid);
+    print_duration(index);
     if (vid.length && video_manager_obj.play_video_id)
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)
@@ -250,6 +265,7 @@ function playlist_key_from_item(conf) {
 function playlist_start_playing(idx) {
     get_video_params_from_item(idx);
     set_reload_button_enabled(playlist_item_current != null);
+    set_remove_button_enabled(playlist_item_current != null);
     if (playlist_item_current) {
         $('#player-content').empty();
         $('#player-content').append($('<div class="col-12" id="player">'));
@@ -267,6 +283,19 @@ function playlist_start_playing(idx) {
     }
 }
 
+function playlist_del_current_video() {
+    if (playlist_item_current) {
+        let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:playlist_item_current.rowid, seen:1}, function(msg) {
+            return msg.cmd === CMD_SEEN? msg:null;
+        }, 5000, 1);
+        qel.enqueue().then(function(msg) {
+            if (!manage_errors(msg)) {
+                toast_msg('Successfully deleted ' + playlist_item_current.title + '!', 'success');
+            }
+        });
+    }
+}
+
 function playlist_reload() {
     if (playlist_item_current) {
         let el = new MainWSQueueElement({
@@ -278,7 +307,8 @@ function playlist_reload() {
             default: get_default_check(),
             content: {
                 width: get_spinner_value('width'),
-                height: get_spinner_value('height')
+                height: get_spinner_value('height'),
+                remove_end: get_remove_check()
             }
         }, function(msg) {
             return msg.cmd === CMD_PLAYSETT? msg:null;
