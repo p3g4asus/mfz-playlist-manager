@@ -11,11 +11,8 @@ const workout_file = 'workout.htm';
 const lastconf_key = 'lastconf';
 const TWITCH_CLIENT_ID = '318czv1wdow8qwvx5offlit5ul8klg';
 const TWITCH_VIDEO_ID_PRE = '____';
-var urlParams = null;
 var video_width = null;
 var video_height = null;
-const host_url = (!location.host || location.host.length == 0)?'192.168.25.24:7666':location.host;
-let search_var = (location.protocol.startsWith('file')?window.location.hash:window.location.search).substring(1);
 
 
 function dyn_module_load(link, onload, type) {

@@ -225,7 +225,7 @@ function playlist_dump(plid) {
 }
 
 function get_startup_settings() {
-    let orig_up = new URLSearchParams(search_var);
+    let orig_up = new URLSearchParams(URL_PARAMS);
     let plname;
     main_ws_reconnect();
     if (orig_up.has('name') && (plname = orig_up.get('name')).length) {
@@ -297,7 +297,6 @@ function playlist_reload() {
                 toast_msg('Cannot reload playlist: ' + err, 'danger');
             });
     }
-    return false;
 }
 
 function init_video_manager() {

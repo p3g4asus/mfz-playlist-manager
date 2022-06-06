@@ -41,7 +41,8 @@ function manage_errors(msg) {
         toast_msg(errmsg, 'danger');
         if (msg.rv == 501 || msg.rv == 502)
             setTimeout(function() {
-                window.location.assign(MAIN_PATH_S + 'login.htm' + URL_PARAMS_APPEND);
+                let urlp = window.location.href?('?urlp=' + encodeURIComponent(window.location.href)):URL_PARAMS_APPEND;
+                window.location.assign(MAIN_PATH_S + 'login.htm' + urlp);
             }, 5000);
         return errmsg;
     }

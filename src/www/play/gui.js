@@ -1,7 +1,6 @@
 function button_video(el, idx) {
     if (!$(el).hasClass('disabled'))
         go_to_video(idx);
-    return false;
 }
 
 function clear_playlist() {

@@ -60,8 +60,8 @@ function login_init() {
                 data: form.serialize(),
                 success: function(data, textStatus, request) {
                     console.log(listCookies());
-                    window.location.assign(MAIN_PATH_S + 'index.htm' + URL_PARAMS_APPEND);
-
+                    let orig_up = new URLSearchParams(URL_PARAMS);
+                    window.location.assign(orig_up.has('urlp')?orig_up.get('urlp'):(MAIN_PATH_S + 'index.htm' + URL_PARAMS_APPEND));
                 },
                 error: function (request, status, error) {
                     toast_msg('Cannot login: please check username and password', 'danger');
