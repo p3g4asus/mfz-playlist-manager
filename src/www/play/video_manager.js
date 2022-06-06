@@ -15,6 +15,7 @@ function get_video_params_from_item(idx) {
     let vid = null;
     playlist_item_current = null;
     playlist_item_play_settings = {};
+    playlist_item_current_idx = -1;
     if (idx === null) {
         vid = playlist_current.conf?.play?.id;
         if (!vid || !vid.length) {
@@ -32,8 +33,10 @@ function get_video_params_from_item(idx) {
             }
             i++;
         }
+        if (playlist_arr.length && !playlist_item_current)
+            playlist_item_current = playlist_arr[playlist_item_current_idx = 0];
     }
-    else  if (playlist_arr.length) {
+    else if (playlist_arr.length) {
         let pos = playlist_item_current_idx + idx;
         if (pos >= playlist_arr.length)
             pos = playlist_arr.length - 1;
@@ -265,33 +268,36 @@ function playlist_start_playing(idx) {
 }
 
 function playlist_reload() {
-    let el = new MainWSQueueElement({
-        cmd: CMD_PLAYSETT,
-        playlist: playlist_current.rowid,
-        set: playlist_key_from_item(playlist_item_current.conf),
-        key: playlist_play_settings_key,
-        playid: playlist_item_current.uid,
-        default: get_default_check(),
-        content: {
-            width: get_spinner_value('width'),
-            height: get_spinner_value('height')
-        }
-    }, function(msg) {
-        return msg.cmd === CMD_PLAYSETT? msg:null;
-    }, 3000, 1);
-    el.enqueue().then(function(msg) {
-        if (!manage_errors(msg)) {
-            playlist_current.conf.play = msg.playlist.conf.play;
-            playlist_play_settings = msg.playlist.conf.play[playlist_play_settings_key];
-            playlist_start_playing(0);
-        }
-        else {
-            toast_msg('Cannot reload playlist!! ' + playlist_current.name + ' from ' + playlist_item_current.uid , 'danger');
-        }
-    })
-        .catch(function(err) {
-            toast_msg('Cannot reload playlist: ' + err, 'danger');
-        });
+    if (playlist_item_current) {
+        let el = new MainWSQueueElement({
+            cmd: CMD_PLAYSETT,
+            playlist: playlist_current.rowid,
+            set: playlist_key_from_item(playlist_item_current.conf),
+            key: playlist_play_settings_key,
+            playid: playlist_item_current.uid,
+            default: get_default_check(),
+            content: {
+                width: get_spinner_value('width'),
+                height: get_spinner_value('height')
+            }
+        }, function(msg) {
+            return msg.cmd === CMD_PLAYSETT? msg:null;
+        }, 3000, 1);
+        el.enqueue().then(function(msg) {
+            if (!manage_errors(msg)) {
+                playlist_current.conf.play = msg.playlist.conf.play;
+                playlist_play_settings = msg.playlist.conf.play[playlist_play_settings_key];
+                playlist_start_playing(0);
+            }
+            else {
+                toast_msg('Cannot reload playlist!! ' + playlist_current.name + ' from ' + playlist_item_current.uid , 'danger');
+            }
+        })
+            .catch(function(err) {
+                toast_msg('Cannot reload playlist: ' + err, 'danger');
+            });
+    }
+    return false;
 }
 
 function init_video_manager() {
