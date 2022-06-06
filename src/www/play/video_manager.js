@@ -15,7 +15,6 @@ function get_video_params_from_item(idx) {
     let vid = null;
     playlist_item_current = null;
     playlist_item_play_settings = {};
-    playlist_item_current_idx = -1;
     if (idx === null) {
         vid = playlist_current.conf?.play?.id;
         if (!vid || !vid.length) {
@@ -48,8 +47,10 @@ function get_video_params_from_item(idx) {
     let plk;
     if (playlist_item_current && playlist_play_settings[plk = playlist_key_from_item(playlist_item_current.conf)])
         playlist_item_play_settings = playlist_play_settings[plk];
-    else if (playlist_play_settings.default)
+    else if (playlist_play_settings.default) {
         playlist_item_play_settings = playlist_play_settings.default;
+        console.log('Using settings from default struct');
+    }
     playlist_player = 'youtube';
 
     if (playlist_current.type == 'youtube') {
@@ -62,6 +63,7 @@ function get_video_params_from_item(idx) {
         playlist_player = 'dash';
     else if (playlist_current.type == 'rai')
         playlist_player = 'videojs';
+    console.log('Using those settings ' + JSON.stringify(playlist_item_play_settings));
     video_height = playlist_item_play_settings?.height? playlist_item_play_settings.height: 1200;    
     video_width = playlist_item_play_settings?.width? playlist_item_play_settings.width: 1880;
     set_spinner_value('width', video_width);
