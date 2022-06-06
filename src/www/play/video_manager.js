@@ -12,11 +12,11 @@ let playlist_item_current = null;
 let playlist_item_current_idx = -1;
 
 function get_video_params_from_item(idx) {
-    let vid = null;
     playlist_item_current = null;
     playlist_item_play_settings = {};
+    let pos;
     if (idx === null) {
-        vid = playlist_current.conf?.play?.id;
+        let vid = playlist_current.conf?.play?.id;
         if (!vid || !vid.length) {
             if (!playlist_arr.length)
                 vid = 'wP6l4MD1tTc';
@@ -35,11 +35,8 @@ function get_video_params_from_item(idx) {
         if (playlist_arr.length && !playlist_item_current)
             playlist_item_current = playlist_arr[playlist_item_current_idx = 0];
     }
-    else if (playlist_arr.length) {
-        let pos = playlist_item_current_idx + idx;
-        if (pos >= playlist_arr.length)
-            pos = playlist_arr.length - 1;
-        else if (pos < 0)
+    else if (playlist_arr.length && (pos = playlist_item_current_idx + idx) < playlist_arr.length) {
+        if (pos < 0)
             pos = 0;
         playlist_item_current = playlist_arr[pos];
         playlist_item_current_idx = pos;
