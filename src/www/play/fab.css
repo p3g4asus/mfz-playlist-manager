@@ -52,12 +52,16 @@ div.floating-action-menu.active > .action-button > .btn-circle > i {
 
 }
 
+.badge.even-larger-badge {
+  font-size: 1.5em;
+}
+
 .btn-circle.btn-xl {
-    width: 70px;
-    height: 70px;
+    width: 70dp;
+    height: 70dp;
     padding: 10px 16px;
-    border-radius: 35px;
-    font-size: 24px;
+    border-radius: 15em;
+    font-size: 4em;
     line-height: 1.33;
 }
 
