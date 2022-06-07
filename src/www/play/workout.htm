@@ -9,6 +9,10 @@
       integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2"
       crossorigin="anonymous"
     />
+    <link
+      rel="stylesheet"
+      href="./fab.css"
+    />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script
       src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js"
@@ -84,8 +88,8 @@
         </div>
       </div>
       <div id="alert-row" class="row"></div>
-      <div id="dim-row" class="row">
-        <form class="col-md-6" autocomplete="on">
+      <div id="dim-row" class="collapse">
+        <form class="col-md-12" autocomplete="on">
           <div class="form-group">
             <label for="video-width">Video Width</label>
             <input
@@ -125,10 +129,9 @@
               </label>
           </div>
         </form>
-        <form class="col-md-6" autocomplete="on">
+        <!--<form class="col-md-6" autocomplete="on">
           <div class="form-group">
             <a
-              id="reset_button"
               class="btn btn-dark btn-lg btn-block disabled mt-4"
               href="#"
               role="button"
@@ -136,7 +139,6 @@
               >Reset&nbsp;&nbsp;<i class="fa fa-toilet-paper-slash"></i
             ></a>
             <a
-              id="reload_button"
               class="btn btn-primary btn-lg btn-block disabled"
               href="#"
               role="button"
@@ -144,7 +146,6 @@
               >Reload&nbsp;&nbsp;<i class="fas fa-undo"></i
             ></a>
             <a
-              id="remove_button"
               class="btn btn-danger btn-lg btn-block disabled mt-4"
               href="#"
               role="button"
@@ -152,8 +153,54 @@
               >Remove video&nbsp;&nbsp;<i class="fas fa-trash-alt"></i
             ></a>
           </div>
-        </form>
+        </form>-->
       </div>
     </div>
+    <div class="floating-action-menu" style="position:fixed; right: 2px; bottom: 10px;">
+      <div class="action-menu">
+          <div class="floating-action mb-4">
+              <div class="badge badge-dark">Settings</div>
+              <a
+                data-toggle="collapse"
+                href="#dim-row"
+                role="button"
+                class="btn-circle btn-xl btn-secondary disabled"
+                ><i class="fa fa-cog"></i
+              ></a>
+          </div>
+          <div class="floating-action mb-4">
+            <div class="badge badge-dark">Save settings</div>
+            <a
+              id="reload_button"
+              class="btn-circle btn-xl btn-primary disabled"
+              onclick="playlist_reload_settings(); return false;"
+              ><i class="fas fa-save"></i
+            ></a>
+          </div>
+          <div class="floating-action mb-4">
+            <div class="badge badge-dark">Reset settings</div>
+            <a
+              id="reset_button"
+              class="btn-circle btn-xl btn-warning disabled"
+              onclick="playlist_reload_settings(true); return false;"
+              ><i class="fa fa-toilet-paper-slash"></i
+            ></a>
+          </div>
+          <div class="floating-action">
+              <div class="badge badge-dark">Delete video</div>
+              <a
+                id="remove_button"
+                class="btn-circle btn-xl btn-danger disabled"
+                onclick="playlist_del_current_video(); return false;"
+                ><i class="fas fa-trash-alt"></i
+              ></a>
+          </div>
+      </div>
+      <div class="d-block action-button">
+          <a class="btn-circle btn-xl btn-primary" onclick="let cl = $(this).closest('div.floating-action-menu'); cl.toggleClass('active');if ($('#dim-row').hasClass('show') && !cl.hasClass('active')) $('#dim-row').collapse('hide');">
+              <i class="fas fa-plus"></i>
+          </a>
+      </div>
+  </div>
   </body>
 </html>

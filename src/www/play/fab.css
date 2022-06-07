@@ -1,0 +1,72 @@
+div.floating-action-menu > .action-menu {
+    visibility: hidden;
+    transform: translateY(105px);
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+
+    transition: all 300ms linear;
+}
+div.floating-action-menu.active > .action-menu {
+    visibility: visible;
+    transform: translate(0,0);
+    opacity: 1;
+    padding-top: 105px;
+    padding-bottom: 25px;
+    max-height: 1000px;
+}
+
+div.floating-action-menu > .action-menu > .floating-action {
+    padding-right: 0.45rem;
+}
+
+div.floating-action-menu > .action-menu .btn-circle,
+div.floating-action-menu > .action-menu .badge
+{
+    transform: scale(0.4);
+    transition: all 500ms ease-in-out;
+}
+div.floating-action-menu.active > .action-menu .btn-circle,
+div.floating-action-menu.active > .action-menu .badge
+{
+    transform: scale(1);
+}
+
+div.floating-action-menu > .action-button > .btn-circle {
+    transition: all 500ms linear;
+}
+div.floating-action-menu.active > .action-button > .btn-circle {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+div.floating-action-menu.active > .action-button > .btn-circle:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+div.floating-action-menu > .action-button > .btn-circle > i {
+    transition: transform 500ms ease-in-out;
+}
+div.floating-action-menu.active > .action-button > .btn-circle > i {
+    transform: rotate(-315deg);
+
+}
+
+.btn-circle.btn-xl {
+    width: 70px;
+    height: 70px;
+    padding: 10px 16px;
+    border-radius: 35px;
+    font-size: 24px;
+    line-height: 1.33;
+}
+
+.btn-circle {
+    width: 30px;
+    height: 30px;
+    padding: 6px 0px;
+    border-radius: 15px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.42857;
+}
