@@ -93,6 +93,8 @@ module.exports = {
         'set_remove_check': true,
         'set_default_check': true,
         'set_reset_button_enabled': true,
+        'add_playlist_to_button': true,
+        'set_playlist_enabled': true,
     },
     'rules': {
         'indent': [

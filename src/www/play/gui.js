@@ -4,7 +4,7 @@ function button_video(el, idx) {
 }
 
 function clear_playlist() {
-    $('ul.dropdown-menu').empty();
+    $('#playlist_items_cont > .dropdown-menu').empty();
 }
 
 function add_video_to_button(item) {
@@ -18,7 +18,21 @@ function add_video_to_button(item) {
         go_to_video(item.uid);
     });
     li.append(a);
-    $('div.dropdown-menu').append(li);
+    $('#playlist_items_cont > .dropdown-menu').append(li);
+}
+
+function add_playlist_to_button(item) {
+    let li = $('<li>');
+    let a = $('<a>');
+    a.attr('href', '#');
+    a.attr('data-pls', item?item:' ');
+    a.addClass('dropdown-item');
+    a.text(item?item:'Home');
+    a.click(function (e) {
+        window.location.assign(MAIN_PATH_S + (item?'play/workout.htm?name=' + encodeURIComponent(item): 'index.htm'));
+    });
+    li.append(a);
+    $('#playlist_cont > .dropdown-menu').append(li);
 }
 
 function set_playlist_button_enabled(enabled) {
@@ -80,8 +94,13 @@ function set_video_title(title) {
 }
 
 function set_video_enabled(uid) {
-    $('div.dropdown-menu a').removeClass('active');
-    $('div.dropdown-menu a[data-uid=\'' + uid + '\']').addClass('active');
+    $('#playlist_items_cont > .dropdown-menu a').removeClass('active');
+    $('#playlist_items_cont > .dropdown-menu a[data-uid=\'' + uid + '\']').addClass('active');
+}
+
+function set_playlist_enabled(uid) {
+    $('#playlist_cont > .dropdown-menu a').removeClass('active');
+    $('#playlist_cont > .dropdown-menu a[data-pls=\'' + uid + '\']').addClass('active');
 }
 
 function playlist_rebuild_player() {

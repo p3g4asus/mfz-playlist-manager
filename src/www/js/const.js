@@ -53,12 +53,13 @@ function manage_errors(msg) {
 
 function toast_msg(msg, type, html) {
     let div = $('<p class="h5">');
+    let v5 = jQuery.fn.tooltip.Constructor.VERSION.startsWith('5.');
     let el = $(
         `
         <div class="col-md-12 alert alert-${type} alert-dismissible fade show" role="alert">
             ${(html?div.html(msg):div.text(msg)).prop('outerHTML')}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
+            <button type="button" class="${v5?'btn-':''}close" data${v5?'-bs':''}-dismiss="alert" aria-label="Close">
+                ${v5?'':'<span aria-hidden="true">&times;</span>'}
             </button>
         </div>
         `);

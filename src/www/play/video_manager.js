@@ -51,6 +51,9 @@ function get_video_params_from_item(idx) {
         console.log('Using settings from default struct');
         plk = true;
     }
+    let old_player = playlist_player;
+    let old_width = video_width;
+    let old_height = video_height;
     playlist_player = 'youtube';
 
     if (playlist_current.type == 'youtube') {
@@ -70,6 +73,7 @@ function get_video_params_from_item(idx) {
     set_spinner_value('height', video_height);
     set_remove_check(playlist_item_play_settings?.remove_end?true:false);
     set_default_check(plk === true);
+    return old_height != video_height || old_width != video_width || old_player != playlist_player;
 }
 
 function parse_list(json_list) {
@@ -219,17 +223,28 @@ function save_playlist_settings(vid) {
 
 function playlist_dump(plid) {
     let useri = find_user_cookie();
-    let el = new MainWSQueueElement({cmd: CMD_DUMP, useri:useri, name: plid}, function(msg) {
-        return msg.cmd === CMD_DUMP? msg:null;
-    }, 30000, 1);
+    let el = new MainWSQueueElement(
+        plid?{cmd: CMD_DUMP, useri:useri, name: plid}: {cmd: CMD_DUMP, useri:useri, load_all: -1},
+        function(msg) {
+            return msg.cmd === CMD_DUMP? msg:null;
+        }, 30000, 1);
     el.enqueue().then(function(msg) {
         if (!manage_errors(msg)) {
             if (msg.playlists.length) {
-                playlist_current = msg.playlists[0];
-                playlist_arr = playlist_current.items;
-                parse_list(playlist_arr);
-                page_set_title(playlist_current.name);
-                init_video_manager();
+                if (plid) {
+                    playlist_current = msg.playlists[0];
+                    playlist_arr = playlist_current.items;
+                    parse_list(playlist_arr);
+                    page_set_title(playlist_current.name);
+                    init_video_manager();
+                    set_playlist_enabled(plid);
+                }
+                else {
+                    add_playlist_to_button();
+                    for (let it of msg.playlists) {
+                        add_playlist_to_button(it.name);
+                    }
+                }
             }
             else {
                 manage_errors({rv: 102, err: 'Playlist '+ plid +' not found!'});
@@ -248,6 +263,7 @@ function get_startup_settings() {
     let plname;
     main_ws_reconnect();
     if (orig_up.has('name') && (plname = orig_up.get('name')).length) {
+        playlist_dump();
         playlist_dump(plname);
     }
     else {
@@ -267,20 +283,24 @@ function playlist_key_from_item(conf) {
 }
 
 function playlist_start_playing(idx) {
-    get_video_params_from_item(idx);
+    let rebuild = get_video_params_from_item(idx);
     set_reload_button_enabled(playlist_item_current != null);
     set_remove_button_enabled(playlist_item_current != null);
     set_reset_button_enabled(playlist_item_current != null);
     if (playlist_item_current) {
-        playlist_rebuild_player();
-        let pthis;
-        if ((pthis = players_map[playlist_player])) {
-            if (pthis.destroy)
-                pthis.destroy();
-            new pthis.constructor(video_width, video_height);
+        if (rebuild) {
+            playlist_rebuild_player();
+            let pthis;
+            if ((pthis = players_map[playlist_player])) {
+                if (pthis.destroy)
+                    pthis.destroy();
+                new pthis.constructor(video_width, video_height);
+            }
+            else
+                dyn_module_load('./' + playlist_player + '_player.js');
         }
         else
-            dyn_module_load('./' + playlist_player + '_player.js');
+            on_player_load(playlist_player, video_manager_obj);
     }
     else {
         toast_msg('No more video in playlist', 'warning');

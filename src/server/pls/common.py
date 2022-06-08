@@ -96,8 +96,11 @@ class MessageProcessor(AbstractMessageProcessor):
                 vidx = None
             else:
                 zlibc = -1
-            all = msg.f('load_all')
-            pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), name=msg.playlistName(), useri=u, offset=vidx, limit=DUMP_LIMIT, loaditems=LOAD_ITEMS_UNSEEN if not all else LOAD_ITEMS_ALL)
+            try:
+                all = int(msg.f('load_all'))
+            except Exception:
+                all = 0
+            pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), name=msg.playlistName(), useri=u, offset=vidx, limit=DUMP_LIMIT, loaditems=LOAD_ITEMS_UNSEEN if not all else LOAD_ITEMS_ALL if all > 0 else LOAD_ITEMS_NO)
             _LOGGER.debug("Playlists are %s" % str(pl))
             if len(pl):
                 if zlibc > 0:
