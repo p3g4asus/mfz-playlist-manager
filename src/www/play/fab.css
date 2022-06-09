@@ -1,6 +1,6 @@
 div.floating-action-menu > .action-menu {
     visibility: hidden;
-    transform: translateY(-105px);
+    transform: translateY(-95px);
     opacity: 0;
     max-height: 0;
     overflow: hidden;
@@ -17,8 +17,8 @@ div.floating-action-menu.active > .action-menu {
     position:fixed; right: 2px; top: 10px;
     transform: translate(0,0);
     opacity: 1;
-    padding-top: 105px;
-    padding-bottom: 25px;
+    padding-top: 80px;
+    padding-bottom: 100%;
     max-height: 1000px;
 }
 
@@ -59,7 +59,7 @@ div.floating-action-menu.active > .action-button > .btn-circle > i {
 }
 
 .badge.even-larger-badge {
-  font-size: 1.5em;
+  font-size: 1.3em;
 }
 
 .btn-circle.btn-xl {
@@ -67,7 +67,7 @@ div.floating-action-menu.active > .action-button > .btn-circle > i {
     height: 70dp;
     padding: 10px 16px;
     border-radius: 15em;
-    font-size: 4em;
+    font-size: 2em;
     line-height: 1.33;
 }
 
