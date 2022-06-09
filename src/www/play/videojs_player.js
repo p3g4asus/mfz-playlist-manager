@@ -2,7 +2,7 @@ class VideojsPlayer {
     constructor(video_width, video_height) {
         let $vid = $(
             `
-            <video-js id="videojs-vid-id" class="vjs-default-skin" controls preload="auto" style="margin-left: auto; margin-right: auto; display: block;" height="${video_height}" width="${video_width}">
+            <video-js id="videojs-vid-id" class="vjs-default-skin" controls preload="auto" style="margin-left: auto; margin-right: auto; display: block;" height="${video_height <= 0?'' + (-video_height) + '%':video_height}" width="${video_width <= 0?'' + (-video_width) + '%':video_width}">
         `);
         $('#player').append($vid);
         this.player = videojs('videojs-vid-id');

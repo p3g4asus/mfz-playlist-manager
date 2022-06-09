@@ -1,8 +1,8 @@
 class YoutubePlayer {
     constructor(video_width, video_height) {
         this.player = new YT.Player('player', {
-            height: '' + video_height,
-            width: '' + video_width,
+            width: video_width <= 0?'' + (-video_width) + '%':video_width,
+            height: video_height <= 0?'' + (-video_height) + '%':video_height,
             videoId: 'M7lc1UVf-VE',
             events: {
                 'onReady': this.onPlayerReady.bind(this),

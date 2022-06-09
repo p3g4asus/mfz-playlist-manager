@@ -5,8 +5,8 @@ class TwitchPlayer {
             `<div id="twitch-video"></div>
         `);
         let options = {
-            width: video_width,
-            height: video_height,
+            width: video_width <= 0?'' + (-video_width) + '%':video_width,
+            height: video_height <= 0?'' + (-video_height) + '%':video_height,
             autoplay: false,
             muted: false,
             channel: 'twitch',

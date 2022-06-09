@@ -1,7 +1,7 @@
 class DashPlayer {
     constructor(video_width, video_height) {
         let $vid = $(
-            `<video style="margin-left: auto; margin-right: auto; display: block;" height="${video_height}" width="${video_width}" controls="true" preload="auto">
+            `<video style="margin-left: auto; margin-right: auto; display: block;" height="${video_height <= 0?'' + (-video_height) + '%':video_height}" width="${video_width <= 0?'' + (-video_width) + '%':video_width}" controls="true" preload="auto">
         `);
         this.player = dashjs.MediaPlayer().create();
         this.player.updateSettings({ 'debug': { 'logLevel': dashjs.Debug.LOG_LEVEL_NONE }});
