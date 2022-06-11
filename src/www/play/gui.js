@@ -21,20 +21,6 @@ function add_video_to_button(item) {
     $('#playlist_items_cont > .dropdown-menu').append(li);
 }
 
-function add_playlist_to_button(item) {
-    let li = $('<li>');
-    let a = $('<a>');
-    a.attr('href', '#');
-    a.attr('data-pls', item?item:' ');
-    a.addClass('dropdown-item');
-    a.text(item?item:'Home');
-    a.click(function (e) {
-        window.location.assign(MAIN_PATH_S + (item?'play/workout.htm?name=' + encodeURIComponent(item): 'index.htm'));
-    });
-    li.append(a);
-    $('#playlist_cont > .dropdown-menu').append(li);
-}
-
 function set_playlist_button_enabled(enabled) {
     if (!enabled)
         $('#playlist_items').addClass('disabled');

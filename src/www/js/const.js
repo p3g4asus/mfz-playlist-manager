@@ -51,6 +51,20 @@ function manage_errors(msg) {
     
 }
 
+function add_playlist_to_button(item) {
+    let li = $('<li>');
+    let a = $('<a>');
+    a.attr('href', '#');
+    a.attr('data-pls', item?item:' ');
+    a.addClass('dropdown-item');
+    a.text(item?item:'Home');
+    a.click(function (e) {
+        window.location.assign(MAIN_PATH_S + (item?'play/workout.htm?name=' + encodeURIComponent(item): 'index.htm'));
+    });
+    li.append(a);
+    $('#playlist_cont > .dropdown-menu').append(li);
+}
+
 function toast_msg(msg, type, html) {
     let div = $('<p class="h5">');
     let v5 = jQuery.fn.tooltip.Constructor.VERSION.startsWith('5.');

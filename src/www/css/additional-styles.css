@@ -24,8 +24,28 @@
     height: auto;
 }
 
+.thumb-duration-overlay-xl,
+.thumb-duration-overlay-lg,
+.thumb-duration-overlay-xxl {
+    position: absolute;
+    bottom: 0;
+    background: rgb(0, 0, 0);
+    background: rgba(0, 0, 0, 0.6);
+    /* Black see-through */
+    color: #f1f1f1;
+    width: 100%;
+    transition: .5s ease;
+    opacity: 1;
+    color: white;
+    font-size: 45px;
+    padding: 9px;
+    text-align: right;
+}
+
 /* The overlay effect - lays on top of the container and over the image */
-.thumb-duration-overlay {
+.thumb-duration-overlay-xs,
+.thumb-duration-overlay-sm,
+.thumb-duration-overlay-md {
     position: absolute;
     bottom: 0;
     background: rgb(0, 0, 0);
@@ -40,8 +60,27 @@
     padding: 3px;
     text-align: right;
 }
+.thumb-name-overlay-xl,
+.thumb-name-overlay-lg,
+.thumb-name-overlay-xxl {
+        position: absolute;
+        bottom: 0;
+        background: rgb(0, 0, 0);
+        background: rgba(0, 0, 0, 0.6);
+        /* Black see-through */
+        color: #f1f1f1;
+        width: 100%;
+        transition: .5s ease;
+        opacity: 1;
+        color: white;
+        font-size: 45px;
+        padding: 9px;
+        text-align: center;
+}
 
-.thumb-name-overlay {
+.thumb-name-overlay-xs,
+.thumb-name-overlay-sm,
+.thumb-name-overlay-md {
     position: absolute;
     bottom: 0;
     background: rgb(0, 0, 0);

@@ -278,7 +278,7 @@ function bootstrap_table_img_formatter(value, row, index, field) {
     return `
     <a href="${row.link}"><div class="thumb-container">
         <img src="${value}" class="thumb-image">
-        <div class="thumb-duration-overlay">${format_duration(row.dur)}</div>
+        <div class="thumb-duration-overlay-${bootstrap_breakpoint.name}">${format_duration(row.dur)}</div>
     </div></a>
     ${s}
         `;
@@ -1203,7 +1203,7 @@ function bootstrap_table_name_formatter(value, row, index, field) {
     return `
     <a data-rowid="${row.rowid}" href="#" onclick="playlist_select(this); return false;"><div class="thumb-container">
         <img src="${unseen?unseen.img:'./img/no-videos.png'}" class="thumb-image">
-        <div class="thumb-name-overlay">${value}</div>
+        <div class="thumb-name-overlay-${bootstrap_breakpoint.name}">${value}</div>
     </div></a>
         ` + '<br />' + bootstrap_table_info_formatter(value, row, index, field);
 }

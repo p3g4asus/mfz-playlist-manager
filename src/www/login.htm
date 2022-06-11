@@ -9,18 +9,70 @@
     <script src="https://apis.google.com/js/api:client.js"></script>
     <meta name="google-signin-client_id" content="60860343069-fg6qgf1fogpjrb6femd2p7n0l9nsq4vt.apps.googleusercontent.com">-->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css" integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ho+j7jyWK8fNQe+A12Hb8AhRq26LrZ/JpcUGGOn+Y7RsweNrtN/tE3MoK7ZeZDyx" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/gh/madmurphy/cookies.js@master/cookies.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" integrity="sha512-iBBXm8fW90+nuLcSKlbmrPcLa0OT92xO1BIsZ+ywDWZCvqsWgccV3gFoRBv0z+8dLJgyAHIhR35VZc2oM/gI1w==" crossorigin="anonymous" />
     <link rel="stylesheet" type="text/css" href="./css/additional-styles.css">
     <script src="./js/const.js"></script>
+    <script src="./js/main_ws_manager.js"></script>
     <script src="./js/login.js"></script>
 </head>
 
 <body>
     <div class="container-fluid">
-        <div class="row">
+        <div class="row loading">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="spinner-border text-secondary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="spinner-border text-success" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="spinner-border text-danger" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="spinner-border text-warning" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="spinner-border text-info" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="spinner-border text-light" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="spinner-border text-dark" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+        <div class="row logout" style="display: none;">
+            <div class="alert alert-success" id="logged-in" role="alert">
+                <p class="h3" id="logged-in-p"></p>
+            </div>
+        </div>
+        <div class="row row-buffer logout" style="display: none;">
+            <button type="button" id="logout-button" class="btn btn-danger btn-lg col-12 btn-block">
+                <p class="h3"><i class="fas fa-sign-out-alt"></i>&nbsp;&nbsp;LOGOUT</p>
+            </button>
+        </div>
+        <div class="row row-buffer logout" style="display: none;">
+            <button type="button" class="btn btn-info btn-lg col-12 btn-block" id="playlist-button">
+                <p class="h3"><i class="fa fa-cog"></i>&nbsp;&nbsp;Settings</p>
+            </button>
+        </div>
+        <div class="row row-buffer logout" style="display: none;">
+            <div class="dropdown" id="playlist_cont">
+                <a id="try_button" href="#" role="button" class="btn btn-success dropdown-toggle btn-lg col-12 btn-block" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 2rem;"><i class="fas fa-play"></i>&nbsp;&nbsp;Play</a>
+                <ul class="dropdown-menu" aria-labelledby="try_button">
+                </ul>
+            </div>
+        </div>
+        <div class="row login" style="display: none;">
             <div class="col-12">
                 <form autocomplete="on">
                     <div class="form-group">
@@ -37,27 +89,18 @@
                 <input type="checkbox" class="form-check-input" id="check-remember">
                 <label class="form-check-label" name="remember" for="check-remember">Remember</label>
             </div>-->
-                    <button id="login-submit" class="btn btn-primary btn-block" type="button"><p class="h3"><i class="fas fa-sign-in-alt"></i>&nbsp;&nbsp;Submit</p></button>
+                    <button id="login-submit" class="btn btn-primary btn-block" type="button">
+                        <p class="h3"><i class="fas fa-sign-in-alt"></i>&nbsp;&nbsp;Submit</p>
+                    </button>
                 </form>
             </div>
         </div>
-        <div class="row row-buffer">
+        <div class="row row-buffer login" style="display: none;">
             <!-- deprecated <button id="login-g-submit" class="btn btn-primary btn-block" type="button"><p class="h3"><i class="fab fa-google"></i>&nbsp;&nbsp;Login</p></button>-->
-            <div id="g_id_onload"
-                data-client_id="60860343069-fg6qgf1fogpjrb6femd2p7n0l9nsq4vt.apps.googleusercontent.com"
-                data-context="signin"
-                data-ux_mode="popup"
-                data-callback="login_google_new"
-                data-auto_prompt="false">
+            <div id="g_id_onload" data-client_id="60860343069-fg6qgf1fogpjrb6femd2p7n0l9nsq4vt.apps.googleusercontent.com" data-context="signin" data-ux_mode="popup" data-callback="login_google_new" data-auto_prompt="false">
             </div>
 
-            <div class="g_id_signin"
-                data-type="standard"
-                data-shape="pill"
-                data-theme="filled_blue"
-                data-text="signin_with"
-                data-size="large"
-                data-logo_alignment="left">
+            <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_blue" data-text="signin_with" data-size="large" data-logo_alignment="left">
             </div>
         </div>
         <div class="row row-buffer" id="alert-row">
