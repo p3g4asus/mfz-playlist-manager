@@ -132,7 +132,6 @@ function playlist_dump(plid) {
 
 $(window).on('load', function () {
     if (find_user_cookie()) {
-        $('.login').hide(0);
         main_ws_reconnect();
         let orig_up = new URLSearchParams(URL_PARAMS);
         let plname = null;
