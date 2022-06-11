@@ -139,8 +139,7 @@ $(window).on('load', function () {
         playlist_dump(plname);
     }
     else {
-        $('.logout').hide(0);
-        $('.loading').hide(0);
+        $('.loading').hide();
         $('.login').show();
         login_init();
     }
