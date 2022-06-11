@@ -1224,7 +1224,11 @@ function bootstrap_table_info_formatter(value, row, index, field) {
         if (!r.seen)
             nitems ++;
     }
-    tpstr += '<p class="h6">Last Updated: ' + d.format('yyyy/mm/dd') + ' (' + nitems + ' items - '+format_duration(playlist_total_duration(row)) +') - AutoUpdate ' + (row.autoupdate?'<i class="fas fa-check">':'<i class="fas fa-times">')+ '</i></p>';
+    let nm;
+    let large = bootstrap_breakpoint && ((nm = bootstrap_breakpoint.name) == 'xl' || nm=='lg' || nm == 'xxl');
+    tpstr += `
+    <p class="${large?'h3':'h6'}">
+    Last Updated: ${d.format('yyyy/mm/dd')} (${nitems} items - ${format_duration(playlist_total_duration(row))}) - AutoUpdate ${row.autoupdate?'<i class="fas fa-check">':'<i class="fas fa-times">'}</i></p>`;
     return tpstr;
 }
 
