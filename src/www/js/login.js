@@ -84,10 +84,10 @@ function login_google_new(obj) {
     }
 }
 
-function playlist_dump(plid) {
+function playlist_dump() {
     let useri = find_user_cookie();
     let el = new MainWSQueueElement(
-        plid?{cmd: CMD_DUMP, useri:useri, name: plid}: {cmd: CMD_DUMP, useri:useri, load_all: -1},
+        {cmd: CMD_DUMP, useri:useri, load_all: -1},
         function(msg) {
             return msg.cmd === CMD_DUMP? msg:null;
         }, 30000, 1);
@@ -96,31 +96,30 @@ function playlist_dump(plid) {
         if (msg.rv == 501 || msg.rv == 502) {
             $('.login').show();
         }
-        else {
-            $('#playlist-button').click(function() {
-                window.location.assign(MAIN_PATH_S + 'index.htm');
-                return false;
-            });
-            $('#logout-button').click(function() {
-                $.get( MAIN_PATH + 'logout', function( data ) {
-                    window.location.assign(MAIN_PATH_S + 'login.htm');
+        else {    
+            let orig_up = new URLSearchParams(URL_PARAMS);
+            let plname = null;
+            if (orig_up.has('urlp') && (plname = orig_up.get('urlp')).length)
+                window.location.assign(plname);
+            else if (msg.playlists.length && orig_up.has('name') && (plname = orig_up.get('name')).length)
+                window.location.assign(MAIN_PATH_S + 'play/workout.htm?name=' + encodeURIComponent(plname));
+            else {
+                $('#playlist-button').click(function() {
+                    window.location.assign(MAIN_PATH_S + 'index.htm');
+                    return false;
                 });
-                return false;
-            });
-            $('.logout').show();
-            if (msg.playlists.length) {
-                $('#logged-in-p').text('Logged in as ' + msg.playlists[0].user);
-                if (plid) {
-                    window.location.assign(MAIN_PATH_S + 'play/workout.htm?name=' + encodeURIComponent(plid));
+                $('#logout-button').click(function() {
+                    $.get( MAIN_PATH + 'logout', function( data ) {
+                        window.location.assign(MAIN_PATH_S + 'login.htm');
+                    });
+                    return false;
+                });
+                $('#logged-in-p').text('Logged in' + (msg.playlists.length?'  as ' + msg.playlists[0].user:''));
+                for (let it of msg.playlists) {
+                    add_playlist_to_button(it.name);
                 }
-                else {
-                    for (let it of msg.playlists) {
-                        add_playlist_to_button(it.name);
-                    }
-                }
+                $('.logout').show();
             }
-            else
-                $('logged-in').text('Logged in');
         }
     })
         .catch(function(err) {
@@ -133,10 +132,7 @@ function playlist_dump(plid) {
 $(window).on('load', function () {
     if (find_user_cookie()) {
         main_ws_reconnect();
-        let orig_up = new URLSearchParams(URL_PARAMS);
-        let plname = null;
-        if (orig_up.has('name') && (plname = orig_up.get('name')).length);
-        playlist_dump(plname);
+        playlist_dump();
     }
     else {
         $('.loading').hide();
