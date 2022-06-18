@@ -26,10 +26,10 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
     async def identify(self, request):
         request[self._sid_key] = None
         csid = request.cookies.get(self._sid_key)
-        clogin = request.cookies.get(self._login_key, dict())
-        if clogin and isinstance(clogin, str):
+        clogins = request.cookies.get(self._login_key, dict())
+        if clogins:
             try:
-                clogin = json.loads(clogin)
+                clogin = json.loads(clogins)
             except Exception:
                 clogin = dict()
         tokenrefresh = 0
@@ -76,8 +76,8 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
         login = json.loads(session.get(self._login_key, '{}') if logins == INVALID_SID else logins)
         if not login:
             return None
-        clogin = request.cookies.get(self._login_key)
-        if not clogin and not logins:
+        clogins = request.cookies.get(self._login_key)
+        if not clogins and logins == INVALID_SID:
             return
         elif 'max_age' not in kwargs:
             kwargs['max_age'] = self._max_age
@@ -85,12 +85,12 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
         clogin = login.copy()
         clogin['token'] = token
         login['token'] = hashlib.sha256(token.encode('utf-8')).hexdigest()
-        logins = json.dumps(login)
-        session[self._login_key] = logins
         if not session.identity and session.new:
             session.set_new_identity(login.get('sid'))
+        logins = json.dumps(login)
         clogins = json.dumps(clogin)
         _LOGGER.debug(f"Clogin={clogins} login={logins}")
+        session[self._login_key] = logins
         response.set_cookie(self._login_key, clogins, max_age=kwargs.get('max_age'), httponly=True)
         response.set_cookie(self._sid_key, login.get('sid'), httponly=True)
         response.set_cookie(self._user_key, login.get('uid'))
