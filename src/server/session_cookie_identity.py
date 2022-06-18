@@ -26,7 +26,7 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
     async def identify(self, request):
         request[self._sid_key] = None
         csid = request.cookies.get(self._sid_key)
-        clogins = request.cookies.get(self._login_key, dict())
+        clogins = request.cookies.get(self._login_key, '{}')
         if clogins:
             try:
                 clogin = json.loads(clogins)
