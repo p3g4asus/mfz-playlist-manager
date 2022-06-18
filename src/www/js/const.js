@@ -86,7 +86,23 @@ function toast_msg(msg, type, html) {
 
 function find_user_cookie() {
     let rid = docCookies.getItem(COOKIE_USERID);
-    return rid !== null?parseInt(rid):null;
+    let okf, failf;
+    if (rid !== null)
+        return Promise.resolve(parseInt(rid));
+    else {
+        let p = new Promise(function(resolve, reject) {
+            okf = resolve;
+            failf = reject;
+        });
+        $.get(MAIN_PATH, function() {
+            rid = docCookies.getItem(COOKIE_USERID);
+            if (rid === null)
+                failf();
+            else
+                okf(parseInt(rid));
+        }).fail(failf);
+        return p;
+    }
 }
 
 function format_duration(secs) {

@@ -955,7 +955,11 @@ function index_global_init() {
         }
         else {
             playlist_interface_manage('back-list-add');
-            playlist_add(new Playlist(null, find_user_cookie()));
+            find_user_cookie().then(function (uid) {
+                playlist_add(new Playlist(null, uid));
+            }).catch(function() {
+                manage_errors({rv: 501, err: 'Cannot find user cookie!'});
+            });
         }
         return false;
     });
@@ -985,7 +989,11 @@ function index_global_init() {
         todayHighlight: true
     });
     $('#pl-add-view-type').change(function () {
-        playlist_change_type(new Playlist(null, find_user_cookie()), $(this).val());
+        find_user_cookie().then(function (uid) {
+            playlist_change_type(new Playlist(null, uid), $(this).val());
+        }).catch(function() {
+            manage_errors({rv: 501, err: 'Cannot find user cookie!'});
+        });
     });
     $('#pl-update-view-update').click(function () {
         $('#pl-update-view-progress').show();
@@ -1055,119 +1063,122 @@ function index_global_init() {
 }
 
 function playlist_dump(plid) {
-    let useri = find_user_cookie();
-    let el = new MainWSQueueElement({cmd: CMD_DUMP, useri:useri, playlist: plid}, function(msg) {
-        return msg.cmd === CMD_DUMP? msg:null;
-    }, 30000, 1);
-    el.enqueue().then(function(msg) {
-        let errmsg;
-        if (!manage_errors(msg)) {
-            if (msg.playlists.length) {
-                let idx = playlist_update_in_list(msg.playlists[0]);
-                playlists_all[idx] = msg.playlists[0];
-                playlist_select(msg.playlists[0]);
+    find_user_cookie().then(function (useri) {
+        let el = new MainWSQueueElement({cmd: CMD_DUMP, useri:useri, playlist: plid}, function(msg) {
+            return msg.cmd === CMD_DUMP? msg:null;
+        }, 30000, 1);
+        el.enqueue().then(function(msg) {
+            let errmsg;
+            if (!manage_errors(msg)) {
+                if (msg.playlists.length) {
+                    let idx = playlist_update_in_list(msg.playlists[0]);
+                    playlists_all[idx] = msg.playlists[0];
+                    playlist_select(msg.playlists[0]);
+                }
             }
-        }
-    })
-        .catch(function(err) {
-            console.log(err);
-            let errmsg = 'Exception detected: '+err;
-            toast_msg(errmsg, 'danger');
-        });
+        })
+            .catch(function(err) {
+                console.log(err);
+                let errmsg = 'Exception detected: '+err;
+                toast_msg(errmsg, 'danger');
+            });
+    }).catch(function() {
+        manage_errors({rv: 501, err: 'Cannot find user cookie!'});
+    });
 }
 
 
 function playlists_dump(params, useri, fast_videoidx, fast_videostep) {
-    if (useri === undefined) {
-        useri = find_user_cookie();
-        if (useri === null) {
-            if (params)
-                params.error('No User Cookie Found. Redirecting to login');
-            toast_msg('No User Cookie Found. Redirecting to login', 'danger');
-            setTimeout(function() {
-                window.location.assign(MAIN_PATH_S + 'login.htm' + URL_PARAMS_APPEND);
-            }, 5000);
-            return;
-        }
-    }
-    let urlParams = new URLSearchParams(URL_PARAMS);
-    let tmpi;
-    let content_obj = {
-        cmd: CMD_DUMP,
-        playlist: null,
-        useri: useri,
-        load_all: urlParams.has('all') && !isNaN(tmpi = parseInt(urlParams.get('all'))) && tmpi? 1: 0,
-        fast_videoidx: fast_videoidx == undefined?(urlParams.has('vidx') && isNaN(tmpi = parseInt(urlParams.get('vidx')))? null: (urlParams.has('vidx')? tmpi: -9)):fast_videoidx + fast_videostep //zip: alternativamente fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ 0:fast_videoidx + fast_videostep
-    };
-    let $table = $('#output-table');
-    let $plitemsTable = $('#playlist-items-table');
-    let el = new MainWSQueueElement(content_obj, function(msg) {
-        return msg.cmd === CMD_DUMP? msg:null;
-    }, 30000, 1);
-    el.enqueue().then(function(msg) {
-        let errmsg;
-        if ((errmsg = manage_errors(msg))) {
-            if (params)
-                params.error(errmsg);
-        }
-        else {
-            let no_more = true;
-            if (!Array.isArray(msg.playlists)) {
-                // Pako magic
-                let arr        = pako.inflate(new Uint8Array(atob(msg.playlists).split('').map(function(x){return x.charCodeAt(0);})));
+    let resolve = function(useri) {
+        let urlParams = new URLSearchParams(URL_PARAMS);
+        let tmpi;
+        let content_obj = {
+            cmd: CMD_DUMP,
+            playlist: null,
+            useri: useri,
+            load_all: urlParams.has('all') && !isNaN(tmpi = parseInt(urlParams.get('all'))) && tmpi? 1: 0,
+            fast_videoidx: fast_videoidx == undefined?(urlParams.has('vidx') && isNaN(tmpi = parseInt(urlParams.get('vidx')))? null: (urlParams.has('vidx')? tmpi: -9)):fast_videoidx + fast_videostep //zip: alternativamente fast_videoidx===undefined? /*0 per load a pezzi: null per load tutto in una botta*/ 0:fast_videoidx + fast_videostep
+        };
+        let $table = $('#output-table');
+        let $plitemsTable = $('#playlist-items-table');
+        let el = new MainWSQueueElement(content_obj, function(msg) {
+            return msg.cmd === CMD_DUMP? msg:null;
+        }, 30000, 1);
+        el.enqueue().then(function(msg) {
+            let errmsg;
+            if ((errmsg = manage_errors(msg))) {
+                if (params)
+                    params.error(errmsg);
+            }
+            else {
+                let no_more = true;
+                if (!Array.isArray(msg.playlists)) {
+                    // Pako magic
+                    let arr        = pako.inflate(new Uint8Array(atob(msg.playlists).split('').map(function(x){return x.charCodeAt(0);})));
 
-                // Convert gunzipped byteArray back to ascii string:
-                let s = '';
-                for(let i = 0; i< arr.length; i+=4096) {
-                    let end = i + 4096;
-                    if (end > arr.length)
-                        end = arr.length;
-                    s += String.fromCharCode(... arr.slice(i, end));
+                    // Convert gunzipped byteArray back to ascii string:
+                    let s = '';
+                    for(let i = 0; i< arr.length; i+=4096) {
+                        let end = i + 4096;
+                        if (end > arr.length)
+                            end = arr.length;
+                        s += String.fromCharCode(... arr.slice(i, end));
+                    }
+                    msg.playlists     = JSON.parse(s);
                 }
-                msg.playlists     = JSON.parse(s);
-            }
-            for (let p of msg.playlists) {
-                let pos = playlists_all.map(function(e) { return e.rowid; }).indexOf(p.rowid);
-                if (pos >= 0) {
-                    playlists_all[pos].items.push(...p.items);
-                    $table.bootstrapTable('updateRow', {index:pos, row:playlists_all[pos], replace:true});
-                    if (selected_playlist && selected_playlist.rowid == playlists_all[pos].rowid) {
-                        $plitemsTable.bootstrapTable('append', p.items);
+                for (let p of msg.playlists) {
+                    let pos = playlists_all.map(function(e) { return e.rowid; }).indexOf(p.rowid);
+                    if (pos >= 0) {
+                        playlists_all[pos].items.push(...p.items);
+                        $table.bootstrapTable('updateRow', {index:pos, row:playlists_all[pos], replace:true});
+                        if (selected_playlist && selected_playlist.rowid == playlists_all[pos].rowid) {
+                            $plitemsTable.bootstrapTable('append', p.items);
+                        }
+                    }
+                    else
+                        playlists_all.push(p);
+                    if (msg.fast_videostep && p.items.length === msg.fast_videostep)
+                        no_more = false;
+                }
+                if (params) {
+                    let rid = docCookies.getItem(COOKIE_SELECTEDPL);
+                    params.success({
+                        rows: msg.playlists,
+                        total: msg.playlists.length
+                    });
+                    if (rid !== null) {
+                        let idxOf = msg.playlists.map(function(e) { return e.rowid; }).indexOf(parseInt(rid));
+                        if (idxOf >= 0) {
+                            playlist_select(msg.playlists[idxOf]);
+                            playlist_interface_manage('back-list');
+                        }
                     }
                 }
-                else
-                    playlists_all.push(p);
-                if (msg.fast_videostep && p.items.length === msg.fast_videostep)
-                    no_more = false;
-            }
-            if (params) {
-                let rid = docCookies.getItem(COOKIE_SELECTEDPL);
-                params.success({
-                    rows: msg.playlists,
-                    total: msg.playlists.length
-                });
-                if (rid !== null) {
-                    let idxOf = msg.playlists.map(function(e) { return e.rowid; }).indexOf(parseInt(rid));
-                    if (idxOf >= 0) {
-                        playlist_select(msg.playlists[idxOf]);
-                        playlist_interface_manage('back-list');
-                    }
+                if (!no_more) {
+                    console.log('More items to come...');
+                    playlists_dump(null, useri, msg.fast_videoidx, msg.fast_videostep);
                 }
             }
-            if (!no_more) {
-                console.log('More items to come...');
-                playlists_dump(null, useri, msg.fast_videoidx, msg.fast_videostep);
-            }
-        }
-    })
-        .catch(function(err) {
-            console.log(err);
-            let errmsg = 'Exception detected: '+err;
-            if (params)
-                params.error(errmsg);
-            toast_msg(errmsg, 'danger');
-            bootstrap_table_get_data_ws(params);
+        })
+            .catch(function(err) {
+                console.log(err);
+                let errmsg = 'Exception detected: '+err;
+                if (params)
+                    params.error(errmsg);
+                toast_msg(errmsg, 'danger');
+                bootstrap_table_get_data_ws(params);
+            });
+    };
+    if (useri === undefined) {
+        find_user_cookie().then(function (uid) {
+            resolve(uid);
+        }).catch(function() {
+            manage_errors({rv: 501, err: 'Cannot find user cookie!'});
         });
+    }
+    else
+        resolve(useri);
+    
 }
 
 function bootstrap_table_get_data_ws(params) {

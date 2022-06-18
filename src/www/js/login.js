@@ -85,58 +85,60 @@ function login_google_new(obj) {
 }
 
 function playlist_dump() {
-    let useri = find_user_cookie();
-    let el = new MainWSQueueElement(
-        {cmd: CMD_DUMP, useri:useri, load_all: -1},
-        function(msg) {
-            return msg.cmd === CMD_DUMP? msg:null;
-        }, 30000, 1);
-    el.enqueue().then(function(msg) {
-        $('.loading').hide();
-        if (msg.rv == 501 || msg.rv == 502) {
-            $('.login').show();
-        }
-        else {    
-            let orig_up = new URLSearchParams(URL_PARAMS);
-            let plname = null;
-            if (orig_up.has('urlp') && (plname = orig_up.get('urlp')).length)
-                window.location.assign(plname);
-            else if (msg.playlists.length && orig_up.has('name') && (plname = orig_up.get('name')).length)
-                window.location.assign(MAIN_PATH_S + 'play/workout.htm?name=' + encodeURIComponent(plname));
-            else {
-                $('#playlist-button').click(function() {
-                    window.location.assign(MAIN_PATH_S + 'index.htm');
-                    return false;
-                });
-                $('#logout-button').click(function() {
-                    $.get( MAIN_PATH + 'logout', function( data ) {
-                        window.location.assign(MAIN_PATH_S + 'login.htm');
-                    });
-                    return false;
-                });
-                $('#logged-in-p').text('Logged in' + (msg.playlists.length?'  as ' + msg.playlists[0].user:''));
-                for (let it of msg.playlists) {
-                    add_playlist_to_button(it.name);
-                }
-                $('.logout').show();
+    find_user_cookie().then(function (useri) {
+        let el = new MainWSQueueElement(
+            {cmd: CMD_DUMP, useri:useri, load_all: -1},
+            function(msg) {
+                return msg.cmd === CMD_DUMP? msg:null;
+            }, 30000, 1);
+        el.enqueue().then(function(msg) {
+            $('.loading').hide();
+            if (msg.rv == 501 || msg.rv == 502) {
+                $('.login').show();
             }
-        }
-    })
-        .catch(function(err) {
-            console.log(err);
-            let errmsg = 'Exception detected: '+err;
-            toast_msg(errmsg, 'danger');
-        });
+            else {    
+                let orig_up = new URLSearchParams(URL_PARAMS);
+                let plname = null;
+                if (orig_up.has('urlp') && (plname = orig_up.get('urlp')).length)
+                    window.location.assign(plname);
+                else if (msg.playlists.length && orig_up.has('name') && (plname = orig_up.get('name')).length)
+                    window.location.assign(MAIN_PATH_S + 'play/workout.htm?name=' + encodeURIComponent(plname));
+                else {
+                    $('#playlist-button').click(function() {
+                        window.location.assign(MAIN_PATH_S + 'index.htm');
+                        return false;
+                    });
+                    $('#logout-button').click(function() {
+                        $.get( MAIN_PATH + 'logout', function( data ) {
+                            window.location.assign(MAIN_PATH_S + 'login.htm');
+                        });
+                        return false;
+                    });
+                    $('#logged-in-p').text('Logged in' + (msg.playlists.length?'  as ' + msg.playlists[0].user:''));
+                    for (let it of msg.playlists) {
+                        add_playlist_to_button(it.name);
+                    }
+                    $('.logout').show();
+                }
+            }
+        })
+            .catch(function(err) {
+                console.log(err);
+                let errmsg = 'Exception detected: '+err;
+                toast_msg(errmsg, 'danger');
+            });
+    }).catch(function() {
+        manage_errors({rv: 501, err: 'Cannot find user cookie!'});
+    });
 }
 
 $(window).on('load', function () {
-    if (find_user_cookie()) {
+    find_user_cookie().then(function (uid) {
         main_ws_reconnect();
         playlist_dump();
-    }
-    else {
+    }).catch(function() {
         $('.loading').hide();
         $('.login').show();
         login_init();
-    }
+    });
 });
