@@ -27,7 +27,7 @@ function login_send_id_token(id_token, name) {
     $.ajax({
         url: window.location.origin + MAIN_PATH + 'login_g',
         type: 'post',
-        data: 'idtoken=' + id_token,
+        data: $('#check-remember').is(':checked')? {idtoken: id_token, remember: 1}: {idtoken: id_token},
         success: function(data, textStatus, request) {
             console.log(listCookies());
             let orig_up = new URLSearchParams(URL_PARAMS);

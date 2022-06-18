@@ -2,7 +2,6 @@ import json
 import logging
 from functools import partial
 from textwrap import dedent
-from time import time
 import traceback
 
 from aiohttp import WSMsgType, web, ClientSession
@@ -13,11 +12,11 @@ import youtube_dl
 from google.oauth2 import id_token
 from google.auth.transport import requests
 
-from common.const import (COOKIE_USERID, CMD_PING, MSG_UNAUTHORIZED)
+from common.const import (CMD_PING, INVALID_SID, MSG_UNAUTHORIZED)
 from common.playlist import Playlist, PlaylistMessage
 from common.timer import Timer
 from common.utils import get_json_encoder, MyEncoder
-from server.sqliteauth import check_credentials, identity2id, identity2username
+from server.dict_auth_policy import check_credentials, identity2username
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,27 +39,37 @@ index_template = dedent("""
 
 
 async def index(request):
-    identity = await authorized_userid(request)
+    auid = await authorized_userid(request)
+    if isinstance(auid, int):
+        identity = auid
+    else:
+        identity = None
     _LOGGER.debug("Identity is %s" % str(identity))
     if identity:
         template = index_template.format(
-            message='Hello, {username}!'.format(username=identity2username(identity)))
+            message='Hello, {username}!'.format(username=await identity2username(request.app.p.db, identity)))
     else:
         template = index_template.format(message='You need to login')
     resp = web.Response(
         text=template,
         content_type='text/html',
     )
+    if identity and identity < 0:
+        await remember(request, resp, INVALID_SID)
     # if identity:
     #     resp.set_cookie(COOKIE_USERID, str(identity2id(identity)))
     return resp
 
 
 async def modify_pw(request):
-    identity = await authorized_userid(request)
+    auid = await authorized_userid(request)
+    if isinstance(auid, int):
+        identity = auid
+    else:
+        identity = None
     if identity:
         form = await request.post()
-        username = identity2username(identity)
+        username = await identity2username(request.app.p.db, identity)
         passedusername = form.get('username')
         if username != passedusername:
             return web.HTTPUnauthorized(body='Invalid username provided')
@@ -68,15 +77,22 @@ async def modify_pw(request):
         if password and len(password) >= 5:
             await request.app.p.db.execute("UPDATE user set password=? WHERE username=?", (password, username))
             await request.app.p.db.commit()
-            return web.HTTPFound('/')
+            resp = web.HTTPFound('/')
+            if identity and identity < 0:
+                await remember(request, resp, INVALID_SID)
+            return resp
     return web.HTTPUnauthorized(body='Invalid username / password combination')
 
 
 async def playlist_m3u(request):
     _LOGGER.debug("host is %s" % str(request.host))
-    identity = await authorized_userid(request)
+    auid = await authorized_userid(request)
+    if isinstance(auid, int):
+        identity = auid
+    else:
+        identity = None
     if identity:
-        userid = identity2id(identity)
+        userid = abs(identity)
         username = None
     elif 'useri' in request.query:
         userid = request.query['useri']
@@ -96,20 +112,23 @@ async def playlist_m3u(request):
         if pl:
             if fmt == 'm3u':
                 txt = pl[0].toM3U(host, conv)
-                return web.Response(
+                resp = web.Response(
                     text=txt,
                     content_type='text/plain',
                     charset='utf-8'
                 )
             elif fmt == 'json':
                 js = json.dumps(pl[0], cls=get_json_encoder(f'MyEnc{conv}', host=host, conv=conv))
-                return web.Response(
+                resp = web.Response(
                     text=js,
                     content_type='application/json',
                     charset='utf-8'
                 )
             else:
                 return web.HTTPBadRequest(body='Invalid format')
+            if identity and identity < 0:
+                await remember(request, resp, INVALID_SID)
+            return resp
         else:
             return web.HTTPNotFound(body='Playlist %s not found' % request.query['name'])
     else:
@@ -217,6 +236,11 @@ async def login_g(request):
     # (Receive token by HTTPS POST)
     # ...
     try:
+        auid = await authorized_userid(request)
+        response = web.HTTPFound('/')
+        if isinstance(auid, int):
+            await remember(request, response, INVALID_SID, max_age=86400 * 365 if form.get('remember') else None)
+            return response
         userid = None
         # Specify the CLIENT_ID of the app that accesses the backend:
         idinfo = id_token.verify_oauth2_token(token, requests.Request(), request.app.p.args['client_id'])
@@ -249,11 +273,12 @@ async def login_g(request):
                     userid = cursor2.lastrowid
                     await db.commit()
         if userid:
-            response = web.HTTPFound('/')
-            verified = json.dumps(
-                dict(rowid=userid, username=idinfo['email'], time=time()))
-            await remember(request, response, verified)
-            response.set_cookie(COOKIE_USERID, str(userid))
+            if isinstance(auid, str):
+                ids = json.dumps(dict(sid=auid, uid=userid))
+                _LOGGER.debug(f'Remembering... {ids}')
+                await remember(request, response, ids, max_age=86400 * 365 if form.get('remember') else None)
+            else:
+                return web.HTTPUnprocessableEntity(body=f'Identity server error ({str(auid)})')
             return response
     except Exception:
         _LOGGER.warning(f'Ecxception validationg token {traceback.format_exc()}')
@@ -263,23 +288,24 @@ async def login_g(request):
 
 async def login(request):
     response = web.HTTPFound('/')
-    username = await authorized_userid(request)
-    if username:
-        return response
+    auid = await authorized_userid(request)
     form = await request.post()
+    if isinstance(auid, int):
+        await remember(request, response, INVALID_SID, max_age=86400 * 365 if form.get('remember') else None)
+        return response
     username = form.get('username')
     password = form.get('password')
 
-    verified = await check_credentials(
-        request.app.p.db, username, password)
+    verified = await check_credentials(request.app.p.db, username, password)
     _LOGGER.debug("Ver = " + str(verified))
     if verified:
-        await remember(request, response, verified)
-        userid = identity2id(verified)
-        response.set_cookie(COOKIE_USERID, str(userid))
-        return response
-
-    return web.HTTPUnauthorized(body='Invalid username / password combination')
+        if isinstance(auid, str):
+            await remember(request, response, dict(sid=auid, uid=verified), max_age=86400 * 365 if form.get('remember') else None)
+            return response
+        else:
+            return web.HTTPUnprocessableEntity(body=f'Identity server error ({str(auid)})')
+    else:
+        return web.HTTPUnauthorized(body='Invalid username / password combination')
 
 
 async def logout(request):
@@ -309,18 +335,21 @@ async def send_ping(ws, control_dict):
 
 
 async def pls_h(request):
-    identity = await authorized_userid(request)
+    auid = await authorized_userid(request)
+    if not isinstance(auid, int):
+        userid = None
+    else:
+        userid = abs(auid)
     ws = web.WebSocketResponse()
     await ws.prepare(request)
     async for msg in ws:
         if msg.type == WSMsgType.TEXT:
             pl = PlaylistMessage(None, msg.json())
             _LOGGER.info("Message " + str(pl))
-            if not identity:
+            if not userid:
                 _LOGGER.info("Unauthorized")
                 await ws.send_str(json.dumps(pl.err(501, MSG_UNAUTHORIZED), cls=MyEncoder))
                 break
-            userid = identity2id(identity)
             for k, p in request.app.p.processors.items():
                 _LOGGER.debug(f'Checking {k}')
                 if p.interested(pl):
@@ -340,27 +369,28 @@ async def pls_h(request):
 
 
 async def register(request):
-    identity = await authorized_userid(request)
-    if identity:
+    auid = await authorized_userid(request)
+    if isinstance(auid, int):
+        response = web.HTTPFound('/')
+        await remember(request, response, INVALID_SID)
+        return response
+    form = await request.post()
+    username = form.get('username')
+    password = form.get('password')
+    _LOGGER.debug("Usermame=%s Password=%s" % (username, password))
+    if username and len(username) >= 5 and password and len(password) >= 5:
+        db = request.app.p.db
+        async with db.execute(
+            '''
+            SELECT count(*) FROM user
+            WHERE username = ?
+            ''', (username,)
+        ) as cursor:
+            data = (await cursor.fetchone())[0]
+            if data:
+                return web.HTTPUnauthorized(body='Username already taken')
+        await db.execute('INSERT INTO user(username,password) VALUES (?,?)', (username, password))
+        await db.commit()
         return web.HTTPFound('/')
     else:
-        form = await request.post()
-        username = form.get('username')
-        password = form.get('password')
-        _LOGGER.debug("Usermame=%s Password=%s" % (username, password))
-        if username and len(username) >= 5 and password and len(password) >= 5:
-            db = request.app.p.db
-            async with db.execute(
-                '''
-                SELECT count(*) FROM user
-                WHERE username = ?
-                ''', (username,)
-            ) as cursor:
-                data = (await cursor.fetchone())[0]
-                if data:
-                    return web.HTTPUnauthorized(body='Username already taken')
-            await db.execute('INSERT INTO user(username,password) VALUES (?,?)', (username, password))
-            await db.commit()
-            return web.HTTPFound('/')
-        else:
-            return web.HTTPUnauthorized(body='Invalid username / password combination')
+        return web.HTTPUnauthorized(body='Invalid username / password combination')

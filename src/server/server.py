@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import base64
 import glob
 import json
 import logging
@@ -12,20 +11,20 @@ from functools import partial
 from os.path import basename, dirname, isfile, join, splitext
 
 from aiohttp import web
-from aiohttp_security import SessionIdentityPolicy
 from aiohttp_security import setup as setup_security
 from aiohttp_session import setup as setup_session
-from aiohttp_session.cookie_storage import EncryptedCookieStorage
-from cryptography import fernet
 
 import aiohttp_cors
+import aioredis
 import aiosqlite
 import certifi
-from common.const import PORT_OSC_CONST, COOKIE_LOGIN
+from common.const import COOKIE_USERID, PORT_OSC_CONST, COOKIE_LOGIN, COOKIE_SID
 from common.timer import Timer
 from common.utils import asyncio_graceful_shutdown
 from server.pls.refreshmessageprocessor import RefreshMessageProcessor
-from server.sqliteauth import SqliteAuthorizationPolicy
+from server.dict_auth_policy import DictAuthorizationPolicy
+from server.redis_storage import RedisKeyStorage
+from server.session_cookie_identity import SessionCookieIdentityPolicy
 from server.webhandlers import index, logout, login, login_g, modify_pw, pls_h, register, playlist_m3u, youtube_dl_do, youtube_redir_do, redirect_till_last
 
 __prog__ = "pls-server"
@@ -272,14 +271,12 @@ async def init_db(app):
 
 
 def init_auth(app):
-    fernet_key = fernet.Fernet.generate_key()
-    secret_key = base64.urlsafe_b64decode(fernet_key)
-
-    storage = EncryptedCookieStorage(secret_key, cookie_name=COOKIE_LOGIN)
+    redis = aioredis.from_url(app.p.args['redis'], encoding="utf-8", decode_responses=False)
+    storage = RedisKeyStorage(cookie_name=COOKIE_SID, httponly=True, redis_pool=redis)
     setup_session(app, storage)
 
-    policy = SessionIdentityPolicy()
-    setup_security(app, policy, SqliteAuthorizationPolicy(app.p.db))
+    policy = SessionCookieIdentityPolicy(sid_key=COOKIE_SID, login_key=COOKIE_LOGIN, user_key=COOKIE_USERID)
+    setup_security(app, policy, DictAuthorizationPolicy())
 
 
 async def wait_until(dt):
@@ -390,6 +387,7 @@ def main():
         args['executors'] = 2
         args['autoupdate'] = 25
         args['client_id'] = ''
+        args['redis'] = 'redis://localhost/0'
         args['youtube_apikey'] = ''
         args["static"] = os.path.dirname(os.path.abspath(__file__)).join('..', 'www')
         app.p.osc_port = args["msgfrom"]
@@ -409,6 +407,7 @@ def main():
         parser.add_argument('--client-id', help='Google client id', required=False, default='')
         parser.add_argument('--executors', type=int, help='executor number', required=False, default=2)
         parser.add_argument('--static', required=False, default=None)
+        parser.add_argument('--redis', required=False, default='redis://localhost/0')
         parser.add_argument('--youtube-apikey', required=False, default="")
         parser.add_argument('--host', required=False, default="0.0.0.0")
         parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))

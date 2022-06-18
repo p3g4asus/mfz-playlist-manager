@@ -36,3 +36,5 @@ MSG_NO_VIDEOS = "No videos found"
 MSG_BACKEND_ERROR = "Backend error"
 MSG_NAME_TAKEN = "Name already taken"
 COOKIE_USERID = "Userid"
+COOKIE_SID = "MFZSID"
+INVALID_SID = '___'

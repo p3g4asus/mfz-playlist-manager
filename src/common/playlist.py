@@ -212,6 +212,7 @@ class Playlist(JSONAble, Fieldable):
                 other_it.iorder = -(idx + 1) * 10
             if not rvn:
                 rv = rvn
+        await db.commit()
         await self.fix_iorder(db, commit=commit)
         return rv
 
