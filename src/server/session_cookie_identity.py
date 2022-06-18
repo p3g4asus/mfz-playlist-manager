@@ -89,7 +89,7 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
             session.set_new_identity(login.get('sid'))
         logins = json.dumps(login)
         clogins = json.dumps(clogin)
-        _LOGGER.debug(f"Clogin={clogins} login={logins}")
+        _LOGGER.debug(f"Clogin={clogins} login={logins} max_age={kwargs.get('max_age')}")
         session[self._login_key] = logins
         response.set_cookie(self._login_key, clogins, max_age=kwargs.get('max_age'), httponly=True)
         response.set_cookie(self._sid_key, login.get('sid'), httponly=True)
