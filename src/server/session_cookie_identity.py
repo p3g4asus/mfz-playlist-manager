@@ -79,7 +79,7 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
         clogin = request.cookies.get(self._login_key)
         if not clogin and not logins:
             return
-        elif not kwargs.get('max_age'):
+        elif 'max_age' not in kwargs:
             kwargs['max_age'] = self._max_age
         token = str(uuid4())
         clogin = login.copy()
