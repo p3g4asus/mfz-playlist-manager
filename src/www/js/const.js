@@ -86,10 +86,10 @@ function toast_msg(msg, type, html) {
 
 function find_user_cookie() {
     let rid = docCookies.getItem(COOKIE_USERID);
-    let okf, failf;
     if (rid !== null)
         return Promise.resolve(parseInt(rid));
     else {
+        let okf, failf;
         let p = new Promise(function(resolve, reject) {
             okf = resolve;
             failf = reject;
