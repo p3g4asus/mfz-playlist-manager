@@ -221,53 +221,53 @@ function save_playlist_settings(vid) {
 }
 
 
-function playlist_dump(plid) {
-    find_user_cookie().then(function (useri) {
-        let el = new MainWSQueueElement(
-            plid?{cmd: CMD_DUMP, useri:useri, name: plid}: {cmd: CMD_DUMP, useri:useri, load_all: -1},
-            function(msg) {
-                return msg.cmd === CMD_DUMP? msg:null;
-            }, 30000, 1);
-        el.enqueue().then(function(msg) {
-            if (!manage_errors(msg)) {
-                if (msg.playlists.length) {
-                    if (plid) {
-                        playlist_current = msg.playlists[0];
-                        playlist_arr = playlist_current.items;
-                        parse_list(playlist_arr);
-                        page_set_title(playlist_current.name);
-                        init_video_manager();
-                        set_playlist_enabled(plid);
-                    }
-                    else {
-                        add_playlist_to_button();
-                        for (let it of msg.playlists) {
-                            add_playlist_to_button(it.name);
-                        }
-                    }
+function playlist_dump(useri, plid) {
+    let el = new MainWSQueueElement(
+        plid?{cmd: CMD_DUMP, useri:useri, name: plid}: {cmd: CMD_DUMP, useri:useri, load_all: -1},
+        function(msg) {
+            return msg.cmd === CMD_DUMP? msg:null;
+        }, 30000, 1);
+    el.enqueue().then(function(msg) {
+        if (!manage_errors(msg)) {
+            if (msg.playlists.length) {
+                if (plid) {
+                    playlist_current = msg.playlists[0];
+                    playlist_arr = playlist_current.items;
+                    parse_list(playlist_arr);
+                    page_set_title(playlist_current.name);
+                    init_video_manager();
+                    set_playlist_enabled(plid);
                 }
                 else {
-                    manage_errors({rv: 102, err: 'Playlist '+ plid +' not found!'});
+                    add_playlist_to_button();
+                    for (let it of msg.playlists) {
+                        add_playlist_to_button(it.name);
+                    }
                 }
             }
-        })
-            .catch(function(err) {
-                console.log(err);
-                let errmsg = 'Exception detected: '+err;
-                toast_msg(errmsg, 'danger');
-            });
-    }).catch(function() {
-        manage_errors({rv: 501, err: 'Cannot find user cookie!'});
-    });
+            else {
+                manage_errors({rv: 102, err: 'Playlist '+ plid +' not found!'});
+            }
+        }
+    })
+        .catch(function(err) {
+            console.log(err);
+            let errmsg = 'Exception detected: '+err;
+            toast_msg(errmsg, 'danger');
+        });
 }
 
 function get_startup_settings() {
     let orig_up = new URLSearchParams(URL_PARAMS);
     let plname;
-    main_ws_reconnect();
     if (orig_up.has('name') && (plname = orig_up.get('name')).length) {
-        playlist_dump();
-        playlist_dump(plname);
+        find_user_cookie().then(function (useri) {
+            main_ws_reconnect();
+            playlist_dump(useri);
+            playlist_dump(useri, plname);
+        }).catch(function() {
+            manage_errors({rv: 501, err: 'Cannot find user cookie!'});
+        });
     }
     else {
         manage_errors({rv: 101, err: 'Please specify a playlist name'});

@@ -1182,9 +1182,13 @@ function playlists_dump(params, useri, fast_videoidx, fast_videostep) {
 }
 
 function bootstrap_table_get_data_ws(params) {
-    main_ws_reconnect();
-    playlists_all = [];
-    playlists_dump(params);
+    find_user_cookie().then(function(useri) {
+        main_ws_reconnect();
+        playlists_all = [];
+        playlists_dump(params);
+    }).catch(function() {
+        manage_errors({rv: 501, err: 'Cannot find user cookie!'});
+    });
 }
 
 function playlist_select(ev) {
