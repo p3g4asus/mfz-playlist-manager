@@ -163,6 +163,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                         _LOGGER.debug("PlsItem exists %s. Is %s [%d]" % (str(i), items[idx], not items[idx].seen))
                         if not items[idx].seen and items[idx].isOk():
                             i.iorder = items[idx].iorder
+                            i.rowid = items[idx].rowid
                             items[idx] = i
                 try:
                     await x.cleanItems(self.db, dateto - 86400 * 120000, commit=False)
