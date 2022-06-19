@@ -38,11 +38,11 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
         sid = None
         if session.identity:
             sid = session.identity
-            _LOGGER.debug(f'Session identity is {session.identity}')
+            _LOGGER.debug(f'URL={str(request.url)} Session identity is {session.identity}')
             if csid != sid:
                 tokenrefresh = -1
         elif session.new:
-            _LOGGER.debug(f'Session is NEW and no identity dsid={dsid} csid={csid}')
+            _LOGGER.debug(f'URL={str(request.url)} Session is NEW and no identity dsid={dsid} csid={csid}')
             if csid:
                 sid = csid
             elif len(dsid) > 1:
@@ -50,7 +50,7 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
             if sid == csid and csid:
                 tokenrefresh = 1
                 session.set_new_identity(csid)
-                _LOGGER.debug(f'Setting new idetity as {csid} in key')
+                _LOGGER.debug(f'URL={str(request.url)} Setting new idetity as {csid} in key')
                 request[SESSION_KEY] = None
                 request[self._sid_key] = sid
                 session = await get_session(request)
@@ -68,7 +68,7 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
         login = json.loads(session.get(self._login_key, '{}'))
         idval = dict(tokenrefresh=tokenrefresh, sid=sid, dsid=dsid, csid=csid, login=login, clogin=clogin)
         idvals = json.dumps(idval)
-        _LOGGER.debug(f'Identify {idvals}')
+        _LOGGER.debug(f'URL={str(request.url)} Identify {idvals}')
         return idval
 
     async def remember(self, request, response, logins, **kwargs):
@@ -89,7 +89,7 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
             session.set_new_identity(login.get('sid'))
         logins = json.dumps(login)
         clogins = json.dumps(clogin)
-        _LOGGER.debug(f"Clogin={clogins} login={logins} max_age={kwargs.get('max_age')}")
+        _LOGGER.debug(f"URL={str(request.url)} Clogin={clogins} login={logins} max_age={kwargs.get('max_age')}")
         session[self._login_key] = logins
         response.del_cookie(self._login_key)
         response.del_cookie(self._sid_key)
