@@ -300,7 +300,7 @@ async def login(request):
     _LOGGER.debug("Ver = " + str(verified))
     if verified:
         if isinstance(auid, str):
-            await remember(request, response, dict(sid=auid, uid=verified), max_age=86400 * 365 if form.get('remember') else None)
+            await remember(request, response, json.dumps(dict(sid=auid, uid=verified)), max_age=86400 * 365 if form.get('remember') else None)
             return response
         else:
             return web.HTTPUnprocessableEntity(body=f'Identity server error ({str(auid)})')

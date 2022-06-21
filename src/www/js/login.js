@@ -98,6 +98,8 @@ function playlist_dump(useri) {
         else {    
             let orig_up = new URLSearchParams(URL_PARAMS);
             let plname = null;
+            if (!msg.playlists)
+                msg.playlists = [];
             if (orig_up.has('urlp') && (plname = orig_up.get('urlp')).length)
                 window.location.assign(plname);
             else if (msg.playlists.length && orig_up.has('name') && (plname = orig_up.get('name')).length)
