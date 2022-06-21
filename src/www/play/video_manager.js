@@ -229,6 +229,8 @@ function playlist_dump(useri, plid) {
         }, 30000, 1);
     el.enqueue().then(function(msg) {
         if (!manage_errors(msg)) {
+            if (!msg.playlists)
+                msg.playlists = [];
             if (msg.playlists.length) {
                 if (plid) {
                     playlist_current = msg.playlists[0];
