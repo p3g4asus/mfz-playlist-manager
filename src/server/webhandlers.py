@@ -3,6 +3,7 @@ import logging
 from functools import partial
 from textwrap import dedent
 import traceback
+import urllib.parse
 
 from aiohttp import WSMsgType, web, ClientSession
 from aiohttp_security import (authorized_userid, check_authorized, forget,
@@ -122,11 +123,13 @@ async def playlist_m3u(request):
                 if it >= len(pl[0].items):
                     it = len(pl[0].items) - 1
                 if it >= 0 and it < len(pl[0].items):
-                    ln = f'<div class="embedly-card" href="{pl[0].items[it].get_conv_link(host, conv)}"></div>'
+                    lnk = f'http://embedly.com/widgets/media.html?{urllib.parse.urlencode(dict(url=pl[0].items[it].get_conv_link(host, conv)))}'
+                    ln = f'<div class="embedly-card" href="{lnk}"></div>'
                 else:
                     ln = '\n'
                     for it in pl[0].items:
-                        ln += f'<div class="embedly-card" href="{it.get_conv_link(host, conv)}"></div>\n'
+                        lnk = f'http://embedly.com/widgets/media.html?{urllib.parse.urlencode(dict(url=it.get_conv_link(host, conv)))}'
+                        ln += f'<div class="embedly-card" href="{lnk}"></div>\n'
                 webp = f"""
                     <!doctype html>
                         <head></head>
