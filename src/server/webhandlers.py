@@ -118,26 +118,27 @@ async def playlist_m3u(request):
                     charset='utf-8'
                 )
             elif fmt == 'ely':
-                it = int(request.query['it']) if 'it' in request.query else 0
-                if it < 0:
-                    it = 0
-                elif it >= len(pl[0].items):
+                it = int(request.query['it']) if 'it' in request.query else -2
+                if it >= len(pl[0].items):
                     it = len(pl[0].items) - 1
                 if it >= 0 and it < len(pl[0].items):
-                    webp = f"""
-                        <!doctype html>
-                            <head></head>
-                            <body>
-                                <div class="embedly-card" href="{pl[0].items[it].get_conv_link(host, conv)}"></div>'
-                            </body>
-                    """
-                    resp = web.Response(
-                        text=webp,
-                        content_type='text/html',
-                        charset='utf-8'
-                    )
+                    ln = f'<div class="embedly-card" href="{pl[0].items[it].get_conv_link(host, conv)}"></div>'
                 else:
-                    return web.HTTPBadRequest(body='Playlist item not found')
+                    ln = '\n'
+                    for it in pl[0].items:
+                        ln += f'<div class="embedly-card" href="{it.get_conv_link(host, conv)}"></div>\n'
+                webp = f"""
+                    <!doctype html>
+                        <head></head>
+                        <body>
+                            {ln}
+                        </body>
+                """
+                resp = web.Response(
+                    text=webp,
+                    content_type='text/html',
+                    charset='utf-8'
+                )
             elif fmt == 'json':
                 js = json.dumps(pl[0], cls=get_json_encoder(f'MyEnc{conv}', host=host, conv=conv))
                 resp = web.Response(
