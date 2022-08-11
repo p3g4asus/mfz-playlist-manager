@@ -117,6 +117,27 @@ async def playlist_m3u(request):
                     content_type='text/plain',
                     charset='utf-8'
                 )
+            elif fmt == 'ely':
+                it = int(request.query['it']) if 'it' in request.query else 0
+                if it < 0:
+                    it = 0
+                elif it >= len(pl[0].items):
+                    it = len(pl[0].items) - 1
+                if it >= 0 and it < len(pl[0].items):
+                    webp = f"""
+                        <!doctype html>
+                            <head></head>
+                            <body>
+                                <div class="embedly-card" href="{pl[0].items[it].get_conv_link(host, conv)}"></div>'
+                            </body>
+                    """
+                    resp = web.Response(
+                        text=webp,
+                        content_type='text/html',
+                        charset='utf-8'
+                    )
+                else:
+                    return web.HTTPBadRequest(body='Playlist item not found')
             elif fmt == 'json':
                 js = json.dumps(pl[0], cls=get_json_encoder(f'MyEnc{conv}', host=host, conv=conv))
                 resp = web.Response(
