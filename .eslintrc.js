@@ -98,7 +98,14 @@ module.exports = {
         'CMD_REMOTEPLAY': true,
         'CMD_REMOTEPLAY_JS': true,
         'QRCode': true,
-        'main_ws_qel_exists': true
+        'main_ws_qel_exists': true,
+        'CMD_REMOTEPLAY_JS_PAUSE': true,
+        'CMD_REMOTEPLAY_JS_NEXT': true,
+        'CMD_REMOTEPLAY_JS_DEL': true,
+        'CMD_REMOTEPLAY_JS_PREV': true,
+        'CMD_REMOTEPLAY_JS_FFW': true,
+        'CMD_REMOTEPLAY_JS_REW': true,
+        'CMD_REMOTEPLAY_JS_GOTO': true,
     },
     'rules': {
         'indent': [

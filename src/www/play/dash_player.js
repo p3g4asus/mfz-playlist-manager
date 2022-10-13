@@ -72,6 +72,14 @@ class DashPlayer {
         else
             this.player.play();
     }
+
+    ffw(secs) {
+        this.player.seek(secs);
+    }
+
+    rew(secs) {
+        this.player.seek(-secs);
+    }
 }
 
 // dyn_module_load('./dash_sost.js', function() {

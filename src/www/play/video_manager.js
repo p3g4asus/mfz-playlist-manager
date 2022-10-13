@@ -376,7 +376,7 @@ function playlist_start_playing(idx) {
                 new pthis.constructor(video_width, video_height);
             }
             else
-                dyn_module_load('./' + playlist_player + '_player.js');
+                dyn_module_load('./' + playlist_player + '_player.js?reload=true');
         }
         else
             on_player_load(playlist_player, video_manager_obj);
