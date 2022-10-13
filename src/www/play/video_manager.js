@@ -189,7 +189,7 @@ function on_player_load(name, manager_obj) {
 
 function go_to_next_video() {
     if (video_manager_obj)
-        on_play_finished(null);
+        on_play_finished({dir: 1});
 }
 function go_to_prev_video() {
     if (video_manager_obj)
