@@ -66,6 +66,14 @@ class VideojsPlayer {
         else
             this.player.play();
     }
+
+    ffw(secs) {
+        this.player.currentTime(this.player.currentTime() + secs);
+    }
+
+    rew(secs) {
+        this.player.currentTime(this.player.currentTime() - secs);
+    }
 }
 
 // dyn_module_load('./dash_sost.js', function() {

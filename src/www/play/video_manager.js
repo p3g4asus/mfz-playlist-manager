@@ -269,19 +269,25 @@ function remotejs_recog(msg) {
 }
 
 function remotejs_process(msg) {
-    if (msg.sub == 'nextdel') {
+    if (msg.sub == CMD_REMOTEPLAY_JS_DEL) {
         on_play_finished({dir: 10536});
     } 
-    else if (msg.sub == 'next') {
+    else if (msg.sub == CMD_REMOTEPLAY_JS_NEXT) {
         go_to_next_video();
     }
-    else if (msg.sub == 'prev') {
+    else if (msg.sub == CMD_REMOTEPLAY_JS_PREV) {
         go_to_prev_video();
     }
-    else if (msg.sub == 'pause') {
+    else if (msg.sub == CMD_REMOTEPLAY_JS_PAUSE) {
         on_play_finished({dir: null});
     }
-    else if (msg.sub == 'goto') {
+    else if (msg.sub == CMD_REMOTEPLAY_JS_FFW) {
+        video_manager_obj.ffw(msg.n);
+    }
+    else if (msg.sub == CMD_REMOTEPLAY_JS_REW) {
+        video_manager_obj.rew(msg.n);
+    }
+    else if (msg.sub == CMD_REMOTEPLAY_JS_GOTO) {
         window.location.assign(msg.link);
     }
     remotejs_enqueue();

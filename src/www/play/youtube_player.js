@@ -36,6 +36,14 @@ class YoutubePlayer {
         this.player.loadVideoById({videoId:vid});
     }
 
+    ffw(secs) {
+        this.player.seekTo(this.player.getCurrentTime() + secs, true);
+    }
+
+    rew(secs) {
+        this.player.seekTo(this.player.getCurrentTime() - secs, true);
+    }
+
     togglePause() {
         if (this.player.getPlayerState() == VIDEO_STATUS_PLAYING)
             this.player.pauseVideo();

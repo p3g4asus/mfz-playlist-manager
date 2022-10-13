@@ -91,6 +91,14 @@ class TwitchPlayer {
         else
             this.player.pause();
     }
+
+    ffw(secs) {
+        this.player.seek(this.player.getCurrentTime() + secs);
+    }
+
+    rew(secs) {
+        this.player.seek(this.player.getCurrentTime() - secs);
+    }
 }
 
 // dyn_module_load('./dash_sost.js', function() {

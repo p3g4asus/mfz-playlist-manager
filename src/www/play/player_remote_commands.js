@@ -14,32 +14,46 @@ $(window).on('load', function() {
     $('#next_button').click(()=> {
         send_remote_command({
             cmd: CMD_REMOTEPLAY_JS,
-            sub: 'next',
+            sub: CMD_REMOTEPLAY_JS_NEXT,
         });
     });
     $('#pause_button').click(()=> {
         send_remote_command({
             cmd: CMD_REMOTEPLAY_JS,
-            sub: 'pause',
+            sub: CMD_REMOTEPLAY_JS_PAUSE,
         });
     });
     $('#del_button').click(()=> {
         send_remote_command({
             cmd: CMD_REMOTEPLAY_JS,
-            sub: 'nextdel',
+            sub: CMD_REMOTEPLAY_JS_DEL,
         });
     });
     $('#prev_button').click(()=> {
         send_remote_command({
             cmd: CMD_REMOTEPLAY_JS,
-            sub: 'prev',
+            sub: CMD_REMOTEPLAY_JS_PREV,
+        });
+    });
+    $('#ffw_button').click(()=> {
+        send_remote_command({
+            cmd: CMD_REMOTEPLAY_JS,
+            sub: CMD_REMOTEPLAY_JS_FFW,
+            n: 30
+        });
+    });
+    $('#rew_button').click(()=> {
+        send_remote_command({
+            cmd: CMD_REMOTEPLAY_JS,
+            sub: CMD_REMOTEPLAY_JS_REW,
+            n: 30
         });
     });
     for (let it of playlists_arr) {
         add_playlist_to_button(it, '#playlist_cont', function(e) {
             send_remote_command({
                 cmd: CMD_REMOTEPLAY_JS,
-                sub: 'goto',
+                sub: CMD_REMOTEPLAY_JS_GOTO,
                 link: window.location.protocol + '//' + window.location.host + '/' + MAIN_PATH_S + 'play/workout.htm?name=' + encodeURIComponent(it)
             });
         });
