@@ -269,26 +269,31 @@ function remotejs_recog(msg) {
 }
 
 function remotejs_process(msg) {
-    if (msg.sub == CMD_REMOTEPLAY_JS_DEL) {
-        on_play_finished({dir: 10536});
-    } 
-    else if (msg.sub == CMD_REMOTEPLAY_JS_NEXT) {
-        go_to_next_video();
+    try {
+        if (msg.sub == CMD_REMOTEPLAY_JS_DEL) {
+            on_play_finished({dir: 10536});
+        } 
+        else if (msg.sub == CMD_REMOTEPLAY_JS_NEXT) {
+            go_to_next_video();
+        }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_PREV) {
+            go_to_prev_video();
+        }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_PAUSE) {
+            on_play_finished({dir: null});
+        }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_FFW) {
+            video_manager_obj.ffw(msg.n);
+        }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_REW) {
+            video_manager_obj.rew(msg.n);
+        }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_GOTO) {
+            window.location.assign(msg.link);
+        }
     }
-    else if (msg.sub == CMD_REMOTEPLAY_JS_PREV) {
-        go_to_prev_video();
-    }
-    else if (msg.sub == CMD_REMOTEPLAY_JS_PAUSE) {
-        on_play_finished({dir: null});
-    }
-    else if (msg.sub == CMD_REMOTEPLAY_JS_FFW) {
-        video_manager_obj.ffw(msg.n);
-    }
-    else if (msg.sub == CMD_REMOTEPLAY_JS_REW) {
-        video_manager_obj.rew(msg.n);
-    }
-    else if (msg.sub == CMD_REMOTEPLAY_JS_GOTO) {
-        window.location.assign(msg.link);
+    catch (e) {
+        console.error(e.stack);
     }
     remotejs_enqueue();
 }
@@ -304,7 +309,7 @@ function get_remoteplay_link() {
             {cmd: CMD_REMOTEPLAY, host: window.location.protocol + '//' + window.location.host + '/' + MAIN_PATH},
             function(msg) {
                 return msg.cmd === CMD_REMOTEPLAY? msg:null;
-            }, 5000, 1, 'remoteplay');
+            }, 5000, 3, 'remoteplay');
         el.enqueue().then(function(msg) {
             if (!manage_errors(msg)) {
                 playlist_remoteplay = msg.url;

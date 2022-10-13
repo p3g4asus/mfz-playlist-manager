@@ -39,14 +39,14 @@ $(window).on('load', function() {
         send_remote_command({
             cmd: CMD_REMOTEPLAY_JS,
             sub: CMD_REMOTEPLAY_JS_FFW,
-            n: 30
+            n: 10
         });
     });
     $('#rew_button').click(()=> {
         send_remote_command({
             cmd: CMD_REMOTEPLAY_JS,
             sub: CMD_REMOTEPLAY_JS_REW,
-            n: 30
+            n: 10
         });
     });
     for (let it of playlists_arr) {
