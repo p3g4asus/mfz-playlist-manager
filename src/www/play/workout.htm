@@ -80,78 +80,50 @@
         </div>
       </div>
       <div id="alert-row" class="row"></div>
+      <div class="row">
+        <div class="col-12" id="qr-remote-play-content"></div>
+      </div>
       <div id="dim-row" class="row collapse">
-        <div class="container-fluid">
-          <div class="row">
-            <form class="col-md-12" autocomplete="on">
-              <div class="form-group">
-                <label for="video-width">Video Width</label>
-                <input
-                  type="number"
-                  placeholder="Video Width"
-                  id="video-width"
-                  value="900"
-                  min="-100"
-                  max="4000"
-                  step="1"
-                  required
-                />
-              </div>
-              <div class="form-group">
-                <label for="video-height">Video Height</label>
-                <input
-                  type="number"
-                  placeholder="Video Height"
-                  id="video-height"
-                  value="660"
-                  min="-100"
-                  max="4000"
-                  step="1"
-                  required
-                />
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" value="" id="remove-end">
-                <label class="form-check-label" for="remove-end">
-                    Remove at end
-                </label>
-              </div>
-              <div class="form-check">
-                  <input class="form-check-input" type="checkbox" value="" id="default-sett">
-                  <label class="form-check-label" for="default-sett">
-                    Default
-                  </label>
-              </div>
-            </form>
-          </div>
-          <div class="row">
-            <div class="col-12" id="qr-remote-play-content"></div>
-          </div>
-        <!--<form class="col-md-6" autocomplete="on">
+        <form class="col-md-12" autocomplete="on">
           <div class="form-group">
-            <a
-              class="btn btn-dark btn-lg btn-block disabled mt-4"
-              href="#"
-              role="button"
-              onclick="playlist_reload_settings(true); return false;"
-              >Reset&nbsp;&nbsp;<i class="fa fa-toilet-paper-slash"></i
-            ></a>
-            <a
-              class="btn btn-primary btn-lg btn-block disabled"
-              href="#"
-              role="button"
-              onclick="playlist_reload_settings(); return false;"
-              >Reload&nbsp;&nbsp;<i class="fas fa-undo"></i
-            ></a>
-            <a
-              class="btn btn-danger btn-lg btn-block disabled mt-4"
-              href="#"
-              role="button"
-              onclick="playlist_del_current_video(); return false;"
-              >Remove video&nbsp;&nbsp;<i class="fas fa-trash-alt"></i
-            ></a>
+            <label for="video-width">Video Width</label>
+            <input
+              type="number"
+              placeholder="Video Width"
+              id="video-width"
+              value="900"
+              min="-100"
+              max="4000"
+              step="1"
+              required
+            />
           </div>
-        </form>-->
+          <div class="form-group">
+            <label for="video-height">Video Height</label>
+            <input
+              type="number"
+              placeholder="Video Height"
+              id="video-height"
+              value="660"
+              min="-100"
+              max="4000"
+              step="1"
+              required
+            />
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="" id="remove-end">
+            <label class="form-check-label" for="remove-end">
+                Remove at end
+            </label>
+          </div>
+          <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="" id="default-sett">
+              <label class="form-check-label" for="default-sett">
+                Default
+              </label>
+          </div>
+        </form>
       </div>
     </div>
     <div class="text-end floating-action-menu pos-top-right">
