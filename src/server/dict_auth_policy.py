@@ -13,12 +13,13 @@ class DictAuthorizationPolicy(AbstractAuthorizationPolicy):
         sid = dct.get('sid', 'b')
         dsid = login.get('sid', 'c')
         tokenrefresh = dct.get('tokenrefresh', -2)
+        hextoken = login.get('token', 'a')
         if tokenrefresh >= 0 and dsid == login.get('sid', 'b') and dsid == sid and csid == sid and\
            login.get('uid', 'a') == clogin.get('uid', 'b') and\
-           hashlib.sha256(clogin.get('token', 'a').encode('utf-8')).hexdigest() == login.get('token', 'a'):
-            return -int(login.get('uid')) if tokenrefresh else int(login.get('uid'))
+           hashlib.sha256(clogin.get('token', 'a').encode('utf-8')).hexdigest() == hextoken:
+            return login.get('uid'), hextoken if not tokenrefresh else ''
         else:
-            return sid if sid else csid if csid else dsid
+            return sid if len(sid) > 1 else csid if len(csid) > 1 else dsid, None
 
     async def permits(self, identity, permission, context=None):
         """Check user permissions.

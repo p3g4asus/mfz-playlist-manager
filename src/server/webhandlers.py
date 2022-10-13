@@ -1,6 +1,7 @@
 import json
 import logging
 from functools import partial
+from os.path import join
 from textwrap import dedent
 import traceback
 import urllib.parse
@@ -13,7 +14,7 @@ import youtube_dl
 from google.oauth2 import id_token
 from google.auth.transport import requests
 
-from common.const import (CMD_PING, INVALID_SID, MSG_UNAUTHORIZED)
+from common.const import (CMD_PING, CMD_REMOTEPLAY, INVALID_SID, MSG_UNAUTHORIZED)
 from common.playlist import Playlist, PlaylistMessage
 from common.timer import Timer
 from common.utils import get_json_encoder, MyEncoder
@@ -40,7 +41,7 @@ index_template = dedent("""
 
 
 async def index(request):
-    auid = await authorized_userid(request)
+    auid, hextoken = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
     else:
@@ -55,7 +56,7 @@ async def index(request):
         text=template,
         content_type='text/html',
     )
-    if identity and identity < 0:
+    if identity and not hextoken:
         await remember(request, resp, INVALID_SID)
     # if identity:
     #     resp.set_cookie(COOKIE_USERID, str(identity2id(identity)))
@@ -63,7 +64,7 @@ async def index(request):
 
 
 async def modify_pw(request):
-    auid = await authorized_userid(request)
+    auid, hextoken = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
     else:
@@ -79,7 +80,7 @@ async def modify_pw(request):
             await request.app.p.db.execute("UPDATE user set password=? WHERE username=?", (password, username))
             await request.app.p.db.commit()
             resp = web.HTTPFound('/')
-            if identity and identity < 0:
+            if identity and not hextoken:
                 await remember(request, resp, INVALID_SID)
             return resp
     return web.HTTPUnauthorized(body='Invalid username / password combination')
@@ -87,13 +88,13 @@ async def modify_pw(request):
 
 async def playlist_m3u(request):
     _LOGGER.debug("host is %s" % str(request.host))
-    auid = await authorized_userid(request)
+    auid, hextoken = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
     else:
         identity = None
     if identity:
-        userid = abs(identity)
+        userid = identity
         username = None
     elif 'useri' in request.query:
         userid = request.query['useri']
@@ -151,7 +152,7 @@ async def playlist_m3u(request):
                 )
             else:
                 return web.HTTPBadRequest(body='Invalid format')
-            if identity and identity < 0:
+            if identity and not hextoken:
                 await remember(request, resp, INVALID_SID)
             return resp
         else:
@@ -261,7 +262,7 @@ async def login_g(request):
     # (Receive token by HTTPS POST)
     # ...
     try:
-        auid = await authorized_userid(request)
+        auid, _ = await authorized_userid(request)
         response = web.HTTPFound('/')
         if isinstance(auid, int):
             await remember(request, response, INVALID_SID, max_age=86400 * 365 if form.get('remember') else None)
@@ -313,7 +314,7 @@ async def login_g(request):
 
 async def login(request):
     response = web.HTTPFound('/')
-    auid = await authorized_userid(request)
+    auid, _ = await authorized_userid(request)
     form = await request.post()
     if isinstance(auid, int):
         await remember(request, response, INVALID_SID, max_age=86400 * 365 if form.get('remember') else None)
@@ -359,13 +360,55 @@ async def send_ping(ws, control_dict):
             control_dict['end'] = True
 
 
+async def remote_command(request):
+    hextoken = request.match_info['hex']
+    if hextoken in request.app.p.ws:
+        redirect = 'red' in request.query
+        redirect_pars = f'?hex={hextoken}'
+        outdict = {'hex': hextoken}
+        try:
+            for k, v in request.query.items():
+                if redirect:
+                    if k == 'red':
+                        redirect_pars = v + redirect_pars
+                    else:
+                        d = dict()
+                        d[k] = v
+                        redirect_pars = f'{redirect_pars}&{urllib.parse.urlencode(d)}'
+                elif k in outdict:
+                    if isinstance(outdict[k], list):
+                        outdict[k].append(v)
+                    else:
+                        outdict[k] = [outdict[k], v]
+                else:
+                    outdict[k] = v
+        except Exception:
+            del request.app.p.ws[hextoken]
+            _LOGGER.debug(f"Exception detected {traceback.format_exc()}: Deleting ws")
+            return web.HTTPUnauthorized(body='Invalid hex link')
+        if redirect:
+            raise web.HTTPFound(location=redirect_pars)
+        else:
+            _LOGGER.debug(f'Sending this dict: {outdict}')
+            cmd = json.dumps(outdict)
+            await request.app.p.ws[hextoken].send_str(cmd)
+            return web.Response(
+                text=cmd,
+                content_type='application/json',
+                charset='utf-8'
+            )
+    else:
+        return web.HTTPUnauthorized(body='Invalid hex link')
+
+
+
 async def pls_h(request):
-    auid = await authorized_userid(request)
+    auid, hextoken = await authorized_userid(request)
     if not isinstance(auid, int):
         userid = None
     else:
-        userid = abs(auid)
-    ws = web.WebSocketResponse()
+        userid = auid
+    ws = web.WebSocketResponse(autoping=True, heartbeat=60, autoclose=False)
     await ws.prepare(request)
     async for msg in ws:
         if msg.type == WSMsgType.TEXT:
@@ -375,6 +418,14 @@ async def pls_h(request):
                 _LOGGER.info("Unauthorized")
                 await ws.send_str(json.dumps(pl.err(501, MSG_UNAUTHORIZED), cls=MyEncoder))
                 break
+            elif pl.c(CMD_REMOTEPLAY):
+                if not hextoken:
+                    _LOGGER.info("Invalid token")
+                    await ws.send_str(json.dumps(pl.err(502, MSG_UNAUTHORIZED), cls=MyEncoder))
+                else:
+                    request.app.p.ws[hextoken] = ws
+                    host = f"{pl.host}/rcmd/{hextoken}"
+                    await ws.send_str(json.dumps(pl.ok(url=host, hex=hextoken), cls=MyEncoder))
             for k, p in request.app.p.processors.items():
                 _LOGGER.debug(f'Checking {k}')
                 if p.interested(pl):

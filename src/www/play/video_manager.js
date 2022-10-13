@@ -2,6 +2,8 @@ let playlist_player = null;
 let video_manager_obj = null;
 let playlist_map = {};
 let playlist_arr = [];
+let playlists_arr = [];
+let playlist_remoteplay = '';
 let players_map = {};
 
 let playlist_play_settings_key = '';
@@ -112,12 +114,12 @@ function on_play_finished(event) {
         return;
     }
     else {
-        if (dir == 10535) {
-            if (playlist_item_play_settings?.remove_end) {
+        if (dir == 10535 || dir == 10536) {
+            if (playlist_item_play_settings?.remove_end || dir == 10536) {
                 let title = playlist_item_current.title;
                 let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:playlist_item_current.rowid, seen:1}, function(msg) {
                     return msg.cmd === CMD_SEEN? msg:null;
-                }, 5000, 1);
+                }, 5000, 1, 'seen');
                 qel.enqueue().then(function(msg) {
                     if (!manage_errors(msg)) {
                         console.log('Item deleted ' + title + '!');
@@ -206,7 +208,7 @@ function save_playlist_settings(vid) {
         playid: vid
     }, function(msg) {
         return msg.cmd === CMD_PLAYID? msg:null;
-    }, 3000, 1);
+    }, 3000, 1, 'playid');
     el.enqueue().then(function(msg) {
         if (!manage_errors(msg)) {
             console.log('Playlist state saved ' + JSON.stringify(msg.playlistitem));
@@ -226,7 +228,7 @@ function playlist_dump(useri, plid) {
         plid?{cmd: CMD_DUMP, useri:useri, name: plid}: {cmd: CMD_DUMP, useri:useri, load_all: -1},
         function(msg) {
             return msg.cmd === CMD_DUMP? msg:null;
-        }, 30000, 1);
+        }, 30000, 1, 'dump ' + plid);
     el.enqueue().then(function(msg) {
         if (!manage_errors(msg)) {
             if (!msg.playlists)
@@ -245,6 +247,8 @@ function playlist_dump(useri, plid) {
                     for (let it of msg.playlists) {
                         add_playlist_to_button(it.name);
                     }
+                    playlists_arr = msg.playlists;
+                    get_remoteplay_link();
                 }
             }
             else {
@@ -259,12 +263,76 @@ function playlist_dump(useri, plid) {
         });
 }
 
+
+function remotejs_recog(msg) {
+    return msg.cmd === CMD_REMOTEPLAY_JS? msg:null;
+}
+
+function remotejs_process(msg) {
+    if (msg.sub == 'nextdel') {
+        on_play_finished({dir: 10536});
+    } 
+    else if (msg.sub == 'next') {
+        go_to_next_video();
+    }
+    else if (msg.sub == 'prev') {
+        go_to_prev_video();
+    }
+    else if (msg.sub == 'pause') {
+        on_play_finished({dir: null});
+    }
+    else if (msg.sub == 'goto') {
+        window.location.assign(msg.link);
+    }
+    remotejs_enqueue();
+}
+
+function remotejs_enqueue() {
+    let el2 = new MainWSQueueElement(null, remotejs_recog, 0, 1, 'remotejs');
+    el2.enqueue().then(remotejs_process);
+}
+
+function get_remoteplay_link() {
+    if (!main_ws_qel_exists('remoteplay')) {
+        let el = new MainWSQueueElement(
+            {cmd: CMD_REMOTEPLAY, host: window.location.protocol + '//' + window.location.host + '/' + MAIN_PATH},
+            function(msg) {
+                return msg.cmd === CMD_REMOTEPLAY? msg:null;
+            }, 5000, 1, 'remoteplay');
+        el.enqueue().then(function(msg) {
+            if (!manage_errors(msg)) {
+                playlist_remoteplay = msg.url;
+                let lnk = playlist_remoteplay + '?red='+encodeURIComponent(window.location.protocol + '//' + window.location.host + '/' + MAIN_PATH_S + 'play/player_remote_commands.htm');
+                for (let it of playlists_arr) {
+                    lnk += '&name='+encodeURIComponent(it.name);
+                }
+                let $rpc = $('#qr-remote-play-content');
+                let $a = $('<a>').prop('href', lnk).prop('target', '_blank');
+                let $rp = $('<canvas>');
+                $a.append($rp);
+                QRCode.toCanvas($rp[0], lnk, function (error) {
+                    if (error)
+                        console.error('QRCODE ' + error);
+                    console.log('QRCODE success!');
+                });
+                $rpc.empty().append($a);
+                remotejs_enqueue();
+            }
+        })
+            .catch(function(err) {
+                console.log(err);
+                let errmsg = 'Exception detected: '+err;
+                toast_msg(errmsg, 'danger');
+            });
+    }
+}
+
 function get_startup_settings() {
     let orig_up = new URLSearchParams(URL_PARAMS);
     let plname;
     if (orig_up.has('name') && (plname = orig_up.get('name')).length) {
         find_user_cookie().then(function (useri) {
-            main_ws_reconnect();
+            main_ws_reconnect(get_remoteplay_link);
             playlist_dump(useri);
             playlist_dump(useri, plname);
         }).catch(function() {
@@ -316,7 +384,7 @@ function playlist_del_current_video() {
     if (playlist_item_current) {
         let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:playlist_item_current.rowid, seen:1}, function(msg) {
             return msg.cmd === CMD_SEEN? msg:null;
-        }, 5000, 1);
+        }, 5000, 1, 'seen');
         qel.enqueue().then(function(msg) {
             if (!manage_errors(msg)) {
                 toast_msg('Successfully deleted ' + playlist_item_current.title + '!', 'success');
@@ -341,7 +409,7 @@ function playlist_reload_settings(reset) {
             }
         }, function(msg) {
             return msg.cmd === CMD_PLAYSETT? msg:null;
-        }, 3000, 1);
+        }, 3000, 1, 'playsett');
         el.enqueue().then(function(msg) {
             if (!manage_errors(msg)) {
                 playlist_current.conf.play = msg.playlist.conf.play;

@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/gh/madmurphy/cookies.js@master/cookies.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/shaack/bootstrap-input-spinner@master/src/bootstrap-input-spinner.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/shaack/bootstrap-input-spinner@master/src/custom-editors.min.js"></script>
+    <script src="./qrcode.js"></script>
     <script src="../js/const.js"></script>
     <script src="./globals.js"></script>
     <script src="./gui.js"></script>
@@ -80,46 +81,52 @@
       </div>
       <div id="alert-row" class="row"></div>
       <div id="dim-row" class="row collapse">
-        <form class="col-md-12" autocomplete="on">
-          <div class="form-group">
-            <label for="video-width">Video Width</label>
-            <input
-              type="number"
-              placeholder="Video Width"
-              id="video-width"
-              value="900"
-              min="-100"
-              max="4000"
-              step="1"
-              required
-            />
+        <div class="container-fluid">
+          <div class="row">
+            <form class="col-md-12" autocomplete="on">
+              <div class="form-group">
+                <label for="video-width">Video Width</label>
+                <input
+                  type="number"
+                  placeholder="Video Width"
+                  id="video-width"
+                  value="900"
+                  min="-100"
+                  max="4000"
+                  step="1"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="video-height">Video Height</label>
+                <input
+                  type="number"
+                  placeholder="Video Height"
+                  id="video-height"
+                  value="660"
+                  min="-100"
+                  max="4000"
+                  step="1"
+                  required
+                />
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="" id="remove-end">
+                <label class="form-check-label" for="remove-end">
+                    Remove at end
+                </label>
+              </div>
+              <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="" id="default-sett">
+                  <label class="form-check-label" for="default-sett">
+                    Default
+                  </label>
+              </div>
+            </form>
           </div>
-          <div class="form-group">
-            <label for="video-height">Video Height</label>
-            <input
-              type="number"
-              placeholder="Video Height"
-              id="video-height"
-              value="660"
-              min="-100"
-              max="4000"
-              step="1"
-              required
-            />
+          <div class="row">
+            <div class="col-12" id="qr-remote-play-content"></div>
           </div>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" value="" id="remove-end">
-            <label class="form-check-label" for="remove-end">
-                Remove at end
-            </label>
-          </div>
-          <div class="form-check">
-              <input class="form-check-input" type="checkbox" value="" id="default-sett">
-              <label class="form-check-label" for="default-sett">
-                Default
-              </label>
-          </div>
-        </form>
         <!--<form class="col-md-6" autocomplete="on">
           <div class="form-group">
             <a

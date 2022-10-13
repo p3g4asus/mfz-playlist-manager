@@ -25,7 +25,7 @@ from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.dict_auth_policy import DictAuthorizationPolicy
 from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
-from server.webhandlers import index, logout, login, login_g, modify_pw, pls_h, register, playlist_m3u, youtube_dl_do, youtube_redir_do, redirect_till_last
+from server.webhandlers import index, logout, login, login_g, modify_pw, pls_h, register, remote_command, playlist_m3u, youtube_dl_do, youtube_redir_do, redirect_till_last
 
 __prog__ = "pls-server"
 
@@ -311,6 +311,7 @@ async def start_app(app):
     if app.p.args["static"] is not None:
         app.router.add_static('/static', app.p.args["static"])
     app.router.add_route('GET', '/', index)
+    app.router.add_route('GET', '/rcmd/{hex:[a-fA-F0-9]+}', remote_command)
     app.router.add_route('POST', '/login_g', login_g)
     app.router.add_route('POST', '/login', login)
     app.router.add_route('POST', '/modifypw', modify_pw)
@@ -375,6 +376,7 @@ async def osc_init(app):
 def main():
     app = web.Application()
     app.p = Object()
+    app.p.ws = dict()
     app.p.myrunners = []
     # Here's all the magic !
     os.environ['SSL_CERT_FILE'] = certifi.where()

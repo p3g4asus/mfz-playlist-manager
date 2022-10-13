@@ -18,6 +18,8 @@ const CMD_PING = 'ping';
 const CMD_REFRESH = 'refresh';
 const CMD_PLAYID = 'playid';
 const CMD_PLAYSETT = 'playsett';
+const CMD_REMOTEPLAY = 'remote';
+const CMD_REMOTEPLAY_JS = 'remotejs';
 const CMD_LS = 'ls';
 const CMD_RAI_CONTENTSET = 'rai.contentset';
 const CMD_YT_PLAYLISTCHECK = 'youtube.playlistcheck';
@@ -51,18 +53,18 @@ function manage_errors(msg) {
     
 }
 
-function add_playlist_to_button(item) {
+function add_playlist_to_button(item, selector, onclick) {
     let li = $('<li>');
     let a = $('<a>');
     a.attr('href', '#');
     a.attr('data-pls', item?item:' ');
     a.addClass('dropdown-item');
     a.text(item?item:'Home');
-    a.click(function (e) {
+    a.click(onclick?onclick:function (e) {
         window.location.assign(MAIN_PATH_S + (item?'play/workout.htm?name=' + encodeURIComponent(item): 'index.htm'));
     });
     li.append(a);
-    $('#playlist_cont > .dropdown-menu').append(li);
+    $((selector?selector:'#playlist_cont') + ' > .dropdown-menu').append(li);
 }
 
 function toast_msg(msg, type, html) {

@@ -95,6 +95,10 @@ module.exports = {
         'set_reset_button_enabled': true,
         'add_playlist_to_button': true,
         'set_playlist_enabled': true,
+        'CMD_REMOTEPLAY': true,
+        'CMD_REMOTEPLAY_JS': true,
+        'QRCode': true,
+        'main_ws_qel_exists': true
     },
     'rules': {
         'indent': [
