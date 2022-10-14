@@ -391,12 +391,15 @@ async def remote_command(request):
         else:
             _LOGGER.debug(f'Sending this dict: {outdict}')
             cmd = json.dumps(outdict)
-            await request.app.p.ws[hextoken].send_str(cmd)
-            return web.Response(
-                text=cmd,
-                content_type='application/json',
-                charset='utf-8'
-            )
+            try:
+                await request.app.p.ws[hextoken].send_str(cmd)
+                return web.Response(
+                    text=cmd,
+                    content_type='application/json',
+                    charset='utf-8'
+                )
+            except Exception:
+                return web.HTTPServerError(body=traceback.format_exc())
     else:
         return web.HTTPUnauthorized(body='Invalid hex link')
 
