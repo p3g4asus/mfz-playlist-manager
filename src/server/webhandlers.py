@@ -399,7 +399,7 @@ async def remote_command(request):
                     charset='utf-8'
                 )
             except Exception:
-                return web.HTTPServerError(body=traceback.format_exc())
+                return web.HTTPServiceUnavailable(body=traceback.format_exc())
     else:
         return web.HTTPUnauthorized(body='Invalid hex link')
 
