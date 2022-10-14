@@ -74,11 +74,11 @@ class DashPlayer {
     }
 
     ffw(secs) {
-        this.player.seek(secs);
+        this.player.seek(this.player.time() + secs);
     }
 
     rew(secs) {
-        this.player.seek(-secs);
+        this.player.seek(this.player.time() - secs);
     }
 }
 

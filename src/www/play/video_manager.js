@@ -283,10 +283,10 @@ function remotejs_process(msg) {
             on_play_finished({dir: null});
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_FFW) {
-            video_manager_obj.ffw(msg.n);
+            video_manager_obj.ffw(parseInt(msg.n));
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_REW) {
-            video_manager_obj.rew(msg.n);
+            video_manager_obj.rew(parseInt(msg.n));
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_GOTO) {
             window.location.assign(msg.link);
@@ -381,7 +381,7 @@ function playlist_start_playing(idx) {
                 new pthis.constructor(video_width, video_height);
             }
             else
-                dyn_module_load('./' + playlist_player + '_player.js?reload=true');
+                dyn_module_load('./' + playlist_player + '_player.js?reload=2');
         }
         else
             on_player_load(playlist_player, video_manager_obj);
