@@ -35,20 +35,43 @@ $(window).on('load', function() {
             sub: CMD_REMOTEPLAY_JS_PREV,
         });
     });
-    $('#ffw_button').click(()=> {
+    function while_mouse_down($e) {
+        let cur = $e.data('n');
+        if (!cur)
+            cur = 10;
+        cur ++;
+        $e.data('n', cur);
+        $e.html($e.html().replace(/[0-9]+/, '' + cur));
+    }
+    function on_mouse_down(e) {
+        let $e = $(e.target);
+        clearTimeout($e.data('timer'));
+        $e.data('n', 10);
+        $e.data('timer', setInterval(() => {
+            while_mouse_down($e);
+        }, 100));
+    }
+    function on_mouse_up(e) {
+        let $e = $(e.target);
+        clearInterval($e.data('timer'));
         send_remote_command({
             cmd: CMD_REMOTEPLAY_JS,
-            sub: CMD_REMOTEPLAY_JS_FFW,
-            n: 10
+            sub: $e.data('sub'),
+            n: $e.data('n') || 10
         });
-    });
-    $('#rew_button').click(()=> {
-        send_remote_command({
-            cmd: CMD_REMOTEPLAY_JS,
-            sub: CMD_REMOTEPLAY_JS_REW,
-            n: 10
-        });
-    });
+        $e.data('timer', setTimeout(() => {
+            $e.data('n', 9);
+            while_mouse_down($e);
+        }, 1000));
+    }
+    let $b = $('#ffw_button');
+    $b.data('sub', CMD_REMOTEPLAY_JS_FFW);
+    $b.bind('touchend mouseup', on_mouse_up);
+    $b.bind('touchstart mousedown', on_mouse_down);
+    $b = $('#rew_button');
+    $b.data('sub', CMD_REMOTEPLAY_JS_REW);
+    $b.bind('touchend mouseup', on_mouse_up);
+    $b.bind('touchstart mousedown', on_mouse_down);
     for (let it of playlists_arr) {
         add_playlist_to_button(it, '#playlist_cont', function(e) {
             send_remote_command({
