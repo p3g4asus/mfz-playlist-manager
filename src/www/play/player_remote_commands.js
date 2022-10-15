@@ -46,7 +46,6 @@ $(window).on('load', function() {
     function on_mouse_down(e) {
         let $e = $(e.target);
         clearTimeout($e.data('timer'));
-        $e.data('n', 10);
         $e.data('timer', setInterval(() => {
             while_mouse_down($e);
         }, 100));
