@@ -313,7 +313,7 @@ function get_remoteplay_link() {
         el.enqueue().then(function(msg) {
             if (!manage_errors(msg)) {
                 playlist_remoteplay = msg.url;
-                let lnk = playlist_remoteplay + '?red='+encodeURIComponent(window.location.protocol + '//' + window.location.host + '/' + MAIN_PATH_S + 'play/player_remote_commands.htm');
+                let lnk = playlist_remoteplay + '?red='+encodeURIComponent(window.location.protocol + '//' + window.location.host + MAIN_PATH_S + 'play/player_remote_commands.htm');
                 for (let it of playlists_arr) {
                     lnk += '&name='+encodeURIComponent(it.name);
                 }

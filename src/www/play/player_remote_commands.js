@@ -76,7 +76,7 @@ $(window).on('load', function() {
             send_remote_command({
                 cmd: CMD_REMOTEPLAY_JS,
                 sub: CMD_REMOTEPLAY_JS_GOTO,
-                link: window.location.protocol + '//' + window.location.host + '/' + MAIN_PATH_S + 'play/workout.htm?name=' + encodeURIComponent(it)
+                link: window.location.protocol + '//' + window.location.host + MAIN_PATH_S + 'play/workout.htm?name=' + encodeURIComponent(it)
             });
         });
     }
