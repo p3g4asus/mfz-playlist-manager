@@ -10,7 +10,10 @@ function send_remote_command(cmdo) {
             $('#vinfo-div dd:nth-child(4)').text(data.vinfo.durs);
             $('#vinfo-div dd:nth-child(6)').text(data.vinfo.tot_n + ' (' + data.vinfo.tot_durs + ')');
         }
-        toast_msg('Status is ' + status +' (' + JSON.stringify(data) + ')', 'info');
+        if (!data.queue)
+            toast_msg('Status is ' + status +' (' + JSON.stringify(data) + ')', 'info');
+        else
+            toast_msg('Service unavailable now: added to operations queue (' + data.queue + ')', 'warning');
     }).fail(function(jqXHR, textStatus, errorThrown ) {
         toast_msg('Error is ' + textStatus +' (' + errorThrown + ')', 'danger');
     });

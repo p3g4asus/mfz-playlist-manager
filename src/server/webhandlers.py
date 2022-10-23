@@ -1,7 +1,6 @@
 import json
 import logging
 from functools import partial
-from os.path import join
 from textwrap import dedent
 import traceback
 import urllib.parse
@@ -360,6 +359,23 @@ async def send_ping(ws, control_dict):
             control_dict['end'] = True
 
 
+async def process_remoteplay_cmd_queue(ws, queue):
+    if not queue:
+        return []
+    else:
+        i = 0
+        while True:
+            cmd = queue[i]
+            try:
+                await ws.send_str(cmd)
+                if i == len(queue) - 1:
+                    return []
+                else:
+                    i += 1
+            except Exception:
+                return queue[i:]
+
+
 async def remote_command(request):
     hextoken = request.match_info['hex']
     if hextoken in request.app.p.ws:
@@ -394,16 +410,19 @@ async def remote_command(request):
         else:
             _LOGGER.debug(f'Sending this dict: {outdict}')
             cmd = json.dumps(outdict)
-            try:
-                if typem == 0:
-                    await request.app.p.ws[hextoken]['ws'].send_str(cmd)
-                return web.Response(
-                    text=cmd,
-                    content_type='application/json',
-                    charset='utf-8'
-                )
-            except Exception:
-                return web.HTTPServiceUnavailable(body=traceback.format_exc())
+            if typem == 0:
+                dct = request.app.p.ws[hextoken]
+                if dct['cmdqueue']:
+                    dct['cmdqueue'].append(cmd)
+                else:
+                    dct['cmdqueue'] = await process_remoteplay_cmd_queue(dct['ws'], [cmd])
+                outdict['queue'] = len(dct['cmdqueue'])
+                cmd = json.dumps(outdict)
+            return web.Response(
+                text=cmd,
+                content_type='application/json',
+                charset='utf-8'
+            )
     else:
         return web.HTTPUnauthorized(body='Invalid hex link')
 
@@ -435,6 +454,7 @@ async def pls_h(request):
                     request.app.p.ws[hextoken] = dd
                     host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{hextoken}"
                     await ws.send_str(json.dumps(pl.ok(url=host, hex=hextoken), cls=MyEncoder))
+                    dd['cmdqueue'] = (await process_remoteplay_cmd_queue(ws, dd['cmdqueue'])) if 'cmdqueue' in dd else []
             elif pl.c(CMD_REMOTEPLAY_PUSH):
                 if not hextoken:
                     _LOGGER.info("Invalid token")
