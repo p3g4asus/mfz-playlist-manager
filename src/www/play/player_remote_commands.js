@@ -12,7 +12,7 @@ function send_remote_command(cmdo) {
         }
         toast_msg('Status is ' + status +' (' + JSON.stringify(data) + ')', 'info');
     }).fail(function(jqXHR, textStatus, errorThrown ) {
-        toast_msg('Error is ' + textStatus +' (' + JSON.stringify(errorThrown) + ')', 'danger');
+        toast_msg('Error is ' + textStatus +' (' + errorThrown + ')', 'danger');
     });
 }
 
