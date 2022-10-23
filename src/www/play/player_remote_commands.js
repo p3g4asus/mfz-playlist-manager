@@ -11,6 +11,8 @@ function send_remote_command(cmdo) {
             $('#vinfo-div dd:nth-child(6)').text(data.vinfo.tot_n + ' (' + data.vinfo.tot_durs + ')');
         }
         toast_msg('Status is ' + status +' (' + JSON.stringify(data) + ')', 'info');
+    }).fail(function(jqXHR, textStatus, errorThrown ) {
+        toast_msg('Error is ' + textStatus +' (' + JSON.stringify(errorThrown) + ')', 'danger');
     });
 }
 
