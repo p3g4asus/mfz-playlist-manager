@@ -14,7 +14,7 @@ import youtube_dl
 from google.oauth2 import id_token
 from google.auth.transport import requests
 
-from common.const import (CMD_PING, CMD_REMOTEPLAY, INVALID_SID, MSG_UNAUTHORIZED)
+from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_PUSH, INVALID_SID, MSG_UNAUTHORIZED)
 from common.playlist import Playlist, PlaylistMessage
 from common.timer import Timer
 from common.utils import get_json_encoder, MyEncoder
@@ -363,18 +363,21 @@ async def send_ping(ws, control_dict):
 async def remote_command(request):
     hextoken = request.match_info['hex']
     if hextoken in request.app.p.ws:
-        redirect = 'red' in request.query
+        typem = 1 if 'red' in request.query else 2 if 'get' in request.query else 0
         redirect_pars = f'?hex={hextoken}'
         outdict = {'hex': hextoken}
         try:
             for k, v in request.query.items():
-                if redirect:
+                if typem == 1:
                     if k == 'red':
                         redirect_pars = v + redirect_pars
                     else:
                         d = dict()
                         d[k] = v
                         redirect_pars = f'{redirect_pars}&{urllib.parse.urlencode(d)}'
+                elif typem == 2:
+                    if k == 'get' and v in request.app.p.ws[hextoken]:
+                        outdict[v] = request.app.p.ws[hextoken][v]
                 elif k in outdict:
                     if isinstance(outdict[k], list):
                         outdict[k].append(v)
@@ -386,13 +389,14 @@ async def remote_command(request):
             del request.app.p.ws[hextoken]
             _LOGGER.debug(f"Exception detected {traceback.format_exc()}: Deleting ws")
             return web.HTTPUnauthorized(body='Invalid hex link')
-        if redirect:
+        if typem == 1:
             raise web.HTTPFound(location=redirect_pars)
         else:
             _LOGGER.debug(f'Sending this dict: {outdict}')
             cmd = json.dumps(outdict)
             try:
-                await request.app.p.ws[hextoken].send_str(cmd)
+                if typem == 0:
+                    await request.app.p.ws[hextoken]['ws'].send_str(cmd)
                 return web.Response(
                     text=cmd,
                     content_type='application/json',
@@ -426,9 +430,25 @@ async def pls_h(request):
                     _LOGGER.info("Invalid token")
                     await ws.send_str(json.dumps(pl.err(502, MSG_UNAUTHORIZED), cls=MyEncoder))
                 else:
-                    request.app.p.ws[hextoken] = ws
-                    host = f"{pl.host}/rcmd/{hextoken}"
+                    dd = request.app.p.ws.get(hextoken, dict())
+                    dd.update(dict(ws=ws))
+                    request.app.p.ws[hextoken] = dd
+                    host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{hextoken}"
                     await ws.send_str(json.dumps(pl.ok(url=host, hex=hextoken), cls=MyEncoder))
+            elif pl.c(CMD_REMOTEPLAY_PUSH):
+                if not hextoken:
+                    _LOGGER.info("Invalid token")
+                    await ws.send_str(json.dumps(pl.err(502, MSG_UNAUTHORIZED), cls=MyEncoder))
+                else:
+                    try:
+                        w = pl.f(pl.what)
+                        dd = request.app.p.ws.get(hextoken, dict())
+                        dd.update({'ws': ws, pl.what: w})
+                        request.app.p.ws[hextoken] = dd
+                        _LOGGER.info(f'New dict el for {hextoken} [{pl.what}] -> {json.dumps(w)}')
+                        await ws.send_str(json.dumps(pl.ok(), cls=MyEncoder))
+                    except Exception:
+                        await ws.send_str(json.dumps(pl.err(509, traceback.format_exc()), cls=MyEncoder))
             for k, p in request.app.p.processors.items():
                 _LOGGER.debug(f'Checking {k}')
                 if p.interested(pl):

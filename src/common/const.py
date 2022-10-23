@@ -11,6 +11,7 @@ CMD_SORT = "sort"
 CMD_IORDER = "iorder"
 CMD_CLOSE = "close"
 CMD_REMOTEPLAY = "remote"
+CMD_REMOTEPLAY_PUSH = 'remotepush'
 CMD_PING = "ping"
 CMD_REFRESH = "refresh"
 CMD_LS = "ls"

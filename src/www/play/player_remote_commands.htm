@@ -30,7 +30,6 @@
 
   <body>
     <div class="container-fluid">
-        <div id="alert-row row-buffer" class="row"></div>
         <div class="row row-buffer">
             <div class="col-12">
                 <a
@@ -98,9 +97,32 @@
             </div>
         </div>
         <div class="row row-buffer">
+            <div class="col-12">
+                <a
+                id="info_button"
+                class="btn btn-primary btn-lg col-12 btn-block"
+                href="#"
+                role="button"
+                >Info&nbsp;&nbsp;<i class="fas fa-info"></i
+                ></a>
+            </div>
+        </div>
+        <div class="row row-buffer" id="vinfo-div" style="display: none;">
+            <dl class="row">
+                <dt class="col-sm-3">Video title</dt>
+                <dd class="col-sm-9"></dd>
+              
+                <dt class="col-sm-3">Duration</dt>
+                <dd class="col-sm-9"></dd>
+              
+                <dt class="col-sm-3">Remaining Videos</dt>
+                <dd class="col-sm-9"></dd>
+            </dl>
+        </div>
+        <div class="row row-buffer">
             <div class="dropdown col-12" id="playlist_cont">
                 <a
-                class="btn btn-primary btn-lg col-12 btn-block"
+                class="btn btn-light btn-lg col-12 btn-block"
                 type="button"
                 id="playlist_items"
                 data-bs-toggle="dropdown"
@@ -111,6 +133,7 @@
                 <ul class="dropdown-menu" aria-labelledby="playlist_items"></ul>
             </div>
         </div>
+        <div id="alert-row" class="row row-buffer"></div>
     </div>
   </body>
 </html>

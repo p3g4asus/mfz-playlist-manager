@@ -144,7 +144,8 @@ function on_play_finished(event) {
     title = playlist_item_current.title;
     set_video_title(title);
     set_video_enabled(vid);
-    print_duration(index);
+    let video_info =  print_duration(index);
+    send_video_info_for_remote_play(video_info);
     if (vid.length && video_manager_obj.play_video_id)
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)
@@ -165,17 +166,25 @@ function on_player_state_changed(player, event) {
 function print_duration(idx) {
     let tot_dur = 0;
     let duration1 = '';
+    let video_info = {tot_n: playlist_arr.length - idx};
     for (let i = idx; i<playlist_arr.length; i++) {
         let video = playlist_arr[i];
         let durationi = video?.length || video?.dur || 0;
         if (i == idx) {
             duration1 = format_duration(durationi);
+            video_info.duri = durationi;
+            video_info.durs = duration1;
+            video_info.title = video?.title || 'N/A';
         }
         tot_dur += durationi;
     }
     if (duration1.length) {
-        toast_msg('Video duration is ' + duration1 + '. Remaining videos are ' + (playlist_arr.length - idx) + ' [' + format_duration(tot_dur) + '].', 'info');
+        let tot_dur_s = format_duration(tot_dur);
+        video_info.tot_dur = tot_dur;
+        video_info.tot_durs = tot_dur_s;
+        toast_msg('Video duration is ' + duration1 + '. Remaining videos are ' + (playlist_arr.length - idx) + ' [' + tot_dur_s + '].', 'info');
     }
+    return video_info;
 }
 
 function on_player_load(name, manager_obj) {
@@ -219,6 +228,27 @@ function save_playlist_settings(vid) {
     })
         .catch(function(err) {
             console.log('Settings NOT saved ' + err);
+        });
+}
+
+function send_video_info_for_remote_play(video_info) {
+    let el = new MainWSQueueElement({
+        cmd: CMD_REMOTEPLAY_PUSH,
+        what: 'vinfo',
+        vinfo: video_info
+    }, function(msg) {
+        return msg.cmd === CMD_REMOTEPLAY_PUSH? msg:null;
+    }, 3000, 1, 'playid');
+    el.enqueue().then(function(msg) {
+        if (!manage_errors(msg)) {
+            console.log('Remoteplay push ok ' + JSON.stringify(msg.what));
+        }
+        else {
+            console.log('Remoteplay push fail: ' + JSON.stringify(msg));
+        }
+    })
+        .catch(function(err) {
+            console.log('Remoteplay push fail ' + err);
         });
 }
 
@@ -306,7 +336,7 @@ function remotejs_enqueue() {
 function get_remoteplay_link() {
     if (!main_ws_qel_exists('remoteplay')) {
         let el = new MainWSQueueElement(
-            {cmd: CMD_REMOTEPLAY, host: window.location.protocol + '//' + window.location.host + '/' + MAIN_PATH},
+            {cmd: CMD_REMOTEPLAY, host: window.location.protocol + '//' + window.location.host + MAIN_PATH},
             function(msg) {
                 return msg.cmd === CMD_REMOTEPLAY? msg:null;
             }, 5000, 3, 'remoteplay');

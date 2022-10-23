@@ -3,6 +3,13 @@ let playlists_arr = [];
 
 function send_remote_command(cmdo) {
     $.get(MAIN_PATH + '/rcmd/' + vpc_hexcode, cmdo, (data, status) => {
+        if (cmdo.get == 'vinfo') {
+            let $vd = $('#vinfo-div');
+            $vd.show();
+            $('#vinfo-div dd:nth-child(2)').text(data.vinfo.title);
+            $('#vinfo-div dd:nth-child(4)').text(data.vinfo.durs);
+            $('#vinfo-div dd:nth-child(6)').text(data.vinfo.tot_n + ' (' + data.vinfo.tot_durs + ')');
+        }
         toast_msg('Status is ' + status +' (' + JSON.stringify(data) + ')', 'info');
     });
 }
@@ -11,6 +18,11 @@ $(window).on('load', function() {
     let orig_up = new URLSearchParams(URL_PARAMS);
     vpc_hexcode = orig_up.get('hex');
     playlists_arr = orig_up.getAll('name');
+    $('#info_button').click(()=> {
+        send_remote_command({
+            get: 'vinfo',
+        });
+    });
     $('#next_button').click(()=> {
         send_remote_command({
             cmd: CMD_REMOTEPLAY_JS,
