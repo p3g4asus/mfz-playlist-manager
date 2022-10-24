@@ -28,6 +28,10 @@ $(window).on('load', function() {
             get: 'vinfo',
         });
     });
+    $('#collapse_button').click(()=> {
+        let $vd = $('#vinfo-div');
+        $vd.toggle();
+    });
     $('#next_button').click(()=> {
         send_remote_command({
             cmd: CMD_REMOTEPLAY_JS,
@@ -52,7 +56,7 @@ $(window).on('load', function() {
             sub: CMD_REMOTEPLAY_JS_PREV,
         });
     });
-    function while_mouse_down($e) {
+    function while_rwfw_mouse_down($e) {
         let cur = $e.data('n');
         if (!cur)
             cur = 10;
@@ -60,14 +64,13 @@ $(window).on('load', function() {
         $e.data('n', cur);
         $e.html($e.html().replace(/[0-9]+/, '' + cur));
     }
-    function on_mouse_down(e) {
+    function on_rwfw_mouse_down(e) {
         let $e = $(e.target);
-        clearTimeout($e.data('timer'));
         $e.data('timer', setInterval(() => {
-            while_mouse_down($e);
+            while_rwfw_mouse_down($e);
         }, 100));
     }
-    function on_mouse_up(e) {
+    function on_rwfw_mouse_up(e) {
         let $e = $(e.target);
         clearInterval($e.data('timer'));
         send_remote_command({
@@ -77,17 +80,24 @@ $(window).on('load', function() {
         });
         $e.data('timer', setTimeout(() => {
             $e.data('n', 9);
-            while_mouse_down($e);
+            while_rwfw_mouse_down($e);
+            $e.removeData('timer');
         }, 1000));
+    }
+    function on_rwfw_click(e) {
+        let $e = $(e.target);
+        let tim = $e.data('timer');
+        if (typeof(tim) == 'undefined')
+            on_rwfw_mouse_down(e);
+        else
+            on_rwfw_mouse_up(e);
     }
     let $b = $('#ffw_button');
     $b.data('sub', CMD_REMOTEPLAY_JS_FFW);
-    $b.bind('touchend mouseup', on_mouse_up);
-    $b.bind('touchstart mousedown', on_mouse_down);
+    $b.click(on_rwfw_click);
     $b = $('#rew_button');
     $b.data('sub', CMD_REMOTEPLAY_JS_REW);
-    $b.bind('touchend mouseup', on_mouse_up);
-    $b.bind('touchstart mousedown', on_mouse_down);
+    $b.click(on_rwfw_click);
     for (let it of playlists_arr) {
         add_playlist_to_button(it, '#playlist_cont', function(e) {
             send_remote_command({
