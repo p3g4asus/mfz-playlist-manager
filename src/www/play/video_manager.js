@@ -11,6 +11,8 @@ let playlist_play_settings = {};
 let playlist_item_play_settings = {};
 let playlist_current = null;
 let playlist_item_current = null;
+let playlist_item_current_oldrowid = null;
+let playlist_item_current_time_timer = null;
 let playlist_item_current_idx = -1;
 
 function get_video_params_from_item(idx) {
@@ -150,17 +152,32 @@ function on_play_finished(event) {
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)
         video_manager_obj.play_video(MAIN_PATH + 'red?link=' + encodeURIComponent(lnk));
-
     save_playlist_settings(vid);
 }
 
 function on_player_state_changed(player, event) {
     if (event == VIDEO_STATUS_UNSTARTED || event == VIDEO_STATUS_PAUSED || event === VIDEO_STATUS_CUED)
         set_pause_button_enabled(true, '<i class="fas fa-play"></i>&nbsp;&nbsp;Play');
-    else if (event == VIDEO_STATUS_PLAYING)
+    else if (event == VIDEO_STATUS_PLAYING) {
         set_pause_button_enabled(true, '<i class="fas fa-pause"></i>&nbsp;&nbsp;Pause');
+        if (playlist_item_current_oldrowid !== playlist_item_current.rowid && playlist_item_current.conf.sec) {
+            playlist_item_current_oldrowid = playlist_item_current.rowid;
+            video_manager_obj.currenttime(playlist_item_current.conf.sec);
+        }
+        if (playlist_item_current_time_timer == null) {
+            playlist_item_current_time_timer = setInterval(function() {
+                save_playlist_item_settings({sec: video_manager_obj.currenttime()});
+            }, 30000);
+        }
+        return;
+    }
     else
         set_pause_button_enabled(false);
+    if (playlist_item_current_time_timer !== null) {
+        clearInterval(playlist_item_current_time_timer);
+        playlist_item_current_time_timer = null;
+        save_playlist_item_settings({sec: video_manager_obj.currenttime()});
+    }
 }
 
 function print_duration(idx) {
@@ -231,6 +248,30 @@ function save_playlist_settings(vid) {
         });
 }
 
+function save_playlist_item_settings(sett) {
+    if (!playlist_item_current.conf)
+        playlist_item_current.conf = {};
+    Object.assign(playlist_item_current.conf, sett);
+    let el = new MainWSQueueElement({
+        cmd: CMD_PLAYITSETT,
+        playlistitem: playlist_item_current.rowid,
+        conf: playlist_item_current.conf
+    }, function(msg) {
+        return msg.cmd === CMD_PLAYITSETT? msg:null;
+    }, 3000, 1, 'playitsett');
+    el.enqueue().then(function(msg) {
+        if (!manage_errors(msg)) {
+            console.log('Playlist item state saved ' + JSON.stringify(msg.playlistitem));
+        }
+        else {
+            console.log('Playlist item settings NOT saved ' + JSON.stringify(msg));
+        }
+    })
+        .catch(function(err) {
+            console.log('Playlist item settings NOT saved ' + err);
+        });
+}
+
 function send_video_info_for_remote_play(video_info) {
     let el = new MainWSQueueElement({
         cmd: CMD_REMOTEPLAY_PUSH,
@@ -238,7 +279,7 @@ function send_video_info_for_remote_play(video_info) {
         vinfo: video_info
     }, function(msg) {
         return msg.cmd === CMD_REMOTEPLAY_PUSH? msg:null;
-    }, 3000, 1, 'playid');
+    }, 3000, 1, 'remoteplay_vinfo');
     el.enqueue().then(function(msg) {
         if (!manage_errors(msg)) {
             console.log('Remoteplay push ok ' + JSON.stringify(msg.what));
@@ -411,7 +452,7 @@ function playlist_start_playing(idx) {
                 new pthis.constructor(video_width, video_height);
             }
             else
-                dyn_module_load('./' + playlist_player + '_player.js?reload=2');
+                dyn_module_load('./' + playlist_player + '_player.js?reload=' + (new Date().getTime()));
         }
         else
             on_player_load(playlist_player, video_manager_obj);

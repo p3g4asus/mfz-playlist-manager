@@ -73,6 +73,13 @@ class DashPlayer {
             this.player.play();
     }
 
+    currenttime(newtime) {
+        if (typeof newtime == 'number')
+            this.player.seek(newtime);
+        else
+            return this.player.time();
+    }
+
     ffw(secs) {
         this.player.seek(this.player.time() + secs);
     }

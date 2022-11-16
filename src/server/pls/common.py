@@ -4,6 +4,7 @@ from common.utils import AbstractMessageProcessor, MyEncoder
 from common.const import (
     CMD_DEL,
     CMD_PLAYID,
+    CMD_PLAYITSETT,
     CMD_PLAYSETT,
     CMD_REN,
     CMD_DUMP,
@@ -36,7 +37,7 @@ class MessageProcessor(AbstractMessageProcessor):
         return msg.c(CMD_DEL) or msg.c(CMD_REN) or msg.c(CMD_DUMP) or\
             msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or\
             msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or\
-            msg.c(CMD_PLAYSETT)
+            msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT)
 
     async def processMove(self, msg, userid, executor):
         pdst = msg.playlistId()
@@ -151,6 +152,25 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         return msg.ok(playlistitem=llx)
+
+    async def processPlayItSett(self, msg, userid, executor):
+        x = msg.playlistItemId()
+        it = await PlaylistItem.loadbyid(self.db, rowid=x)
+        if it:
+            pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            if pls:
+                if pls[0].useri != userid:
+                    return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                it.conf = msg.conf
+                if isinstance(it.conf, str):
+                    it.conf = json.loads(it.conf)
+                if not await it.toDB(self.db):
+                    return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+            else:
+                return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+        else:
+            return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+        return msg.ok(playlistitem=x)
 
     async def processIOrder(self, msg, userid, executor):
         x = msg.playlistItemId()
@@ -308,6 +328,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processPlayId(msg, userid, executor)
         elif msg.c(CMD_PLAYSETT):
             resp = await self.processPlaySett(msg, userid, executor)
+        elif msg.c(CMD_PLAYITSETT):
+            resp = await self.processPlayItSett(msg, userid, executor)
         elif msg.c(CMD_ADD):
             resp = await self.processAdd(msg, userid, executor)
         elif msg.c(CMD_REN):

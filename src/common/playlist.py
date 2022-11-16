@@ -396,7 +396,7 @@ class PlaylistItem(JSONAble, Fieldable):
                         "UPDATE playlist_item_seen SET seen=NULL WHERE uid=? and playlist=?",
                         (self.uid, self.playlist))
                 rv = cursor.rowcount > 0
-        if rv:
+        if rv and commit:
             await db.commit()
         return rv
 

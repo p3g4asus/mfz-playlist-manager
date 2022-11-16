@@ -67,6 +67,13 @@ class VideojsPlayer {
             this.player.play();
     }
 
+    currenttime(newtime) {
+        if (typeof newtime == 'number')
+            this.player.currentTime(newtime);
+        else
+            return this.player.currentTime();
+    }
+
     ffw(secs) {
         this.player.currentTime(this.player.currentTime() + secs);
     }

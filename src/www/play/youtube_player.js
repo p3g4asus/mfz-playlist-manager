@@ -36,9 +36,16 @@ class YoutubePlayer {
         this.player.loadVideoById({videoId:vid});
     }
 
-    ffw_rew(secs) {
+    currenttime(newtime) {
+        if (typeof newtime == 'number')
+            this.ffw_rew(newtime, true);
+        else
+            return this.player.getCurrentTime();
+    }
+
+    ffw_rew(secs, absolute) {
         let d = this.player.getDuration();
-        let ct = this.player.getCurrentTime() + secs;
+        let ct = absolute?secs:this.player.getCurrentTime() + secs;
         this.player.seekTo(ct<0?0:(ct >= d?d: ct) , true);
     }
 

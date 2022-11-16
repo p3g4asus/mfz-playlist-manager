@@ -18,6 +18,7 @@ const CMD_PING = 'ping';
 const CMD_REFRESH = 'refresh';
 const CMD_PLAYID = 'playid';
 const CMD_PLAYSETT = 'playsett';
+const CMD_PLAYITSETT = 'playitsett';
 const CMD_REMOTEPLAY = 'remote';
 const CMD_REMOTEPLAY_JS = 'remotejs';
 const CMD_REMOTEPLAY_JS_PAUSE = 'pause';

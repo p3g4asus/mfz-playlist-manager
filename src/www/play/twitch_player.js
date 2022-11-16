@@ -92,6 +92,13 @@ class TwitchPlayer {
             this.player.pause();
     }
 
+    currenttime(newtime) {
+        if (typeof newtime == 'number')
+            this.player.seek(newtime);
+        else
+            return this.player.getCurrentTime();
+    }
+
     ffw(secs) {
         this.player.seek(this.player.getCurrentTime() + secs);
     }

@@ -107,6 +107,7 @@ module.exports = {
         'CMD_REMOTEPLAY_JS_REW': true,
         'CMD_REMOTEPLAY_JS_GOTO': true,
         'CMD_REMOTEPLAY_PUSH': true,
+        'CMD_PLAYITSETT': true,
         'YT': true,
     },
     'rules': {
