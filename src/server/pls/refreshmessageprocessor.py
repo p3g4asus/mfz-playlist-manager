@@ -164,6 +164,8 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                         if not items[idx].seen and items[idx].isOk():
                             i.iorder = items[idx].iorder
                             i.rowid = items[idx].rowid
+                            items[idx].conf.update(i.conf)
+                            i.conf = items[idx].conf
                             items[idx] = i
                 try:
                     await x.cleanItems(self.db, dateto - 86400 * 120000, commit=False)
