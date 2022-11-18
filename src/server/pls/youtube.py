@@ -54,7 +54,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     else:
                         url = text + '/videos?filter=archives&sort=time'
                     plid += url
-                else:
+                elif text.find('youtu') >= 0:
                     mo2 = re.search(r'v=([^&?/]+)', text)
                     if mo2:
                         plid = "&" + mo2.group(1)
@@ -67,6 +67,9 @@ class MessageProcessor(RefreshMessageProcessor):
                         else:
                             mo2 = re.search(r'/videos$', text)
                             url = text if mo2 else text + '/videos'
+                else:
+                    plid = '%' + text
+                    url = text
                 _LOGGER.debug("Youtube: Getting processPlaylistCheck " + url)
                 ydl_opts = {
                     'ignoreerrors': True,
@@ -191,33 +194,52 @@ class MessageProcessor(RefreshMessageProcessor):
                                     try:
                                         if set[0] == '%':
                                             current_url = video['url']
-                                            if 'timestamp' not in video:
-                                                mo = re.search(r'_([0-9]{7,})/+thumb', video["thumbnail"])
-                                                if mo:
-                                                    tsi = int(mo.group(1))
-                                                    if tsi >= 1590734846:
-                                                        try:
-                                                            datetime.fromtimestamp(tsi)
-                                                            video['timestamp'] = tsi
-                                                        except Exception:
-                                                            pass
-                                            if 'timestamp' not in video:
-                                                _LOGGER.debug("thumb does not match " + video["thumbnail"])
-                                                _LOGGER.debug("SetTwitch = %s url = %s" % (set, current_url))
-                                                video = dict()
-                                                await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
-                                                if video['id'][0] == 'v':
-                                                    video['id'] = video['id'][1:]
+                                            if set.find('twitch.tv') >= 0:
+                                                if 'timestamp' not in video:
+                                                    mo = re.search(r'_([0-9]{7,})/+thumb', video["thumbnail"])
+                                                    if mo:
+                                                        tsi = int(mo.group(1))
+                                                        if tsi >= 1590734846:
+                                                            try:
+                                                                datetime.fromtimestamp(tsi)
+                                                                video['timestamp'] = tsi
+                                                            except Exception:
+                                                                pass
+                                                if 'timestamp' not in video:
+                                                    _LOGGER.debug("thumb does not match " + video["thumbnail"])
+                                                    _LOGGER.debug("SetTwitch = %s url = %s" % (set, current_url))
+                                                    video = dict()
+                                                    await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                                    if video['id'][0] == 'v':
+                                                        video['id'] = video['id'][1:]
+                                                else:
+                                                    mo = re.search(r'twitch.tv/([^/]+)/videos', set)
+                                                    if mo:
+                                                        video['uploader_id'] = video['uploader'] = mo.group(1)
+                                                if 'timestamp' in video:
+                                                    datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
+                                                else:
+                                                    datepubo = datepubo_conf = datetime.now()
+                                                video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                video['thumbnail'] = re.sub(r'[0-9]+x[0-9]+\.jpg', '0x0.jpg', video['thumbnail'])
                                             else:
-                                                mo = re.search(r'twitch.tv/([^/]+)/videos', set)
-                                                if mo:
-                                                    video['uploader_id'] = video['uploader'] = mo.group(1)
-                                            if 'timestamp' in video:
-                                                datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
-                                            else:
-                                                datepubo = datepubo_conf = datetime.now()
-                                            video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
-                                            video['thumbnail'] = re.sub(r'[0-9]+x[0-9]+\.jpg', '0x0.jpg', video['thumbnail'])
+                                                if 'timestamp' not in video or 'thumbnail' not in video or not video['timestamp'] or not video['thumbnail']:
+                                                    video = dict()
+                                                    await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                                if 'timestamp' in video and video['timestamp']:
+                                                    datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
+                                                    video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                elif 'upload_date' in video and video['upload_date']:
+                                                    datepubo = datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
+                                                else:
+                                                    datepubo = datepubo_conf = datetime.now()
+                                                if 'thumbnail' not in video or not video['thumbnail']:
+                                                    video['thumbnail'] = ''
+                                                if 'id' not in video or not video['id']:
+                                                    video['id'] = video['url']
+                                                if 'duration' not in video or not video['duration']:
+                                                    video['duration'] = 0
+                                                video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                         else:
                                             current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
                                             if self.apikey:
@@ -262,7 +284,11 @@ class MessageProcessor(RefreshMessageProcessor):
                                             if datepubi_conf >= datefrom:
                                                 if datepubi_conf <= dateto or dateto < datefrom:
                                                     datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                    extr = video.get('extractor')
+                                                    if not extr:
+                                                        extr = playlist_dict.get('extractor')
                                                     conf = dict(playlist=set,
+                                                                extractor=extr,
                                                                 userid=video.get('uploader_id'),
                                                                 author=video.get('uploader'))
                                                     pr = PlaylistItem(

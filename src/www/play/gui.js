@@ -102,6 +102,16 @@ function set_spinner_value(type, val) {
     $('#video-' + type).val(val);
 }
 
+function set_selected_mime(type) {
+    if (!type || !$('#mime-type option[value="' + type +'"]').length)
+        type = $('#mime-type option:first-child').prop('value');
+    $('#mime-type').val(type);
+}
+
+function get_selected_mime() {
+    return $('#mime-type').val();
+}
+
 function get_spinner_value(type) {
     return parseInt($('#video-' + type).val());
 }

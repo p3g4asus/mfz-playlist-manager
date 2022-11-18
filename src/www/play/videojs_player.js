@@ -56,7 +56,7 @@ class VideojsPlayer {
     }
 
     play_video(url, typeV) {
-        this.player.src({type: typeV || 'application/x-mpegURL', src: url});
+        this.player.src({type: typeV && typeV.length? typeV:'application/x-mpegURL', src: url});
         this.player.play();
     }
 

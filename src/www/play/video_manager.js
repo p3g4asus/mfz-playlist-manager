@@ -61,9 +61,12 @@ function get_video_params_from_item(idx) {
     playlist_player = 'youtube';
 
     if (playlist_current.type == 'youtube') {
+        let extr;
         if (playlist_item_current) {
             if (playlist_item_current.link.indexOf('twitch.tv') >= 0)
                 playlist_player = 'twitch';
+            else if (playlist_item_current.conf && (extr = playlist_item_current.conf.extractor) && extr != 'youtube' && extr != 'twitch')
+                playlist_player = 'videojs';
         }
     }
     else if (playlist_current.type == 'mediaset')
@@ -75,6 +78,7 @@ function get_video_params_from_item(idx) {
     video_width = playlist_item_play_settings?.width? playlist_item_play_settings.width: 1880;
     set_spinner_value('width', video_width);
     set_spinner_value('height', video_height);
+    set_selected_mime(playlist_item_play_settings?.mime);
     set_remove_check(playlist_item_play_settings?.remove_end?true:false);
     set_default_check(plk === true);
     return old_height != video_height || old_width != video_width || old_player != playlist_player;
@@ -151,7 +155,7 @@ function on_play_finished(event) {
     if (vid.length && video_manager_obj.play_video_id)
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)
-        video_manager_obj.play_video(MAIN_PATH + 'red?link=' + encodeURIComponent(lnk));
+        video_manager_obj.play_video(MAIN_PATH + 'red?link=' + encodeURIComponent(lnk), playlist_item_play_settings?.mime);
     save_playlist_settings(vid);
 }
 
@@ -355,9 +359,11 @@ function remotejs_process(msg) {
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_FFW) {
             video_manager_obj.ffw(parseInt(msg.n));
+            save_playlist_item_settings({sec: video_manager_obj.currenttime()});
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_REW) {
             video_manager_obj.rew(parseInt(msg.n));
+            save_playlist_item_settings({sec: video_manager_obj.currenttime()});
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_GOTO) {
             window.location.assign(msg.link);
@@ -487,7 +493,8 @@ function playlist_reload_settings(reset) {
             content: reset?null: {
                 width: get_spinner_value('width'),
                 height: get_spinner_value('height'),
-                remove_end: get_remove_check()
+                remove_end: get_remove_check(),
+                mime: get_selected_mime()
             }
         }, function(msg) {
             return msg.cmd === CMD_PLAYSETT? msg:null;

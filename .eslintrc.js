@@ -108,6 +108,8 @@ module.exports = {
         'CMD_REMOTEPLAY_JS_GOTO': true,
         'CMD_REMOTEPLAY_PUSH': true,
         'CMD_PLAYITSETT': true,
+        'get_selected_mime': true,
+        'set_selected_mime': true,
         'YT': true,
     },
     'rules': {
