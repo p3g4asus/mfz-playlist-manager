@@ -65,7 +65,7 @@ function get_video_params_from_item(idx) {
         if (playlist_item_current) {
             if (playlist_item_current.link.indexOf('twitch.tv') >= 0)
                 playlist_player = 'twitch';
-            else if (playlist_item_current.conf && (extr = playlist_item_current.conf.extractor) && extr != 'youtube' && extr != 'twitch')
+            else if (playlist_item_current.conf && (extr = playlist_item_current.conf.extractor) && extr.indexOf('youtube') < 0 && extr.indexOf('twitch') < 0)
                 playlist_player = 'videojs';
         }
     }
