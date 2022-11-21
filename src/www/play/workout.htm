@@ -7,7 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
     <link
       rel="stylesheet"
-      href="./fab.css"
+      href="../css/additional-styles.css"
     />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
@@ -35,7 +35,7 @@
       <div class="row" id="player-content">
         <div class="col-12" id="player"></div>
       </div>
-      <div class="row row-space g-0">
+      <div class="row row-buffer g-0">
         <div class="col-3">
           <a
             id="prev_button"
@@ -66,142 +66,141 @@
             >Next&nbsp;&nbsp;<i class="fa fa-step-forward"></i
           ></a>
         </div>
-        <div class="dropdown col-3" id="playlist_items_cont">
+        <div class="col-3">
+          <a
+            id="remove_button"
+            class="btn btn-secondary btn-lg col-12 btn-block disabled"
+            href="#"
+            role="button"
+            onclick="button_video(this, 10536); return false;"
+            style="background-color:#FAA00C"
+            >Remove&nbsp;&nbsp;<i class="fa fa-step-forward"></i><i class="fas fa-trash-alt"></i>
+          </a>
+        </div>
+      </div>
+      <div class="row row-buffer g-0">
+        <div class="dropdown col-6" id="playlist_items_cont">
           <a
             class="btn btn-primary btn-lg col-12 btn-block disabled"
             type="button"
             id="playlist_items"
             data-bs-toggle="dropdown"
-            aria-expanded="false"
-          >
-            Playlist&nbsp;&nbsp;<i class="fas fa-caret-down"></i
-        ></a>
+            aria-expanded="false">
+            Items&nbsp;&nbsp;<i class="fas fa-caret-down"></i>
+          </a>
           <ul class="dropdown-menu" aria-labelledby="playlist_items"></ul>
         </div>
+        <div class="dropdown col-6" id="playlist_cont">
+          <a
+            class="btn btn-secondary btn-lg col-12 btn-block"
+            type="button"
+            id="playlist_switch"
+            data-bs-toggle="dropdown"
+            aria-expanded="false">
+            Playlist&nbsp;&nbsp;<i class="fas fa-caret-down"></i>
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="playlist_switch"></ul>
+        </div>
       </div>
-      <div id="alert-row" class="row"></div>
-      <div class="row">
+      <div class="row row-buffer g-0">
+        <a
+          data-bs-toggle="collapse"
+          href="#remoteplay-row"
+          role="button"
+          class="btn btn-lg btn-secondary col-6"
+          aria-expanded="false" aria-controls="remoteplay-row" style="background-color:#E8FA0C;">
+          <i class="fas fa-qrcode"></i>
+        </a>
+        <a
+          data-bs-toggle="collapse"
+          href="#dim-row"
+          role="button"
+          class="btn btn-lg btn-secondary col-6"
+          aria-expanded="false" aria-controls="dim-row" style="background-color:#B546F2;">
+          <i class="fa fa-cog"></i>
+        </a>
+      </div>
+      <div id="remoteplay-row" class="row row-buffer collapse">
         <div class="col-12" id="qr-remote-play-content"></div>
       </div>
-      <div id="dim-row" class="row collapse">
-        <form class="col-md-12" autocomplete="on">
-          <div class="form-group">
-            <label for="video-width">Video Width</label>
-            <input
-              type="number"
-              placeholder="Video Width"
-              id="video-width"
-              value="900"
-              min="-100"
-              max="4000"
-              step="1"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="video-height">Video Height</label>
-            <input
-              type="number"
-              placeholder="Video Height"
-              id="video-height"
-              value="660"
-              min="-100"
-              max="4000"
-              step="1"
-              required
-            />
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" value="" id="remove-end">
-            <label class="form-check-label" for="remove-end">
-                Remove at end
-            </label>
-          </div>
-          <div class="form-check">
-              <input class="form-check-input" type="checkbox" value="" id="default-sett">
-              <label class="form-check-label" for="default-sett">
-                Default
+      <div id="dim-row" class="row row-buffer g-0 collapse">
+        <div class="row row-buffer g-0">
+          <form class="col-md-12" autocomplete="on">
+            <div class="form-group">
+              <label for="video-width">Video Width</label>
+              <input
+                type="number"
+                placeholder="Video Width"
+                id="video-width"
+                value="900"
+                min="-100"
+                max="4000"
+                step="1"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="video-height">Video Height</label>
+              <input
+                type="number"
+                placeholder="Video Height"
+                id="video-height"
+                value="660"
+                min="-100"
+                max="4000"
+                step="1"
+                required
+              />
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="" id="remove-end">
+              <label class="form-check-label" for="remove-end">
+                  Remove at end
               </label>
-          </div>
-          <select class="form-select" aria-label="Video type selector" id="mime-type">
-            <option value="">Select content type</option>
-            <option value="video/ogg">opus,ogv</option>
-            <option value="video/mp4">mp4,mov,m4v,m4a</option>
-            <option value="video/x-matroska">mkv</option>
-            <option value="audio/mpeg">mp3</option>
-            <option value="audio/aac">aac</option>
-            <option value="audio/x-caf">caf</option>
-            <option value="audio/flac">flac</option>
-            <option value="audio/ogg">oga</option>
-            <option value="audio/wav">wav</option>
-            <option value="application/x-mpegURL">m3u8</option>
-            <option value="application/dash+xml">mpd</option>
-            <option value="image/jpeg">jpg,jpeg</option>
-            <option value="image/gif">gif</option>
-            <option value="image/png">png</option>
-            <option value="image/svg+xml">svg</option>
-          </select>
-        </form>
-      </div>
-    </div>
-    <div class="text-end floating-action-menu pos-top-right">
-      <div class="action-menu">
-          <div class="floating-action mb-4">
-              <div class="badge bg-dark even-larger-badge">Settings</div>
-              <a
-                data-bs-toggle="collapse"
-                href="#dim-row"
-                role="button"
-                class="btn-circle btn-xl btn-secondary disabled"
-                aria-expanded="false" aria-controls="dim-row"
-                ><i class="fa fa-cog"></i
-              ></a>
-          </div>
-          <div class="floating-action mb-4">
-            <div class="badge bg-dark even-larger-badge">Save settings</div>
-            <a
-              id="reload_button"
-              class="btn-circle btn-xl btn-primary disabled"
-              onclick="playlist_reload_settings(); return false;"
-              ><i class="fas fa-save"></i
-            ></a>
-          </div>
-          <div class="dropdown floating-action mb-4" id="playlist_cont">
-            <div class="badge bg-dark even-larger-badge">Playlist Change</div>
-            <a
-              id="try_button"
-              href="#"
-              role="button"
-              class="btn-circle btn-xl btn-info dropdown-toggle"
-              data-bs-toggle="dropdown" aria-expanded="false"
-              ></a>
-              <ul class="dropdown-menu" aria-labelledby="try_button">
-              </ul>
-          </div>
-          <div class="floating-action mb-4">
-            <div class="badge bg-dark even-larger-badge">Reset settings</div>
-            <a
-              id="reset_button"
-              class="btn-circle btn-xl btn-warning disabled"
-              onclick="playlist_reload_settings(true); return false;"
-              ><i class="fa fa-toilet-paper-slash"></i
-            ></a>
-          </div>
-          <div class="floating-action">
-              <div class="badge bg-dark even-larger-badge">Delete video</div>
-              <a
-                id="remove_button"
-                class="btn-circle btn-xl btn-danger disabled"
-                onclick="playlist_del_current_video(); return false;"
-                ><i class="fas fa-trash-alt"></i
-              ></a>
-          </div>
-      </div>
-      <div class="d-block action-button">
-          <a class="btn-circle btn-xl btn-primary" onclick="let cl = $(this).closest('div.floating-action-menu'); cl.toggleClass('active');if ($('#dim-row').hasClass('show') && !cl.hasClass('active')) $('#dim-row').collapse('hide');">
-              <i class="fas fa-plus"></i>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="" id="default-sett">
+                <label class="form-check-label" for="default-sett">
+                  Default
+                </label>
+            </div>
+            <select class="form-select" aria-label="Video type selector" id="mime-type">
+              <option value="">Select content type</option>
+              <option value="video/ogg">opus,ogv</option>
+              <option value="video/mp4">mp4,mov,m4v,m4a</option>
+              <option value="video/x-matroska">mkv</option>
+              <option value="audio/mpeg">mp3</option>
+              <option value="audio/aac">aac</option>
+              <option value="audio/x-caf">caf</option>
+              <option value="audio/flac">flac</option>
+              <option value="audio/ogg">oga</option>
+              <option value="audio/wav">wav</option>
+              <option value="application/x-mpegURL">m3u8</option>
+              <option value="application/dash+xml">mpd</option>
+              <option value="image/jpeg">jpg,jpeg</option>
+              <option value="image/gif">gif</option>
+              <option value="image/png">png</option>
+              <option value="image/svg+xml">svg</option>
+            </select>
+          </form>
+        </div>
+        <div class="row row-buffer g-0">
+          <a
+            id="reload_button"
+            class="btn btn-lg btn-success col-5 pe-4"
+            onclick="playlist_reload_settings(); return false;">
+            <i class="fas fa-save"></i>&nbsp;Save settings
           </a>
+          <div class="col-2"></div>
+          <a
+            id="reset_button"
+            class="btn btn-lg btn-warning col-5"
+            onclick="playlist_reload_settings(true); return false;">
+            <i class="fa fa-toilet-paper-slash"></i>&nbsp;Reset settings
+          </a>
+        </div>
       </div>
-  </div>
+      <div id="alert-row" class="row row-buffer"></div>
+    </div>
   </body>
 </html>
