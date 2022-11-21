@@ -164,9 +164,10 @@ function on_player_state_changed(player, event) {
         set_pause_button_enabled(true, '<i class="fas fa-play"></i>&nbsp;&nbsp;Play');
     else if (event == VIDEO_STATUS_PLAYING) {
         set_pause_button_enabled(true, '<i class="fas fa-pause"></i>&nbsp;&nbsp;Pause');
-        if (playlist_item_current_oldrowid !== playlist_item_current.rowid && playlist_item_current.conf.sec) {
+        if (playlist_item_current_oldrowid !== playlist_item_current.rowid) {
             playlist_item_current_oldrowid = playlist_item_current.rowid;
-            video_manager_obj.currenttime(playlist_item_current.conf.sec);
+            if (playlist_item_current.conf.sec)
+                video_manager_obj.currenttime(playlist_item_current.conf.sec);
         }
         if (playlist_item_current_time_timer == null) {
             playlist_item_current_time_timer = setInterval(function() {
