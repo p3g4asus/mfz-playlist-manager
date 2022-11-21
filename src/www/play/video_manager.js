@@ -12,6 +12,7 @@ let playlist_item_play_settings = {};
 let playlist_current = null;
 let playlist_item_current = null;
 let playlist_item_current_oldrowid = null;
+let playlist_item_current_wasplaying = 0;
 let playlist_item_current_time_timer = null;
 let playlist_item_current_idx = -1;
 
@@ -160,28 +161,34 @@ function on_play_finished(event) {
 }
 
 function on_player_state_changed(player, event) {
+    console.log('Player state changed: new ' + event);
     if (event == VIDEO_STATUS_UNSTARTED || event == VIDEO_STATUS_PAUSED || event === VIDEO_STATUS_CUED)
         set_pause_button_enabled(true, '<i class="fas fa-play"></i>&nbsp;&nbsp;Play');
     else if (event == VIDEO_STATUS_PLAYING) {
         set_pause_button_enabled(true, '<i class="fas fa-pause"></i>&nbsp;&nbsp;Pause');
         if (playlist_item_current_oldrowid !== playlist_item_current.rowid) {
             playlist_item_current_oldrowid = playlist_item_current.rowid;
+            playlist_item_current_wasplaying = new Date().getTime();
             if (playlist_item_current.conf.sec)
                 video_manager_obj.currenttime(playlist_item_current.conf.sec);
         }
         if (playlist_item_current_time_timer == null) {
             playlist_item_current_time_timer = setInterval(function() {
-                save_playlist_item_settings({sec: video_manager_obj.currenttime()});
+                let tm = video_manager_obj.currenttime();
+                if (tm >= 5)
+                    save_playlist_item_settings({sec: tm});
             }, 30000);
         }
         return;
     }
     else
         set_pause_button_enabled(false);
-    if (playlist_item_current_time_timer !== null) {
+    if (playlist_item_current_time_timer !== null && new Date().getTime() - playlist_item_current_wasplaying >= 5000) {
         clearInterval(playlist_item_current_time_timer);
         playlist_item_current_time_timer = null;
-        save_playlist_item_settings({sec: video_manager_obj.currenttime()});
+        let tm = video_manager_obj.currenttime();
+        if (tm >= 5)
+            save_playlist_item_settings({sec: tm});
     }
 }
 
