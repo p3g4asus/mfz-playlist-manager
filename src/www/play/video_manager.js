@@ -183,11 +183,11 @@ function on_player_state_changed(player, event) {
     }
     else
         set_pause_button_enabled(false);
-    if (playlist_item_current_time_timer !== null && new Date().getTime() - playlist_item_current_wasplaying >= 5000) {
+    if (playlist_item_current_time_timer !== null) {
         clearInterval(playlist_item_current_time_timer);
         playlist_item_current_time_timer = null;
         let tm = video_manager_obj.currenttime();
-        if (tm >= 5)
+        if (tm >= 5 && new Date().getTime() - playlist_item_current_wasplaying >= 5000)
             save_playlist_item_settings({sec: tm});
     }
 }
