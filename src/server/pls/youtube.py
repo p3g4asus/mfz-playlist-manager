@@ -39,6 +39,8 @@ class MessageProcessor(RefreshMessageProcessor):
             return plid[1:]
         elif plid[0] == '|':
             return f'https://www.youtube.com/channel/{plid[1:]}/videos'
+        elif plid[0] == '(':
+            return f'https://www.youtube.com/channel/{plid[1:]}/streams'
         else:
             return f'https://m.youtube.com/playlist?list={plid}'
 
@@ -65,8 +67,13 @@ class MessageProcessor(RefreshMessageProcessor):
                             plid = mo2.group(1)
                             url = MessageProcessor.programsUrl(plid)
                         else:
-                            mo2 = re.search(r'/videos$', text)
-                            url = text if mo2 else text + '/videos'
+                            mo2 = re.search(r'/(videos|streams)$', text)
+                            if mo2:
+                                url = text
+                                if mo2.group(1)[0] == 's':
+                                    plid = '('
+                            else:
+                                url = text + '/videos'
                 else:
                     plid = '%' + text
                     url = text
@@ -86,7 +93,7 @@ class MessageProcessor(RefreshMessageProcessor):
                         plinfo = dict(
                             title=playlist_dict['title'],
                             channel=playlist_dict.get('uploader', playlist_dict['title']),
-                            id=plid if plid else "|" + playlist_dict['id'],
+                            id=plid if len(plid) > 1 else plid + playlist_dict['id'],
                             description=playlist_dict.get('description', playlist_dict['title'])
                         )
                         return msg.ok(playlistinfo=plinfo)
