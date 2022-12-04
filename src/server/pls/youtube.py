@@ -68,6 +68,7 @@ class MessageProcessor(RefreshMessageProcessor):
                             url = MessageProcessor.programsUrl(plid)
                         else:
                             mo2 = re.search(r'/(videos|streams)$', text)
+                            plid = '|'
                             if mo2:
                                 url = text
                                 if mo2.group(1)[0] == 's':
