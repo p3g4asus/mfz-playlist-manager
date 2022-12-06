@@ -13,11 +13,12 @@ import youtube_dl
 from google.oauth2 import id_token
 from google.auth.transport import requests
 
-from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_PUSH, INVALID_SID, MSG_UNAUTHORIZED)
+from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_PUSH, CONV_LINK_ASYNCH_SHIFT, CONV_LINK_ASYNCH_TWITCH, CONV_LINK_MASK, INVALID_SID, MSG_UNAUTHORIZED)
 from common.playlist import Playlist, PlaylistMessage
 from common.timer import Timer
 from common.utils import get_json_encoder, MyEncoder
 from server.dict_auth_policy import check_credentials, identity2username
+from server.twitch_vod_link import get_vod_feeds, vod_get_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,6 +111,17 @@ async def playlist_m3u(request):
     if 'name' in request.query:
         host = request.query['host'] if 'host' in request.query else f"{request.scheme}://{request.host}"
         pl = await Playlist.loadbyid(request.app.p.db, useri=userid, username=username, name=request.query['name'])
+        asconv = (conv >> CONV_LINK_ASYNCH_SHIFT) & CONV_LINK_MASK
+        if asconv == CONV_LINK_ASYNCH_TWITCH:
+            for it in pl[0].items:
+                try:
+                    vodid = vod_get_id(it.link)
+                    feeds = await get_vod_feeds(vodid)
+                    _LOGGER.debug(f'link={it.link} vodid={vodid}: {feeds}')
+                    if feeds:
+                        it.link = feeds.getFeed(0)
+                except Exception:
+                    _LOGGER.warning(f'Twitch conv error for lnk {it.link}: {traceback.format_exc()}')
         if pl:
             if fmt == 'm3u':
                 txt = pl[0].toM3U(host, conv)
@@ -197,6 +209,21 @@ async def redirect_till_last(request):
                     return web.HTTPFound(resp.url)
                 else:
                     return web.StreamResponse(status=resp.status, reason=resp.reason)
+    return web.HTTPBadRequest(body='Link not found in URL')
+
+
+async def twitch_redir_do(request):
+    if 'link' in request.query:
+        link = request.query['link']
+        try:
+            vodid = vod_get_id(link)
+            feeds = await get_vod_feeds(vodid)
+            _LOGGER.debug(f'link={link} vodid={vodid}: {feeds}')
+            if feeds:
+                link = feeds.getFeed(0)
+        except Exception:
+            _LOGGER.warning(f'Twitch conv error for lnk {link}: {traceback.format_exc()}')
+        return web.HTTPFound(link)
     return web.HTTPBadRequest(body='Link not found in URL')
 
 

@@ -3,6 +3,8 @@ import logging
 import urllib.parse
 from datetime import datetime
 
+from common.const import CONV_LINK_MASK, CONV_LINK_REDIRECT, CONV_LINK_TWITCH, CONV_LINK_UNTOUCH, CONV_LINK_YTDL_DICT, CONV_LINK_YTDL_REDIRECT
+
 from .utils import Fieldable, JSONAble
 
 _LOGGER = logging.getLogger(__name__)
@@ -315,14 +317,17 @@ class PlaylistItem(JSONAble, Fieldable):
                 self.playlist == other.playlist and self.playlist
 
     def get_conv_link(self, host, conv):
-        if conv == 0:
+        conv = conv & CONV_LINK_MASK
+        if conv == CONV_LINK_UNTOUCH:
             return self.link
-        elif conv == 1:
+        elif conv == CONV_LINK_YTDL_DICT:
             piece = 'ytdl'
-        elif conv == 2:
+        elif conv == CONV_LINK_YTDL_REDIRECT:
             piece = 'ytto'
-        elif conv == 3:
+        elif conv == CONV_LINK_REDIRECT:
             piece = 'red'
+        elif conv == CONV_LINK_TWITCH:
+            piece = 'twi'
         return f"{host}/{piece}?{urllib.parse.urlencode(dict(link=self.link))}"
 
     def toJSON(self, host='', conv=0, **kwargs):
