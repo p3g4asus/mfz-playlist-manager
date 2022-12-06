@@ -67,10 +67,10 @@ class FQ:
         self.quality = q
 
     def get_idx(self):
-        for i, q in enumerate(QUALITIES_MAP.values()):
-            if q == self.quality:
-                return i
-        return -1
+        try:
+            return list(QUALITIES_MAP.values()).index(self.quality)
+        except ValueError:
+            return len(QUALITIES_MAP)
 
     def __lt__(self, other):
         return self.get_idx() < other.get_idx()
