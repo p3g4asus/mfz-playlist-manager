@@ -29,7 +29,7 @@ def vod_get_id(url):
     ids = single_regex("twitch.tv/videos/([0-9]+)", url)
     if ids:
         return int(ids)
-    return int(ids)
+    return int(url)
 
 
 async def get_twitch_token(vodid, isvod):
