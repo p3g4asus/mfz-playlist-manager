@@ -1,11 +1,13 @@
 import json
+import os
 import logging
 from functools import partial
 from textwrap import dedent
 import traceback
-import urllib.parse
+from urllib.parse import urlencode, urlparse
 
 from aiohttp import WSMsgType, web, ClientSession
+from aiohttp.web_response import Response
 from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
 import youtube_dl
@@ -135,12 +137,12 @@ async def playlist_m3u(request):
                 if it >= len(pl[0].items):
                     it = len(pl[0].items) - 1
                 if it >= 0 and it < len(pl[0].items):
-                    lnk = f'http://embedly.com/widgets/media.html?{urllib.parse.urlencode(dict(url=pl[0].items[it].get_conv_link(host, conv)))}'
+                    lnk = f'http://embedly.com/widgets/media.html?{urlencode(dict(url=pl[0].items[it].get_conv_link(host, conv)))}'
                     ln = f'<div class="embedly-card" href="{lnk}"></div>'
                 else:
                     ln = '\n'
                     for it in pl[0].items:
-                        lnk = f'http://embedly.com/widgets/media.html?{urllib.parse.urlencode(dict(url=it.get_conv_link(host, conv)))}'
+                        lnk = f'http://embedly.com/widgets/media.html?{urlencode(dict(url=it.get_conv_link(host, conv)))}'
                         ln += f'<div class="embedly-card" href="{lnk}"></div>\n'
                 webp = f"""
                     <!doctype html>
@@ -209,6 +211,35 @@ async def redirect_till_last(request):
                     return web.HTTPFound(resp.url)
                 else:
                     return web.StreamResponse(status=resp.status, reason=resp.reason)
+    return web.HTTPBadRequest(body='Link not found in URL')
+
+_image_types_2_mime = {
+    '.apng': 'image/apng',
+    '.avif': 'image/avif',
+    '.gif': 'image/gif',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.svg': 'image/svg+xml',
+    '.webp': 'image/webp'
+}
+
+
+async def img_link(request):
+    if 'link' in request.query:
+        try:
+            url = request.query['link']
+            path = urlparse(url).path
+            ext = os.path.splitext(path)[1]
+            if ext in _image_types_2_mime:
+                async with ClientSession() as session:
+                    async with session.get(url) as resp:
+                        if resp.status >= 200 and resp.status < 300:
+                            return Response(body=await resp.read(), content_type=_image_types_2_mime[ext])
+                        else:
+                            return web.StreamResponse(status=resp.status, reason=resp.reason)
+        except Exception:
+            _LOGGER.error(traceback.format_exc())
     return web.HTTPBadRequest(body='Link not found in URL')
 
 
@@ -417,7 +448,7 @@ async def remote_command(request):
                     else:
                         d = dict()
                         d[k] = v
-                        redirect_pars = f'{redirect_pars}&{urllib.parse.urlencode(d)}'
+                        redirect_pars = f'{redirect_pars}&{urlencode(d)}'
                 elif typem == 2:
                     if k == 'get' and v in request.app.p.ws[hextoken]:
                         outdict[v] = request.app.p.ws[hextoken][v]

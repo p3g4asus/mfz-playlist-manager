@@ -3,6 +3,7 @@ import re
 import traceback
 from datetime import datetime
 from functools import cmp_to_key
+from urllib.parse import urlencode
 
 import aiohttp
 
@@ -165,7 +166,7 @@ class MessageProcessor(RefreshMessageProcessor):
             dur=dur,
             conf=conf,
             uid=uid,
-            img=img,
+            img=f'?{urlencode(dict(link=img))}',
             playlist=playlist
         ), datepubi)
 

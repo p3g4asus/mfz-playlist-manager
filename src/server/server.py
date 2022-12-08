@@ -25,7 +25,7 @@ from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.dict_auth_policy import DictAuthorizationPolicy
 from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
-from server.webhandlers import index, logout, login, login_g, modify_pw, pls_h, register, remote_command, playlist_m3u, youtube_dl_do, youtube_redir_do, redirect_till_last, twitch_redir_do
+from server.webhandlers import index, logout, login, login_g, modify_pw, pls_h, register, remote_command, playlist_m3u, youtube_dl_do, youtube_redir_do, redirect_till_last, twitch_redir_do, img_link
 
 __prog__ = "pls-server"
 
@@ -335,6 +335,10 @@ async def start_app(app):
     })
     resource = cors.add(app.router.add_resource("/twi"))
     cors.add(resource.add_route('GET', twitch_redir_do), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
+    })
+    resource = cors.add(app.router.add_resource("/img"))
+    cors.add(resource.add_route('GET', img_link), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
     app.router.add_route('GET', '/ws', pls_h)
