@@ -1,10 +1,9 @@
 import json
-import os
 import logging
 from functools import partial
 from textwrap import dedent
 import traceback
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 
 from aiohttp import WSMsgType, web, ClientSession
 from aiohttp.web_response import Response
@@ -213,31 +212,17 @@ async def redirect_till_last(request):
                     return web.StreamResponse(status=resp.status, reason=resp.reason)
     return web.HTTPBadRequest(body='Link not found in URL')
 
-_image_types_2_mime = {
-    '.apng': 'image/apng',
-    '.avif': 'image/avif',
-    '.gif': 'image/gif',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.svg': 'image/svg+xml',
-    '.webp': 'image/webp'
-}
-
 
 async def img_link(request):
     if 'link' in request.query:
         try:
             url = request.query['link']
-            path = urlparse(url).path
-            ext = os.path.splitext(path)[1]
-            if ext in _image_types_2_mime:
-                async with ClientSession() as session:
-                    async with session.get(url) as resp:
-                        if resp.status >= 200 and resp.status < 300:
-                            return Response(body=await resp.read(), content_type=_image_types_2_mime[ext])
-                        else:
-                            return web.StreamResponse(status=resp.status, reason=resp.reason)
+            async with ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status >= 200 and resp.status < 300:
+                        return Response(body=await resp.read(), content_type=resp.headers.get('content-type'))
+                    else:
+                        return web.StreamResponse(status=resp.status, reason=resp.reason)
         except Exception:
             _LOGGER.error(traceback.format_exc())
     return web.HTTPBadRequest(body='Link not found in URL')
