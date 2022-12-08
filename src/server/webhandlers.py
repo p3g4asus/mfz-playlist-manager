@@ -1,5 +1,6 @@
 import json
 import logging
+from email.message import EmailMessage
 from functools import partial
 from textwrap import dedent
 import traceback
@@ -220,7 +221,10 @@ async def img_link(request):
             async with ClientSession() as session:
                 async with session.get(url) as resp:
                     if resp.status >= 200 and resp.status < 300:
-                        return Response(body=await resp.read(), content_type=resp.headers.get('content-type'))
+                        msg = EmailMessage()
+                        msg['content-type'] = resp.headers.get('content-type')
+                        mimetype, options = msg.get_content_type(), msg['content-type'].params
+                        return Response(body=await resp.read(), content_type=mimetype, charset=None if 'charset' not in options else options['charset'])
                     else:
                         return web.StreamResponse(status=resp.status, reason=resp.reason)
         except Exception:
