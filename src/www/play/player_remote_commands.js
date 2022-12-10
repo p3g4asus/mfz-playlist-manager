@@ -3,12 +3,24 @@ let playlists_arr = [];
 
 function send_remote_command(cmdo) {
     $.get(MAIN_PATH + '/rcmd/' + vpc_hexcode, cmdo, (data, status) => {
-        if (cmdo.get == 'vinfo') {
-            let $vd = $('#vinfo-div');
-            $vd.show();
-            $('#vinfo-div dd:nth-child(2)').text(data.vinfo.title);
-            $('#vinfo-div dd:nth-child(4)').text(data.vinfo.durs);
-            $('#vinfo-div dd:nth-child(6)').text(data.vinfo.tot_n + ' (' + data.vinfo.tot_durs + ')');
+        if (cmdo.get) {
+            if (data.vinfo || data.pinfo) {
+                let $vd = $('#vinfo-div');
+                $vd.show();
+                if (data.vinfo) {
+                    $('#vinfo-div dd:nth-child(2)').text(data.vinfo.title);
+                    $('#vinfo-div dd:nth-child(4)').text(data.vinfo.durs);
+                    $('#vinfo-div dd:nth-child(6)').text(data.vinfo.tot_n + ' (' + data.vinfo.tot_durs + ')');
+                }
+                if (data.pinfo) {
+                    $('#vinfo-div dt:nth-child(7)').text(format_duration(Math.round(data.pinfo.sec)));
+                    $('#pinfo-range').prop('max', data.vinfo.duri).val(data.pinfo.sec);
+                }
+                else {
+                    $('#vinfo-div dt:nth-child(7)').text(format_duration(0));
+                    $('#pinfo-range').prop('max', data.vinfo.duri).val(0);
+                }
+            }
         }
         if (!data.queue)
             toast_msg('Status is ' + status +' (' + JSON.stringify(data) + ')', 'info');
@@ -25,7 +37,7 @@ $(window).on('load', function() {
     playlists_arr = orig_up.getAll('name');
     $('#info_button').click(()=> {
         send_remote_command({
-            get: 'vinfo',
+            'get': ['vinfo', 'pinfo'],
         });
     });
     $('#collapse_button').click(()=> {
@@ -55,6 +67,20 @@ $(window).on('load', function() {
             cmd: CMD_REMOTEPLAY_JS,
             sub: CMD_REMOTEPLAY_JS_PREV,
         });
+    });
+    let $rng = $('#pinfo-range');
+    $rng.on('input', () => {
+        let v = $rng.val();
+        $('#vinfo-div dt:nth-child(7)').text(format_duration(v));
+    });
+    $rng.on('change', () => {
+        let v = $rng.val();
+        send_remote_command({
+            cmd: CMD_REMOTEPLAY_JS,
+            sub: CMD_REMOTEPLAY_JS_SEC,
+            n: v
+        });
+        $('#vinfo-div dt:nth-child(7)').text(format_duration(v));
     });
     function while_rwfw_mouse_down($e) {
         let cur = $e.data('n');

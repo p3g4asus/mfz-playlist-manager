@@ -426,7 +426,7 @@ async def process_remoteplay_cmd_queue(ws, queue):
 async def remote_command(request):
     hextoken = request.match_info['hex']
     if hextoken in request.app.p.ws:
-        typem = 1 if 'red' in request.query else 2 if 'get' in request.query else 0
+        typem = 1 if 'red' in request.query else 2 if 'get' in request.query or 'get[]' in request.query else 0
         redirect_pars = f'?hex={hextoken}'
         outdict = {'hex': hextoken}
         try:
@@ -439,7 +439,7 @@ async def remote_command(request):
                         d[k] = v
                         redirect_pars = f'{redirect_pars}&{urlencode(d)}'
                 elif typem == 2:
-                    if k == 'get' and v in request.app.p.ws[hextoken]:
+                    if k in ('get', 'get[]') and v in request.app.p.ws[hextoken]:
                         outdict[v] = request.app.p.ws[hextoken][v]
                 elif k in outdict:
                     if isinstance(outdict[k], list):

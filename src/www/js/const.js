@@ -28,6 +28,7 @@ const CMD_REMOTEPLAY_JS_PREV = 'prev';
 const CMD_REMOTEPLAY_JS_FFW = 'ffw';
 const CMD_REMOTEPLAY_JS_REW = 'rew';
 const CMD_REMOTEPLAY_JS_GOTO = 'goto';
+const CMD_REMOTEPLAY_JS_SEC = 'sec';
 const CMD_REMOTEPLAY_PUSH = 'remotepush';
 const CMD_LS = 'ls';
 const CMD_RAI_CONTENTSET = 'rai.contentset';

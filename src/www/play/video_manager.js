@@ -152,7 +152,8 @@ function on_play_finished(event) {
     set_video_title(title);
     set_video_enabled(vid);
     let video_info =  print_duration(index);
-    send_video_info_for_remote_play(video_info);
+    send_video_info_for_remote_play('vinfo', video_info);
+    send_video_info_for_remote_play('pinfo', 0);
     if (vid.length && video_manager_obj.play_video_id)
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)
@@ -169,14 +170,16 @@ function on_player_state_changed(player, event) {
         if (playlist_item_current_oldrowid !== playlist_item_current.rowid) {
             playlist_item_current_oldrowid = playlist_item_current.rowid;
             playlist_item_current_wasplaying = new Date().getTime();
-            if (playlist_item_current.conf.sec)
+            if (playlist_item_current.conf.sec) {
                 video_manager_obj.currenttime(playlist_item_current.conf.sec);
+                send_video_info_for_remote_play('pinfo', {sec: playlist_item_current.conf.sec});
+            }
         }
         if (playlist_item_current_time_timer == null) {
             playlist_item_current_time_timer = setInterval(function() {
                 let tm = video_manager_obj.currenttime();
                 if (tm >= 5)
-                    save_playlist_item_settings({sec: tm});
+                    save_playlist_item_settings({sec: tm}, 'pinfo');
             }, 30000);
         }
         return;
@@ -188,7 +191,7 @@ function on_player_state_changed(player, event) {
         playlist_item_current_time_timer = null;
         let tm = video_manager_obj.currenttime();
         if (tm >= 5 && new Date().getTime() - playlist_item_current_wasplaying >= 5000)
-            save_playlist_item_settings({sec: tm});
+            save_playlist_item_settings({sec: tm}, 'pinfo');
     }
 }
 
@@ -260,7 +263,7 @@ function save_playlist_settings(vid) {
         });
 }
 
-function save_playlist_item_settings(sett) {
+function save_playlist_item_settings(sett, push_for_remote_play) {
     if (!playlist_item_current.conf)
         playlist_item_current.conf = {};
     Object.assign(playlist_item_current.conf, sett);
@@ -274,6 +277,9 @@ function save_playlist_item_settings(sett) {
     el.enqueue().then(function(msg) {
         if (!manage_errors(msg)) {
             console.log('Playlist item state saved ' + JSON.stringify(msg.playlistitem));
+            if (push_for_remote_play && push_for_remote_play.length) {
+                send_video_info_for_remote_play(push_for_remote_play, sett);
+            }
         }
         else {
             console.log('Playlist item settings NOT saved ' + JSON.stringify(msg));
@@ -284,12 +290,10 @@ function save_playlist_item_settings(sett) {
         });
 }
 
-function send_video_info_for_remote_play(video_info) {
-    let el = new MainWSQueueElement({
-        cmd: CMD_REMOTEPLAY_PUSH,
-        what: 'vinfo',
-        vinfo: video_info
-    }, function(msg) {
+function send_video_info_for_remote_play(w, video_info) {
+    let o = {cmd: CMD_REMOTEPLAY_PUSH, what: w};
+    o[w] = video_info;
+    let el = new MainWSQueueElement(o, function(msg) {
         return msg.cmd === CMD_REMOTEPLAY_PUSH? msg:null;
     }, 3000, 1, 'remoteplay_vinfo');
     el.enqueue().then(function(msg) {
@@ -365,13 +369,17 @@ function remotejs_process(msg) {
         else if (msg.sub == CMD_REMOTEPLAY_JS_PAUSE) {
             on_play_finished({dir: null});
         }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_SEC) {
+            video_manager_obj.currenttime(parseInt(msg.n));
+            save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
+        }
         else if (msg.sub == CMD_REMOTEPLAY_JS_FFW) {
             video_manager_obj.ffw(parseInt(msg.n));
-            save_playlist_item_settings({sec: video_manager_obj.currenttime()});
+            save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_REW) {
             video_manager_obj.rew(parseInt(msg.n));
-            save_playlist_item_settings({sec: video_manager_obj.currenttime()});
+            save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_GOTO) {
             window.location.assign(msg.link);
