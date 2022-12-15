@@ -35,6 +35,11 @@ $(window).on('load', function() {
     let orig_up = new URLSearchParams(URL_PARAMS);
     vpc_hexcode = orig_up.get('hex');
     playlists_arr = orig_up.getAll('name');
+    $(document).on('visibilitychange', ()=> {
+        if (!document.hidden && $('#vinfo-div').is(':visible')) {
+            $('#info_button').click();
+        }
+    });
     $('#info_button').click(()=> {
         send_remote_command({
             'get': ['vinfo', 'pinfo'],
