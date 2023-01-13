@@ -621,7 +621,7 @@ let playlist_types = {
                     <div class="row">
                         <div class="col-12 alert alert-${type} alert-dismissible fade show" role="alert">
                             ${div.text(c.title).prop('outerHTML')}
-                            <p class="h6">${c.id} (${c.ordered === undefined || c.ordered? 'Ordered': 'Unordered'})</p>
+                            <p class="h6">${c.id} (${c.ordered === undefined || c.ordered? 'Ordered': 'Unordered'})${c.params && Object.keys(c.params).length?' [' + JSON.stringify(c.params, undefined, 2) + ']':''}</p>
                             <button type="button" data-idpl="${c.id}" class="close" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>

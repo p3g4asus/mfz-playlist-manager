@@ -10,6 +10,7 @@ from common.playlist import PlaylistItem
 from common.utils import parse_isoduration
 
 from .refreshmessageprocessor import RefreshMessageProcessor
+from urllib.parse import urlunparse, urlencode, urlparse, parse_qs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +49,21 @@ class MessageProcessor(RefreshMessageProcessor):
         text = msg.f('text', (str,))
         if text:
             try:
+                params = dict()
                 plid = ''
+                urlp = urlparse(text)
+                if urlp and urlp.scheme:
+                    params2 = parse_qs(urlp.query)
+                    if not isinstance(params2, dict):
+                        params2 = dict()
+                    for np2, vp2 in params2.copy().items():
+                        if np2.endswith('_mfzpm'):
+                            params[np2[0:-6]] = vp2
+                            del params2[np2]
+                    urlp = urlp._replace(query=urlencode(params2))
+                    text = urlunparse(urlp)
+                else:
+                    urlp = None
                 if text.find('twitch.tv') >= 0:
                     plid = '%'
                     if text.find('/videos') >= 0:
@@ -66,15 +81,18 @@ class MessageProcessor(RefreshMessageProcessor):
                         if mo2:
                             plid = mo2.group(1)
                             url = MessageProcessor.programsUrl(plid)
-                        else:
-                            mo2 = re.search(r'/(videos|streams)$', text)
+                        elif urlp:
+                            mo2 = re.search(r'/(videos|streams)$', urlp.path)
                             plid = '|'
                             if mo2:
-                                url = text
                                 if mo2.group(1)[0] == 's':
                                     plid = '('
                             else:
-                                url = text + '/videos'
+                                urlp = urlp._replace(path=urlp.path + '/videos')
+                                text = urlunparse(urlp)
+                            url = text
+                        else:
+                            return msg.err(20, MSG_YT_INVALID_PLAYLIST)
                 else:
                     plid = '%' + text
                     url = text
@@ -93,6 +111,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     if '_err' not in playlist_dict:
                         plinfo = dict(
                             title=playlist_dict['title'],
+                            params=params,
                             channel=playlist_dict.get('uploader', playlist_dict['title']),
                             id=plid if len(plid) > 1 else plid + playlist_dict['id'],
                             description=playlist_dict.get('description', playlist_dict['title'])
@@ -163,9 +182,26 @@ class MessageProcessor(RefreshMessageProcessor):
             return
         out_dict.update(dict(_err=401))
 
+    def video_is_not_filtered_out(self, video, filters):
+        if 'yes' in filters:
+            for x in filters['yes']:
+                if not re.search(x, video['title'], re.IGNORECASE):
+                    return False
+        if 'no' in filters:
+            for x in filters['no']:
+                if re.search(x, video['title'], re.IGNORECASE):
+                    return False
+        # keep maybe checking last
+        if 'maybe' in filters:
+            for x in filters['maybe']:
+                if re.search(x, video['title'], re.IGNORECASE):
+                    return True
+            return False
+        return True
+
     async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
         try:
-            sets = [(s['id'], s['ordered'] if 'ordered' in s else True) for s in conf['playlists']]
+            sets = [(s['id'], s['ordered'] if 'ordered' in s else True, s['params'] if 'params' in s else dict()) for s in conf['playlists']]
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
@@ -180,7 +216,7 @@ class MessageProcessor(RefreshMessageProcessor):
                 }
                 programs = dict()
                 localtz = datetime.now(timezone.utc).astimezone().tzinfo
-                for set, ordered in sets:
+                for set, ordered, filters in sets:
                     startFrom = 1
                     while startFrom:
                         ydl_opts['playliststart'] = startFrom
@@ -288,7 +324,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                                      video.get('duration')))
                                         # datepubi = int(datepubo.timestamp() * 1000)
                                         datepubi_conf = int(datepubo_conf.timestamp() * 1000)
-                                        if video['id'] not in programs:
+                                        if video['id'] not in programs and self.video_is_not_filtered_out(video, filters):
                                             if datepubi_conf >= datefrom:
                                                 if datepubi_conf <= dateto or dateto < datefrom:
                                                     datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
