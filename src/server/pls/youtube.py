@@ -89,8 +89,9 @@ class MessageProcessor(RefreshMessageProcessor):
                             url = MessageProcessor.programsUrl(plid)
                         elif urlp:
                             mo2 = re.search(r'/channel/([^/]+)/?$', urlp.path)
-                            if mo2 and self.apikey:
-                                req = self.youtubeApiBuild().channels().list(part="contentDetails", id=mo2.group(1))
+                            mo3 = re.search(r'/@([^/]+)/?$', urlp.path)
+                            if (mo2 or mo3) and self.apikey:
+                                req = self.youtubeApiBuild().channels().list(part="contentDetails", **(dict(id=mo2.group(1)) if mo2 else dict(forUsername=mo3.group(1))))
                                 resp = req.execute()
                                 plid = resp['items'][0]['contentDetails']['relatedPlaylists']['uploads']
                                 url = MessageProcessor.programsUrl(plid)
