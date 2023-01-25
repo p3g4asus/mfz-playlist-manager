@@ -45,6 +45,12 @@ class MessageProcessor(RefreshMessageProcessor):
         else:
             return f'https://m.youtube.com/playlist?list={plid}'
 
+    def youtubeApiBuild(self):
+        if self.youtube is None:
+            from googleapiclient.discovery import build
+            self.youtube = build('youtube', 'v3', developerKey=self.apikey)
+        return self.youtube
+
     async def processPlaylistCheck(self, msg, userid, executor):
         text = msg.f('text', (str,))
         if text:
@@ -82,15 +88,22 @@ class MessageProcessor(RefreshMessageProcessor):
                             plid = mo2.group(1)
                             url = MessageProcessor.programsUrl(plid)
                         elif urlp:
-                            mo2 = re.search(r'/(videos|streams)$', urlp.path)
-                            plid = '|'
-                            if mo2:
-                                if mo2.group(1)[0] == 's':
-                                    plid = '('
+                            mo2 = re.search(r'/channel/([^/]+)/?$', urlp.path)
+                            if mo2 and self.apikey:
+                                req = self.youtubeApiBuild().channels().list(part="contentDetails", id=mo2.group(1))
+                                resp = req.execute()
+                                plid = resp['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+                                url = MessageProcessor.programsUrl(plid)
                             else:
-                                urlp = urlp._replace(path=urlp.path + '/videos')
-                                text = urlunparse(urlp)
-                            url = text
+                                mo2 = re.search(r'/(videos|streams)$', urlp.path)
+                                plid = '|'
+                                if mo2:
+                                    if mo2.group(1)[0] == 's':
+                                        plid = '('
+                                else:
+                                    urlp = urlp._replace(path=urlp.path + '/videos')
+                                    text = urlunparse(urlp)
+                                url = text
                         else:
                             return msg.err(20, MSG_YT_INVALID_PLAYLIST)
                 else:
@@ -287,10 +300,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                         else:
                                             current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
                                             if self.apikey:
-                                                if self.youtube is None:
-                                                    from googleapiclient.discovery import build
-                                                    self.youtube = build('youtube', 'v3', developerKey=self.apikey)
-                                                req = self.youtube.videos().list(part="snippet,contentDetails", id=video['id'])
+                                                req = self.youtubeApiBuild().videos().list(part="snippet,contentDetails", id=video['id'])
                                                 resp = req.execute()
                                                 _LOGGER.debug(f'Using apikey: resp is {resp}')
                                                 if 'items' in resp and resp['items']:
