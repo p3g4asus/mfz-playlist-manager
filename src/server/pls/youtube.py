@@ -1,7 +1,7 @@
 import logging
 import re
 import traceback
-import youtube_dl
+import yt_dlp as youtube_dl
 from datetime import (datetime, timedelta, timezone)
 
 from common.const import (CMD_YT_PLAYLISTCHECK, MSG_YT_INVALID_PLAYLIST,
@@ -187,14 +187,21 @@ class MessageProcessor(RefreshMessageProcessor):
         ), datepubi)
 
     def youtube_dl_get_dict(self, current_url, ydl_opts, out_dict):
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            playlist_dict = ydl.extract_info(current_url, download=False)
-            if playlist_dict:
-                out_dict.update(playlist_dict)
-            else:
-                out_dict.update(dict(_err=404))
-            return
-        out_dict.update(dict(_err=401))
+        try:
+            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    playlist_dict = ydl.extract_info(current_url, download=False)
+                except Exception:
+                    _LOGGER.error(f'YTDLP2: {traceback.format_exc()}')
+                    playlist_dict = None
+                if playlist_dict:
+                    out_dict.update(playlist_dict)
+                else:
+                    out_dict.update(dict(_err=404))
+                return
+        except Exception:
+            _LOGGER.error(f'YTDLP: {traceback.format_exc()}')
+            out_dict.update(dict(_err=401))
 
     def video_is_not_filtered_out(self, video, filters):
         if 'yes' in filters:
@@ -236,139 +243,155 @@ class MessageProcessor(RefreshMessageProcessor):
                         ydl_opts['playliststart'] = startFrom
                         ydl_opts['playlistend'] = startFrom + 99
                         current_url = MessageProcessor.programsUrl(set)
-                        _LOGGER.debug("Set = %s url = %s startFrom = %d" % (set, current_url, startFrom))
                         playlist_dict = dict()
-                        await executor(self.youtube_dl_get_dict, current_url, ydl_opts, playlist_dict)
-                        if '_err' not in playlist_dict:
-                            if set[0] == '&' or 'entries' not in playlist_dict:
-                                startFrom = 0
-                                try:
-                                    playlist_dict['entries'] = [dict(**playlist_dict)]
-                                except Exception:
-                                    _LOGGER.error(traceback.format_exc())
-                            if 'entries' in playlist_dict and playlist_dict['entries']:
-                                secadd = 86000
-                                for video in playlist_dict['entries']:
-                                    try:
-                                        if set[0] == '%':
-                                            current_url = video['url']
-                                            if set.find('twitch.tv') >= 0:
-                                                if 'timestamp' not in video:
-                                                    mo = re.search(r'_([0-9]{7,})/+thumb', video["thumbnail"])
-                                                    if mo:
-                                                        tsi = int(mo.group(1))
-                                                        if tsi >= 1590734846:
-                                                            try:
-                                                                datetime.fromtimestamp(tsi)
-                                                                video['timestamp'] = tsi
-                                                            except Exception:
-                                                                pass
-                                                if 'timestamp' not in video:
-                                                    _LOGGER.debug("thumb does not match " + video["thumbnail"])
-                                                    _LOGGER.debug("SetTwitch = %s url = %s" % (set, current_url))
-                                                    video = dict()
-                                                    await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
-                                                    if video['id'][0] == 'v':
-                                                        video['id'] = video['id'][1:]
-                                                else:
-                                                    mo = re.search(r'twitch.tv/([^/]+)/videos', set)
-                                                    if mo:
-                                                        video['uploader_id'] = video['uploader'] = mo.group(1)
-                                                if 'timestamp' in video:
-                                                    datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
-                                                else:
-                                                    datepubo = datepubo_conf = datetime.now()
-                                                video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
-                                                video['thumbnail'] = re.sub(r'[0-9]+x[0-9]+\.jpg', '0x0.jpg', video['thumbnail'])
-                                            else:
-                                                if 'timestamp' not in video or 'thumbnail' not in video or not video['timestamp'] or not video['thumbnail']:
-                                                    video = dict()
-                                                    await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
-                                                if 'timestamp' in video and video['timestamp']:
-                                                    datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
-                                                    video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
-                                                elif 'upload_date' in video and video['upload_date']:
-                                                    datepubo = datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
-                                                else:
-                                                    datepubo = datepubo_conf = datetime.now()
-                                                if 'thumbnail' not in video or not video['thumbnail']:
-                                                    video['thumbnail'] = ''
-                                                if 'id' not in video or not video['id']:
-                                                    video['id'] = video['url']
-                                                if 'duration' not in video or not video['duration']:
-                                                    video['duration'] = 0
-                                                video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
-                                        else:
-                                            current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
-                                            if self.apikey:
-                                                req = self.youtubeApiBuild().videos().list(part="snippet,contentDetails", id=video['id'])
-                                                resp = req.execute()
-                                                _LOGGER.debug(f'Using apikey: resp is {resp}')
-                                                if 'items' in resp and resp['items']:
-                                                    base = resp['items'][0]
-                                                    if 'snippet' in base and 'contentDetails' in base:
-                                                        cdt = base['contentDetails']
-                                                        base = base['snippet']
-                                                        if 'publishedAt' in base and 'thumbnails' in base and 'duration' in cdt:
-                                                            datepubo = datepubo_conf = datetime.strptime(base['publishedAt'], "%Y-%m-%dT%H:%M:%S%z").astimezone(localtz)
+                        cont_ok = False
+                        cont_n = 0
+                        while not cont_ok and cont_n < 3:
+                            cont_ok = True
+                            cont_n += 1
+                            _LOGGER.debug(f"Set = {set} url = {current_url} startFrom = {startFrom} ({cont_n}/3)")
+                            try:
+                                await executor(self.youtube_dl_get_dict, current_url, ydl_opts, playlist_dict)
+                                # self.youtube_dl_get_dict(current_url, ydl_opts, playlist_dict)
+                                if '_err' not in playlist_dict:
+                                    if set[0] == '&' or 'entries' not in playlist_dict:
+                                        startFrom = 0
+                                        try:
+                                            playlist_dict['entries'] = [dict(**playlist_dict)]
+                                        except Exception:
+                                            _LOGGER.error(traceback.format_exc())
+                                    if 'entries' in playlist_dict and playlist_dict['entries']:
+                                        secadd = 86000
+                                        for video in playlist_dict['entries']:
+                                            try:
+                                                if set[0] == '%':
+                                                    current_url = video['url']
+                                                    if set.find('twitch.tv') >= 0:
+                                                        if 'timestamp' not in video:
+                                                            mo = re.search(r'_([0-9]{7,})/+thumb', video["thumbnail"])
+                                                            if mo:
+                                                                tsi = int(mo.group(1))
+                                                                if tsi >= 1590734846:
+                                                                    try:
+                                                                        datetime.fromtimestamp(tsi)
+                                                                        video['timestamp'] = tsi
+                                                                    except Exception:
+                                                                        pass
+                                                        if 'timestamp' not in video:
+                                                            _LOGGER.debug("thumb does not match " + video["thumbnail"])
+                                                            _LOGGER.debug("SetTwitch = %s url = %s" % (set, current_url))
+                                                            video = dict()
+                                                            await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+
+                                                        else:
+                                                            mo = re.search(r'twitch.tv/([^/]+)/videos', set)
+                                                            if mo:
+                                                                video['uploader_id'] = video['uploader'] = mo.group(1)
+                                                        if video['id'][0] == 'v':
+                                                            video['id'] = video['id'][1:]
+                                                        if 'timestamp' in video:
+                                                            datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
+                                                        else:
+                                                            datepubo = datepubo_conf = datetime.now()
+                                                        video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                        video['thumbnail'] = re.sub(r'[0-9]+x[0-9]+\.jpg', '0x0.jpg', video['thumbnail'])
+                                                    else:
+                                                        if 'timestamp' not in video or 'thumbnail' not in video or not video['timestamp'] or not video['thumbnail']:
+                                                            video = dict()
+                                                            await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                                        if 'timestamp' in video and video['timestamp']:
+                                                            datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
                                                             video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
-                                                            ths = ['maxres', 'standard', 'medium', 'default']
-                                                            video['duration'] = 0 if not cdt['duration'] else parse_isoduration(cdt['duration'])
-                                                            video['uploader'] = base.get('channelTitle')
-                                                            video['uploader_id'] = base.get('channelId')
-                                                            video['title'] = base.get('title', video['title'])
-                                                            for x in ths:
-                                                                if x in base['thumbnails']:
-                                                                    video['thumbnail'] = base['thumbnails'][x]['url']
-                                                                    break
-                                            if 'upload_date' not in video:
-                                                _LOGGER.debug("Set = %s url = %s" % (set, current_url))
-                                                video = dict()
-                                                await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
-                                                datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
-                                                datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
-                                                datepubo = datepubo + timedelta(seconds=secadd)
-                                                secadd -= 1
-                                        _LOGGER.debug("Found [%s] = %s | %s | %s" % (video.get('id'),
-                                                                                     video.get('title'),
-                                                                                     video.get('upload_date'),
-                                                                                     video.get('duration')))
-                                        # datepubi = int(datepubo.timestamp() * 1000)
-                                        datepubi_conf = int(datepubo_conf.timestamp() * 1000)
-                                        if video['id'] not in programs and self.video_is_not_filtered_out(video, filters):
-                                            if datepubi_conf >= datefrom:
-                                                if datepubi_conf <= dateto or dateto < datefrom:
-                                                    datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
-                                                    extr = video.get('extractor')
-                                                    if not extr:
-                                                        extr = playlist_dict.get('extractor')
-                                                    conf = dict(playlist=set,
-                                                                extractor=extr,
-                                                                userid=video.get('uploader_id'),
-                                                                author=video.get('uploader'))
-                                                    pr = PlaylistItem(
-                                                        link=current_url,
-                                                        title=video['title'],
-                                                        datepub=datepub,
-                                                        dur=video['duration'],
-                                                        conf=conf,
-                                                        uid=video['id'],
-                                                        img=video['thumbnail'],
-                                                        playlist=playlist
-                                                    )
-                                                    programs[video['id']] = pr
-                                                    _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
-                                            elif ordered:
-                                                startFrom = 0
-                                                break
-                                    except Exception:
-                                        _LOGGER.error(traceback.format_exc())
-                                if startFrom:
-                                    startFrom += 100
-                            else:
-                                startFrom = 0
-                        else:
-                            startFrom = 0
+                                                        elif 'upload_date' in video and video['upload_date']:
+                                                            datepubo = datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
+                                                        else:
+                                                            datepubo = datepubo_conf = datetime.now()
+                                                        if 'thumbnail' not in video or not video['thumbnail']:
+                                                            video['thumbnail'] = ''
+                                                        if 'id' not in video or not video['id']:
+                                                            video['id'] = video['url']
+                                                        if 'duration' not in video or not video['duration']:
+                                                            video['duration'] = 0
+                                                        video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                else:
+                                                    current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
+                                                    if self.apikey:
+                                                        try:
+                                                            req = self.youtubeApiBuild().videos().list(part="snippet,contentDetails", id=video['id'])
+                                                            resp = req.execute()
+                                                            _LOGGER.debug(f'Using apikey: resp is {resp}')
+                                                            if 'items' in resp and resp['items']:
+                                                                base = resp['items'][0]
+                                                                if 'snippet' in base and 'contentDetails' in base:
+                                                                    cdt = base['contentDetails']
+                                                                    base = base['snippet']
+                                                                    if 'publishedAt' in base and 'thumbnails' in base and 'duration' in cdt:
+                                                                        datepubo = datepubo_conf = datetime.strptime(base['publishedAt'], "%Y-%m-%dT%H:%M:%S%z").astimezone(localtz)
+                                                                        video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                                        ths = ['maxres', 'standard', 'medium', 'default']
+                                                                        video['duration'] = 0 if not cdt['duration'] else parse_isoduration(cdt['duration'])
+                                                                        video['uploader'] = base.get('channelTitle')
+                                                                        video['uploader_id'] = base.get('channelId')
+                                                                        video['title'] = base.get('title', video['title'])
+                                                                        for x in ths:
+                                                                            if x in base['thumbnails']:
+                                                                                video['thumbnail'] = base['thumbnails'][x]['url']
+                                                                                break
+                                                        except Exception:
+                                                            _LOGGER.error(f'APIKEY ERROR {traceback.format_exc()}')
+                                                    if 'upload_date' not in video:
+                                                        _LOGGER.debug("Set = %s url = %s" % (set, current_url))
+                                                        video = dict()
+                                                        await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                                        datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
+                                                        datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
+                                                        datepubo = datepubo + timedelta(seconds=secadd)
+                                                        secadd -= 1
+                                                _LOGGER.debug("Found [%s] = %s | %s | %s" % (video.get('id'),
+                                                                                            video.get('title'),
+                                                                                            video.get('upload_date'),
+                                                                                            video.get('duration')))
+                                                # datepubi = int(datepubo.timestamp() * 1000)
+                                                datepubi_conf = int(datepubo_conf.timestamp() * 1000)
+                                                if video['id'] not in programs and self.video_is_not_filtered_out(video, filters):
+                                                    if datepubi_conf >= datefrom:
+                                                        if datepubi_conf <= dateto or dateto < datefrom:
+                                                            datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                            extr = video.get('extractor')
+                                                            if not extr:
+                                                                extr = playlist_dict.get('extractor')
+                                                            conf = dict(playlist=set,
+                                                                        extractor=extr,
+                                                                        userid=video.get('uploader_id'),
+                                                                        author=video.get('uploader'))
+                                                            pr = PlaylistItem(
+                                                                link=current_url,
+                                                                title=video['title'],
+                                                                datepub=datepub,
+                                                                dur=video['duration'],
+                                                                conf=conf,
+                                                                uid=video['id'],
+                                                                img=video['thumbnail'],
+                                                                playlist=playlist
+                                                            )
+                                                            programs[video['id']] = pr
+                                                            _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
+                                                    elif ordered:
+                                                        startFrom = 0
+                                                        break
+                                            except Exception:
+                                                _LOGGER.error(f'YTDLPM0 {traceback.format_exc()}')
+                                        if startFrom:
+                                            startFrom += 100
+                                    else:
+                                        startFrom = 0
+                                else:
+                                    startFrom = 0
+                            except Exception:
+                                _LOGGER.error(f'YTDLPM1 {cont_n}/3 {traceback.format_exc()}')
+                                cont_ok = False
+                                if cont_n >= 3:
+                                    startFrom = 0
                 if not len(programs):
                     return msg.err(13, MSG_NO_VIDEOS)
                 else:

@@ -344,7 +344,7 @@ function playlist_medrai_get_subbrands(brandid, type) {
             return msg;
         else
             return null;
-    }, 45000, 1);
+    }, 50000, 1);
     qel.enqueue().then(function(msg) {
         $progress.hide();
         $search.show();
@@ -375,7 +375,7 @@ function playlist_medrai_get_listings_ws(listings_cmd, params) {
             return msg;
         else
             return null;
-    }, 45000, 1);
+    }, 50000, 1);
     qel.enqueue().then(function(msg) {
         let $progress = $('#pl-add-view-medrai-progress');
         let $search = $('#pl-add-view-medrai-search');
@@ -1004,7 +1004,7 @@ function index_global_init() {
                 return msg;
             else
                 return null;
-        }, 45000, 1);
+        }, 50000, 1);
         qel.enqueue().then(function(msg) {
             $('#pl-update-view-progress').hide();
             playlist_update_destroy_wake();

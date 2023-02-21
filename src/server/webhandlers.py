@@ -10,7 +10,7 @@ from aiohttp import WSMsgType, web, ClientSession
 from aiohttp.web_response import Response
 from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
-import youtube_dl
+import yt_dlp as youtube_dl
 
 from google.oauth2 import id_token
 from google.auth.transport import requests
@@ -481,7 +481,7 @@ async def pls_h(request):
         userid = None
     else:
         userid = auid
-    ws = web.WebSocketResponse(autoping=True, heartbeat=60, autoclose=False)
+    ws = web.WebSocketResponse(autoping=True, heartbeat=None, timeout=45, autoclose=False)
     await ws.prepare(request)
     async for msg in ws:
         if msg.type == WSMsgType.TEXT:
