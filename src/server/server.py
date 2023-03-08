@@ -418,6 +418,7 @@ def main():
         parser.add_argument('--executors', type=int, help='executor number', required=False, default=2)
         parser.add_argument('--static', required=False, default=None)
         parser.add_argument('--redis', required=False, default='redis://localhost/0')
+        parser.add_argument('--pid', required=False, default=None)
         parser.add_argument('--youtube-apikey', required=False, default="")
         parser.add_argument('--host', required=False, default="0.0.0.0")
         parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))
@@ -431,6 +432,9 @@ def main():
     app.p.args = args
     loop = asyncio.get_event_loop()
     app.p.loop = loop
+    if 'pid' in args and args['pid']:
+        with open(args['pid'], "w") as f:
+            f.write(str(os.getpid()))
     try:
         loop.run_until_complete(init_db(app))
         loop.run_until_complete(start_app(app))

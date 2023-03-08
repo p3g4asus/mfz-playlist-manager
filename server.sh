@@ -5,4 +5,4 @@ cid=$(head -n 1 "$PTH/google-client-id.txt")
 red=$(head -n 1 "$PTH/redis-url.txt")
 cd "$PTH/src"
 FILEOUT=$PTH/logs/`date "+%Y%m%d"`_pm.out
-( python -m server --dbfile ../main.sqlite --static ./www --port 5802 --redis "$red" --client-id "$cid" --youtube-apikey "$apik" --autoupdate 3 -v ) > $FILEOUT 2>&1
+( python -m server --pid /tmp/pid_mfz_pm.pid --dbfile ../main.sqlite --static ./www --port 5802 --redis "$red" --client-id "$cid" --youtube-apikey "$apik" --autoupdate 3 -v ) > $FILEOUT 2>&1
