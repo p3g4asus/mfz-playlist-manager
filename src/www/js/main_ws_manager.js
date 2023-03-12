@@ -130,7 +130,7 @@ function main_ws_reconnect(onopen2) {
 
 
 function main_ws_connect(onopen2) {
-    let socket = new WebSocket(location.protocol == 'https:'?'wss://' + location.host + (location.href.indexOf('tst') > 0?'/tst-ws/':'/pm-ws/'):'ws://' + location.host + '/ws');
+    let socket = new WebSocket(location.protocol == 'https:'?'wss://' + location.host + (PTHREG?'/' + PTHREG[1] + '-ws/':'/pm-ws/'):'ws://' + location.host + '/ws');
     socket.onopen = function (event) {
         console.log('Upgrade HTTP connection OK');
         main_ws = socket;

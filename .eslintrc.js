@@ -111,6 +111,7 @@ module.exports = {
         'CMD_PLAYITSETT': true,
         'get_selected_mime': true,
         'set_selected_mime': true,
+        'PTHREG': true,
         'YT': true,
     },
     'rules': {

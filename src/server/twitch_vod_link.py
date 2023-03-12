@@ -6,30 +6,10 @@ from server.twitch_vod_quality_feeds import Feeds, getQualityV, getQualityRF, QU
 import asyncio
 import logging
 
+from server.twitch_vod_id import single_regex, vod_get_id
 from server.twitch_vod_fuzz import verifyURL
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def single_regex(pattern, v):
-    if v:
-        mo = re.search(pattern, v)
-        if mo:
-            return mo.group(1)
-    return None
-
-
-def vod_get_id(url):
-    ids = single_regex("twitch.tv/[a-z0-9]*/v/([0-9]+)", url)
-    if ids:
-        return int(ids)
-    ids = single_regex("twitch.tv/[a-z0-9]*/videos/([0-9]+)", url)
-    if ids:
-        return int(ids)
-    ids = single_regex("twitch.tv/videos/([0-9]+)", url)
-    if ids:
-        return int(ids)
-    return int(url)
 
 
 async def get_twitch_token(vodid, isvod):
@@ -93,7 +73,6 @@ class M3u8Line:
                         break
                 return M3u8Line(idv, dct)
         return None
-
 
 
 def vod_parse_feeds(m3uall):
