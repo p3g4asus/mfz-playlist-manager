@@ -20,8 +20,6 @@ from common.playlist import Playlist, PlaylistMessage
 from common.timer import Timer
 from common.utils import get_json_encoder, MyEncoder
 from server.dict_auth_policy import check_credentials, identity2username
-from server.twitch_vod_link import get_vod_feeds
-from server.twitch_vod_link0 import get_vod_link
 from server.twitch_vod_id import vod_get_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -228,22 +226,31 @@ async def img_link(request):
 
 
 async def twitch_link_finder(link, app):
-    feeds = None
-    try:
-        vodid = vod_get_id(link)
-        feeds = await get_vod_feeds(vodid)
-        _LOGGER.debug(f'link={link} vodid={vodid}: {feeds}')
-        if feeds:
-            link = feeds.getFeed(0)
-    except Exception:
-        _LOGGER.warning(f'Twitch conv error for lnk {link}: {traceback.format_exc()}')
-    if not feeds:
+    if 0:
+        from server.twitch_vod_link import get_vod_feeds
+        from server.twitch_vod_link0 import get_vod_link
+        feeds = None
         try:
-            feeds = await get_vod_link(link, app.p.executor)
+            vodid = vod_get_id(link)
+            feeds = await get_vod_feeds(vodid)
+            _LOGGER.debug(f'link={link} vodid={vodid}: {feeds}')
             if feeds:
-                link = feeds[0]
+                link = feeds.getFeed(0)
         except Exception:
-            _LOGGER.warning(f'Twitch conv0 error for lnk {link}: {traceback.format_exc()}')
+            _LOGGER.warning(f'Twitch conv error for lnk {link}: {traceback.format_exc()}')
+        if not feeds:
+            try:
+                feeds = await get_vod_link(link, app.p.executor)
+                if feeds:
+                    link = feeds[0]
+            except Exception:
+                _LOGGER.warning(f'Twitch conv0 error for lnk {link}: {traceback.format_exc()}')
+    else:
+        from server.twitch_vod_link2 import get_vod_link
+        vodid = vod_get_id(link)
+        link0 = await get_vod_link(vodid)
+        if link0:
+            link = link0
     return link
 
 
