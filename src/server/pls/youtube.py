@@ -93,8 +93,12 @@ class MessageProcessor(RefreshMessageProcessor):
                             if (mo2 or mo3) and self.apikey:
                                 req = self.youtubeApiBuild().channels().list(part="contentDetails", **(dict(id=mo2.group(1)) if mo2 else dict(forUsername=mo3.group(1))))
                                 resp = req.execute()
-                                plid = resp['items'][0]['contentDetails']['relatedPlaylists']['uploads']
-                                url = MessageProcessor.programsUrl(plid)
+                                try:
+                                    plid = resp['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+                                    url = MessageProcessor.programsUrl(plid)
+                                except Exception:
+                                    plid = '|'
+                                    url = text
                             else:
                                 mo2 = re.search(r'/(videos|streams)$', urlp.path)
                                 plid = '|'
