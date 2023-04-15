@@ -124,12 +124,13 @@ function on_play_finished(event) {
         if (dir == 10535 || dir == 10536) {
             if (playlist_item_play_settings?.remove_end || dir == 10536) {
                 let title = playlist_item_current.title;
-                let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:playlist_item_current.rowid, seen:1}, function(msg) {
+                let cel = playlist_item_current;
+                let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:cel.rowid, seen:1}, function(msg) {
                     return msg.cmd === CMD_SEEN? msg:null;
                 }, 5000, 1, 'seen');
                 qel.enqueue().then(function(msg) {
                     if (!manage_errors(msg)) {
-                        playlist_item_current.conf = {};
+                        cel.conf = {};
                         console.log('Item deleted ' + title + '!');
                     }
                     else {
@@ -487,13 +488,14 @@ function playlist_start_playing(idx) {
 
 function playlist_del_current_video() {
     if (playlist_item_current) {
-        let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:playlist_item_current.rowid, seen:1}, function(msg) {
+        let cel = playlist_item_current;
+        let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:cel.rowid, seen:1}, function(msg) {
             return msg.cmd === CMD_SEEN? msg:null;
         }, 5000, 1, 'seen');
         qel.enqueue().then(function(msg) {
             if (!manage_errors(msg)) {
-                playlist_item_current.conf = {};
-                toast_msg('Successfully deleted ' + playlist_item_current.title + '!', 'success');
+                cel.conf = {};
+                toast_msg('Successfully deleted ' + cel.title + '!', 'success');
             }
         });
     }
