@@ -136,6 +136,7 @@ class MessageProcessor(AbstractMessageProcessor):
                 return msg.err(20, MSG_INVALID_PARAM, playlistitem=None)
             elif not isinstance(seen, list):
                 seen = [seen] * len(lx)
+            nmod = 0
             for i, x in enumerate(lx):
                 it = await PlaylistItem.loadbyid(self.db, rowid=x)
                 if it:
@@ -143,12 +144,19 @@ class MessageProcessor(AbstractMessageProcessor):
                     if pls:
                         if pls[0].useri != userid:
                             return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                        if not await it.setSeen(self.db, seen[i], commit=True):
+                        if not await it.setSeen(self.db, seen[i], commit=False):
                             return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                        else:
+                            nmod += 1
+                            if it.conf:
+                                it.conf = None
+                                it.toDB(self.db, commit=False)
                     else:
                         return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
                 else:
                     return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+            if nmod:
+                await self.db.commit()
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         return msg.ok(playlistitem=llx)
