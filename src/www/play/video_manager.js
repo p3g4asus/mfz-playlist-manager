@@ -129,6 +129,7 @@ function on_play_finished(event) {
                 }, 5000, 1, 'seen');
                 qel.enqueue().then(function(msg) {
                     if (!manage_errors(msg)) {
+                        playlist_item_current.conf = {};
                         console.log('Item deleted ' + title + '!');
                     }
                     else {
@@ -491,6 +492,7 @@ function playlist_del_current_video() {
         }, 5000, 1, 'seen');
         qel.enqueue().then(function(msg) {
             if (!manage_errors(msg)) {
+                playlist_item_current.conf = {};
                 toast_msg('Successfully deleted ' + playlist_item_current.title + '!', 'success');
             }
         });
