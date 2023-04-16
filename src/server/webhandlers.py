@@ -324,7 +324,7 @@ async def login_g(request):
     # ...
     try:
         auid, _ = await authorized_userid(request)
-        response = web.HTTPFound('/')
+        response = web.HTTPNoContent()
         if isinstance(auid, int):
             await remember(request, response, INVALID_SID, max_age=86400 * 365 if form.get('remember') else None)
             return response
@@ -374,7 +374,7 @@ async def login_g(request):
 
 
 async def login(request):
-    response = web.HTTPFound('/')
+    response = web.HTTPNoContent()
     auid, _ = await authorized_userid(request)
     form = await request.post()
     if isinstance(auid, int):

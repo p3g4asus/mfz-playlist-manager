@@ -2,7 +2,7 @@ const COOKIE_LOGIN = 'API_SESSION';
 const COOKIE_USERID = 'Userid';
 const COOKIE_SELECTEDPL = 'SelectedPl';
 const COOKIE_PLAYSETT = 'playsett';
-const PTHREG = /^\/([a-z]+)/.exec(location.pathname);
+const PTHREG = /^\/([a-z0-9]+)/.exec(location.pathname);
 const MAIN_PATH_S = location.protocol == 'https:'?(PTHREG?'/' + PTHREG[1] + '-s/':'/pm-s/'):'/static/';
 const MAIN_PATH = location.protocol == 'https:'?(PTHREG?'/' + PTHREG[1] + '/':'/pm/'):'/';
 const CMD_DEL = 'del';
