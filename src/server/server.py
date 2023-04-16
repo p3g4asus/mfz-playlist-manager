@@ -272,10 +272,12 @@ async def init_db(app):
 
 def init_auth(app):
     redis = aioredis.from_url(app.p.args['redis'], encoding="utf-8", decode_responses=False)
-    storage = RedisKeyStorage(cookie_name=COOKIE_SID, httponly=True, redis_pool=redis)
+    term = f'_{app.p.args["sid"]}'
+    csid = COOKIE_SID + term
+    storage = RedisKeyStorage(cookie_name=csid, httponly=True, redis_pool=redis)
     setup_session(app, storage)
 
-    policy = SessionCookieIdentityPolicy(sid_key=COOKIE_SID, login_key=COOKIE_LOGIN, user_key=COOKIE_USERID)
+    policy = SessionCookieIdentityPolicy(sid_key=csid, login_key=COOKIE_LOGIN + term, user_key=COOKIE_USERID + term)
     setup_security(app, policy, DictAuthorizationPolicy())
 
 
@@ -419,6 +421,7 @@ def main():
         parser.add_argument('--static', required=False, default=None)
         parser.add_argument('--redis', required=False, default='redis://localhost/0')
         parser.add_argument('--pid', required=False, default=None)
+        parser.add_argument('--sid', required=False, default='')
         parser.add_argument('--youtube-apikey', required=False, default="")
         parser.add_argument('--host', required=False, default="0.0.0.0")
         parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))

@@ -1,8 +1,20 @@
+#!/bin/bash
+
 PTH=$( cd "$( dirname "${BASH_SOURCE:-$0}" )" && pwd )
 source $PTH/venv/bin/activate
-apik=$(head -n 1 "$PTH/youtube-apikey.txt")
-cid=$(head -n 1 "$PTH/google-client-id.txt")
-red=$(head -n 1 "$PTH/redis-url.txt")
+echo $PTH
+cd "$PTH"
+set -a
+. server.conf
+set +a
 cd "$PTH/src"
-FILEOUT=$PTH/logs/`date "+%Y%m%d"`_pm.out
-( python -m server --pid /tmp/pid_mfz_pm.pid --dbfile ../main.sqlite --static ./www --port 5802 --redis "$red" --client-id "$cid" --youtube-apikey "$apik" --autoupdate 3 -v ) > $FILEOUT 2>&1
+DT=`date "+%Y%m%d"`
+FILEOUT="${log_dir}/${DT}_pm.out"
+arg="-m server --pid /tmp/pid_mfz_pm.pid --dbfile ../main.sqlite --static ./www --port $http_port --redis "$redis_url" --client-id "$g_id" --youtube-apikey "$y_key" --autoupdate $autopudate --sid $s_id -v"
+echo $arg
+if [ "${async}" = true ]; then
+    echo "Spawn!"
+    (  python3 $(echo -n $arg) ) > $FILEOUT 2>&1 &
+else
+    (  python3 $(echo -n $arg) ) > $FILEOUT 2>&1
+fi

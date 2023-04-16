@@ -138,3 +138,4 @@ server_local.sh
 google-client-id.txt
 youtube-apikey.txt
 redis-url.txt
+server.conf
