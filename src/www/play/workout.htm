@@ -126,7 +126,7 @@
       </div>
       <div id="dim-row" class="row row-buffer g-0 collapse">
         <div class="row row-buffer g-0">
-          <form class="col-md-12" autocomplete="on">
+          <form class="col-md-12 col-lg-6" autocomplete="on">
             <div class="form-group">
               <label for="video-width">Video Width</label>
               <input
@@ -153,19 +153,7 @@
                 required
               />
             </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" value="" id="remove-end">
-              <label class="form-check-label" for="remove-end">
-                  Remove at end
-              </label>
-            </div>
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" value="" id="default-sett">
-                <label class="form-check-label" for="default-sett">
-                  Default
-                </label>
-            </div>
-            <select class="form-select" aria-label="Video type selector" id="mime-type">
+            <select class="form-select mt-3" aria-label="Video type selector" id="mime-type">
               <option value="">Select content type</option>
               <option value="video/ogg">opus,ogv</option>
               <option value="video/mp4">mp4,mov,m4v,m4a</option>
@@ -183,22 +171,68 @@
               <option value="image/png">png</option>
               <option value="image/svg+xml">svg</option>
             </select>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="" id="remove-end">
+              <label class="form-check-label" for="remove-end">
+                  Remove at end
+              </label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="" id="default-sett">
+                <label class="form-check-label" for="default-sett">
+                  Default
+                </label>
+            </div>
           </form>
+        </div>
+        <div class="row row-buffer g-0">
+          <div class="col-md-12 col-lg-6">
+            <select class="form-select" aria-label="Configuration name selector" id="configuration-name">
+              <option value="">Select configuration name</option>
+            </select>
+          </div>
         </div>
         <div class="row row-buffer g-0">
           <a
             id="reload_button"
-            class="btn btn-lg btn-success col-5 pe-4"
+            class="btn btn-lg btn-success col-md-4 col-lg-2 disabled"
             onclick="playlist_reload_settings(); return false;">
-            <i class="fas fa-save"></i>&nbsp;Save settings
+            <i class="fas fa-save"></i>&nbsp;Save conf
           </a>
-          <div class="col-2"></div>
           <a
             id="reset_button"
-            class="btn btn-lg btn-warning col-5"
-            onclick="playlist_reload_settings(true); return false;">
-            <i class="fa fa-toilet-paper-slash"></i>&nbsp;Reset settings
+            class="btn btn-lg btn-warning col-md-4 col-lg-2 disabled"
+            onclick="playlist_reload_settings(1); return false;">
+            <i class="fa fa-toilet-paper-slash"></i>&nbsp;Reset conf
           </a>
+          <a
+            id="remove_button"
+            class="btn btn-lg btn-danger col-md-4 col-lg-2 disabled"
+            onclick="playlist_reload_settings(3); return false;">
+            <i class="fas fa-trash"></i>&nbsp;Remove conf
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade" id="configuration-name-modal" tabindex="-1" aria-labelledby="configuration-name-modal-label" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="configuration-name-modal-label">Enter Configuration Name</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form>
+              <div class="mb-3">
+                <label for="configuration-name-input" class="col-form-label">Name:</label>
+                <input type="text" class="form-control" pattern="[A-Za-z0-9_\\- ]+" id="configuration-name-input" required>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" id="configuration-name-modal-ok" class="btn btn-primary">Save</button>
+          </div>
         </div>
       </div>
     </div>

@@ -45,6 +45,7 @@ module.exports = {
         'CMD_MEDIASET_LISTINGS': true,
         'set_next_button_enabled': true,
         'set_pause_button_enabled': true,
+        'is_pause_function_active': true,
         'get_url_without_file': true,
         'set_prev_button_enabled': true,
         'set_video_title': true,
@@ -113,6 +114,12 @@ module.exports = {
         'set_selected_mime': true,
         'PTHREG': true,
         'YT': true,
+        'on_conf_name_change': true,
+        'fill_conf_name': true,
+        'set_selected_conf_name': true,
+        'get_selected_conf_name': true,
+        'get_conf_name': true,
+        'bootstrap': true,
     },
     'rules': {
         'indent': [

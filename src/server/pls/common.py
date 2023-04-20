@@ -312,8 +312,20 @@ class MessageProcessor(AbstractMessageProcessor):
                         if 'default' not in key or msg.f('default'):
                             key['default'] = cont
                         key[msg.f('set')] = cont
-                    elif keys in play:
-                        del play[keys]
+                    elif cont is not None:
+                        play[keys] = dict()
+                    pls = await Playlist.loadbyid(self.db, useri=userid, loaditems=LOAD_ITEMS_NO)
+                    for plt in pls:
+                        if plt.rowid != x:
+                            play = plt.conf.get('play', dict())
+                            plt.conf['play'] = play
+                            if cont is None:
+                                if keys in play:
+                                    del play[keys]
+                                    await plt.toDB(self.db, commit=False)
+                            elif keys not in play:
+                                play[keys] = dict()
+                                await plt.toDB(self.db, commit=False)
                     rv = await pl.toDB(self.db)
                     if not rv:
                         return msg.err(20, MSG_INVALID_PARAM, playlist=None)

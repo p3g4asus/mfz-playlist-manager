@@ -15,6 +15,7 @@ let playlist_item_current_oldrowid = null;
 let playlist_item_current_wasplaying = 0;
 let playlist_item_current_time_timer = null;
 let playlist_item_current_idx = -1;
+let playlist_current_userid = -1;
 
 function get_video_params_from_item(idx) {
     playlist_item_current = null;
@@ -166,7 +167,7 @@ function on_play_finished(event) {
 function on_player_state_changed(player, event) {
     console.log('Player state changed: new ' + event);
     if (event == VIDEO_STATUS_UNSTARTED || event == VIDEO_STATUS_PAUSED || event === VIDEO_STATUS_CUED)
-        set_pause_button_enabled(true, '<i class="fas fa-play"></i>&nbsp;&nbsp;Play');
+        set_pause_button_enabled(true, '<i class="fas fa-play"></i>&nbsp;&nbsp;Play', true);
     else if (event == VIDEO_STATUS_PLAYING) {
         set_pause_button_enabled(true, '<i class="fas fa-pause"></i>&nbsp;&nbsp;Pause');
         if (playlist_item_current_oldrowid !== playlist_item_current.rowid) {
@@ -439,6 +440,7 @@ function get_startup_settings() {
     if (orig_up.has('name') && (plname = orig_up.get('name')).length) {
         find_user_cookie().then(function (useri) {
             main_ws_reconnect(get_remoteplay_link);
+            playlist_current_userid = useri;
             playlist_dump(useri);
             playlist_dump(useri, plname);
         }).catch(function() {
@@ -465,7 +467,6 @@ function playlist_start_playing(idx) {
     let rebuild = get_video_params_from_item(idx);
     set_reload_button_enabled(playlist_item_current != null);
     set_remove_button_enabled(playlist_item_current != null);
-    set_reset_button_enabled(playlist_item_current != null);
     if (playlist_item_current) {
         if (rebuild) {
             playlist_rebuild_player();
@@ -502,48 +503,73 @@ function playlist_del_current_video() {
 }
 
 function playlist_reload_settings(reset) {
-    if (playlist_item_current) {
-        let el = new MainWSQueueElement({
-            cmd: CMD_PLAYSETT,
-            playlist: playlist_current.rowid,
-            set: reset?'':playlist_key_from_item(playlist_item_current.conf),
-            key: playlist_play_settings_key,
-            playid: playlist_item_current.uid,
-            default: get_default_check(),
-            content: reset?null: {
-                width: get_spinner_value('width'),
-                height: get_spinner_value('height'),
-                remove_end: get_remove_check(),
-                mime: get_selected_mime()
-            }
-        }, function(msg) {
-            return msg.cmd === CMD_PLAYSETT? msg:null;
-        }, 3000, 1, 'playsett');
-        el.enqueue().then(function(msg) {
-            if (!manage_errors(msg)) {
-                playlist_current.conf.play = msg.playlist.conf.play;
-                playlist_play_settings = reset?{}:msg.playlist.conf.play[playlist_play_settings_key];
-                playlist_start_playing(0);
-            }
-            else {
-                toast_msg('Cannot reload playlist!! ' + playlist_current.name + ' from ' + playlist_item_current.uid , 'danger');
-            }
-        })
-            .catch(function(err) {
-                toast_msg('Cannot reload playlist: ' + err, 'danger');
-            });
+    //vedi nome da gui se reset falso: se nome vuoto non fare niente. Se pieno procedi
+    get_conf_name(reset).then((cname) => {
+        if (playlist_item_current) {
+            let el = new MainWSQueueElement({
+                cmd: CMD_PLAYSETT,
+                playlist: playlist_current.rowid,
+                set: reset?'':playlist_key_from_item(playlist_item_current.conf),
+                key: cname,
+                playid: playlist_item_current.uid,
+                default: get_default_check(),
+                content: (reset & 2)? null: (reset?'':{
+                    width: get_spinner_value('width'),
+                    height: get_spinner_value('height'),
+                    remove_end: get_remove_check(),
+                    mime: get_selected_mime()
+                })
+            }, function(msg) {
+                return msg.cmd === CMD_PLAYSETT? msg:null;
+            }, 3000, 1, 'playsett');
+            el.enqueue().then(function(msg) {
+                if (!manage_errors(msg)) {
+                    //rimuovi da select se reset e setta la key a vuota
+                    //aggiungi in select se non reset e non presente: setta key a nome
+                    fill_conf_name(msg.playlist.conf.play, playlist_play_settings_key = (reset & 2)?'':cname);
+                    playlist_current.conf.play = msg.playlist.conf.play;
+                    on_conf_name_change(playlist_play_settings_key);
+                }
+                else {
+                    toast_msg('Cannot reload playlist!! ' + playlist_current.name + ' from ' + playlist_item_current.uid , 'danger');
+                }
+            })
+                .catch(function(err) {
+                    toast_msg('Cannot reload playlist: ' + err, 'danger');
+                });
+        }
+    });
+}
+
+function on_conf_name_change(newconf) {
+    docCookies.setItem(COOKIE_PLAYSETT + playlist_current_userid, newconf, Infinity);
+    playlist_play_settings_key = newconf;
+    if (playlist_current.conf.play && playlist_current.conf.play[playlist_play_settings_key]) {
+        playlist_play_settings = playlist_current.conf.play[playlist_play_settings_key];
     }
+    else
+        playlist_play_settings = {};
+    restart_playing();
+}
+
+function restart_playing() {
+    if (!is_pause_function_active())
+        video_manager_obj.togglePause();
+    playlist_item_current_oldrowid = -1;
+    setTimeout(() => {playlist_start_playing(0); }, 800);
 }
 
 function init_video_manager() {
-    playlist_play_settings_key = docCookies.getItem(COOKIE_PLAYSETT);
+    fill_conf_name(playlist_current.conf.play);
+    playlist_play_settings_key = docCookies.getItem(COOKIE_PLAYSETT + playlist_current_userid);
     if (!playlist_play_settings_key) {
-        playlist_play_settings_key = generate_rand_string(16);
-        docCookies.setItem(COOKIE_PLAYSETT, playlist_play_settings_key, Infinity);
+        playlist_play_settings_key = '';
     }
     else {
-        if (playlist_current.conf.play && playlist_current.conf.play[playlist_play_settings_key])
+        if (playlist_current.conf.play && playlist_current.conf.play[playlist_play_settings_key]) {
             playlist_play_settings = playlist_current.conf.play[playlist_play_settings_key];
+        }
     }
+    set_selected_conf_name(playlist_play_settings_key);
     playlist_start_playing(null);
 }

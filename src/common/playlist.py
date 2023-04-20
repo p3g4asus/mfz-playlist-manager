@@ -217,7 +217,7 @@ class Playlist(JSONAble, Fieldable):
         await self.fix_iorder(db, commit=commit)
         return rv
 
-    async def toDB(self, db):
+    async def toDB(self, db, commit=True):
         if isinstance(self.conf, str):
             c = self.conf
         else:
@@ -269,7 +269,8 @@ class Playlist(JSONAble, Fieldable):
                 if not i.seen:
                     i.playlist = self.rowid
                     await i.toDB(db, commit=False)
-            await db.commit()
+            if commit:
+                await db.commit()
             return True
         else:
             return False

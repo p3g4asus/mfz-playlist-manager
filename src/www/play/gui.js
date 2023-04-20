@@ -32,12 +32,20 @@ function remove_playlist_button() {
     $('#playlist_items_cont').remove();
 }
 
-function set_pause_button_enabled(enabled, txt) {
+function is_pause_function_active() {
+    let $pb = $('#pause_button');
+    return !$pb.hasClass('disabled') && $pb.data('pause') ;
+}
+
+function set_pause_button_enabled(enabled, txt, pause) {
+    let $pb = $('#pause_button');
     if (!enabled)
-        $('#pause_button').addClass('disabled');
+        $pb.addClass('disabled');
     else
-        $('#pause_button').removeClass('disabled');
-    $('#pause_button').html(txt);
+        $pb.removeClass('disabled');
+    if (txt)
+        $pb.html(txt);
+    $pb.data('pause', pause?true:false);
 }
 
 function set_prev_button_enabled(enabled) {
@@ -132,8 +140,96 @@ function set_default_check(v) {
     return $('#default-sett').prop('checked', v);
 }
 
+function fill_conf_name(obj, sel) {
+    let $cname = $('#configuration-name');
+    $cname.find('option[value!=""]').remove();
+    if (obj) {
+        let sel2 = null;
+        for (const conf of Object.keys(obj)) {
+            if (conf != 'id') {
+                $cname.append($('<option>').prop('value', conf).text(conf));
+                if (conf == sel)
+                    sel2 = sel;
+            }
+        }
+        sel = sel2;
+        if (!sel)
+            sel = '';
+    }
+    else
+        sel = '';
+    set_selected_conf_name(sel);
+}
+
+function get_selected_conf_name() {
+    let v = $('#configuration-name').find('option:selected').val();
+    return v;
+}
+
+function get_conf_name(reset) {
+    let cnames = get_selected_conf_name(), prom;
+    if (reset && !cnames.length)
+        prom = Promise.reject();
+    else if ((!reset && cnames.length) || (reset && cnames.length))
+        prom = Promise.resolve(cnames);
+    else {
+        let resok, resko;
+        prom = new Promise(function(resolve, reject) {
+            resok = resolve;
+            resko = reject;
+        });
+        let $modal = $('#configuration-name-modal');
+        let modbs = bootstrap.Modal.getOrCreateInstance($modal[0]);
+        $modal.off('hidden.bs.modal').on('hidden.bs.modal', () => {
+            resko();
+            modbs.dispose();
+        });
+        $modal.off('shown.bs.modal').on('shown.bs.modal', function (event) {
+            let $bok = $('#configuration-name-modal-ok');
+            $bok.click(() => {
+                let $form = $modal.find('form');
+                if ($form[0].checkValidity()) {
+                    $modal.off('hidden.bs.modal').on('hidden.bs.modal', () => {
+                        resok($('#configuration-name-input').val());
+                        modbs.dispose();
+                    });
+                    modbs.hide();
+                }
+                $form.addClass('was-validated');
+            });
+        });
+        modbs.show();
+    }
+    return prom;
+}
+
+function set_selected_conf_name(name) {
+    $('#configuration-name option[value="' + name +'"]').prop('selected','selected');
+    conf_button_enable();
+}
+
+function conf_button_enable(selval) {
+    if (typeof selval == 'undefined') {
+        selval = get_selected_conf_name();
+    }
+    if (!selval.length) {
+        $('#remove_button').addClass('disabled');
+        $('#reset_button').addClass('disabled');
+    }
+    else {
+        $('#remove_button').removeClass('disabled');
+        $('#reset_button').removeClass('disabled');
+    }
+}
+
 $(window).on('load', function() {
     $('#video-width').inputSpinner();
     $('#video-height').inputSpinner();
+    let $cname = $('#configuration-name');
+    $cname.on('change', () => {
+        let selval = get_selected_conf_name();
+        on_conf_name_change(selval);
+        conf_button_enable(selval);
+    });
     get_startup_settings();
 });
