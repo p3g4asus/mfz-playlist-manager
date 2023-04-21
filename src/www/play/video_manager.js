@@ -465,7 +465,7 @@ function playlist_key_from_item(conf) {
 
 function playlist_start_playing(idx) {
     let rebuild = get_video_params_from_item(idx);
-    set_reload_button_enabled(playlist_item_current != null);
+    set_save_conf_button_enabled(playlist_item_current != null);
     set_remove_button_enabled(playlist_item_current != null);
     if (playlist_item_current) {
         if (rebuild) {

@@ -62,11 +62,11 @@ function set_next_button_enabled(enabled) {
         $('#next_button').removeClass('disabled');
 }
 
-function set_reload_button_enabled(enabled) {
+function set_save_conf_button_enabled(enabled) {
     if (!enabled)
-        $('#reload_button').addClass('disabled');
+        $('#save_conf_button').addClass('disabled');
     else
-        $('#reload_button').removeClass('disabled');
+        $('#save_conf_button').removeClass('disabled');
 }
 
 function set_remove_button_enabled(enabled) {
@@ -76,11 +76,11 @@ function set_remove_button_enabled(enabled) {
         $('#remove_button').removeClass('disabled');
 }
 
-function set_reset_button_enabled(enabled) {
+function set_reset_conf_button_enabled(enabled) {
     if (!enabled)
-        $('#reset_button').addClass('disabled');
+        $('#reset_conf_button').addClass('disabled');
     else
-        $('#reset_button').removeClass('disabled');
+        $('#reset_conf_button').removeClass('disabled');
 }
 
 function set_video_title(title) {
@@ -213,12 +213,12 @@ function conf_button_enable(selval) {
         selval = get_selected_conf_name();
     }
     if (!selval.length) {
-        $('#remove_button').addClass('disabled');
-        $('#reset_button').addClass('disabled');
+        $('#remove_conf_button').addClass('disabled');
+        $('#reset_conf_button').addClass('disabled');
     }
     else {
-        $('#remove_button').removeClass('disabled');
-        $('#reset_button').removeClass('disabled');
+        $('#remove_conf_button').removeClass('disabled');
+        $('#reset_conf_button').removeClass('disabled');
     }
 }
 
