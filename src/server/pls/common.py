@@ -314,6 +314,8 @@ class MessageProcessor(AbstractMessageProcessor):
                         key[msg.f('set')] = cont
                     elif cont is not None:
                         play[keys] = dict()
+                    elif keys in play:
+                        del play[keys]
                     pls = await Playlist.loadbyid(self.db, useri=userid, loaditems=LOAD_ITEMS_NO)
                     for plt in pls:
                         if plt.rowid != x:
