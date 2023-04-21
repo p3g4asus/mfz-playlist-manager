@@ -463,26 +463,33 @@ function playlist_key_from_item(conf) {
         return 'boh';
 }
 
+function playlist_rebuild_reconstruct_player() {
+    playlist_rebuild_player();
+    let pthis;
+    if ((pthis = players_map[playlist_player])) {
+        if (pthis.destroy)
+            pthis.destroy();
+        new pthis.constructor(video_width, video_height);
+        return true;
+    }
+    else
+        return false;
+}
+
 function playlist_start_playing(idx) {
     let rebuild = get_video_params_from_item(idx);
     set_save_conf_button_enabled(playlist_item_current != null);
     set_remove_button_enabled(playlist_item_current != null);
     if (playlist_item_current) {
         if (rebuild) {
-            playlist_rebuild_player();
-            let pthis;
-            if ((pthis = players_map[playlist_player])) {
-                if (pthis.destroy)
-                    pthis.destroy();
-                new pthis.constructor(video_width, video_height);
-            }
-            else
+            if (!playlist_rebuild_reconstruct_player())
                 dyn_module_load('./' + playlist_player + '_player.js?reload=' + (new Date().getTime()));
         }
         else
             on_player_load(playlist_player, video_manager_obj);
     }
     else {
+        playlist_rebuild_reconstruct_player();
         toast_msg('No more video in playlist', 'warning');
     }
 }
