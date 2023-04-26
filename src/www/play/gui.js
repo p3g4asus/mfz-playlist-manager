@@ -146,7 +146,7 @@ function fill_conf_name(obj, sel) {
     if (obj) {
         let sel2 = null;
         for (const conf of Object.keys(obj)) {
-            if (conf != 'id') {
+            if (conf != 'id' && obj[conf]) {
                 $cname.append($('<option>').prop('value', conf).text(conf));
                 if (conf == sel)
                     sel2 = sel;

@@ -5,6 +5,7 @@ let playlist_arr = [];
 let playlists_arr = [];
 let playlist_remoteplay = '';
 let players_map = {};
+let playlists_conf_map = {};
 
 let playlist_play_settings_key = '';
 let playlist_play_settings = {};
@@ -334,8 +335,13 @@ function playlist_dump(useri, plid) {
                 }
                 else {
                     add_playlist_to_button();
+                    playlists_conf_map = {};
                     for (let it of msg.playlists) {
                         add_playlist_to_button(it.name);
+                        let obj = it?.conf?.play;
+                        for (const conf of Object.keys(obj)) {
+                            playlists_conf_map[conf] = true;
+                        }
                     }
                     playlists_arr = msg.playlists;
                     get_remoteplay_link();
@@ -533,7 +539,8 @@ function playlist_reload_settings(reset) {
                 if (!manage_errors(msg)) {
                     //rimuovi da select se reset e setta la key a vuota
                     //aggiungi in select se non reset e non presente: setta key a nome
-                    fill_conf_name(msg.playlist.conf.play, playlist_play_settings_key = (reset & 2)?'':cname);
+                    playlists_conf_map[cname] = !(reset & 2);
+                    fill_conf_name(playlists_conf_map, playlist_play_settings_key = (reset & 2)?'':cname);
                     playlist_current.conf.play = msg.playlist.conf.play;
                     on_conf_name_change(playlist_play_settings_key);
                 }
@@ -567,7 +574,7 @@ function restart_playing() {
 }
 
 function init_video_manager() {
-    fill_conf_name(playlist_current.conf.play);
+    fill_conf_name(playlists_conf_map);
     playlist_play_settings_key = docCookies.getItem(COOKIE_PLAYSETT + playlist_current_userid);
     if (!playlist_play_settings_key) {
         playlist_play_settings_key = '';
