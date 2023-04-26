@@ -517,13 +517,15 @@ function playlist_del_current_video() {
 
 function playlist_reload_settings(reset) {
     //vedi nome da gui se reset falso: se nome vuoto non fare niente. Se pieno procedi
-    get_conf_name(reset).then((cname) => {
+    get_conf_name(reset).then(([cname, oldv]) => {
         if (playlist_item_current) {
+            oldv = !oldv?'':oldv;
             let el = new MainWSQueueElement({
                 cmd: CMD_PLAYSETT,
                 playlist: playlist_current.rowid,
                 set: reset?'':playlist_key_from_item(playlist_item_current.conf),
                 key: cname,
+                oldkey: oldv,
                 playid: playlist_item_current.uid,
                 default: get_default_check(),
                 content: (reset & 2)? null: (reset?'':{
@@ -539,6 +541,7 @@ function playlist_reload_settings(reset) {
                 if (!manage_errors(msg)) {
                     //rimuovi da select se reset e setta la key a vuota
                     //aggiungi in select se non reset e non presente: setta key a nome
+                    playlists_conf_map[oldv] = false;
                     playlists_conf_map[cname] = !(reset & 2);
                     fill_conf_name(playlists_conf_map, playlist_play_settings_key = (reset & 2)?'':cname);
                     playlist_current.conf.play = msg.playlist.conf.play;

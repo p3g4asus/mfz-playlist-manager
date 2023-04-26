@@ -168,10 +168,11 @@ function get_selected_conf_name() {
 
 function get_conf_name(reset) {
     let cnames = get_selected_conf_name(), prom;
+    let oldv = reset?'':cnames;
     if (reset && !cnames.length)
         prom = Promise.reject();
-    else if ((!reset && cnames.length) || (reset && cnames.length))
-        prom = Promise.resolve(cnames);
+    else if (reset && cnames.length)
+        prom = Promise.resolve([cnames, oldv]);
     else {
         let resok, resko;
         prom = new Promise(function(resolve, reject) {
@@ -186,11 +187,13 @@ function get_conf_name(reset) {
         });
         $modal.off('shown.bs.modal').on('shown.bs.modal', function (event) {
             let $bok = $('#configuration-name-modal-ok');
+            let $cninput = $('#configuration-name-input');
+            $cninput.val(oldv);
             $bok.click(() => {
                 let $form = $modal.find('form');
                 if ($form[0].checkValidity()) {
                     $modal.off('hidden.bs.modal').on('hidden.bs.modal', () => {
-                        resok($('#configuration-name-input').val());
+                        resok([$cninput.val(), oldv]);
                         modbs.dispose();
                     });
                     modbs.hide();

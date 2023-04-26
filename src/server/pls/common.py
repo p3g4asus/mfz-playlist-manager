@@ -305,6 +305,7 @@ class MessageProcessor(AbstractMessageProcessor):
                     pl.conf['play'] = play
                     play['id'] = msg.f('playid')
                     keys = msg.f('key')
+                    oldkeys = msg.f('oldkey')
                     cont = msg.f('content')
                     if cont:
                         key = play.get(keys, dict())
@@ -312,6 +313,8 @@ class MessageProcessor(AbstractMessageProcessor):
                         if 'default' not in key or msg.f('default'):
                             key['default'] = cont
                         key[msg.f('set')] = cont
+                        if oldkeys and oldkeys in play:
+                            del play[oldkeys]
                     elif cont is not None:
                         play[keys] = dict()
                     elif keys in play:
@@ -326,7 +329,11 @@ class MessageProcessor(AbstractMessageProcessor):
                                     del play[keys]
                                     await plt.toDB(self.db, commit=False)
                             elif keys not in play:
-                                play[keys] = dict()
+                                newconf = dict()
+                                if oldkeys and oldkeys in play:
+                                    newconf = play[oldkeys]
+                                    del play[oldkeys]
+                                play[keys] = newconf
                                 await plt.toDB(self.db, commit=False)
                     rv = await pl.toDB(self.db)
                     if not rv:
