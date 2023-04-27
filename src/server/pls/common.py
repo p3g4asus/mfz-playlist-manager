@@ -308,13 +308,13 @@ class MessageProcessor(AbstractMessageProcessor):
                     oldkeys = msg.f('oldkey')
                     cont = msg.f('content')
                     if cont:
-                        key = play.get(keys, dict())
+                        key = play.get(keys if not oldkeys else oldkeys, dict())
+                        if oldkeys and oldkeys in play and keys != oldkeys:
+                            del play[oldkeys]
                         play[keys] = key
                         if 'default' not in key or msg.f('default'):
                             key['default'] = cont
                         key[msg.f('set')] = cont
-                        if oldkeys and oldkeys in play:
-                            del play[oldkeys]
                     elif cont is not None:
                         play[keys] = dict()
                     elif keys in play:
@@ -328,7 +328,7 @@ class MessageProcessor(AbstractMessageProcessor):
                                 if keys in play:
                                     del play[keys]
                                     await plt.toDB(self.db, commit=False)
-                            elif keys not in play:
+                            elif keys not in play or (oldkeys and oldkeys in play and keys != oldkeys):
                                 newconf = dict()
                                 if oldkeys and oldkeys in play:
                                     newconf = play[oldkeys]
