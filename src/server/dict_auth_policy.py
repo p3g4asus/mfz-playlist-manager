@@ -14,6 +14,14 @@ class DictAuthorizationPolicy(AbstractAuthorizationPolicy):
         dsid = login.get('sid', 'c')
         tokenrefresh = dct.get('tokenrefresh', -2)
         hextoken = login.get('token', 'a')
+        # Nota Bug browsers basati su chromium su android: a volte anche se il browser è stato chiuso con l'utente loggato
+        # questo if risulterà falso perchè fallisce il controllo sha sul token. Questo perchè il valore del cookie inviato
+        # dal browser non è quello ottenuto nella precedente sessione
+        # dopo l'ultimo refresh del token ma quello precedente. Questo perchè probabilmente il db dei cookie di chromium
+        # per android non viene committato al momento della modifica del cookie ma in maniera asincrona più tardi.
+        # Se il browser viene però killato prima di effettuare il commit della transaziione di modifica nel db dei cookie,
+        # il valore del cookie rimane il precedente. Questa cosa con Firefox (basato non su chromium ma su gecko) non succede e
+        # tutto funziona a dovere.
         if tokenrefresh >= 0 and dsid == login.get('sid', 'b') and dsid == sid and csid == sid and\
            login.get('uid', 'a') == clogin.get('uid', 'b') and\
            hashlib.sha256(clogin.get('token', 'a').encode('utf-8')).hexdigest() == hextoken:

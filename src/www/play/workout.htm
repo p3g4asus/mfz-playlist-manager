@@ -123,6 +123,13 @@
       </div>
       <div id="remoteplay-row" class="row row-buffer collapse">
         <div class="col-12" id="qr-remote-play-content"></div>
+        <div class="col-md-12 col-lg-6">
+          <div id="telegram-copy-tool"></div>
+          <div class="input-group">
+            <input type="text" id="telegram-input-link" class="form-control" placeholder="Tg Link" aria-label="Telegram Register Link" aria-describedby="telegram-button-copy" readonly>
+            <button class="btn btn-primary" type="button" id="telegram-button-copy"><i class="fab fa-telegram-plane"></i></button>
+          </div>
+        </div>
       </div>
       <div id="dim-row" class="row row-buffer g-0 collapse">
         <div class="row row-buffer g-0">
@@ -232,6 +239,22 @@
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             <button type="button" id="configuration-name-modal-ok" class="btn btn-primary">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade" id="telegram-token-modal" tabindex="-1" aria-labelledby="telegram-token-modal-label" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="telegram-token-modal-label">Modal title</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <h5>Insert Token:&nbsp;</h5><h3 style="color: coral;"></h3><h5>&nbsp;in&nbsp;</h5><h4 style="color: red;"></h4>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
       </div>

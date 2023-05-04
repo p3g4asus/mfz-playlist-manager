@@ -300,16 +300,18 @@ function send_video_info_for_remote_play(w, video_info) {
     let el = new MainWSQueueElement(o, function(msg) {
         return msg.cmd === CMD_REMOTEPLAY_PUSH? msg:null;
     }, 3000, 1, 'remoteplay_vinfo');
-    el.enqueue().then(function(msg) {
+    return el.enqueue().then(function(msg) {
         if (!manage_errors(msg)) {
             console.log('Remoteplay push ok ' + JSON.stringify(msg.what));
         }
         else {
             console.log('Remoteplay push fail: ' + JSON.stringify(msg));
         }
+        return msg;
     })
         .catch(function(err) {
             console.log('Remoteplay push fail ' + err);
+            return err;
         });
 }
 
@@ -390,6 +392,21 @@ function remotejs_process(msg) {
             video_manager_obj.rew(parseInt(msg.n));
             save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
         }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_TELEGRAM) {
+            let modvisible = is_telegram_token_visible();
+            if (!modvisible && msg.act == 'start') {
+                let token = generate_rand_string(5);
+                let expire = new Date().getTime() + 60000;
+                send_video_info_for_remote_play('token_info', {'token': token, 'exp': expire, 'username': msg.username}).then((msgrp) => {
+                    if (!manage_errors(msgrp)) {
+                        show_telegram_token(token, msg.username, expire - new Date().getTime());
+                    }
+                });
+            }
+            else if (modvisible && msg.act == 'finish') {
+                hide_telegram_token();
+            }
+        }
         else if (msg.sub == CMD_REMOTEPLAY_JS_GOTO) {
             window.location.assign(msg.link);
         }
@@ -429,6 +446,7 @@ function get_remoteplay_link() {
                     console.log('QRCODE success!');
                 });
                 $rpc.empty().append($a);
+                set_telegram_link(msg.telegram);
                 remotejs_enqueue();
             }
         })

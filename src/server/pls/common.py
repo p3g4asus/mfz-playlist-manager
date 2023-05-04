@@ -372,9 +372,11 @@ class MessageProcessor(AbstractMessageProcessor):
         elif msg.c(CMD_SORT):
             resp = await self.processSort(msg, userid, executor)
         elif msg.c(CMD_CLOSE):
-            await ws.close()
+            if ws is not None:
+                await ws.close()
         if resp:
-            await ws.send_str(json.dumps(resp, cls=MyEncoder))
+            if ws is not None:
+                await ws.send_str(json.dumps(resp, cls=MyEncoder))
             return resp
         else:
             return None

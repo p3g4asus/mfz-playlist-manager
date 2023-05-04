@@ -1,24 +1,30 @@
+import hashlib
 import json
 import logging
+import traceback
 from email.message import EmailMessage
 from functools import partial
 from textwrap import dedent
-import traceback
+from time import time
 from urllib.parse import urlencode
+from uuid import uuid4
 
-from aiohttp import WSMsgType, web, ClientSession
+import yt_dlp as youtube_dl
+from aiohttp import ClientSession, WSMsgType, web
 from aiohttp.web_response import Response
 from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
-import yt_dlp as youtube_dl
-
-from google.oauth2 import id_token
 from google.auth.transport import requests
+from google.oauth2 import id_token
 
-from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_PUSH, CONV_LINK_ASYNCH_SHIFT, CONV_LINK_ASYNCH_TWITCH, CONV_LINK_MASK, INVALID_SID, MSG_UNAUTHORIZED)
+from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_JS,
+                          CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH,
+                          CONV_LINK_ASYNCH_SHIFT, CONV_LINK_ASYNCH_TWITCH,
+                          CONV_LINK_MASK, INVALID_SID, MSG_INVALID_PARAM,
+                          MSG_UNAUTHORIZED)
 from common.playlist import Playlist, PlaylistMessage
 from common.timer import Timer
-from common.utils import get_json_encoder, MyEncoder
+from common.utils import MyEncoder, get_json_encoder
 from server.dict_auth_policy import check_credentials, identity2username
 from server.twitch_vod_id import vod_get_id
 
@@ -435,7 +441,41 @@ async def process_remoteplay_cmd_queue(ws, queue):
                 else:
                     i += 1
             except Exception:
+                _LOGGER.warning(f'Remote play command failed {traceback.format_exc()}')
                 return queue[i:]
+
+
+async def telegram_command(request):
+    hextoken = request.match_info['hex']
+    dws = request.app.p.ws
+    if hextoken in dws and isinstance(dws[hextoken], str) and dws[hextoken] in dws and isinstance(dws[dws[hextoken]], dict):
+        q = request.query
+        cmd = None
+        dct = dws[dws[hextoken]]
+        if 'act' in q and q['act'] == 'start' and 'username' in q:
+            cmd = dict(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_TELEGRAM, act='start', username=q['username'])
+        elif 'act' in q and q['act'] == 'finish' and 'username' in q and 'token' in q and 'token_info' in dct and dct['token_info']['exp'] > time() * 1000 and q['username'] == dct['token_info']['username']:
+            tok = dct['token_info']['token']
+            del dct['token_info']
+            if q['token'] == tok:
+                db = request.app.p.db
+                cmd = dict(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_TELEGRAM, act='finish')
+                await db.execute("UPDATE user set tg=null WHERE tg=?", (q['username'], ))
+                await db.execute("UPDATE user set tg=? WHERE rowid=?", (q['username'], dct['uid']))
+                await db.commit()
+            else:
+                return web.HTTPUnauthorized(body='Invalid token: please retry')
+        else:
+            return web.HTTPNotAcceptable(body='Invalid params')
+        if cmd:
+            cmd = json.dumps(cmd)
+            if dct['cmdqueue']:
+                dct['cmdqueue'].append(cmd)
+            else:
+                dct['cmdqueue'] = await process_remoteplay_cmd_queue(dct['ws'], [cmd])
+            return web.HTTPNoContent()
+    else:
+        return web.HTTPNotFound(body='Invalid hex token')
 
 
 async def remote_command(request):
@@ -510,12 +550,21 @@ async def pls_h(request):
                     _LOGGER.info("Invalid token")
                     await ws.send_str(json.dumps(pl.err(502, MSG_UNAUTHORIZED), cls=MyEncoder))
                 else:
-                    dd = request.app.p.ws.get(hextoken, dict())
-                    dd.update(dict(ws=ws))
-                    request.app.p.ws[hextoken] = dd
-                    host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{hextoken}"
-                    await ws.send_str(json.dumps(pl.ok(url=host, hex=hextoken), cls=MyEncoder))
-                    dd['cmdqueue'] = (await process_remoteplay_cmd_queue(ws, dd['cmdqueue'])) if 'cmdqueue' in dd else []
+                    dws = request.app.p.ws
+                    dd = dws.get(hextoken, dict())
+                    if isinstance(dd, dict):
+                        dd.update(dict(ws=ws, uid=userid))
+                        dws[hextoken] = dd
+                        if 'telegram' in dd and dd['telegram'] in dws:
+                            del dws[dd['telegram']]
+                        telegram = dd['telegram'] = hashlib.sha256(str(uuid4()).encode('utf-8')).hexdigest()
+                        dws[telegram] = hextoken
+                        host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{hextoken}"
+                        host2 = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}telegram/{telegram}"
+                        await ws.send_str(json.dumps(pl.ok(url=host, telegram=host2, hex=hextoken), cls=MyEncoder))
+                        dd['cmdqueue'] = (await process_remoteplay_cmd_queue(ws, dd['cmdqueue'])) if 'cmdqueue' in dd else []
+                    else:
+                        await ws.send_str(json.dumps(pl.err(20, MSG_INVALID_PARAM)))
             elif pl.c(CMD_REMOTEPLAY_PUSH):
                 if not hextoken:
                     _LOGGER.info("Invalid token")
@@ -524,7 +573,7 @@ async def pls_h(request):
                     try:
                         w = pl.f(pl.what)
                         dd = request.app.p.ws.get(hextoken, dict())
-                        dd.update({'ws': ws, pl.what: w})
+                        dd.update({'ws': ws, pl.what: w, 'uid': userid})
                         request.app.p.ws[hextoken] = dd
                         _LOGGER.info(f'New dict el for {hextoken} [{pl.what}] -> {json.dumps(w)}')
                         await ws.send_str(json.dumps(pl.ok(), cls=MyEncoder))

@@ -108,6 +108,7 @@ module.exports = {
         'CMD_REMOTEPLAY_JS_REW': true,
         'CMD_REMOTEPLAY_JS_GOTO': true,
         'CMD_REMOTEPLAY_JS_SEC': true,
+        'CMD_REMOTEPLAY_JS_TELEGRAM': true,
         'CMD_REMOTEPLAY_PUSH': true,
         'CMD_PLAYITSETT': true,
         'get_selected_mime': true,
@@ -120,6 +121,10 @@ module.exports = {
         'get_selected_conf_name': true,
         'get_conf_name': true,
         'bootstrap': true,
+        'show_telegram_token': true,
+        'is_telegram_token_visible': true,
+        'hide_telegram_token': true,
+        'set_telegram_link': true,
     },
     'rules': {
         'indent': [

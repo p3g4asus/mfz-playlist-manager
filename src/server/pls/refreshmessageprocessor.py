@@ -29,7 +29,8 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
         else:
             resp = await self.getResponse(msg, userid, executor)
         if resp:
-            await ws.send_str(json.dumps(resp, cls=MyEncoder))
+            if ws is not None:
+                await ws.send_str(json.dumps(resp, cls=MyEncoder))
             return resp
         else:
             return None

@@ -166,6 +166,54 @@ function get_selected_conf_name() {
     return v;
 }
 
+function is_telegram_token_visible() {
+    return $('#telegram-token-modal').is(':visible');
+}
+
+function hide_telegram_token() {
+    let $modal = $('#telegram-token-modal');
+    let modbs = bootstrap.Modal.getInstance($modal[0]);
+    if (modbs)
+        modbs.hide();
+}
+
+function show_telegram_token(token, username, timeout) {
+    if (timeout > 1000) {
+        let $modal = $('#telegram-token-modal');
+        let modbs = bootstrap.Modal.getOrCreateInstance($modal[0]);
+        let $h4t = $modal.find('.modal-body h4');
+        $h4t.text('? sec');
+        let fntel = () => {
+            if (is_telegram_token_visible()) {
+                timeout = timeout - 1000<=0?0:timeout - 1000;
+                $h4t.text((Math.round(timeout / 1000)) + ' sec');
+                if (timeout)
+                    $modal.data('timer', setTimeout(fntel, 1000));
+                else
+                    modbs.hide();
+            }
+        };
+        $modal.off('hidden.bs.modal').on('hidden.bs.modal', function (event) {
+            let v = $modal.data('timer');
+            if (v) {
+                $modal.removeData('timer');
+                clearTimeout(v);
+            }
+            
+        });
+        $modal.off('shown.bs.modal').on('shown.bs.modal', function (event) {
+            $('#telegram-token-modal-label').text('Telegram: ' + username);
+            $modal.find('.modal-body h3').text(token);
+            setTimeout(fntel, 1000);
+        });
+        modbs.show();
+    }
+}
+
+function set_telegram_link(telegram) {
+    $('#telegram-input-link').val(telegram);
+}
+
 function get_conf_name(reset) {
     let cnames = get_selected_conf_name(), prom;
     let oldv = reset?'':cnames;
@@ -228,6 +276,26 @@ function conf_button_enable(selval) {
 $(window).on('load', function() {
     $('#video-width').inputSpinner();
     $('#video-height').inputSpinner();
+    let $bc = $('#telegram-button-copy');
+    $bc.click(() => {
+        let lnk = $('#telegram-input-link').val();
+        if (lnk && lnk.length) {
+            navigator.clipboard.writeText(lnk).then(function() {
+                console.log('Async: Copying to clipboard was successful!');
+                let $tct = $('#telegram-copy-tool');
+                let tooltip = bootstrap.Tooltip.getOrCreateInstance($tct.get(0), {
+                    'container': $bc.get(0),
+                    'title': 'Copied!'
+                }); 
+                tooltip.show();
+                $tct.on('shown.bs.tooltip', () => {
+                    setTimeout(() => tooltip.dispose(), 5000);
+                });
+            }, function(err) {
+                console.error('Async: Could not copy text: ', err);
+            });
+        }
+    });
     let $cname = $('#configuration-name');
     $cname.on('change', () => {
         let selval = get_selected_conf_name();
