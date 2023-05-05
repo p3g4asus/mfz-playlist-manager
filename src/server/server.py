@@ -371,6 +371,8 @@ def main():
                 loop.run_until_complete(r.cleanup())
             if app.p.db:
                 loop.run_until_complete(app.p.db.close())
+            if app.p.db2:
+                loop.run_until_complete(app.p.db2.close())
             _LOGGER.debug("Server: Closing loop")
             loop.close()
         except Exception:
