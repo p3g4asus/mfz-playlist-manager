@@ -351,7 +351,7 @@ def main():
         loop.run_until_complete(start_app(app))
         if app.p.args['telegram']:
             loop2 = asyncio.new_event_loop()
-            app.p.telegram_executor = Executor(loop=loop2, nthreads=1)
+            app.p.telegram_executor = Executor(loop=loop2, nthreads=3)
             app.p.telegram_executor(start_telegram_bot, app.p, loop2)
         if platform.system() != "Windows":
             stop_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGABRT)

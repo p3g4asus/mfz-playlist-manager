@@ -148,9 +148,9 @@ class MessageProcessor(AbstractMessageProcessor):
                             return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                         else:
                             nmod += 1
-                            if it.conf:
-                                it.conf = None
-                                it.toDB(self.db, commit=False)
+                            if isinstance(it.conf, dict) and 'sec' in it.conf:
+                                del it.conf['sec']
+                                await it.toDB(self.db, commit=False)
                     else:
                         return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
                 else:

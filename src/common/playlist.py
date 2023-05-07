@@ -275,6 +275,13 @@ class Playlist(JSONAble, Fieldable):
         else:
             return False
 
+    def get_duration(self, seen=False):
+        dur = 0
+        for i in self.items:
+            if seen or not i.seen:
+                dur += i.dur
+        return dur
+
 
 class PlaylistItem(JSONAble, Fieldable):
     def __init__(self, dbitem=None, title=None, uid=None, rowid=None, link=None, conf=None, playlist=None, img=None, datepub=None, dur=None, seen=None, iorder=None, **kwargs):

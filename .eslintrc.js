@@ -125,6 +125,7 @@ module.exports = {
         'is_telegram_token_visible': true,
         'hide_telegram_token': true,
         'set_telegram_link': true,
+        'Telegram': true,
     },
     'rules': {
         'indent': [
