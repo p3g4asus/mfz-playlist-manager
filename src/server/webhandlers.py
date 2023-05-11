@@ -4,13 +4,14 @@ import logging
 import traceback
 from email.message import EmailMessage
 from functools import partial
+from os.path import exists, isfile, splitext
 from textwrap import dedent
 from time import time
 from urllib.parse import urlencode
 from uuid import uuid4
 
 import yt_dlp as youtube_dl
-from aiohttp import ClientSession, WSMsgType, web
+from aiohttp import ClientSession, WSMsgType, streamer, web
 from aiohttp.web_response import Response
 from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
@@ -22,7 +23,7 @@ from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_JS,
                           CONV_LINK_ASYNCH_SHIFT, CONV_LINK_ASYNCH_TWITCH,
                           CONV_LINK_MASK, INVALID_SID, MSG_INVALID_PARAM,
                           MSG_UNAUTHORIZED)
-from common.playlist import Playlist, PlaylistMessage
+from common.playlist import LOAD_ITEMS_NO, Playlist, PlaylistItem, PlaylistMessage
 from common.timer import Timer
 from common.utils import MyEncoder, get_json_encoder
 from server.dict_auth_policy import check_credentials, identity2username
@@ -443,6 +444,50 @@ async def process_remoteplay_cmd_queue(ws, queue):
             except Exception:
                 _LOGGER.warning(f'Remote play command failed {traceback.format_exc()}')
                 return queue[i:]
+
+
+@streamer
+async def file_sender(writer, file_path=None):
+    """
+    This function will read large file chunk by chunk and send it through HTTP
+    without reading them into memory
+    """
+    with open(file_path, 'rb') as f:
+        chunk = f.read(2 ** 16)
+        while chunk:
+            await writer.write(chunk)
+            chunk = f.read(2 ** 16)
+
+
+async def download(request):
+    auid, _ = await authorized_userid(request)
+    if not isinstance(auid, int):
+        userid = None
+    else:
+        userid = auid
+    rowid = int(request.match_info['rowid'])
+    if userid and rowid:
+        it = await PlaylistItem.loadbyid(request.app.p.db, rowid=rowid)
+        if it:
+            pls = await Playlist.loadbyid(request.app.p.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            if pls:
+                if pls[0].useri != userid:
+                    return web.HTTPUnauthorized(body='Invalid user id')
+                elif not it.dl or not exists(it.dl) or not isfile(it.dl):
+                    return web.HTTPBadRequest(body=f'Invalid dl: {it.dl} for {it.title}')
+                else:
+                    headers = {
+                        "Content-disposition": f"attachment; filename={it.title}{splitext(it.dl)[1]}"
+                    }
+
+                    return web.Response(
+                        body=file_sender(file_path=it.dl),
+                        headers=headers,
+                        content_type='application/octet-stream',
+                    )
+        return web.HTTPNotFound(body='Invalid playlist or playlist item')
+    else:
+        return web.HTTPNotAcceptable(body="Invalid userid or rowid")
 
 
 async def telegram_command(request):

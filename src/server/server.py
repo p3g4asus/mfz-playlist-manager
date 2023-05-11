@@ -26,7 +26,7 @@ from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
 from server.telegram_bot import start_telegram_bot, stop_telegram_bot
-from server.webhandlers import (img_link, index, login, login_g, logout,
+from server.webhandlers import (download, img_link, index, login, login_g, logout,
                                 modify_pw, playlist_m3u, pls_h,
                                 redirect_till_last, register, remote_command,
                                 telegram_command, twitch_redir_do,
@@ -150,6 +150,7 @@ CREATE_DB_IF_NOT_EXIST = [
         playlist INTEGER NOT NULL,
         dur INTEGER NOT NULL,
         conf TEXT,
+        dl TEXT,
         iorder INTEGER NOT NULL,
         UNIQUE(uid, playlist),
         UNIQUE(playlist, iorder),
@@ -257,6 +258,7 @@ async def start_app(app):
     app.router.add_route('GET', '/telegram/{hex:[a-fA-F0-9]+}', telegram_command)
     app.router.add_route('POST', '/login_g', login_g)
     app.router.add_route('POST', '/login', login)
+    app.router.add_route('get', '/dl/{rowid:[0-9]+}', download)
     app.router.add_route('POST', '/modifypw', modify_pw)
     app.router.add_route('POST', '/register', register)
     app.router.add_route('GET', '/logout', logout)
@@ -330,6 +332,7 @@ def main():
     parser.add_argument('--sid', required=False, default='')
     parser.add_argument('--pickle', required=False, default='')
     parser.add_argument('--telegram', required=False, default='')
+    parser.add_argument('--common-dldir', required=False, default='')
     parser.add_argument('--youtube-apikey', required=False, default="")
     parser.add_argument('--host', required=False, default="0.0.0.0")
     parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))

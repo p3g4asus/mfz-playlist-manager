@@ -1,24 +1,27 @@
 import asyncio
-from datetime import datetime, timedelta
-import json
-from enum import Enum, auto
-from html import escape
 import logging
 import re
 import traceback
 from abc import abstractmethod
-from aiohttp import ClientSession
-from telegram.ext._callbackcontext import CallbackContext
-from telegram.ext._utils.types import BD, BT, CD, UD
-from telegram_menu import TelegramMenuSession, BaseMessage, NavigationHandler, ButtonType
-from telegram_menu.models import emoji_replace, MenuButton
-from typing import Any, Coroutine, Optional, Union, List
+from datetime import datetime
+from enum import Enum, auto
+from html import escape
+from os import stat
+from os.path import exists, isfile, split
+from typing import Any, Coroutine, List, Optional, Union
 from urllib.parse import urlencode, urlparse
 
 import validators
-from common.const import CMD_DEL, CMD_DUMP, CMD_IORDER, CMD_REFRESH, CMD_REN, CMD_SORT, CMD_SEEN
+from aiohttp import ClientSession
+from telegram.ext._callbackcontext import CallbackContext
+from telegram.ext._utils.types import BD, BT, CD, UD
+from telegram_menu import (BaseMessage, ButtonType, NavigationHandler,
+                           TelegramMenuSession)
+from telegram_menu.models import MenuButton, emoji_replace
 
-from common.playlist import LOAD_ITEMS_ALL, LOAD_ITEMS_NO, LOAD_ITEMS_UNSEEN, Playlist, PlaylistItem, PlaylistMessage
+from common.const import (CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_IORDER,
+                          CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT)
+from common.playlist import (PlaylistMessage)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,6 +80,8 @@ class NameDurationStatus(Enum):
     UPDATING_RUNNING = auto()
     UPDATING_WAITING = auto()
     SORTING = auto()
+    DOWNLOADING = auto()
+    DOWNLOADING_WAITING = auto()
 
 
 class NameDurationTMessage(BaseMessage):
@@ -108,7 +113,10 @@ class NameDurationTMessage(BaseMessage):
 
     async def switch_to_status(self, args, context):
         self.status = args[0]
-        await self.edit_message()
+        try:
+            await self.edit_message()
+        except Exception:
+            _LOGGER.warning(f'edit error {traceback.format_exc()}')
 
     async def switch_to_idle(self):
         if self.return_msg and self.sub_status != -1000:
@@ -132,7 +140,10 @@ class NameDurationTMessage(BaseMessage):
                 seconds=8,
                 replace_existing=True,
             )
-        await self.edit_message()
+        try:
+            await self.edit_message()
+        except Exception:
+            _LOGGER.warning(f'edit error {traceback.format_exc()}')
 
     async def long_operation_do(self):
         sign = self.sub_status & 512
@@ -142,7 +153,10 @@ class NameDurationTMessage(BaseMessage):
         elif self.sub_status == 0:
             sign = 0
         self.sub_status = (self.sub_status + 1 * (-1 if sign else 1)) | sign
-        await self.edit_message()
+        try:
+            await self.edit_message()
+        except Exception:
+            _LOGGER.warning(f'edit error {traceback.format_exc()}')
 
     async def wait_undo_job(self):
         if self.sub_status <= 0:
@@ -151,7 +165,10 @@ class NameDurationTMessage(BaseMessage):
                 await self.switch_to_idle()
         else:
             self.sub_status -= 1
-            await self.edit_message()
+            try:
+                await self.edit_message()
+            except Exception:
+                _LOGGER.warning(f'edit error {traceback.format_exc()}')
 
     @abstractmethod
     async def delete_item_do(self):
@@ -181,6 +198,43 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 await self.set_iorder_do(int(text))
                 await self.switch_to_idle()
 
+    async def stop_download(self, context):
+        pl = PlaylistMessage(CMD_DOWNLOAD)
+        pl = await self.proc.process(pl)
+
+    def download_format(self, args, context):
+        asyncio.get_event_loop().create_task(self.download_format_1(args, context))
+
+    async def download_format_1(self, args, context):
+        self.status = NameDurationStatus.DOWNLOADING
+        self.sub_status = 10
+        self.scheduler_job = self.navigation.scheduler.add_job(
+            self.long_operation_do,
+            "interval",
+            id=f"long_operation_do{id(self)}",
+            seconds=2,
+            replace_existing=True,
+        )
+        pl = PlaylistMessage(CMD_DOWNLOAD,
+                             playlistitem=self.id,
+                             fmt=args[0],
+                             host=f'{self.proc.params.link}/{self.proc.params.args["sid"]}',
+                             conv=args[1])
+        pl = await self.proc.process(pl)
+        if pl.rv == 0:
+            self.obj.dl = pl.playlistitem.dl
+            self.return_msg = f'Download OK {split(self.obj.dl)[1]} :thumbs_up:'
+        else:
+            self.return_msg = f'Error {pl.rv} downloading {self.name} :thumbs_down:'
+        await self.switch_to_idle()
+
+    def sizeof_fmt(self, num, suffix="B"):
+        for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
+            if abs(num) < 1024.0:
+                return f"{num:3.1f}{unit}{suffix}"
+            num /= 1024.0
+        return f"{num:.1f}Yi{suffix}"
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
@@ -188,6 +242,32 @@ class PlaylistItemTMessage(NameDurationTMessage):
             if self.status == NameDurationStatus.IDLE:
                 self.add_button(u'\U0001F5D1', self.delete_item_pre)
                 self.add_button(u'\U00002211', self.switch_to_status, args=(NameDurationStatus.SORTING, ))
+                self.add_button(u'\U0001F517', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, ))
+            elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
+                self.add_button('bestaudio', self.download_format, args=('bestaudio', 0))
+                self.add_button('best', self.download_format, args=('best', 0))
+                self.add_button('worstaudio', self.download_format, args=('worstaudio', 0))
+                self.add_button('worst', self.download_format, args=('worst', 0))
+                if 'twitch.tv' in self.obj.link:
+                    self.add_button('bestaudio os', self.download_format, args=('bestaudio', 4))
+                    self.add_button('best os', self.download_format, args=('best', 4))
+                    self.add_button('worstaudio os', self.download_format, args=('worstaudio', 4))
+                    self.add_button('worst os', self.download_format, args=('worst', 4))
+                self.add_button(':cross_mark: Abort', self.switch_to_idle)
+            elif self.status == NameDurationStatus.DOWNLOADING:
+                self.add_button(':cross_mark: Abort', self.stop_download)
+                upd = f'{escape(self.name)} downloading {"." * (self.sub_status & 0xFF)}'
+                if 'dl' in self.proc.processors['common'].status and 'raw' in self.proc.processors['common'].status['dl']:
+                    dl = self.proc.processors['common'].status['dl']['raw']
+                    upd2 = ''
+                    if 'fragment_index' in dl and 'fragment_count' in dl and isinstance(dl['fragment_index'], (int, float)) and isinstance(dl['fragment_count'], (int, float)):
+                        no = int(round(30.0 * dl['fragment_index'] / dl['fragment_count']))
+                        upd2 += '[' + (no * 'o') + ((30 - no) * ' ') + ']'
+                    if 'speed' in dl and isinstance(dl['speed'], (int, float)):
+                        upd2 += ' %.2f KB/s' % (dl['speed'] / 1024.0)
+                    if upd2:
+                        upd += '\n<code>' + upd2 + '</code>'
+                return upd
             elif self.status == NameDurationStatus.SORTING:
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return f'Enter \U00002211 for <b>{self.name}</b>'
@@ -195,13 +275,18 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.add_button(u'\U0000267B', self.delete_item_pre)
         if self.status == NameDurationStatus.DELETING:
             self.add_button(f':cross_mark: Undo in {self.sub_status} sec', self.switch_to_idle)
-        upd = f'<a href="{self.obj.link}">{self.index})<b>{self.name}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub}\n'
-        upd += f'\U0001F64B: {"N/A" if not self.obj.conf or "author" not in self.obj.conf else self.obj.conf["author"]}\n'
+        upd = f'<a href="{self.obj.link}">{self.index})<b>{escape(self.name)}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub}\n'
+        if self.obj.conf and 'author' in self.obj.conf and self.obj.conf['author']:
+            upd += f'\U0001F64B: {self.obj.conf["author"]}\n'
         upd += f'\U00002211: {self.obj.iorder}'
+        mainlnk = f'{self.proc.params.link}/{self.proc.params.args["sid"]}'
         if 'twitch.tv' in self.obj.link:
-            lnk = f'{self.proc.params.link}/{self.proc.params.args["sid"]}/twi?'
+            lnk = f'{mainlnk}/twi?'
             par = urlencode(dict(link=self.obj.link))
-            upd += f'<a href="{lnk}{par}">\U0001F7E3 TWI</a>'
+            upd += f'\n<a href="{lnk}{par}">\U0001F7E3 TWI</a>'
+        if self.obj.dl and exists(self.obj.dl) and isfile(self.obj.dl):
+            sta = stat(self.obj.dl)
+            upd += f'\n<a href="{mainlnk}/dl/{self.id}">DL {self.sizeof_fmt(sta.st_size) if sta else ""}</a>'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'
         if self.return_msg:
             upd += f'\n<b>{self.return_msg}</b>'
@@ -265,6 +350,9 @@ class PlaylistTMessage(NameDurationTMessage):
         else:
             self.return_msg = f'Error {pl.rv} renaming {self.name} :thumbs_down:'
 
+    def update_playlist(self):
+        asyncio.get_event_loop().create_task(self.update_playlist_1())
+
     async def update_playlist_1(self):
         self.status = NameDurationStatus.UPDATING_RUNNING
         self.sub_status = 10
@@ -272,7 +360,7 @@ class PlaylistTMessage(NameDurationTMessage):
             self.long_operation_do,
             "interval",
             id="long_operation_do",
-            seconds=0.5,
+            seconds=2,
             replace_existing=True,
         )
         pl = PlaylistMessage(CMD_REFRESH, playlist=self.obj, datefrom=int(self.upd_sta.timestamp() * 1000), dateto=int(self.upd_sto.timestamp() * 1000))
@@ -285,14 +373,17 @@ class PlaylistTMessage(NameDurationTMessage):
             self.return_msg = f'Error {pl.rv} refreshing {self.name} :thumbs_down:'
         await self.switch_to_idle()
 
-    async def sort_playlist(self):
+    def sort_playlist(self):
+        asyncio.get_event_loop().create_task(self.sort_playlist_1())
+
+    async def sort_playlist_1(self):
         self.status = NameDurationStatus.SORTING
         self.sub_status = 10
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.long_operation_do,
             "interval",
             id="long_operation_do",
-            seconds=0.5,
+            seconds=2,
             replace_existing=True,
         )
         pl = PlaylistMessage(CMD_SORT, playlist=self.id)
@@ -354,7 +445,7 @@ class PlaylistTMessage(NameDurationTMessage):
                 self.add_button(self.upd_sta.strftime('%Y-%m-%d'), self.switch_to_status, args=(NameDurationStatus.UPDATING_START, ))
                 self.add_button(self.upd_sto.strftime('%Y-%m-%d'), self.switch_to_status, args=(NameDurationStatus.UPDATING_STOP, ))
                 self.add_button(':cross_mark: Abort', self.switch_to_idle, new_row=True)
-                self.add_button(u'\U0001F501', self.update_playlist_1)
+                self.add_button(u'\U0001F501', self.update_playlist)
                 if self.status == NameDurationStatus.UPDATING_START:
                     return '<u>Start date</u> (YYMMDD)'
                 elif self.status == NameDurationStatus.UPDATING_STOP:
@@ -364,9 +455,16 @@ class PlaylistTMessage(NameDurationTMessage):
                 elif self.status == NameDurationStatus.UPDATING_RUNNING:
                     return f'{self.name} updating {"." * (self.sub_status & 0xFF)}'
         datepubo = datetime.fromtimestamp(int(self.obj.dateupdate / 1000))
-        upd = f'<b>{self.name}</b> - <i>Id {self.id}</i>\nLength: {self.unseen} \U000023F1 {duration2string(self.obj.get_duration())}\n'
+        upd = f'<b>{self.name}</b> - <i>Id {self.id}</i>'
+        if self.obj.type == 'youtube':
+            upd += '\U0001F534'
+        elif self.obj.type == 'rai':
+            upd += '\U0001F535'
+        elif self.obj.type == 'mediaset':
+            upd += '\U00002B24'
+        upd += f'\nLength: {self.unseen} \U000023F1 {duration2string(self.obj.get_duration())}\n'
         upd += f':eye: {len(self.obj.items)} \U000023F1 {duration2string(self.obj.get_duration(True))}\n'
-        upd += f'Update \U000023F3: {datepubo.strftime("%Y-%m-%d %H:%M:%S")}\n'
+        upd += f'Update \U000023F3: {datepubo.strftime("%Y-%m-%d %H:%M:%S")} ' + ("\U00002705" if self.obj.autoupdate else "") + '\n'
         lnk = f'{self.proc.params.link}/{self.proc.params.args["sid"]}'
         par = urlencode(dict(username=self.proc.username, name=self.name, host=lnk))
         upd += f'<a href="{lnk}/m3u?{par}&fmt=m3u">M3U8</a>, <a href="{lnk}/m3u?{par}&fmt=ely">ELY</a>, <a href="{lnk}/m3u?{par}&fmt=json">JSON</a>\n'
@@ -388,7 +486,7 @@ class GroupOfNameDurationItems(object):
         self.stop_item = -1
 
     def is_valid(self):
-        return self.start_item or self.stop_item
+        return self.start_item >= 0 and self.stop_item >= 0
 
     def add_item(self, item):
         if not self.items:
@@ -509,8 +607,12 @@ class ListPagesTMessage(BaseMessage):
             nitems = len(items)
             last_group_items = nitems % self.max_items_per_group
             ngroups = int(nitems / self.max_items_per_group) + (1 if last_group_items else 0)
+            if not last_group_items:
+                last_group_items = self.max_items_per_group
             last_page_groups = ngroups % self.max_group_per_page
             npages = int(ngroups / self.max_group_per_page) + (1 if last_page_groups else 0)
+            if not last_page_groups:
+                last_page_groups = self.max_group_per_page
             if nitems:
                 oldpage = None
                 self.first_page = thispage = MultipleGroupsOfItems()
@@ -548,7 +650,10 @@ class ListPagesTMessage(BaseMessage):
                     async with session.get(item.thumb, headers=headers) as resp:
                         if not (resp.status >= 200 and resp.status < 300):
                             item.thumb = item.picture = ''
-            await self.navigation._send_app_message(item, label, context)
+            try:
+                await self.navigation._send_app_message(item, label, context)
+            except Exception:
+                _LOGGER.error(f'goto_group error {traceback.format_exc()}')
 
     def get_page_label(self, page):
         if page.start_item == page.stop_item:
@@ -558,7 +663,10 @@ class ListPagesTMessage(BaseMessage):
 
     def get_group_label(self, group):
         if group.start_item == group.stop_item:
-            return f'{group.start_item + 1}) {group.items[0].name} ({duration2string(group.items[0].secs)})'
+            beginning = f'{group.start_item + 1}) {group.items[0].name}'
+            if len(beginning) > 70:
+                beginning = beginning[0:70] + '...'
+            return f'{beginning} ({duration2string(group.items[0].secs)})'
         else:
             return f'{group.start_item + 1} - {group.stop_item + 1}'
 

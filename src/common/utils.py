@@ -60,6 +60,7 @@ def parse_isoduration(s):
 class AbstractMessageProcessor(abc.ABC):
     def __init__(self, db, **kwargs):
         self.db = db
+        self.status = dict()
 
     @abc.abstractmethod
     def interested(self, msg):

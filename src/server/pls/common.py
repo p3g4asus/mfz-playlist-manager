@@ -1,30 +1,29 @@
-from base64 import b64encode
-import traceback
-from common.utils import AbstractMessageProcessor, MyEncoder
-from common.const import (
-    CMD_DEL,
-    CMD_PLAYID,
-    CMD_PLAYITSETT,
-    CMD_PLAYSETT,
-    CMD_REN,
-    CMD_DUMP,
-    CMD_MOVE,
-    CMD_ADD,
-    CMD_IORDER,
-    CMD_SEEN,
-    CMD_SORT,
-    CMD_CLOSE,
-    MSG_NAME_TAKEN,
-    MSG_BACKEND_ERROR,
-    MSG_INVALID_PARAM,
-    MSG_UNAUTHORIZED,
-    MSG_PLAYLIST_NOT_FOUND,
-    MSG_PLAYLISTITEM_NOT_FOUND
-)
-from common.playlist import LOAD_ITEMS_ALL, LOAD_ITEMS_NO, LOAD_ITEMS_UNSEEN, Playlist, PlaylistItem
+import asyncio
+from functools import partial
 import json
 import logging
+from os import remove, rename
+import socket
+import subprocess
+import sys
+import traceback
 import zlib
+from base64 import b64encode
+from os.path import exists, join, isfile, splitext, split
+
+from pythonosc.osc_server import AsyncIOOSCUDPServer
+from pythonosc.dispatcher import Dispatcher
+from pythonosc.udp_client import SimpleUDPClient
+
+from common.const import (CMD_ADD, CMD_CLOSE, CMD_DOWNLOAD, CMD_DEL, CMD_DUMP, CMD_IORDER,
+                          CMD_MOVE, CMD_PLAYID, CMD_PLAYITSETT, CMD_PLAYSETT,
+                          CMD_REN, CMD_SEEN, CMD_SORT, MSG_BACKEND_ERROR,
+                          MSG_INVALID_PARAM, MSG_NAME_TAKEN,
+                          MSG_PLAYLIST_NOT_FOUND, MSG_PLAYLISTITEM_NOT_FOUND,
+                          MSG_UNAUTHORIZED)
+from common.playlist import (LOAD_ITEMS_ALL, LOAD_ITEMS_NO, LOAD_ITEMS_UNSEEN,
+                             Playlist, PlaylistItem)
+from common.utils import AbstractMessageProcessor, MyEncoder
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,12 +31,18 @@ DUMP_LIMIT = 50
 
 
 class MessageProcessor(AbstractMessageProcessor):
+    def __init__(self, db, dldir='', **kwargs):
+        super().__init__(db, **kwargs)
+        self.dl_dir = dldir
+        self.osc_s = None
+        self.osc_t = None
+        self.osc_c = None
 
     def interested(self, msg):
         return msg.c(CMD_DEL) or msg.c(CMD_REN) or msg.c(CMD_DUMP) or\
             msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or\
             msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or\
-            msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT)
+            msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT) or msg.c(CMD_DOWNLOAD)
 
     async def processMove(self, msg, userid, executor):
         pdst = msg.playlistId()
@@ -148,8 +153,18 @@ class MessageProcessor(AbstractMessageProcessor):
                             return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                         else:
                             nmod += 1
+                            todb = False
+                            if seen[i] and it.dl and exists(it.dl) and isfile(it.dl):
+                                try:
+                                    remove(it.dl)
+                                    it.dl = None
+                                    todb = True
+                                except Exception:
+                                    pass
                             if isinstance(it.conf, dict) and 'sec' in it.conf:
                                 del it.conf['sec']
+                                todb = True
+                            if todb:
                                 await it.toDB(self.db, commit=False)
                     else:
                         return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
@@ -179,6 +194,117 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         return msg.ok(playlistitem=x)
+
+    @staticmethod
+    def find_free_port():
+        sock = socket.socket()
+        sock.bind(('', 0))
+        return sock.getsockname()[1]
+
+    def processDlSendJob(self, job, *_):
+        self.osc_c.send_message('/startjob', (job[0], json.dumps(job[1])))
+
+    def processDlJobProgress(self, _, status):
+        self.status['dl'] = json.loads(status)
+
+    def processDlJobDone(self, _, exits):
+        self.status['dlx'] = json.loads(exits)
+        self.osc_c.send_message('/destroy', 1)
+
+    async def processDlInitOSCClientServer(self, job):
+        dispatcher = Dispatcher()
+        dispatcher.map("/iamalive", partial(self.processDlSendJob, job))
+        dispatcher.map("/jobprogress", self.processDlJobProgress)
+        dispatcher.map("/jobdone", self.processDlJobDone)
+        myport = self.find_free_port()
+        self.osc_s = AsyncIOOSCUDPServer(('127.0.0.1', myport), dispatcher, asyncio.get_event_loop())
+        self.osc_t, _ = await self.osc_s.create_serve_endpoint()  # Create datagram endpoint and start serving
+        hisport = self.find_free_port()
+        self.osc_c = SimpleUDPClient('127.0.0.1', hisport)
+        return (str(hisport), str(myport))
+
+    def processDlOpenAndWait(self, args):
+        pthfile = join(split(__file__)[0], '..', '..', 'youtubedl_process.py')
+        subprocess.run([sys.executable, pthfile, *args], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    async def processDl(self, msg, userid, executor):
+        x = msg.playlistItemId()
+        if x:
+            if self.osc_s:
+                return msg.err(502, MSG_INVALID_PARAM, playlist=None)
+            else:
+                it = await PlaylistItem.loadbyid(self.db, rowid=x)
+                if it:
+                    pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+                    if pls:
+                        if pls[0].useri != userid:
+                            return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                        format = msg.f('fmt')
+                        conv = msg.f('conv')
+                        host = msg.f('host')
+                        if 'audio' in format:
+                            format = format.replace('audio', '')
+                            kw = dict(extractaudio=True,
+                                      addmetadata=True,
+                                      embedthumbnail=True,
+                                      postprocessors=[dict(key='FFmpegExtractAudio')])
+                        else:
+                            kw = dict()
+                        ytdl_opt = dict(
+                            format=format,
+                            noplaylist=True,
+                            ignoreerrors=True,
+                            outtmpl=join(self.dl_dir, f'{x}_t.%(ext)s'),
+                            **kw
+                        )
+                        self.status['dl'] = dict()
+                        self.status['dlx'] = dict()
+                        await executor(self.processDlOpenAndWait, await self.processDlInitOSCClientServer((it.get_conv_link(host, conv), ytdl_opt)))
+                        if 'sta' in self.status['dl'] and not self.status['dl']['sta'] and\
+                           'file' in self.status['dl'] and self.status['dl']['file'] and\
+                           'rv' in self.status['dlx'] and not self.status['dlx']['rv']:
+                            try:
+                                remove(it.dl)
+                            except Exception:
+                                pass
+                            rv_err = self.status['dlx']
+                            if 'raw' in rv_err and 'requested_downloads' in rv_err['raw'] and\
+                               rv_err['raw']['requested_downloads'] and\
+                               'filepath' in rv_err['raw']['requested_downloads'][0] and\
+                               rv_err['raw']['requested_downloads'][0]['filepath']:
+                                fromfile = rv_err['raw']['requested_downloads'][0]['filepath']
+                            else:
+                                fromfile = self.status['dl']['file']
+                            _, ext = splitext(fromfile)
+                            it.dl = join(self.dl_dir, f'{x}{ext}')
+                            rename(fromfile, it.dl)
+                            self.osc_t.close()
+                            self.osc_s = None
+                            if not await it.toDB(self.db):
+                                return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                        else:
+                            if 'dl' in self.status and 'files' in self.status['dl']:
+                                i = self.status['dl']['file']
+                                try:
+                                    remove(i)
+                                except Exception:
+                                    pass
+                                for i in self.status['dl']['files']:
+                                    try:
+                                        remove(i)
+                                    except Exception:
+                                        pass
+                            self.osc_t.close()
+                            self.osc_s = None
+                            return msg.err(5, MSG_BACKEND_ERROR, playlistitem=None)
+                    else:
+                        return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+                else:
+                    return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                return msg.ok(playlistitem=it)
+        elif self.osc_s:
+            self.osc_c.send_message('/haltjob', 1)
+            return msg.ok()
 
     async def processIOrder(self, msg, userid, executor):
         x = msg.playlistItemId()
@@ -369,6 +495,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processSeen(msg, userid, executor)
         elif msg.c(CMD_IORDER):
             resp = await self.processIOrder(msg, userid, executor)
+        elif msg.c(CMD_DOWNLOAD):
+            resp = await self.processDl(msg, userid, executor)
         elif msg.c(CMD_SORT):
             resp = await self.processSort(msg, userid, executor)
         elif msg.c(CMD_CLOSE):

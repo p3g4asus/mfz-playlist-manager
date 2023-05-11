@@ -284,7 +284,7 @@ class Playlist(JSONAble, Fieldable):
 
 
 class PlaylistItem(JSONAble, Fieldable):
-    def __init__(self, dbitem=None, title=None, uid=None, rowid=None, link=None, conf=None, playlist=None, img=None, datepub=None, dur=None, seen=None, iorder=None, **kwargs):
+    def __init__(self, dbitem=None, title=None, uid=None, rowid=None, link=None, conf=None, playlist=None, img=None, datepub=None, dur=None, seen=None, iorder=None, dl=None, **kwargs):
         if dbitem:
             if isinstance(dbitem, str):
                 dbitem = json.loads(dbitem)
@@ -299,6 +299,7 @@ class PlaylistItem(JSONAble, Fieldable):
             self.dur = dbitem['dur']
             self.seen = dbitem['seen']
             self.iorder = dbitem['iorder']
+            self.dl = dbitem['dl']
         else:
             self.rowid = rowid
             self.uid = uid
@@ -311,6 +312,7 @@ class PlaylistItem(JSONAble, Fieldable):
             self.dur = dur
             self.seen = seen
             self.iorder = iorder
+            self.dl = dl
         if self.conf and isinstance(self.conf, str):
             self.conf = json.loads(self.conf)
 
@@ -497,8 +499,8 @@ class PlaylistItem(JSONAble, Fieldable):
                 await cursor.execute(
                     '''
                     INSERT OR REPLACE INTO playlist_item(
-                        rowid,uid,link,title,playlist,conf,datepub,img,dur,iorder
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                        rowid,uid,link,title,playlist,conf,datepub,img,dur,iorder,dl
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     ''',
                     (self.rowid,
                      self.uid,
@@ -509,7 +511,8 @@ class PlaylistItem(JSONAble, Fieldable):
                      self.datepub,
                      self.img,
                      self.dur,
-                     self.iorder))
+                     self.iorder,
+                     self.dl))
                 self.rowid = cursor.lastrowid
                 await cursor.execute(
                     '''
