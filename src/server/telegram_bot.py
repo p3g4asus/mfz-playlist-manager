@@ -3,7 +3,7 @@ import logging
 import re
 import traceback
 from abc import abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum, auto
 from html import escape
 from os import stat
@@ -102,9 +102,9 @@ class NameDurationTMessage(BaseMessage):
             navigation,
             f'{self.__class__.__name__}_{myid}_{int(datetime.now().timestamp() * 1000)}',
             picture=self.thumb,
-            expiry_period=None,
             inlined=True,
             home_after=False,
+            expiry_period=timedelta(hours=10)
         )
         self.status = NameDurationStatus.IDLE
         self.sub_status = 0
@@ -198,8 +198,9 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 await self.set_iorder_do(int(text))
                 await self.switch_to_idle()
 
-    async def stop_download(self, context):
-        pl = PlaylistMessage(CMD_DOWNLOAD)
+    async def stop_download(self, args, _):
+        myid = args[0]
+        pl = PlaylistMessage(CMD_DOWNLOAD, playlistitem=myid)
         pl = await self.proc.process(pl)
 
     def download_format(self, args, context):
@@ -212,8 +213,9 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.long_operation_do,
             "interval",
             id=f"long_operation_do{id(self)}",
-            seconds=2,
+            seconds=3,
             replace_existing=True,
+            next_run_time=datetime.utcnow()
         )
         pl = PlaylistMessage(CMD_DOWNLOAD,
                              playlistitem=self.id,
@@ -244,29 +246,34 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 self.add_button(u'\U00002211', self.switch_to_status, args=(NameDurationStatus.SORTING, ))
                 self.add_button(u'\U0001F517', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, ))
             elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
-                self.add_button('bestaudio', self.download_format, args=('bestaudio', 0))
+                self.add_button('bestaudio', self.download_format, args=('bestaudio/best', 0))
                 self.add_button('best', self.download_format, args=('best', 0))
-                self.add_button('worstaudio', self.download_format, args=('worstaudio', 0))
+                self.add_button('worstaudio', self.download_format, args=('worstaudio/worst', 0))
                 self.add_button('worst', self.download_format, args=('worst', 0))
                 if 'twitch.tv' in self.obj.link:
-                    self.add_button('bestaudio os', self.download_format, args=('bestaudio', 4))
+                    self.add_button('bestaudio os', self.download_format, args=('bestaudio/best', 4))
                     self.add_button('best os', self.download_format, args=('best', 4))
-                    self.add_button('worstaudio os', self.download_format, args=('worstaudio', 4))
+                    self.add_button('worstaudio os', self.download_format, args=('worstaudio/worst', 4))
                     self.add_button('worst os', self.download_format, args=('worst', 4))
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
             elif self.status == NameDurationStatus.DOWNLOADING:
-                self.add_button(':cross_mark: Abort', self.stop_download)
-                upd = f'{escape(self.name)} downloading {"." * (self.sub_status & 0xFF)}'
-                if 'dl' in self.proc.processors['common'].status and 'raw' in self.proc.processors['common'].status['dl']:
-                    dl = self.proc.processors['common'].status['dl']['raw']
-                    upd2 = ''
-                    if 'fragment_index' in dl and 'fragment_count' in dl and isinstance(dl['fragment_index'], (int, float)) and isinstance(dl['fragment_count'], (int, float)):
-                        no = int(round(30.0 * dl['fragment_index'] / dl['fragment_count']))
-                        upd2 += '[' + (no * 'o') + ((30 - no) * ' ') + ']'
-                    if 'speed' in dl and isinstance(dl['speed'], (int, float)):
-                        upd2 += ' %.2f KB/s' % (dl['speed'] / 1024.0)
-                    if upd2:
-                        upd += '\n<code>' + upd2 + '</code>'
+                status = self.proc.processors['common'].status
+                self.add_button(f':cross_mark: Abort {self.id}', self.stop_download, args=(self.id, ))
+                if 'dlid' in status and status['dlid'] == self.id:
+                    self.add_button(':cross_mark::cross_mark: Abort All', self.stop_download, args=(None, ))
+                    upd = f'{escape(self.name)} downloading {"." * (self.sub_status & 0xFF)}'
+                    if 'dl' in status and 'raw' in status['dl']:
+                        dl = status['dl']['raw']
+                        upd2 = ''
+                        if 'fragment_index' in dl and 'fragment_count' in dl and isinstance(dl['fragment_index'], (int, float)) and isinstance(dl['fragment_count'], (int, float)):
+                            no = int(round(30.0 * dl['fragment_index'] / dl['fragment_count']))
+                            upd2 += '[' + (no * 'o') + ((30 - no) * ' ') + '] '
+                        if 'speed' in dl and isinstance(dl['speed'], (int, float)):
+                            upd2 += '%.2f KB/s' % (dl['speed'] / 1024.0)
+                        if upd2:
+                            upd += '\n<code>' + upd2 + '</code>'
+                else:
+                    upd = f'{escape(self.name)} waiting in queue {"." * (self.sub_status & 0xFF)}'
                 return upd
             elif self.status == NameDurationStatus.SORTING:
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
@@ -360,8 +367,9 @@ class PlaylistTMessage(NameDurationTMessage):
             self.long_operation_do,
             "interval",
             id="long_operation_do",
-            seconds=2,
+            seconds=3,
             replace_existing=True,
+            next_run_time=datetime.utcnow()
         )
         pl = PlaylistMessage(CMD_REFRESH, playlist=self.obj, datefrom=int(self.upd_sta.timestamp() * 1000), dateto=int(self.upd_sto.timestamp() * 1000))
         pl = await self.proc.process(pl)
@@ -383,8 +391,9 @@ class PlaylistTMessage(NameDurationTMessage):
             self.long_operation_do,
             "interval",
             id="long_operation_do",
-            seconds=2,
+            seconds=3,
             replace_existing=True,
+            next_run_time=datetime.utcnow()
         )
         pl = PlaylistMessage(CMD_SORT, playlist=self.id)
         pl = await self.proc.process(pl)
@@ -437,7 +446,7 @@ class PlaylistTMessage(NameDurationTMessage):
                 return f'Enter new name for <b>{self.name}</b>'
             elif self.status == NameDurationStatus.SORTING:
                 return f'{self.name} sorting {"." * (self.sub_status & 0xFF)}'
-            elif self.status in (NameDurationStatus.UPDATING_INIT, NameDurationStatus.UPDATING_START, NameDurationStatus.UPDATING_STOP, NameDurationStatus.UPDATING_WAITING, NameDurationStatus.UPDATING_RUNNING):
+            elif self.status in (NameDurationStatus.UPDATING_INIT, NameDurationStatus.UPDATING_START, NameDurationStatus.UPDATING_STOP, NameDurationStatus.UPDATING_WAITING):
                 if self.status == NameDurationStatus.UPDATING_INIT:
                     self.upd_sta = datetime.fromtimestamp(int(self.obj.dateupdate / 1000))
                     self.upd_sto = datetime.now()
@@ -452,8 +461,8 @@ class PlaylistTMessage(NameDurationTMessage):
                     return '<u>Stop date</u> (YYMMDD)'
                 elif self.status == NameDurationStatus.UPDATING_WAITING:
                     return f'Review params for {self.name} and update or abort'
-                elif self.status == NameDurationStatus.UPDATING_RUNNING:
-                    return f'{self.name} updating {"." * (self.sub_status & 0xFF)}'
+            elif self.status == NameDurationStatus.UPDATING_RUNNING:
+                return f'{self.name} updating {"." * (self.sub_status & 0xFF)}'
         datepubo = datetime.fromtimestamp(int(self.obj.dateupdate / 1000))
         upd = f'<b>{self.name}</b> - <i>Id {self.id}</i>'
         if self.obj.type == 'youtube':
@@ -578,7 +587,7 @@ class ListPagesTMessage(BaseMessage):
             self,
             navigation,
             self.__class__.__name__ + f'_{self.get_label_addition()}_' + ('00' if not firstpage else self.get_page_label(firstpage)),
-            expiry_period=None,
+            expiry_period=timedelta(hours=2),
             inlined=False,
             home_after=False,
         )

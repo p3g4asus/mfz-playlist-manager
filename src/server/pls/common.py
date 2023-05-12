@@ -1,4 +1,6 @@
 import asyncio
+from asyncio import Event
+from collections import OrderedDict
 from functools import partial
 import json
 import logging
@@ -19,7 +21,7 @@ from common.const import (CMD_ADD, CMD_CLOSE, CMD_DOWNLOAD, CMD_DEL, CMD_DUMP, C
                           CMD_MOVE, CMD_PLAYID, CMD_PLAYITSETT, CMD_PLAYSETT,
                           CMD_REN, CMD_SEEN, CMD_SORT, MSG_BACKEND_ERROR,
                           MSG_INVALID_PARAM, MSG_NAME_TAKEN,
-                          MSG_PLAYLIST_NOT_FOUND, MSG_PLAYLISTITEM_NOT_FOUND,
+                          MSG_PLAYLIST_NOT_FOUND, MSG_PLAYLISTITEM_NOT_FOUND, MSG_TASK_ABORT,
                           MSG_UNAUTHORIZED)
 from common.playlist import (LOAD_ITEMS_ALL, LOAD_ITEMS_NO, LOAD_ITEMS_UNSEEN,
                              Playlist, PlaylistItem)
@@ -34,6 +36,7 @@ class MessageProcessor(AbstractMessageProcessor):
     def __init__(self, db, dldir='', **kwargs):
         super().__init__(db, **kwargs)
         self.dl_dir = dldir
+        self.dl_q = OrderedDict()
         self.osc_s = None
         self.osc_t = None
         self.osc_c = None
@@ -230,20 +233,32 @@ class MessageProcessor(AbstractMessageProcessor):
     async def processDl(self, msg, userid, executor):
         x = msg.playlistItemId()
         if x:
-            if self.osc_s:
-                return msg.err(502, MSG_INVALID_PARAM, playlist=None)
-            else:
-                it = await PlaylistItem.loadbyid(self.db, rowid=x)
-                if it:
-                    pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
-                    if pls:
-                        if pls[0].useri != userid:
-                            return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+            it = await PlaylistItem.loadbyid(self.db, rowid=x)
+            if it:
+                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+                if pls:
+                    if pls[0].useri != userid:
+                        return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                    elif self.osc_s:
+                        k = str(x)
+                        if k in self.dl_q:
+                            tp = self.dl_q[k]
+                            tp[0].set_from_dict(dict(rem=True))
+                            tp[1].set()
+                            return msg.ok()
+                        elif 'dlid' in self.status and self.status['dlid'] == x:
+                            self.osc_c.send_message('/haltjob', 1)
+                            return msg.ok()
+                        else:
+                            ev = Event()
+                            self.dl_q[k] = (msg, ev)
+                            await ev.wait()
+                            del self.dl_q[k]
+                    if not msg.f('rem'):
                         format = msg.f('fmt')
                         conv = msg.f('conv')
                         host = msg.f('host')
                         if 'audio' in format:
-                            format = format.replace('audio', '')
                             kw = dict(extractaudio=True,
                                       addmetadata=True,
                                       embedthumbnail=True,
@@ -257,6 +272,7 @@ class MessageProcessor(AbstractMessageProcessor):
                             outtmpl=join(self.dl_dir, f'{x}_t.%(ext)s'),
                             **kw
                         )
+                        self.status['dlid'] = x
                         self.status['dl'] = dict()
                         self.status['dlx'] = dict()
                         await executor(self.processDlOpenAndWait, await self.processDlInitOSCClientServer((it.get_conv_link(host, conv), ytdl_opt)))
@@ -278,10 +294,10 @@ class MessageProcessor(AbstractMessageProcessor):
                             _, ext = splitext(fromfile)
                             it.dl = join(self.dl_dir, f'{x}{ext}')
                             rename(fromfile, it.dl)
-                            self.osc_t.close()
-                            self.osc_s = None
                             if not await it.toDB(self.db):
-                                return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                                msg = msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                            else:
+                                msg = msg.ok(playlistitem=it)
                         else:
                             if 'dl' in self.status and 'files' in self.status['dl']:
                                 i = self.status['dl']['file']
@@ -294,15 +310,22 @@ class MessageProcessor(AbstractMessageProcessor):
                                         remove(i)
                                     except Exception:
                                         pass
-                            self.osc_t.close()
-                            self.osc_s = None
-                            return msg.err(5, MSG_BACKEND_ERROR, playlistitem=None)
+                            msg = msg.err(5, MSG_BACKEND_ERROR, playlistitem=None)
+                        self.osc_t.close()
+                        self.osc_s = None
+                        self.status['dlid'] = -1
                     else:
-                        return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+                        msg = msg.err(100, MSG_TASK_ABORT, playlistitem=None)
+                    if len(self.dl_q) and ('dlid' not in self.status or self.status['dlid'] == -1):
+                        next(iter(self.dl_q.items()))[1][1].set()
+                    return msg
                 else:
-                    return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-                return msg.ok(playlistitem=it)
+                    return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+            else:
+                return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         elif self.osc_s:
+            for _, i in self.dl_q.items():
+                i[0].set_from_dict(dict(rem=True))
             self.osc_c.send_message('/haltjob', 1)
             return msg.ok()
 

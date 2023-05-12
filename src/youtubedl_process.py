@@ -54,6 +54,14 @@ LOGGING = {
 }
 
 
+def safe_serialize_replace(o):
+    return f"<<non-serializable: {type(o).__qualname__}>>"
+
+
+def safe_serialize(obj):
+    return json.dumps(obj, default=safe_serialize_replace)
+
+
 class OSCThread(Thread):
     def __init__(self, p1: int, p2: int, queue: SimpleQueue) -> None:
         super().__init__(name='OSCThread', daemon=False)
@@ -82,7 +90,7 @@ class OSCThread(Thread):
         self.loop.stop()
 
     def exit(self, exits):
-        self.client.send_message('/jobdone', json.dumps(exits))
+        self.client.send_message('/jobdone', safe_serialize(exits))
 
     def run(self):
         _LOGGER.info(f'Starting osc server at port {self.myport} and client at {self.hisport}')
@@ -128,7 +136,7 @@ def processDl_callable_hook(resp, status=dict(), client=None):
     retain_keys = ['fragment_index', 'fragment_count', 'speed', 'status']
     status.update(dict(raw={key: resp.get(key) for key in retain_keys}, file=filename, sta=rv, files=files))
     if client:
-        client.send_message('/jobprogress', json.dumps(status))
+        client.send_message('/jobprogress', safe_serialize(status))
 
 
 def youtube_dl_dl(url, opts, rv_err):
@@ -147,17 +155,21 @@ def youtube_dl_dl(url, opts, rv_err):
 
 
 def main(myport: int, hisport: int):
-    queue: SimpleQueue = SimpleQueue()
-    thread: OSCThread = OSCThread(myport, hisport, queue)
-    thread.start()
-    val = queue.get()
-    _LOGGER.info(f'New dl job {val}')
-    main_hk = dict(hk=dict(), exit=dict())
-    if val and isinstance(val, tuple) and len(val) == 2:
-        client = SimpleUDPClient('127.0.0.1', hisport)  # Create client
-        val[1]['progress_hooks'] = [partial(processDl_callable_hook, status=main_hk["hk"], client=client)]
-        youtube_dl_dl(*val, main_hk['exit'])
-        thread.exit(main_hk['exit'])
+    try:
+        queue: SimpleQueue = SimpleQueue()
+        thread: OSCThread = OSCThread(myport, hisport, queue)
+        thread.start()
+        val = queue.get()
+        _LOGGER.info(f'New dl job {val}')
+        main_hk = dict(hk=dict(), exit=dict())
+        if val and isinstance(val, tuple) and len(val) == 2:
+            client = SimpleUDPClient('127.0.0.1', hisport)  # Create client
+            val[1]['progress_hooks'] = [partial(processDl_callable_hook, status=main_hk["hk"], client=client)]
+            youtube_dl_dl(*val, main_hk['exit'])
+            thread.exit(main_hk['exit'])
+    except Exception:
+        _LOGGER.error(f'Error in downloading {traceback.format_exc()}')
+        thread.exit(dict(rv=900, err=traceback.format_exc()))
 
 
 if __name__ == '__main__':
