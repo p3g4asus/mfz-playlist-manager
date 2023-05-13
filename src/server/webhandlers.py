@@ -17,6 +17,7 @@ from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from slugify import slugify
 
 from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_JS,
                           CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH,
@@ -477,7 +478,7 @@ async def download(request):
                     return web.HTTPBadRequest(body=f'Invalid dl: {it.dl} for {it.title}')
                 else:
                     headers = {
-                        "Content-disposition": f"attachment; filename={it.title}{splitext(it.dl)[1]}"
+                        "Content-disposition": f"attachment; filename={slugify(it.title + splitext(it.dl)[1], separator=' ', lowercase=False)}"
                     }
 
                     return web.Response(
