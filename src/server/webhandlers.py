@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import mimetypes
 import traceback
 from email.message import EmailMessage
 from functools import partial
@@ -461,30 +462,42 @@ async def file_sender(writer, file_path=None):
 
 
 async def download(request):
-    auid, _ = await authorized_userid(request)
-    if not isinstance(auid, int):
-        userid = None
-    else:
-        userid = auid
+    try:
+        stream = int(request.query['stream'])
+    except Exception:
+        stream = False
+    if not stream:
+        auid, _ = await authorized_userid(request)
+        if not isinstance(auid, int):
+            userid = None
+        else:
+            userid = auid
     rowid = int(request.match_info['rowid'])
-    if userid and rowid:
+    if (stream or userid) and rowid:
         it = await PlaylistItem.loadbyid(request.app.p.db, rowid=rowid)
         if it:
             pls = await Playlist.loadbyid(request.app.p.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
             if pls:
-                if pls[0].useri != userid:
+                if not stream and pls[0].useri != userid:
                     return web.HTTPUnauthorized(body='Invalid user id')
                 elif not it.dl or not exists(it.dl) or not isfile(it.dl):
                     return web.HTTPBadRequest(body=f'Invalid dl: {it.dl} for {it.title}')
                 else:
-                    headers = {
-                        "Content-disposition": f"attachment; filename={slugify(it.title + splitext(it.dl)[1], separator=' ', lowercase=False)}"
-                    }
+                    if stream:
+                        headers = dict()
+                        mime, _ = mimetypes.guess_type(it.dl)
+                        if not mime:
+                            return web.HTTPNotAcceptable(reason='Invalid MIME type')
+                    else:
+                        headers = {
+                            "Content-disposition": f"attachment; filename={slugify(it.title + splitext(it.dl)[1], separator=' ', lowercase=False)}"
+                        }
+                        mime = 'application/octet-stream'
 
                     return web.Response(
                         body=file_sender(file_path=it.dl),
                         headers=headers,
-                        content_type='application/octet-stream',
+                        content_type=mime,
                     )
         return web.HTTPNotFound(body='Invalid playlist or playlist item')
     else:

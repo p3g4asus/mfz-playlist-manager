@@ -304,7 +304,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
             upd += f'\n<a href="{lnk}{par}">\U0001F7E3 TWI</a>'
         if self.obj.dl and exists(self.obj.dl) and isfile(self.obj.dl):
             sta = stat(self.obj.dl)
-            upd += f'\n<a href="{mainlnk}/dl/{self.id}">DL {self.sizeof_fmt(sta.st_size) if sta else ""}</a>'
+            upd += f'\n<a href="{mainlnk}/dl/{self.id}">DL {self.sizeof_fmt(sta.st_size) if sta else ""}</a> <a href="{mainlnk}/dl/{self.id}?stream=1">\U0001F3BC</a>'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'
         if self.return_msg:
             upd += f'\n<b>{self.return_msg}</b>'
