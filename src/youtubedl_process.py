@@ -133,7 +133,7 @@ def processDl_callable_hook(resp, status=dict(), client=None):
         filename = resp['filename']
     if 'tmpfilename' in resp and resp['tmpfilename'] not in files:
         files.append(resp['tmpfilename'])
-    retain_keys = ['fragment_index', 'fragment_count', 'speed', 'status']
+    retain_keys = ['fragment_index', 'fragment_count', 'speed', 'status', 'downloaded_bytes', 'total_bytes_estimate', 'total_bytes']
     status.update(dict(raw={key: resp.get(key) for key in retain_keys}, file=filename, sta=rv, files=files))
     if client:
         client.send_message('/jobprogress', safe_serialize(status))

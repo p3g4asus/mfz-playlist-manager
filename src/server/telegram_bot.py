@@ -230,12 +230,17 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.return_msg = f'Error {pl.rv} downloading {self.name} :thumbs_down:'
         await self.switch_to_idle()
 
-    def sizeof_fmt(self, num, suffix="B"):
+    @staticmethod
+    def sizeof_fmt(num, suffix="B"):
         for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
             if abs(num) < 1024.0:
                 return f"{num:3.1f}{unit}{suffix}"
             num /= 1024.0
         return f"{num:.1f}Yi{suffix}"
+
+    @staticmethod
+    def dictget(dcn, key, default=None):
+        return dcn[key] if key in dcn and dcn[key] else default
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
@@ -265,11 +270,17 @@ class PlaylistItemTMessage(NameDurationTMessage):
                     if 'dl' in status and 'raw' in status['dl']:
                         dl = status['dl']['raw']
                         upd2 = ''
-                        if 'fragment_index' in dl and 'fragment_count' in dl and isinstance(dl['fragment_index'], (int, float)) and isinstance(dl['fragment_count'], (int, float)):
-                            no = int(round(30.0 * dl['fragment_index'] / dl['fragment_count']))
+                        fi = self.dictget(dl, 'fragment_index', self.dictget(dl, 'downloaded_bytes'))
+                        fc = self.dictget(dl, 'fragment_count', self.dictget(dl, 'total_bytes', self.dictget(dl, 'total_bytes_estimate')))
+                        if isinstance(fi, (int, float)) and isinstance(fc, (int, float)):
+                            no = int(round(30.0 * fi / fc))
                             upd2 += '[' + (no * 'o') + ((30 - no) * ' ') + '] '
-                        if 'speed' in dl and isinstance(dl['speed'], (int, float)):
-                            upd2 += '%.2f KB/s' % (dl['speed'] / 1024.0)
+                        fc = dl.get('speed')
+                        if isinstance(fc, (int, float)):
+                            upd2 += f'{self.sizeof_fmt(fc, "B/s")} '
+                        fc = dl.get('downloaded_bytes')
+                        if isinstance(fc, (int, float)):
+                            upd2 += f'{self.sizeof_fmt(fc)}'
                         if upd2:
                             upd += '\n<code>' + upd2 + '</code>'
                 else:
