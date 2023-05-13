@@ -88,6 +88,12 @@ class Executor:
         self._ex = ThreadPoolExecutor(nthreads)
         self._loop = loop
 
+    def halt(self):
+        try:
+            self._ex.shutdown(cancel_futures=True)
+        except (Exception, asyncio.CancelledError):
+            pass
+
     def __call__(self, f, *args, **kw):
         return self._loop.run_in_executor(self._ex, partial(f, *args, **kw))
 
@@ -352,6 +358,7 @@ def main():
     try:
         loop.run_until_complete(init_db(app))
         loop.run_until_complete(start_app(app))
+        loop2 = None
         if app.p.args['telegram']:
             loop2 = asyncio.new_event_loop()
             app.p.telegram_executor = Executor(loop=loop2, nthreads=3)
@@ -369,13 +376,16 @@ def main():
             _LOGGER.debug("I am in finally branch")
             loop.run_until_complete(asyncio_graceful_shutdown(loop, _LOGGER, False))
             if app.p.args['telegram']:
-                app.p.telegram_executor(stop_telegram_bot)
+                loop2.create_task(stop_telegram_bot())
+                app.p.telegram_executor.halt()
             for r in app.p.myrunners:
                 loop.run_until_complete(r.cleanup())
             if app.p.db:
                 loop.run_until_complete(app.p.db.close())
             if app.p.db2:
                 loop.run_until_complete(app.p.db2.close())
+            if app.p.executor:
+                app.p.executor.halt()
             _LOGGER.debug("Server: Closing loop")
             loop.close()
         except Exception:

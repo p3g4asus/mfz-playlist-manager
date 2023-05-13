@@ -932,7 +932,7 @@ class StartTMessage(BaseMessage):
         _LOGGER.info(f"Handle for {text}")
 
 
-def stop_telegram_bot():
+async def stop_telegram_bot():
     raise SystemExit
 
 
