@@ -1,6 +1,7 @@
 import asyncio
 from asyncio import Event
 from collections import OrderedDict
+from datetime import datetime
 from functools import partial
 import json
 import logging
@@ -157,6 +158,7 @@ class MessageProcessor(AbstractMessageProcessor):
                         else:
                             nmod += 1
                             todb = False
+                            it.seen = None if not seen[i] else datetime.now()
                             if seen[i] and it.dl and exists(it.dl) and isfile(it.dl):
                                 try:
                                     remove(it.dl)
