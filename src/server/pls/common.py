@@ -153,24 +153,23 @@ class MessageProcessor(AbstractMessageProcessor):
                     if pls:
                         if pls[0].useri != userid:
                             return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                        if not await it.setSeen(self.db, seen[i], commit=False):
-                            return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-                        else:
-                            nmod += 1
-                            todb = False
-                            it.seen = None if not seen[i] else datetime.now()
-                            if seen[i] and it.dl and exists(it.dl) and isfile(it.dl):
-                                try:
-                                    remove(it.dl)
-                                    it.dl = None
-                                    todb = True
-                                except Exception:
-                                    pass
-                            if isinstance(it.conf, dict) and 'sec' in it.conf:
-                                del it.conf['sec']
+                        todb = False
+                        if seen[i] and it.dl and exists(it.dl) and isfile(it.dl):
+                            try:
+                                remove(it.dl)
+                                it.dl = None
                                 todb = True
-                            if todb:
-                                await it.toDB(self.db, commit=False)
+                            except Exception:
+                                pass
+                        if isinstance(it.conf, dict) and 'sec' in it.conf:
+                            del it.conf['sec']
+                            todb = True
+                        if todb:
+                            it.seen = None if not seen[i] else datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            await it.toDB(self.db, commit=False)
+                        elif not await it.setSeen(self.db, seen[i], commit=False):
+                            return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                        nmod += 1
                     else:
                         return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
                 else:
