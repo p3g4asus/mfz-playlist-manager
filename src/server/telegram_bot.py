@@ -591,14 +591,48 @@ class PlaylistItemsPagesGenerator(PageGenerator):
             return items
 
 
+class YesNoTMessage(BaseMessage):
+    def __init__(self, navigation: NavigationHandler, labelYes: str, labelNo: str, inputField: str = 'Are you sure?', argsYes=None, argsNo=None) -> None:
+        super().__init__(
+            navigation,
+            self.__class__.__name__,
+            expiry_period=timedelta(minutes=30),
+            input_field=inputField)
+        self.yes_btn = labelYes
+        self.no_btn = labelNo
+        self.yes_args = argsYes
+        self.no_args = argsNo
+
+    async def on_no(self, _: Optional[CallbackContext[BT, UD, CD, BD]] = None):
+        await self.navigation.goto_back()
+
+    @abstractmethod
+    async def on_yes(self, _: Optional[CallbackContext[BT, UD, CD, BD]] = None):
+        pass
+
+    def update(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
+        self.add_button(self.yes_btn, self.on_yes, args=self.yes_args)
+        self.add_button(self.no_btn, self.on_no, args=self.no_args)
+        return self.input_field
+
+
+class SignOutTMessage(YesNoTMessage):
+    def __init__(self, navigation: NavigationHandler) -> None:
+        super().__init__(navigation, '\U00002705\U0001F6AA', ':cross_mark:\U0001F6AA')
+
+    async def on_yes(self, _: Optional[CallbackContext[BT, UD, CD, BD]] = None):
+        await self.navigation._menu_queue[0].sign_out(_)
+
+
 class ListPagesTMessage(BaseMessage):
 
-    def __init__(self, update_str: str, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen=None, firstpage=None, deleted=False) -> None:
+    def __init__(self, update_str: str, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen=None, firstpage=None, deleted=False, input_field=None) -> None:
         BaseMessage.__init__(
             self,
             navigation,
             self.__class__.__name__ + f'_{self.get_label_addition()}_' + ('00' if not firstpage else self.get_page_label(firstpage)),
             expiry_period=timedelta(hours=2),
+            input_field=input_field,
             inlined=False,
             home_after=False,
         )
@@ -722,12 +756,13 @@ class PlaylistsPagesTMessage(ListPagesTMessage):
                 userid,
                 username,
                 params
-            )
+            ),
+            input_field='Select Playlist'
         )
 
     async def update(self, context: Optional[CallbackContext] = None) -> str:
         updstr = await super().update(context)
-        self.add_button(label=u"\U0001F6AA Sign Out", callback=self.navigation._menu_queue[0].sign_out, new_row=True)
+        self.add_button(label=u"\U0001F6AA Sign Out", callback=SignOutTMessage(self.navigation), new_row=True)
         return updstr
 
 
@@ -794,7 +829,7 @@ class SignUpTMessage(BaseMessage):
             expiry_period=None,
             inlined=False,
             home_after=False,
-            input_field='Click :writing_hand:'
+            input_field='Sign Up procedure'
         )
         self.status = SignUpTMessage.STATUS_IDLE
         self.url = ''
@@ -892,15 +927,17 @@ class StartTMessage(BaseMessage):
                 username=res['username'])
             # second_menu = SecondMenuMessage(navigation, update_callback=message_args)
             self.add_button(label=":memo: List", callback=self.playlists_lister)
-            self.add_button(label=u"\U0001F6AA Sign Out", callback=self.sign_out)
+            self.add_button(label=u"\U0001F6AA Sign Out", callback=SignOutTMessage(self.navigation))
             self.userid = res['userid']
             self.username = res['username']
+            self.input_field = 'What do you want to do?'
         else:
             self.username = None
             self.userid = None
             action_message = SignUpTMessage(self.navigation, params=self.params)
             # second_menu = SecondMenuMessage(navigation, update_callback=message_args)
             self.add_button(label=":writing_hand: Sign Up", callback=action_message)
+            self.input_field = 'Click Sign Up to start procedure'
             # self.add_button(label="Second menu", callback=second_menu)
 
     def __init__(self, navigation: MyNavigationHandler, message_args) -> None:
