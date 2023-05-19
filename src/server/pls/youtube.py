@@ -39,7 +39,7 @@ class MessageProcessor(RefreshMessageProcessor):
         elif plid[0] == '%':
             return plid[1:]
         elif plid[0] == '|':
-            return f'https://www.youtube.com/channel/{plid[1:]}/videos'
+            return f'https://www.youtube.com/{plid[1:]}' if plid[1] == '@' else f'https://www.youtube.com/channel/{plid[1:]}/videos'
         elif plid[0] == '(':
             return f'https://www.youtube.com/channel/{plid[1:]}/streams'
         else:

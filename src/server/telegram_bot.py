@@ -87,19 +87,27 @@ class NameDurationStatus(Enum):
 
 class StatusTMessage(BaseMessage):
     def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", userid: int = None, username: str = None, params: object = None, **argw) -> None:
-        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field)
+        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, **argw)
         self.status = NameDurationStatus.IDLE
         self.sub_status = 0
         self.return_msg = ''
         self.scheduler_job = None
         self.proc = ProcessorMessage(userid, username, params)
 
-    async def switch_to_status(self, args, context):
-        self.status = args[0]
+    async def edit_or_select(self, context: Optional[CallbackContext] = None):
         try:
-            await self.edit_message()
+            if self.inlined:
+                await self.edit_message()
+            else:
+                if self.navigation._menu_queue and self.navigation._menu_queue[-1] == self:
+                    del self.navigation._menu_queue[-1]
+                await self.navigation.goto_menu(self, context)
         except Exception:
             _LOGGER.warning(f'edit error {traceback.format_exc()}')
+
+    async def switch_to_status(self, args, context):
+        self.status = args[0]
+        await self.edit_or_select(context)
 
     async def switch_to_idle(self):
         if self.return_msg and self.sub_status != -1000:
@@ -120,13 +128,10 @@ class StatusTMessage(BaseMessage):
                 self.switch_to_idle,
                 "interval",
                 id=f"switch_to_idle{id(self)}",
-                seconds=8,
+                seconds=8 if self.inlined else 0.5,
                 replace_existing=True,
             )
-        try:
-            await self.edit_message()
-        except Exception:
-            _LOGGER.warning(f'edit error {traceback.format_exc()}')
+        await self.edit_or_select()
 
     async def long_operation_do(self):
         sign = self.sub_status & 512
@@ -136,10 +141,7 @@ class StatusTMessage(BaseMessage):
         elif self.sub_status == 0:
             sign = 0
         self.sub_status = (self.sub_status + 1 * (-1 if sign else 1)) | sign
-        try:
-            await self.edit_message()
-        except Exception:
-            _LOGGER.warning(f'edit error {traceback.format_exc()}')
+        await self.edit_or_select()
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         return None
@@ -153,10 +155,7 @@ class DeletingTMessage(StatusTMessage):
                 await self.switch_to_idle()
         else:
             self.sub_status -= 1
-            try:
-                await self.edit_message()
-            except Exception:
-                _LOGGER.warning(f'edit error {traceback.format_exc()}')
+            await self.edit_or_select()
 
     @abstractmethod
     async def delete_item_do(self):
@@ -181,11 +180,17 @@ class DeletingTMessage(StatusTMessage):
 
 class RefreshingTMessage(StatusTMessage):
     def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", userid: int = None, username: str = None, params: object = None, playlist: Playlist = None, **argw) -> None:
-        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, userid, username, params)
+        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, userid, username, params, **argw)
         self.playlist = playlist
+        self.upd_sta = None
+        self.upd_sto = None
 
     def set_playlist(self, playlist):
         self.playlist = playlist
+
+    async def switch_to_status_cond(self, args, context):
+        if self.status != NameDurationStatus.UPDATING_RUNNING:
+            return await super().switch_to_status(args, context)
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         if self.status in (NameDurationStatus.UPDATING_INIT, NameDurationStatus.UPDATING_START, NameDurationStatus.UPDATING_STOP, NameDurationStatus.UPDATING_WAITING):
@@ -195,7 +200,7 @@ class RefreshingTMessage(StatusTMessage):
                 self.status = NameDurationStatus.UPDATING_WAITING
             self.add_button(self.upd_sta.strftime('%Y-%m-%d'), self.switch_to_status, args=(NameDurationStatus.UPDATING_START, ))
             self.add_button(self.upd_sto.strftime('%Y-%m-%d'), self.switch_to_status, args=(NameDurationStatus.UPDATING_STOP, ))
-            self.add_button(':cross_mark: Abort', self.switch_to_idle, new_row=True)
+            self.add_button(':cross_mark: Abort Refresh', self.on_refresh_abort_cond, new_row=True)
             self.add_button(u'\U0001F501', self.update_playlist)
             if self.status == NameDurationStatus.UPDATING_START:
                 return '<u>Start date</u> (YYMMDD)'
@@ -215,12 +220,13 @@ class RefreshingTMessage(StatusTMessage):
                 elif self.status == NameDurationStatus.UPDATING_STOP:
                     self.upd_sto = datetime.strptime(f'{text} 23:59:59.9', '%y%m%d %H:%M:%S.%f')
                 self.status = NameDurationStatus.UPDATING_WAITING
-                await self.edit_message()
+                await self.edit_or_select(context)
             except Exception:
                 pass
 
     def update_playlist(self):
-        asyncio.get_event_loop().create_task(self.update_playlist_1())
+        if self.status != NameDurationStatus.UPDATING_RUNNING:
+            asyncio.get_event_loop().create_task(self.update_playlist_1())
 
     async def update_playlist_1(self):
         self.status = NameDurationStatus.UPDATING_RUNNING
@@ -233,20 +239,25 @@ class RefreshingTMessage(StatusTMessage):
             replace_existing=True,
             next_run_time=datetime.utcnow()
         )
-        pl = PlaylistMessage(CMD_REFRESH, playlist=self.obj, datefrom=int(self.upd_sta.timestamp() * 1000), dateto=int(self.upd_sto.timestamp() * 1000))
+        pl = PlaylistMessage(CMD_REFRESH, playlist=self.playlist, datefrom=int(self.upd_sta.timestamp() * 1000), dateto=int(self.upd_sto.timestamp() * 1000))
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             self.playlist = pl.playlist
             self.return_msg = f'Refresh OK :thumbs_up: ({pl.n_new} new videos)'
         else:
-            self.return_msg = f'Error {pl.rv} refreshing {self.name} :thumbs_down:'
+            self.return_msg = f'Error {pl.rv} refreshing {self.playlist.name} :thumbs_down:'
         await self.on_refresh_finish(pl)
 
     @abstractmethod
     async def on_refresh_finish(self, pl: PlaylistMessage):
-        # if pl.rv == 0:
-        #     item = pl.playlist
-        #     self.reset(self.index, item.rowid, item.name, 0, '', False, item)
+        return
+
+    async def on_refresh_abort_cond(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
+        if self.status != NameDurationStatus.UPDATING_RUNNING:
+            return self.on_refresh_abort(context)
+
+    @abstractmethod
+    async def on_refresh_abort(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         return
 
 
@@ -256,28 +267,29 @@ class NameDurationTMessage(DeletingTMessage):
         self.id = myid
         self.name = name
         self.secs = secs
-        self.thumb = f'{self.proc.params.link}/{self.proc.params.args["sid"]}/img{thumb}' if thumb and thumb[0] == '?' else thumb
+        self.picture = self.thumb = f'{self.proc.params.link}/{self.proc.params.args["sid"]}/img{thumb}' if thumb and thumb[0] == '?' else thumb
         self.obj = obj
         self.deleted = deleted
 
     def __init__(self, navigation, index, myid, name, secs, thumb, deleted, obj, userid, username, params, **argw) -> None:
-        self.reset(index, myid, name, secs, thumb, deleted, obj)
         super().__init__(
             navigation=navigation,
             label=f'{self.__class__.__name__}_{myid}_{int(datetime.now().timestamp() * 1000)}',
-            picture=self.thumb,
+            picture=thumb,
             inlined=True,
             home_after=False,
             expiry_period=timedelta(hours=10),
             userid=userid,
             username=username,
-            params=params
+            params=params,
+            **argw
         )
+        self.reset(index, myid, name, secs, thumb, deleted, obj)
 
 
 class PlaylistItemTMessage(NameDurationTMessage):
     def __init__(self, navigation, index, playlist_name, item, userid, username, params) -> None:
-        NameDurationTMessage.__init__(self, navigation, index, item.rowid, item.title, item.dur, item.img, item.seen, item, userid, username, params)
+        super().__init__(navigation, index, item.rowid, item.title, item.dur, item.img, item.seen, item, userid, username, params)
         self.playlist_name = playlist_name
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
@@ -380,7 +392,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 return f'Enter \U00002211 for <b>{self.name}</b>'
         elif self.status == NameDurationStatus.IDLE:
             self.add_button(u'\U0000267B', self.delete_item_pre)
-        upd = super().update(context)
+        upd = await super().update(context)
         if upd:
             return upd
         upd += f'<a href="{self.obj.link}">{self.index})<b>{escape(self.name)}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub}\n'
@@ -437,7 +449,6 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
 
     def __init__(self, navigation, index, item, userid, username, params) -> None:
         super().__init__(
-            self,
             navigation,
             index=index,
             myid=item.rowid,
@@ -496,6 +507,9 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
     async def on_refresh_finish(self, pl: PlaylistMessage):
         await self.switch_to_idle()
 
+    async def on_refresh_abort(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
+        await self.switch_to_idle()
+
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status == NameDurationStatus.RENAMING:
             text = text.strip()
@@ -527,10 +541,10 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             elif self.status == NameDurationStatus.SORTING:
                 return f'{self.name} sorting {"." * (self.sub_status & 0xFF)}'
             else:
-                updt = await DeletingTMessage.update(context)
+                updt = await DeletingTMessage.update(self, context)
                 if updt:
                     return updt
-                updt = await RefreshingTMessage.update(context)
+                updt = await RefreshingTMessage.update(self, context)
                 if updt:
                     return updt
         datepubo = datetime.fromtimestamp(int(self.obj.dateupdate / 1000))
@@ -628,8 +642,7 @@ class PlaylistsPagesGenerator(PageGenerator):
 
 class PlaylistItemsPagesGenerator(PageGenerator):
     def __init__(self, userid, username, params, playlist_obj):
-        PageGenerator.__init__(
-            self,
+        super().__init__(
             userid,
             username,
             params
@@ -686,8 +699,7 @@ class SignOutTMessage(YesNoTMessage):
 class ListPagesTMessage(BaseMessage):
 
     def __init__(self, update_str: str, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen=None, firstpage=None, deleted=False, input_field=None) -> None:
-        BaseMessage.__init__(
-            self,
+        super().__init__(
             navigation,
             self.__class__.__name__ + f'_{self.get_label_addition()}_' + ('00' if not firstpage else self.get_page_label(firstpage)),
             expiry_period=timedelta(hours=2),
@@ -804,8 +816,7 @@ class ListPagesTMessage(BaseMessage):
 class PlaylistsPagesTMessage(ListPagesTMessage):
 
     def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen=None, firstpage=None, userid=None, username=None, params=None) -> None:
-        ListPagesTMessage.__init__(
-            self,
+        super().__init__(
             update_str=f'List of <b>{username}</b> playlists',
             navigation=navigation,
             max_items_per_group=max_items_per_group,
@@ -829,8 +840,7 @@ class PlaylistItemsPagesTMessage(ListPagesTMessage):
 
     def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen=None, firstpage=None, deleted=False, userid=None, username=None, params=None, playlist_obj=None) -> None:
         self.playlist_obj = playlist_obj
-        ListPagesTMessage.__init__(
-            self,
+        super().__init__(
             update_str=f'List of <b>{playlist_obj.name}</b> items ({playlist_obj.unseen} - \U000023F1 {duration2string(playlist_obj.obj.get_duration())})',
             navigation=navigation,
             max_items_per_group=max_items_per_group,
@@ -880,34 +890,40 @@ class ChangeOrderedOrDeleteOrCancelTMessage(BaseMessage):
         super().__init__(
             navigation,
             self.__class__.__name__,
-            input_field=plinfo.title)
+            input_field=plinfo["title"])
         self.playlist = playlist
         self.plinfo = plinfo
 
     async def toggle_ordered(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
-        self.plinfo.ordered = not self.plinfo.ordered
-        await self.edit_message()
+        self.plinfo["ordered"] = not self.plinfo["ordered"]
+        if self.navigation._menu_queue and self.navigation._menu_queue[-1] == self:
+            del self.navigation._menu_queue[-1]
+        await self.navigation.goto_menu(self, context)
 
     async def remove(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
-        for i in range(self.playlist.conf['playlists']):
+        for i in range(len(self.playlist.conf['playlists'])):
             p = self.playlist.conf['playlists'][i]
-            if p.id == self.plinfo.id:
+            if p["id"] == self.plinfo["id"]:
                 del self.playlist.conf['playlists'][i]
                 break
         await self.navigation.goto_back()
 
     async def update(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
-        self.add_button('Ordered: ' + ("\U00002611" if self.plinfo.ordered else "\U00002610"), self.toggle_ordered, new_row=True)
+        self.keyboard_previous: List[List["MenuButton"]] = [[]]
+        self.keyboard: List[List["MenuButton"]] = [[]]
+        self.add_button('Ordered: ' + ("\U00002611" if self.plinfo["ordered"] else "\U00002610"), self.toggle_ordered, new_row=True)
         self.add_button('Remove: \U0001F5D1', self.remove, new_row=True)
         self.add_button('OK: \U0001F197', self.navigation.goto_back, new_row=True)
+        return f'{self.plinfo["title"]} modify'
 
 
 class YoutubeDLPlaylistTMessage(StatusTMessage):
     def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
         self.playlist = playlist if playlist else Playlist(
             type='youtube',
+            useri=userid,
             autoupdate=False,
-            dateupdate=datetime.fromtimestamp(0).strftime('%Y-%m-%d'),
+            dateupdate=0,
             conf=dict(playlists=[]))
         super().__init__(
             navigation,
@@ -930,11 +946,11 @@ class YoutubeDLPlaylistTMessage(StatusTMessage):
             text = text.strip()
             if re.match(r'^[0-9a-zA-Z_\-]+$', text):
                 self.playlist.name = text
-                self.return_msg = f':tumbs_up: New name {text}'
+                self.return_msg = f':thumbs_up: New name {text}'
                 await self.switch_to_idle()
             else:
-                self.return_msg = f':tumbs_down: Invalid name {text}. Please try again'
-                await self.edit_message()
+                self.return_msg = f':thumbs_down: Invalid name {text}. Please try again'
+                await self.edit_or_select(context)
 
     async def check_playlist(self, text):
         self.status = NameDurationStatus.DOWNLOADING
@@ -947,19 +963,19 @@ class YoutubeDLPlaylistTMessage(StatusTMessage):
             replace_existing=True,
             next_run_time=datetime.utcnow()
         )
-        pl = PlaylistMessage(CMD_YT_PLAYLISTCHECK, text)
-        await self.proc.process(pl)
+        pl = PlaylistMessage(CMD_YT_PLAYLISTCHECK, text=text)
+        pl = await self.proc.process(pl)
         if pl.rv == 0:
             plinfo = pl.playlistinfo
             add = True
             for p in self.playlist.conf['playlists']:
-                if p.id == plinfo.id:
-                    self.return_msg = f'\U0001F7E1 {plinfo.title} already present!'
+                if p["id"] == plinfo["id"]:
+                    self.return_msg = f'\U0001F7E1 {plinfo["title"]} already present!'
                     add = False
                     break
             if add:
-                pl.ordered = True
-                self.return_msg = f':thumbs_up: ({plinfo.title})'
+                plinfo["ordered"] = True
+                self.return_msg = f':thumbs_up: ({plinfo["title"]} - {plinfo["id"]})'
                 self.playlist.conf['playlists'].append(plinfo)
         else:
             self.return_msg = f'Error {pl.rv} with playlist {text} :thumbs_down:'
@@ -967,12 +983,14 @@ class YoutubeDLPlaylistTMessage(StatusTMessage):
 
     async def toggle_autoupdate(self, context: Optional[CallbackContext] = None):
         self.playlist.autoupdate = not self.playlist.autoupdate
-        await self.edit_message()
+        await self.edit_or_select(context)
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         upd = ''
+        self.keyboard_previous: List[List["MenuButton"]] = [[]]
+        self.keyboard: List[List["MenuButton"]] = [[]]
         if self.status == NameDurationStatus.NAMING:
-            self.input_field = 'Enter Playlist Name',
+            self.input_field = 'Enter Playlist Name'
             if self.playlist.name:
                 self.add_button(':cross_mark: Abort Naming', self.switch_to_status, args=(NameDurationStatus.IDLE, ))
             else:
@@ -980,11 +998,11 @@ class YoutubeDLPlaylistTMessage(StatusTMessage):
         elif self.status == NameDurationStatus.IDLE:
             self.input_field = '\U0001F50D Playlist link or id'
             self.add_button(f'Name: {self.playlist.name}', self.switch_to_status, args=(NameDurationStatus.NAMING, ), new_row=True)
-            self.add_button('AutoUpdate: ' + ("\U00002611" if self.playlist.autoupdate else "\U00002610"), self.toggle_auoupdate, new_row=True)
+            self.add_button('AutoUpdate: ' + ("\U00002611" if self.playlist.autoupdate else "\U00002610"), self.toggle_autoupdate)
             new_row = True
             if self.playlist.conf['playlists']:
                 for p in self.playlist.conf['playlists']:
-                    self.add_button(f'{p.title} (ord={p.ordered})', ChangeOrderedOrDeleteOrCancelTMessage(self.navigation, plinfo=p))
+                    self.add_button(f'{p["title"]} (ord={p["ordered"]})', ChangeOrderedOrDeleteOrCancelTMessage(self.navigation, playlist=self.playlist, plinfo=p))
                 self.add_button(u'\U0001F501', RefreshNewPlaylistTMessage(
                     self.navigation,
                     userid=self.proc.userid,
@@ -998,7 +1016,7 @@ class YoutubeDLPlaylistTMessage(StatusTMessage):
             upd = f'{escape(self.checking_playlist)} finding playlist info {"." * (self.sub_status & 0xFF)}'
         if self.return_msg:
             upd = f'<b>{self.return_msg}</b>'
-        return upd
+        return upd if upd else self.input_field
 
 
 class RefreshNewPlaylistTMessage(RefreshingTMessage):
@@ -1011,22 +1029,26 @@ class RefreshNewPlaylistTMessage(RefreshingTMessage):
             username=username,
             params=params,
             playlist=playlist)
+        self.status = NameDurationStatus.UPDATING_INIT
 
     async def on_refresh_finish(self, pl: PlaylistMessage):
+        await self.switch_to_idle()
         if pl.rv == 0:
             await self.navigation.goto_home()
             await self.navigation._menu_queue[0].list_page_of_playlists(None)
-        else:
-            await self.edit_message()
-            self.return_msg = ''
+
+    async def on_refresh_abort(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
+        await self.navigation.goto_back()
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
+        self.keyboard_previous: List[List["MenuButton"]] = [[]]
+        self.keyboard: List[List["MenuButton"]] = [[]]
         upd = await super().update(context)
         if not upd:
             upd = ''
         if self.return_msg:
             upd += f'\n{self.return_msg}'
-        return upd
+        return upd if upd else self.input_field
 
 
 class PlaylistAddTMessage(StatusTMessage):
@@ -1040,7 +1062,9 @@ class PlaylistAddTMessage(StatusTMessage):
             params=params)
 
     def update(self, _: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
-        self.add_button('\U0001F534 YoutubeDL', YoutubeDLPlaylistTMessage())
+        self.keyboard_previous: List[List["MenuButton"]] = [[]]
+        self.keyboard: List[List["MenuButton"]] = [[]]
+        self.add_button('\U0001F534 YoutubeDL', YoutubeDLPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
         self.add_button('\U0001F535 Rai')
         self.add_button('\U00002B24 Mediaset')
         self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=True)
@@ -1137,7 +1161,7 @@ class StartTMessage(BaseMessage):
         self.userid = self.username = self.link = None
         await self.navigation.goto_home(context)
 
-    async def list_page_of_playlists(self, page, context):
+    async def list_page_of_playlists(self, page, context: Optional[CallbackContext] = None):
         if self.playlists_lister:
             await self.playlists_lister.goto_page((page, ), context)
 
@@ -1159,12 +1183,12 @@ class StartTMessage(BaseMessage):
                 userid=res['userid'],
                 username=res['username'])
             # second_menu = SecondMenuMessage(navigation, update_callback=message_args)
-            self.add_button(label=":memo: List", callback=self.playlists_lister)
-            self.add_button(label="\U00002795 Add", callback=PlaylistAddTMessage(self.navigation, userid=self.userid, username=self.username, params=self.params))
-            self.add_button(label="\U0001F6AA Sign Out", callback=SignOutTMessage(self.navigation))
             self.userid = res['userid']
             self.username = res['username']
             self.input_field = 'What do you want to do?'
+            self.add_button(label=":memo: List", callback=self.playlists_lister)
+            self.add_button(label="\U00002795 Add", callback=PlaylistAddTMessage(self.navigation, userid=self.userid, username=self.username, params=self.params))
+            self.add_button(label="\U0001F6AA Sign Out", callback=SignOutTMessage(self.navigation))
         else:
             self.username = None
             self.userid = None
