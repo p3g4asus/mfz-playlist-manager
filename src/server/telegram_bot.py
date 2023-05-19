@@ -522,6 +522,10 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
     async def list_items(self, args, context):
         p = PlaylistItemsPagesTMessage(self.navigation, deleted=args[0], userid=self.proc.userid, username=self.proc.username, params=self.proc.params, playlist_obj=self)
         await self.navigation.goto_menu(p, context)
+        if p.first_page.groups:
+            grp = p.first_page.groups[0]
+            label = p.get_group_label(grp)
+            await p.goto_group((grp, label), context)
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
@@ -764,6 +768,8 @@ class ListPagesTMessage(BaseMessage):
     async def goto_page(self, args, context):
         page, = args
         self.first_page = page
+        if self.navigation._menu_queue and self.navigation._menu_queue[-1] == self:
+            del self.navigation._menu_queue[-1]
         await self.navigation.goto_menu(self, context)
 
     async def goto_group(self, args, context):
@@ -881,7 +887,8 @@ class PlaylistItemsPagesTMessage(ListPagesTMessage):
         grp = GroupOfNameDurationItems()
         grp.add_item(self.playlist_obj)
         self.add_button(self.get_group_label(grp), self.refresh_playlist_object, new_row=True)
-        self.add_button(label=u"\U0001F3E0 Home", callback=self.navigation.goto_home, new_row=True)
+        self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back, new_row=True)
+        self.add_button(label=u"\U0001F3E0 Home", callback=self.navigation.goto_home)
         return updstr
 
 
@@ -917,14 +924,9 @@ class ChangeOrderedOrDeleteOrCancelTMessage(BaseMessage):
         return f'{self.plinfo["title"]} modify'
 
 
-class YoutubeDLPlaylistTMessage(StatusTMessage):
+class PlaylistNamingTMessage(StatusTMessage):
     def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
-        self.playlist = playlist if playlist else Playlist(
-            type='youtube',
-            useri=userid,
-            autoupdate=False,
-            dateupdate=0,
-            conf=dict(playlists=[]))
+        self.playlist = playlist
         super().__init__(
             navigation,
             label=self.__class__.__name__,
@@ -934,6 +936,41 @@ class YoutubeDLPlaylistTMessage(StatusTMessage):
             params=params)
         if not self.playlist.name:
             self.status = NameDurationStatus.NAMING
+
+    async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
+        if self.status == NameDurationStatus.NAMING:
+            text = text.strip()
+            if re.match(r'^[0-9a-zA-Z_\-]+$', text):
+                self.playlist.name = text
+                self.return_msg = f':thumbs_up: New name {text}'
+                await self.switch_to_idle()
+            else:
+                self.return_msg = f':thumbs_down: Invalid name {text}. Please try again'
+
+    async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
+        if self.status == NameDurationStatus.NAMING:
+            self.input_field = 'Enter Playlist Name'
+            if self.playlist.name:
+                self.add_button(':cross_mark: Abort Naming', self.switch_to_status, args=(NameDurationStatus.IDLE, ))
+            else:
+                self.add_button(':cross_mark: Abort', self.navigation.goto_back)
+
+
+class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
+        if not playlist:
+            playlist = Playlist(
+                type='youtube',
+                useri=userid,
+                autoupdate=False,
+                dateupdate=0,
+                conf=dict(playlists=[]))
+        super().__init__(
+            navigation,
+            userid=userid,
+            username=username,
+            params=params,
+            playlist=playlist)
         self.checking_playlist = ''
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
@@ -942,15 +979,8 @@ class YoutubeDLPlaylistTMessage(StatusTMessage):
             if text:
                 self.checking_playlist = text
                 asyncio.create_task(self.check_playlist(text))
-        elif self.status == NameDurationStatus.NAMING:
-            text = text.strip()
-            if re.match(r'^[0-9a-zA-Z_\-]+$', text):
-                self.playlist.name = text
-                self.return_msg = f':thumbs_up: New name {text}'
-                await self.switch_to_idle()
-            else:
-                self.return_msg = f':thumbs_down: Invalid name {text}. Please try again'
-                await self.edit_or_select(context)
+        else:
+            await super().text_input(text, context)
 
     async def check_playlist(self, text):
         self.status = NameDurationStatus.DOWNLOADING
@@ -989,13 +1019,8 @@ class YoutubeDLPlaylistTMessage(StatusTMessage):
         upd = ''
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
-        if self.status == NameDurationStatus.NAMING:
-            self.input_field = 'Enter Playlist Name'
-            if self.playlist.name:
-                self.add_button(':cross_mark: Abort Naming', self.switch_to_status, args=(NameDurationStatus.IDLE, ))
-            else:
-                self.add_button(':cross_mark: Abort', self.navigation.goto_back)
-        elif self.status == NameDurationStatus.IDLE:
+        await PlaylistNamingTMessage.update(self, context)
+        if self.status == NameDurationStatus.IDLE:
             self.input_field = '\U0001F50D Playlist link or id'
             self.add_button(f'Name: {self.playlist.name}', self.switch_to_status, args=(NameDurationStatus.NAMING, ), new_row=True)
             self.add_button('AutoUpdate: ' + ("\U00002611" if self.playlist.autoupdate else "\U00002610"), self.toggle_autoupdate)
