@@ -19,7 +19,7 @@ from telegram_menu import (BaseMessage, ButtonType, NavigationHandler,
                            TelegramMenuSession)
 from telegram_menu.models import MenuButton, emoji_replace
 
-from common.const import (CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_IORDER,
+from common.const import (CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
                           CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK)
 from common.playlist import (Playlist, PlaylistMessage)
 
@@ -83,6 +83,7 @@ class NameDurationStatus(Enum):
     DOWNLOADING = auto()
     DOWNLOADING_WAITING = auto()
     NAMING = auto()
+    LISTING = auto()
 
 
 class StatusTMessage(BaseMessage):
@@ -99,9 +100,7 @@ class StatusTMessage(BaseMessage):
             if self.inlined:
                 await self.edit_message()
             else:
-                if self.navigation._menu_queue and self.navigation._menu_queue[-1] == self:
-                    del self.navigation._menu_queue[-1]
-                await self.navigation.goto_menu(self, context)
+                await self.navigation.goto_menu(self, context, add_if_present=False)
         except Exception:
             _LOGGER.warning(f'edit error {traceback.format_exc()}')
 
@@ -193,7 +192,7 @@ class RefreshingTMessage(StatusTMessage):
             return await super().switch_to_status(args, context)
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
-        if self.status in (NameDurationStatus.UPDATING_INIT, NameDurationStatus.UPDATING_START, NameDurationStatus.UPDATING_STOP, NameDurationStatus.UPDATING_WAITING):
+        if self.status in (NameDurationStatus.UPDATING_INIT, NameDurationStatus.UPDATING_START, NameDurationStatus.UPDATING_STOP, NameDurationStatus.UPDATING_WAITING) or (self.status == NameDurationStatus.IDLE and not self.inlined):
             if self.status == NameDurationStatus.UPDATING_INIT:
                 self.upd_sta = datetime.fromtimestamp(int(0 if not self.playlist.dateupdate else self.playlist.dateupdate / 1000))
                 self.upd_sto = datetime.now()
@@ -208,7 +207,7 @@ class RefreshingTMessage(StatusTMessage):
                 return '<u>Stop date</u> (YYMMDD)'
             elif self.status == NameDurationStatus.UPDATING_WAITING:
                 return f'Review params for {self.playlist.name} and update or abort'
-        elif self.status == NameDurationStatus.UPDATING_RUNNING:
+        if self.status == NameDurationStatus.UPDATING_RUNNING:
             return f'{self.playlist.name} updating {"." * (self.sub_status & 0xFF)}'
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
@@ -254,7 +253,7 @@ class RefreshingTMessage(StatusTMessage):
 
     async def on_refresh_abort_cond(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         if self.status != NameDurationStatus.UPDATING_RUNNING:
-            return self.on_refresh_abort(context)
+            return await self.on_refresh_abort(context)
 
     @abstractmethod
     async def on_refresh_abort(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
@@ -395,7 +394,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
         upd = await super().update(context)
         if upd:
             return upd
-        upd += f'<a href="{self.obj.link}">{self.index})<b>{escape(self.name)}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub}\n'
+        upd += f'<a href="{self.obj.link}">{self.index + 1})<b> {escape(self.name)}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub}\n'
         if self.obj.conf and 'author' in self.obj.conf and self.obj.conf['author']:
             upd += f'\U0001F64B: {self.obj.conf["author"]}\n'
         upd += f'\U00002211: {self.obj.iorder}'
@@ -404,6 +403,8 @@ class PlaylistItemTMessage(NameDurationTMessage):
             lnk = f'{mainlnk}/twi?'
             par = urlencode(dict(link=self.obj.link))
             upd += f'\n<a href="{lnk}{par}">\U0001F7E3 TWI</a>'
+        if 'pageurl' in self.obj.conf:
+            upd += f'\n<a href="{self.obj.conf["pageurl"]}">\U0001F4C3 Main</a>'
         if self.obj.dl and exists(self.obj.dl) and isfile(self.obj.dl):
             sta = stat(self.obj.dl)
             upd += f'\n<a href="{mainlnk}/dl/{self.id}">DL {self.sizeof_fmt(sta.st_size) if sta else ""}</a> <a href="{mainlnk}/dl/{self.id}?stream=1">\U0001F3BC</a>'
@@ -527,11 +528,30 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             label = p.get_group_label(grp)
             await p.goto_group((grp, label), context)
 
+    async def edit_me(self, context=None):
+        cls = None
+        if self.obj.type == 'youtube':
+            cls = YoutubeDLPlaylistTMessage
+        elif self.obj.type == 'mediaset':
+            cls = MediasetPlaylistTMessage
+        elif self.obj.type == 'rai':
+            cls = RaiPlaylistTMessage
+
+        if cls:
+            but = cls(
+                self.navigation,
+                userid=self.proc.userid,
+                username=self.proc.username,
+                params=self.proc.params,
+                playlist=self.obj)
+            await self.navigation.goto_menu(but)
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         if not self.deleted:
             if self.status == NameDurationStatus.IDLE:
+                self.add_button(u'\U00002699', self.edit_me)
                 self.add_button(u'\U0001F5D1', self.delete_item_pre)
                 self.add_button(u'\U000000AB\U000000BB', self.switch_to_status, args=(NameDurationStatus.RENAMING, ))
                 self.add_button(u'\U0001F501', self.switch_to_status, args=(NameDurationStatus.UPDATING_INIT, ))
@@ -552,7 +572,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 if updt:
                     return updt
         datepubo = datetime.fromtimestamp(int(self.obj.dateupdate / 1000))
-        upd = f'<b>{self.name}</b> - <i>Id {self.id}</i>'
+        upd = f'{self.index + 1}) <b>{self.name}</b> - <i>Id {self.id}</i>'
         if self.obj.type == 'youtube':
             upd += '\U0001F534'
         elif self.obj.type == 'rai':
@@ -765,14 +785,34 @@ class ListPagesTMessage(BaseMessage):
         except Exception:
             _LOGGER.error(traceback.format_exc())
 
-    async def goto_page(self, args, context):
+    async def goto_index(self, index, context=None):
+        basepage = self.first_page
+        while basepage.back_page:
+            basepage = self.first_page.back_page
+        current = 0
+        while basepage:
+            for g in basepage.groups:
+                for _ in g.items:
+                    if current == index:
+                        await self.goto_group((g, self.get_group_label(g)), context)
+                        return
+                    current += 1
+            basepage = basepage.next_page
+
+    async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
+        try:
+            val = int(text.strip())
+        except Exception:
+            val = -1
+        if val > 0:
+            await self.goto_index(val - 1, context)
+
+    async def goto_page(self, args, context=None):
         page, = args
         self.first_page = page
-        if self.navigation._menu_queue and self.navigation._menu_queue[-1] == self:
-            del self.navigation._menu_queue[-1]
-        await self.navigation.goto_menu(self, context)
+        await self.navigation.goto_menu(self, context, add_if_present=False)
 
-    async def goto_group(self, args, context):
+    async def goto_group(self, args, context=None):
         group, label = args
         headers = {"range": "bytes=0-10", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
         for item in group.items:
@@ -785,6 +825,7 @@ class ListPagesTMessage(BaseMessage):
                 await self.navigation._send_app_message(item, label, context)
             except Exception:
                 _LOGGER.error(f'goto_group error {traceback.format_exc()}')
+        self.is_alive()
 
     def get_page_label(self, page):
         if page.start_item == page.stop_item:
@@ -903,9 +944,7 @@ class ChangeOrderedOrDeleteOrCancelTMessage(BaseMessage):
 
     async def toggle_ordered(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         self.plinfo["ordered"] = not self.plinfo["ordered"]
-        if self.navigation._menu_queue and self.navigation._menu_queue[-1] == self:
-            del self.navigation._menu_queue[-1]
-        await self.navigation.goto_menu(self, context)
+        await self.navigation.goto_menu(self, context, add_if_present=False)
 
     async def remove(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         for i in range(len(self.playlist.conf['playlists'])):
@@ -964,7 +1003,7 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
                 useri=userid,
                 autoupdate=False,
                 dateupdate=0,
-                conf=dict(playlists=[]))
+                conf=dict(playlists=[], play=dict()))
         super().__init__(
             navigation,
             userid=userid,
@@ -972,6 +1011,8 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
             params=params,
             playlist=playlist)
         self.checking_playlist = ''
+        for p in playlist.conf['playlists']:
+            p['ordered'] = p.get('ordered', True)
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status == NameDurationStatus.IDLE:
@@ -1027,7 +1068,7 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
             new_row = True
             if self.playlist.conf['playlists']:
                 for p in self.playlist.conf['playlists']:
-                    self.add_button(f'{p["title"]} (ord={p["ordered"]})', ChangeOrderedOrDeleteOrCancelTMessage(self.navigation, playlist=self.playlist, plinfo=p))
+                    self.add_button(('\U00002B83 ' if p["ordered"] else '') + p["title"], ChangeOrderedOrDeleteOrCancelTMessage(self.navigation, playlist=self.playlist, plinfo=p), new_row=True)
                 self.add_button(u'\U0001F501', RefreshNewPlaylistTMessage(
                     self.navigation,
                     userid=self.proc.userid,
@@ -1042,6 +1083,300 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
         if self.return_msg:
             upd = f'<b>{self.return_msg}</b>'
         return upd if upd else self.input_field
+
+
+class SubBrandSelectTMessage(BaseMessage):
+    def __init__(self, navigation: NavigationHandler, playlist: Playlist = None) -> None:
+        self.playlist = playlist
+        super().__init__(
+            navigation,
+            label=self.__class__.__name__,
+            input_field=f'Select content for {playlist.conf["brand"]["title"]}')
+        self.compute_id_map()
+
+    def compute_id_map(self):
+        self.id_map = dict()
+        for i, b in enumerate(self.playlist.conf['subbrands_all']):
+            self.id_map[str(b['id'])] = i + 1
+
+    def get_brand_index(self, brand):
+        return self.id_map.get(str(brand['id']), 0)
+
+    async def toggle_selected(self, args, context):
+        subid, = args
+        found = False
+        for i in range(len(self.playlist.conf['subbrands'])):
+            b = self.playlist.conf['subbrands'][i]
+            if b['id'] == subid:
+                del self.playlist.conf['subbrands'][i]
+                found = True
+                break
+        if not found:
+            for b in self.playlist.conf['subbrands_all']:
+                if b['id'] == subid:
+                    self.playlist.conf['subbrands'].append(b)
+                    break
+        await self.navigation.goto_menu(self, context, add_if_present=False)
+
+    async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
+        self.keyboard_previous: List[List["MenuButton"]] = [[]]
+        self.keyboard: List[List["MenuButton"]] = [[]]
+        for b in self.playlist.conf['subbrands_all']:
+            subid = b["id"]
+            subchk = False
+            for b2 in self.playlist.conf['subbrands']:
+                if b2['id'] == subid:
+                    subchk = True
+                    break
+            self.add_button(f"[{self.get_brand_index(b)}] {b['title']} - {b['desc']}" + (" \U00002611" if subchk else " \U00002610"), self.toggle_selected, args=(b['id'], ), new_row=True)
+        self.add_button('OK: \U0001F197', self.navigation.goto_back, new_row=True)
+        return self.input_field
+
+
+class SelectDayTMessage(BaseMessage):
+    def __init__(self, navigation: NavigationHandler, playlist: Playlist = None) -> None:
+        self.playlist = playlist
+        super().__init__(
+            navigation,
+            label=self.__class__.__name__,
+            input_field='Select day of listing')
+
+    def nearest_weekday(self, weekday):
+        d2 = datetime.now()
+        v = -1
+        sum = 0
+        while True:
+            if weekday == d2.weekday():
+                return d2
+            v *= -1
+            if v > 0:
+                sum += 1
+            d2 = datetime.now() + timedelta(days=sum * v)
+        return 0
+
+    async def select_day(self, args, context):
+        day, = args
+        self.playlist.conf['listings_command'] = dict(datestart=int(self.nearest_weekday(day).replace(hour=0, minute=0, second=1).timestamp() * 1000))
+        await self.navigation.goto_back()
+
+    async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
+        self.keyboard_previous: List[List["MenuButton"]] = [[]]
+        self.keyboard: List[List["MenuButton"]] = [[]]
+        d = self.nearest_weekday(0)
+        for _ in range(7):
+            self.add_button(f'{d:%a}', self.select_day, args=(d.weekday(), ))
+            d += timedelta(days=1)
+        return self.input_field
+
+
+class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None, playlist_type: str = None) -> None:
+        if not playlist:
+            playlist = Playlist(
+                type=playlist_type,
+                useri=userid,
+                autoupdate=False,
+                dateupdate=0,
+                conf=dict(brand=dict(id=None, desc=None, title=None), subbrands=[], subbrands_all=[], listings_command=None, play=dict()))
+        else:
+            if 'subbrands_all' not in playlist.conf:
+                playlist.conf['subbrands_all'] = []
+            playlist.conf['listings_command'] = None
+        if not playlist.conf['subbrands_all'] and playlist.conf['subbrands']:
+            playlist.conf['subbrands_all'] = playlist.conf['subbrands'].copy()
+        if 'title' not in playlist.conf['brand'] and playlist.conf['subbrands']:
+            playlist.conf['brand']['title'] = playlist.conf['subbrands'][0]['title']
+        super().__init__(
+            navigation,
+            userid=userid,
+            username=username,
+            params=params,
+            playlist=playlist)
+        self.listings_cache = []
+        self.listings_filter = ''
+        self.listings_changed = False
+
+    @abstractmethod
+    def get_listings_command(self):
+        return
+
+    @abstractmethod
+    def get_subbrand_command(self):
+        return
+
+    async def toggle_autoupdate(self, context: Optional[CallbackContext] = None):
+        self.playlist.autoupdate = not self.playlist.autoupdate
+        await self.edit_or_select(context)
+
+    async def listing_refresh_1(self, cmd, context):
+        self.status = NameDurationStatus.LISTING
+        self.sub_status = 10
+        self.scheduler_job = self.navigation.scheduler.add_job(
+            self.long_operation_do,
+            "interval",
+            id="listing_refresh",
+            seconds=3,
+            replace_existing=True,
+            next_run_time=datetime.utcnow()
+        )
+        pl = await self.proc.process(cmd)
+        if pl.rv == 0:
+            self.listings_cache = pl.brands
+            self.listings_changed = True
+            self.return_msg = ''
+        else:
+            self.return_msg = f'Error {pl.rv} finding listings :tumbs_down:'
+        await self.switch_to_idle()
+
+    async def get_listings_command_params(self):
+        return
+
+    async def listings_refresh(self, context: Optional[CallbackContext] = None):
+        if self.status == NameDurationStatus.IDLE:
+            self.listings_cache = []
+            self.playlist.conf['brand']['id'] = None
+            self.playlist.conf['subbrands'] = []
+            cmd = self.get_listings_command()
+            self.playlist.conf['listings_command'] = None
+            if not cmd:
+                await self.get_listings_command_params()
+                return
+            asyncio.create_task(self.listing_refresh_1(cmd, context))
+
+    def filter(self, title):
+        if not self.listings_filter:
+            return True
+        else:
+            title = title.lower()
+            if title in self.listings_filter:
+                return True
+            else:
+                ss = self.listings_filter.split(' ')
+                for s in ss:
+                    if s.lower() not in title:
+                        return False
+                return True
+
+    def get_listings_text(self):
+        txt = ''
+        for i, b in enumerate(self.listings_cache):
+            if len(txt) < 3900:
+                if self.filter(b['title']):
+                    txt += f'\n/brand_{i} {b["title"]} ({b["id"]})'
+            else:
+                return txt[1:] + '\n...'
+        return txt[1:] if txt else f'No Listing{" for " + self.listings_filter if self.listings_filter else ""}'
+
+    def download_subbrand(self):
+        asyncio.create_task(self.download_subbrand_1())
+
+    async def download_subbrand_1(self):
+        self.status = NameDurationStatus.DOWNLOADING
+        self.sub_status = 10
+        self.scheduler_job = self.navigation.scheduler.add_job(
+            self.long_operation_do,
+            "interval",
+            id="listing_refresh",
+            seconds=3,
+            replace_existing=True,
+            next_run_time=datetime.utcnow()
+        )
+        pl = await self.proc.process(self.get_subbrand_command())
+        if pl.rv == 0:
+            self.playlist.conf['subbrands_all'] = pl.brands
+            self.playlist.conf['subbrands'] = []
+            self.return_msg = ''
+            if pl.brands:
+                await self.navigation.goto_menu(SubBrandSelectTMessage(self.navigation, playlist=self.playlist))
+            else:
+                self.return_msg = 'No subbrand found'
+        else:
+            self.return_msg = f'Error {pl.rv} downloading subbrands :tumbs_down:'
+        await self.switch_to_idle()
+
+    async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, Coroutine[Any, Any, None]]:
+        if self.status == NameDurationStatus.IDLE:
+            if self.listings_cache:
+                mo = re.search(r'^/brand_([0-9]+)$', text)
+                if mo:
+                    self.playlist.conf['brand'] = self.listings_cache[int(mo.group(1))]
+                    self.download_subbrand()
+                else:
+                    self.listings_filter = text.strip()
+                    self.listings_changed = True
+                await self.edit_or_select()
+        else:
+            await super().text_input(text, context)
+
+    async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
+        upd = ''
+        self.keyboard_previous: List[List["MenuButton"]] = [[]]
+        self.keyboard: List[List["MenuButton"]] = [[]]
+        await PlaylistNamingTMessage.update(self, context)
+        enteridle = False
+        if enteridle or self.status == NameDurationStatus.IDLE:
+            if self.listings_cache:
+                self.input_field = f'\U0001F53B {self.listings_filter}' if self.listings_filter else '\U0001F53B Filter Listings'
+            else:
+                self.input_field = 'Please Click a Button'
+            if self.get_listings_command() and not self.playlist.conf['brand']['id']:
+                await self.listings_refresh()
+            self.add_button(f'Name: {self.playlist.name}', self.switch_to_status, args=(NameDurationStatus.NAMING, ), new_row=True)
+            self.add_button('Refresh Listings', self.listings_refresh)
+            new_row = True
+            if self.playlist.conf['brand']['id']:
+                self.add_button('AutoUpdate: ' + ("\U00002611" if self.playlist.autoupdate else "\U00002610"), self.toggle_autoupdate)
+                if self.playlist.conf['subbrands_all']:
+                    self.add_button(f'{self.playlist.conf["brand"]["title"]} ({self.playlist.conf["brand"]["id"]})' + ('\U00002757' if not self.playlist.conf["subbrands"] else '\U00002714'),
+                                    SubBrandSelectTMessage(self.navigation, playlist=self.playlist))
+                    if self.playlist.conf["subbrands"]:
+                        self.add_button(u'\U0001F501', RefreshNewPlaylistTMessage(
+                                        self.navigation,
+                                        userid=self.proc.userid,
+                                        username=self.proc.username,
+                                        params=self.proc.params,
+                                        playlist=self.playlist
+                                        ), new_row=True)
+                        new_row = False
+            self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=new_row)
+            if self.listings_changed:
+                upd = self.get_listings_text()
+                self.listings_changed = False
+        elif self.status == NameDurationStatus.LISTING:
+            return f'Downloading listings {"." * (self.sub_status & 0xFF)}'
+        elif self.status == NameDurationStatus.DOWNLOADING:
+            return f'Downloading brand content for {self.playlist.conf["brand"]["title"]} {"." * (self.sub_status & 0xFF)}'
+        if self.return_msg:
+            upd = f'\n<b>{self.return_msg}</b>'
+        return upd if upd else self.input_field
+
+
+class MediasetPlaylistTMessage(MedRaiPlaylistTMessage):
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
+        super().__init__(navigation, userid, username, params, playlist, playlist_type='mediaset')
+
+    def get_listings_command(self):
+        if self.playlist.conf['listings_command']:
+            return PlaylistMessage(CMD_MEDIASET_LISTINGS, **self.playlist.conf['listings_command'])
+        else:
+            return None
+
+    async def get_listings_command_params(self):
+        await self.navigation.goto_menu(SelectDayTMessage(self.navigation, playlist=self.playlist))
+
+    def get_subbrand_command(self):
+        return PlaylistMessage(CMD_MEDIASET_BRANDS, brand=int(self.playlist.conf['brand']['id']))
+
+
+class RaiPlaylistTMessage(MedRaiPlaylistTMessage):
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
+        super().__init__(navigation, userid, username, params, playlist, playlist_type='rai')
+
+    def get_listings_command(self):
+        return PlaylistMessage(CMD_RAI_LISTINGS)
+
+    def get_subbrand_command(self):
+        return PlaylistMessage(CMD_RAI_CONTENTSET, brand=self.playlist.conf['brand']['id'])
 
 
 class RefreshNewPlaylistTMessage(RefreshingTMessage):
@@ -1090,8 +1425,8 @@ class PlaylistAddTMessage(StatusTMessage):
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.add_button('\U0001F534 YoutubeDL', YoutubeDLPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
-        self.add_button('\U0001F535 Rai')
-        self.add_button('\U00002B24 Mediaset')
+        self.add_button('\U0001F535 Rai', RaiPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
+        self.add_button('\U00002B24 Mediaset', MediasetPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
         self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=True)
         return 'Select Playlist Type'
 

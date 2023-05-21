@@ -140,7 +140,8 @@ class MessageProcessor(RefreshMessageProcessor):
             return msg.err(14, MSG_INVALID_DATE)
 
     def entry2Program(self, e, brand, subbrand, playlist):
-        conf = dict(subbrand=subbrand, brand=brand)
+        lnk = e.get('mediasetprogram$videoPageUrl')
+        conf = dict(subbrand=subbrand, brand=brand, pageurl=f'https:{lnk}' if lnk else None)
         title = e['title']
         uid = e['guid']
         img = None

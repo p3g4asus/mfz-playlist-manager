@@ -134,8 +134,10 @@ class MessageProcessor(RefreshMessageProcessor):
         if 'season' in it and re.search(r'^[0-9]+$', it['season']) and\
            'episode' in it and re.search(r'^[0-9]+$', it['episode']):
             order = int(it['season']) * 100 + int(it['episode'])
+        lnk = it.get('weblink')
         conf = dict(progid=progid,
                     set=set,
+                    pageurl=MessageProcessor.relativeUrl(lnk) if lnk else None,
                     path=it["path_id"] if "path_id" in it else '',
                     order=order)
         title = it['name'] if 'name' in it else it['episode_title']
