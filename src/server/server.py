@@ -12,12 +12,12 @@ from functools import partial
 from os.path import basename, dirname, isfile, join, splitext
 
 import aiohttp_cors
-import aioredis
 import aiosqlite
 import certifi
 from aiohttp import web
 from aiohttp_security import setup as setup_security
 from aiohttp_session import setup as setup_session
+from redis import asyncio as aioredis
 
 from common.const import COOKIE_LOGIN, COOKIE_SID, COOKIE_USERID
 from common.utils import asyncio_graceful_shutdown
