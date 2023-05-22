@@ -171,7 +171,7 @@ class DeletingTMessage(StatusTMessage):
             replace_existing=True,
         )
 
-    async def update(self, context: CallbackContext | None = None) -> Coroutine[Any, Any, str]:
+    async def update(self, _: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         if self.status == NameDurationStatus.DELETING:
             self.add_button(f':cross_mark: Undo in {self.sub_status} sec', self.switch_to_idle)
         return ''
