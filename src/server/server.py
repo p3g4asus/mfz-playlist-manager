@@ -320,6 +320,10 @@ def raise_system_exit():
     raise SystemExit
 
 
+def handle_loop_exceptions(loop, context):
+    _LOGGER.error(f'Loop exception: {context["message"]}')
+
+
 def main():
     app = web.Application()
     app.p = Object()
@@ -350,6 +354,7 @@ def main():
     logging.config.dictConfig(LOGGING)
     app.p.args = args
     loop = asyncio.get_event_loop()
+    loop.set_exception_handler(handle_loop_exceptions)
     app.p.loop = loop
     _LOGGER.info(f"Starting server main loop is {loop}, args is {args}")
     if 'pid' in args and args['pid']:
@@ -361,6 +366,7 @@ def main():
         loop2 = None
         if app.p.args['telegram']:
             loop2 = asyncio.new_event_loop()
+            loop2.set_exception_handler(handle_loop_exceptions)
             app.p.telegram_executor = Executor(loop=loop2, nthreads=3)
             app.p.telegram_executor(start_telegram_bot, app.p, loop2)
         if platform.system() != "Windows":
