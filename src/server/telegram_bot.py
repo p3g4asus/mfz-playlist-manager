@@ -1319,8 +1319,8 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
                 self.input_field = f'\U0001F53B {self.listings_filter}' if self.listings_filter else '\U0001F53B Filter Listings'
             else:
                 self.input_field = 'Please Click a Button'
-            if self.get_listings_command() and not self.playlist.conf['brand']['id']:
-                await self.listings_refresh()
+                if not self.playlist.conf['brand']['id'] and self.get_listings_command():
+                    await self.listings_refresh()
             self.add_button(f'Name: {self.playlist.name}', self.switch_to_status, args=(NameDurationStatus.NAMING, ), new_row=True)
             self.add_button('Refresh Listings', self.listings_refresh)
             new_row = True
