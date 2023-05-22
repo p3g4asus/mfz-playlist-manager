@@ -9,6 +9,7 @@ set -a
 set +a
 cd "$PTH/src"
 DT=`date "+%Y%m%d"`
+mkdir ${log_dir}
 FILEOUT="${log_dir}/${DT}_pm.out"
 arg="-m server --pid /tmp/pid_mfz_pm.pid --dbfile ../main.sqlite --static ./www --port $http_port --redis "$redis_url" --client-id "$g_id" --youtube-apikey "$y_key" --autoupdate $autopudate --sid $s_id --telegram $telegram --pickle "$telegram_persistence" --common-dldir "$dldir" -v"
 echo $arg
