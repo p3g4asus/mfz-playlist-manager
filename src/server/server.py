@@ -387,7 +387,7 @@ def main():
             if app.p.executor:
                 app.p.executor.halt()
             if app.p.redis:
-                loop.run_until_complete(app.p.redis.disconnect())
+                loop.run_until_complete(app.p.redis.close())
             _LOGGER.debug("Server: Closing loop")
             loop.close()
         except Exception:
