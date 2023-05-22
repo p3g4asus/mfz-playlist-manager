@@ -218,10 +218,10 @@ async def init_db(app):
 
 
 def init_auth(app):
-    redis = aioredis.from_url(app.p.args['redis'], encoding="utf-8", decode_responses=False)
+    app.p.redis = aioredis.from_url(app.p.args['redis'], encoding="utf-8", decode_responses=False)
     term = f'_{app.p.args["sid"]}'
     csid = COOKIE_SID + term
-    storage = RedisKeyStorage(cookie_name=csid, httponly=True, redis_pool=redis)
+    storage = RedisKeyStorage(cookie_name=csid, httponly=True, redis_pool=app.p.redis)
     setup_session(app, storage)
 
     policy = SessionCookieIdentityPolicy(sid_key=csid, login_key=COOKIE_LOGIN + term, user_key=COOKIE_USERID + term)
@@ -386,6 +386,8 @@ def main():
                 loop.run_until_complete(app.p.db2.close())
             if app.p.executor:
                 app.p.executor.halt()
+            if app.p.redis:
+                del app.p.redis
             _LOGGER.debug("Server: Closing loop")
             loop.close()
         except Exception:
