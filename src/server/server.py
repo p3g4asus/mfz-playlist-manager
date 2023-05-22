@@ -321,7 +321,11 @@ def raise_system_exit():
 
 
 def handle_loop_exceptions(loop, context):
-    _LOGGER.error(f'Loop exception: {context["message"]}')
+    if "exception" in context and context["exception"]:
+        fmt = f': {traceback.format_exception(context["exception"])}'
+    else:
+        fmt = ''
+    _LOGGER.error(f'Loop exception: {context["message"]}{fmt}')
 
 
 def main():
