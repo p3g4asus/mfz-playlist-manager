@@ -823,11 +823,11 @@ class PlaylistsPagesGenerator(PageGenerator):
     def item_convert(self, myid, navigation, **_):
         return PlaylistTMessage(navigation, myid, self.proc.userid, self.proc.username, self.proc.params)
 
-    def get_playlist_message(self, pid=None):
-        return PlaylistMessage(CMD_DUMP, useri=self.proc.userid, load_all=1, playlist=pid)
+    def get_playlist_message(self, pid=None, deleted=False):
+        return PlaylistMessage(CMD_DUMP, useri=self.proc.userid, load_all=1 if deleted else 0, playlist=pid)
 
     async def get_items_list(self, deleted=False, pid=None):
-        plout = await self.proc.process(self.get_playlist_message(pid))
+        plout = await self.proc.process(self.get_playlist_message(pid, deleted))
         cache_del_user(self.proc.userid, plout.playlists)
         return plout.playlists
 
@@ -1012,13 +1012,14 @@ class ListPagesTMessage(BaseMessage):
 
 class PlaylistsPagesTMessage(ListPagesTMessage):
 
-    def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, firstpage=None, userid=None, username=None, params=None) -> None:
+    def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, firstpage=None, deleted=False, userid=None, username=None, params=None) -> None:
         super().__init__(
             update_str=f'List of <b>{username}</b> playlists',
             navigation=navigation,
             max_items_per_group=max_items_per_group,
             max_group_per_page=max_group_per_page,
             firstpage=firstpage,
+            deleted=deleted,
             pagegen=PlaylistsPagesGenerator(
                 userid,
                 username,
@@ -1671,11 +1672,20 @@ class StartTMessage(BaseMessage):
                 params=self.params,
                 userid=res['userid'],
                 username=res['username'])
+            listall = PlaylistsPagesTMessage(
+                self.navigation,
+                max_group_per_page=6,
+                max_items_per_group=1,
+                params=self.params,
+                deleted=True,
+                userid=res['userid'],
+                username=res['username'])
             # second_menu = SecondMenuMessage(navigation, update_callback=message_args)
             self.userid = res['userid']
             self.username = res['username']
             self.input_field = 'What do you want to do?'
             self.add_button(label=":memo: List", callback=self.playlists_lister)
+            self.add_button(label=":eye: All", callback=listall)
             self.add_button(label="\U00002795 Add", callback=PlaylistAddTMessage(self.navigation, userid=self.userid, username=self.username, params=self.params))
             self.add_button(label="\U0001F6AA Sign Out", callback=SignOutTMessage(self.navigation))
         else:
