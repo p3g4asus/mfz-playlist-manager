@@ -21,7 +21,7 @@ from telegram_menu.models import MenuButton, emoji_replace
 
 from common.const import (CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
                           CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK)
-from common.playlist import (Playlist, PlaylistMessage)
+from common.playlist import (Playlist, PlaylistItem, PlaylistMessage)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,6 +41,79 @@ def duration2string(secs):
         return '%dm %02ds' % (mm, ss)
     else:
         return f'{ss}s'
+
+
+_PLAYLIST_CACHE = dict()
+
+
+def cache_store(p: Playlist, index=None):
+    useris = str(p.useri)
+    dep = _PLAYLIST_CACHE.get(useris, dict())
+    pids = str(p.rowid)
+    if index is None:
+        if pids not in dep:
+            index = len(dep)
+        else:
+            index = dep[pids]['index']
+    itdict = dict()
+    for i, it in enumerate(p.items):
+        it.index = i
+        itdict[str(it.rowid)] = it
+    p.index = index
+    dep[pids] = dict(index=index, obj=p, items=itdict)
+
+
+def cache_del(p: Playlist):
+    useris = str(p.useri)
+    dep: dict = _PLAYLIST_CACHE.get(useris, None)
+    if dep:
+        pids = str(p.rowid)
+        if pids in dep:
+            del dep[pids]
+            for i, pd in enumerate(dep.values()):
+                if i != pd['index']:
+                    pd['obj'].index = pd['index'] = i
+
+
+def cache_del_user(useri: int, playlists: List[Playlist]):
+    _PLAYLIST_CACHE[str(useri)] = dict()
+    for p in playlists:
+        cache_store(p)
+
+
+def cache_get(useri: int, pid: Optional[int] = None) -> Union[List[Playlist], Playlist]:
+    useris = str(useri)
+    if pid is None:
+        dd = _PLAYLIST_CACHE.get(useris, dict())
+        pps = []
+        for _, p in dd.items():
+            pps.append(p['obj'])
+        return pps
+    else:
+        pids = str(pid)
+        dd = _PLAYLIST_CACHE.get(useris, dict()).get(pids, dict(obj=None, index=None))
+        return dd['obj']
+
+
+def cache_get_items(useri: int, pid: int, deleted: bool) -> List[PlaylistItem]:
+    dd = cache_get(useri, pid)
+    rv = []
+    if dd:
+        items = dd.items
+        i = 0
+        for it in items:
+            if deleted or not it.seen:
+                it.index = i
+                i += 1
+                rv.append(it)
+    return rv
+
+
+def cache_get_item(useri: int, pid: int, itid: int) -> PlaylistItem:
+    useris = str(useri)
+    pids = str(pid)
+    itids = str(itid)
+    return _PLAYLIST_CACHE.get(useris, dict()).get(pids, dict(items=dict()))['items'].get(itids)
 
 
 class MyNavigationHandler(NavigationHandler):
@@ -108,6 +181,9 @@ class StatusTMessage(BaseMessage):
         self.status = args[0]
         await self.edit_or_select(context)
 
+    async def switch_to_idle_end(self):
+        await self.edit_or_select()
+
     async def switch_to_idle(self):
         if self.return_msg and self.sub_status != -1000:
             self.status = NameDurationStatus.RETURNING_IDLE
@@ -130,7 +206,7 @@ class StatusTMessage(BaseMessage):
                 seconds=8 if self.inlined else 0.5,
                 replace_existing=True,
             )
-        await self.edit_or_select()
+        await self.switch_to_idle_end()
 
     async def long_operation_do(self):
         sign = self.sub_status & 512
@@ -242,6 +318,7 @@ class RefreshingTMessage(StatusTMessage):
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             self.playlist = pl.playlist
+            cache_store(self.playlist)
             self.return_msg = f'Refresh OK :thumbs_up: ({pl.n_new} new videos)'
         else:
             self.return_msg = f'Error {pl.rv} refreshing {self.playlist.name} :thumbs_down:'
@@ -261,20 +338,53 @@ class RefreshingTMessage(StatusTMessage):
 
 
 class NameDurationTMessage(DeletingTMessage):
-    def reset(self, index, myid, name, secs, thumb, deleted, obj):
-        self.index = index
-        self.id = myid
-        self.name = name
-        self.secs = secs
-        self.picture = self.thumb = f'{self.proc.params.link}/{self.proc.params.args["sid"]}/img{thumb}' if thumb and thumb[0] == '?' else thumb
-        self.obj = obj
-        self.deleted = deleted
 
-    def __init__(self, navigation, index, myid, name, secs, thumb, deleted, obj, userid, username, params, **argw) -> None:
+    async def send(self, context: Optional[CallbackContext] = None):
+        if self.inlined:
+            await self.prepare_for_sending()
+            await self.navigation._send_app_message(self, self.label)
+        else:
+            await self.navigation.goto_menu(self, context, add_if_present=False)
+
+    async def set_picture_path(self):
+        if self._old_thumb != self.thumb:
+            self._old_thumb = self.thumb
+            headers = {"range": "bytes=0-10", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
+            thumb = f'{self.proc.params.link}/{self.proc.params.args["sid"]}/img{self.thumb}' if self.thumb and self.thumb[0] == '?' else self.thumb
+            if thumb and validators.url(thumb):
+                async with ClientSession() as session:
+                    async with session.get(thumb, headers=headers) as resp:
+                        if not (resp.status >= 200 and resp.status < 300):
+                            self.picture = ''
+                        else:
+                            self.picture = thumb
+            else:
+                self.picture = ''
+
+    @abstractmethod
+    def refresh_from_cache(self):
+        return
+
+    async def prepare_for_sending(self):
+        if self.refresh_from_cache():
+            await self.set_picture_path()
+            return True
+        else:
+            return False
+
+    def __init__(self, navigation, myid, userid, username, params, **argw) -> None:
+        self.index = None
+        self.id = myid
+        self.name = None
+        self.secs = None
+        self.obj = None
+        self.thumb = None
+        self._old_thumb = None
+        self.deleted = None
         super().__init__(
             navigation=navigation,
             label=f'{self.__class__.__name__}_{myid}_{int(datetime.now().timestamp() * 1000)}',
-            picture=thumb,
+            picture=self.thumb,
             inlined=True,
             home_after=False,
             expiry_period=timedelta(hours=10),
@@ -283,13 +393,28 @@ class NameDurationTMessage(DeletingTMessage):
             params=params,
             **argw
         )
-        self.reset(index, myid, name, secs, thumb, deleted, obj)
+        self.refresh_from_cache()
 
 
 class PlaylistItemTMessage(NameDurationTMessage):
-    def __init__(self, navigation, index, playlist_name, item, userid, username, params) -> None:
-        super().__init__(navigation, index, item.rowid, item.title, item.dur, item.img, item.seen, item, userid, username, params)
-        self.playlist_name = playlist_name
+    def refresh_from_cache(self):
+        obj = cache_get_item(self.proc.userid, self.pid, self.id)
+        if obj:
+            self.obj = obj
+            p = cache_get(self.proc.userid, self.pid)
+            self.playlist_name = p.name
+            self.index = self.obj.index
+            self.name = self.obj.title
+            self.secs = self.obj.dur
+            self.thumb = self.obj.img
+            self.deleted = self.obj.seen
+            return True
+        else:
+            return False
+
+    def __init__(self, navigation, myid, userid, username, params, pid) -> None:
+        self.pid = pid
+        super().__init__(navigation, myid, userid, username, params)
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status == NameDurationStatus.SORTING:
@@ -345,6 +470,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
+        self.refresh_from_cache()
         if not self.deleted:
             if self.status == NameDurationStatus.IDLE:
                 self.add_button(u'\U0001F5D1', self.delete_item_pre)
@@ -429,45 +555,54 @@ class PlaylistItemTMessage(NameDurationTMessage):
         pl = PlaylistMessage(CMD_IORDER, playlistitem=self.id, iorder=iorder)
         pl = await self.proc.process(pl)
         if pl.rv == 0:
-            self.obj = pl.playlistitem
+            cache_store(pl.playlist)
             self.return_msg = 'IOrder OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} IOrdering {self.name} :thumbs_down:'
 
 
 class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
+    def refresh_from_cache(self):
+        obj = cache_get(self.proc.userid, self.id)
+        if obj:
+            self.obj = obj
+            self.index = self.obj.index
+            self.name = self.obj.name
+            img = None
+            self.unseen = 0
+            for pli in self.obj.items:
+                if not pli.seen:
+                    self.unseen += 1
+                    if not img:
+                        img = pli.img
+            self.secs = self.obj.get_duration()
+            self.thumb = img
+            self.deleted = False
+            return True
+        else:
+            return False
 
-    def reset(self, index, myid, name, secs, thumb, deleted, obj):
-        img = None
-        self.unseen = 0
-        for pli in obj.items:
-            if not pli.seen:
-                self.unseen += 1
-                if not img:
-                    img = pli.img
-        duration = obj.get_duration()
-        super().reset(index, myid, name, duration, img, deleted, obj)
-
-    def __init__(self, navigation, index, item, userid, username, params) -> None:
+    def __init__(self, navigation, myid, userid, username, params) -> None:
         super().__init__(
             navigation,
-            index=index,
-            myid=item.rowid,
-            name=item.name,
-            secs=0,
-            thumb='',
-            deleted=False,
-            obj=item,
+            myid=myid,
             userid=userid,
             username=username,
-            params=params,
-            playlist=item)
+            params=params)
+        self.del_and_recreate = False
+        self.set_playlist(self.obj)
 
     async def delete_item_do(self):
         pl = PlaylistMessage(CMD_DEL, playlist=self.id)
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             self.deleted = True
+            cache_del(self.obj)
+            await self.navigation.delete_message(self.message_id)
+            lmm = self.navigation._menu_queue[-1]
+            if isinstance(lmm, PlaylistItemsPagesTMessage) and\
+                    lmm.playlist_obj.id == self.id:
+                await self.navigation.goto_back()
             self.return_msg = 'Delete OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} deleting {self.name} :thumbs_down:'
@@ -476,13 +611,23 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         pl = PlaylistMessage(CMD_REN, playlist=self.id, to=newname)
         pl = await self.proc.process(pl)
         if pl.rv == 0:
-            self.name = newname
+            self.obj.name = self.name = newname
+            lmm = self.navigation._menu_queue[-1]
+            if isinstance(lmm, PlaylistsPagesTMessage):
+                await self.navigation.goto_menu(lmm, None, add_if_present=False)
             self.return_msg = 'Rename OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} renaming {self.name} :thumbs_down:'
 
     def sort_playlist(self):
         asyncio.get_event_loop().create_task(self.sort_playlist_1())
+
+    async def switch_to_idle_end(self):
+        if self.del_and_recreate:
+            self.del_and_recreate = False
+            await self.send()
+        else:
+            await super().switch_to_idle_end()
 
     async def sort_playlist_1(self):
         self.status = NameDurationStatus.SORTING
@@ -498,14 +643,19 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         pl = PlaylistMessage(CMD_SORT, playlist=self.id)
         pl = await self.proc.process(pl)
         if pl.rv == 0:
-            item = pl.playlist
-            self.reset(self.index, item.rowid, item.name, 0, '', False, item)
+            cache_store(pl.playlist)
+            self.del_and_recreate = True
             self.return_msg = 'Sort OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} sorting {self.name} :thumbs_down:'
         await self.switch_to_idle()
 
     async def on_refresh_finish(self, pl: PlaylistMessage):
+        self.del_and_recreate = True
+        lmm = self.navigation._menu_queue[-1]
+        if isinstance(lmm, PlaylistsPagesTMessage) or\
+           (isinstance(lmm, PlaylistItemsPagesTMessage) and lmm.playlist_obj.id == self.id):
+            await self.navigation.goto_menu(lmm, None, add_if_present=False)
         await self.switch_to_idle()
 
     async def on_refresh_abort(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
@@ -522,11 +672,12 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
 
     async def list_items(self, args, context):
         p = PlaylistItemsPagesTMessage(self.navigation, deleted=args[0], userid=self.proc.userid, username=self.proc.username, params=self.proc.params, playlist_obj=self)
+        if self.navigation._menu_queue and isinstance(self.navigation._menu_queue[-1], PlaylistItemsPagesTMessage):
+            await self.navigation.goto_back()
         await self.navigation.goto_menu(p, context)
         if p.first_page.groups:
             grp = p.first_page.groups[0]
-            label = p.get_group_label(grp)
-            await p.goto_group((grp, label), context)
+            await p.goto_group((grp,), context)
 
     async def edit_me(self, context=None):
         cls = None
@@ -549,6 +700,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
+        self.refresh_from_cache()
         if not self.deleted:
             if self.status == NameDurationStatus.IDLE:
                 self.add_button(u'\U00002699', self.edit_me)
@@ -598,7 +750,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
 class GroupOfNameDurationItems(object):
 
     def __init__(self):
-        self.items = []
+        self.items: List[NameDurationTMessage] = []
         self.start_item = -1
         self.stop_item = -1
 
@@ -611,20 +763,29 @@ class GroupOfNameDurationItems(object):
         self.items.append(item)
         self.stop_item = item.index
 
+    def get_label(self):
+        if self.start_item == self.stop_item:
+            beginning = f'{self.start_item + 1}) {self.items[0].name}'
+            if len(beginning) > 70:
+                beginning = beginning[0:70] + '...'
+            return f'{beginning} ({duration2string(self.items[0].secs)})'
+        else:
+            return f'{self.start_item + 1} - {self.stop_item + 1}'
+
 
 class MultipleGroupsOfItems(object):
 
     def __init__(self):
-        self.start_item = -1
-        self.stop_item = -1
-        self.next_page = None
-        self.back_page = None
-        self.groups = []
+        self.start_item: int = -1
+        self.stop_item: int = -1
+        self.next_page: MultipleGroupsOfItems = None
+        self.back_page: MultipleGroupsOfItems = None
+        self.groups: List[GroupOfNameDurationItems] = []
 
     def is_valid(self):
         return self.start_item >= 0 and self.stop_item >= 0
 
-    def set_start_stop(self, sta, sto):
+    def set_start_stop(self, sta: int, sto: int):
         self.start_item = sta
         self.stop_item = sto
 
@@ -637,54 +798,60 @@ class MultipleGroupsOfItems(object):
     def set_back_page(self, val):
         self.back_page = val
 
+    def get_label(self):
+        if self.start_item == self.stop_item:
+            return f'{self.start_item + 1}'
+        else:
+            return f'{self.start_item + 1} - {self.stop_item + 1}'
+
 
 class PageGenerator(object):
     def __init__(self, userid, username, params) -> None:
         self.proc = ProcessorMessage(userid, username, params)
 
     @abstractmethod
-    def item_convert(self, item, index, navigation):
+    def item_convert(self, myid, navigation, **kwargs) -> NameDurationTMessage:
         return
 
     @abstractmethod
-    async def get_items_list(self, deleted=False, **kwargs):
+    async def get_items_list(self, deleted=False, **kwargs) -> List[Union[Playlist, PlaylistItem]]:
         return
 
 
 class PlaylistsPagesGenerator(PageGenerator):
 
-    def item_convert(self, item, index, navigation):
-        return PlaylistTMessage(navigation, index, item, self.proc.userid, self.proc.username, self.proc.params)
+    def item_convert(self, myid, navigation, **_):
+        return PlaylistTMessage(navigation, myid, self.proc.userid, self.proc.username, self.proc.params)
 
-    def get_playlist_message(self, playlist=None):
-        return PlaylistMessage(CMD_DUMP, useri=self.proc.userid, load_all=1, playlist=playlist)
+    def get_playlist_message(self, pid=None):
+        return PlaylistMessage(CMD_DUMP, useri=self.proc.userid, load_all=1, playlist=pid)
 
-    async def get_items_list(self, _=False, playlist=None):
-        plout = await self.proc.process(self.get_playlist_message(playlist))
+    async def get_items_list(self, deleted=False, pid=None):
+        plout = await self.proc.process(self.get_playlist_message(pid))
+        cache_del_user(self.proc.userid, plout.playlists)
         return plout.playlists
 
 
 class PlaylistItemsPagesGenerator(PageGenerator):
-    def __init__(self, userid, username, params, playlist_obj):
+    def __init__(self, userid, username, params, pid):
         super().__init__(
             userid,
             username,
             params
         )
-        self.playlist_obj = playlist_obj
+        self.pid = pid
 
-    def item_convert(self, item, index, navigation):
-        return PlaylistItemTMessage(navigation, index, self.playlist_obj.name, item, self.proc.userid, self.proc.username, self.proc.params)
+    def item_convert(self, myid, navigation):
+        return PlaylistItemTMessage(
+            navigation,
+            myid=myid,
+            userid=self.proc.userid,
+            username=self.proc.username,
+            params=self.proc.params,
+            pid=self.pid)
 
     async def get_items_list(self, deleted=False):
-        if deleted:
-            return self.playlist_obj.obj.items
-        else:
-            items = []
-            for i in self.playlist_obj.obj.items:
-                if not i.seen:
-                    items.append(i)
-            return items
+        return cache_get_items(self.proc.userid, self.pid, deleted)
 
 
 class YesNoTMessage(BaseMessage):
@@ -722,10 +889,10 @@ class SignOutTMessage(YesNoTMessage):
 
 class ListPagesTMessage(BaseMessage):
 
-    def __init__(self, update_str: str, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen=None, firstpage=None, deleted=False, input_field=None) -> None:
+    def __init__(self, update_str: str, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen: PageGenerator = None, firstpage: Optional[MultipleGroupsOfItems] = None, deleted=False, input_field=None) -> None:
         super().__init__(
             navigation,
-            self.__class__.__name__ + f'_{self.get_label_addition()}_' + ('00' if not firstpage else self.get_page_label(firstpage)),
+            self.__class__.__name__ + f'_{self.get_label_addition()}_' + ('00' if not firstpage else firstpage.get_label()),
             expiry_period=timedelta(hours=2),
             input_field=input_field,
             inlined=False,
@@ -740,15 +907,6 @@ class ListPagesTMessage(BaseMessage):
 
     def get_label_addition(self):
         return ''
-
-    def new_instance(self, page):
-        cp = self.__class__(
-            navigation=self.navigation,
-            max_items_per_group=self.max_items_per_group,
-            max_group_per_page=self.max_group_per_page,
-            pagegen=self.pagegen,
-            firstpage=page)
-        return cp
 
     async def put_items_in_pages(self):
         try:
@@ -774,10 +932,10 @@ class ListPagesTMessage(BaseMessage):
                         group = GroupOfNameDurationItems()
                         thispage.add_group(group)
                         for k in range(items_of_this_group):
-                            item = self.pagegen.item_convert(items[current_item], current_item, self.navigation)
+                            item = self.pagegen.item_convert(items[current_item].rowid, self.navigation)
                             group.add_item(item)
                             if k == items_of_this_group - 1:
-                                thispage.set_start_stop(start, current_item)
+                                thispage.set_start_stop(items[start].index, items[current_item].index)
                             current_item += 1
                     thispage.set_back_page(oldpage)
                     oldpage = thispage
@@ -788,13 +946,13 @@ class ListPagesTMessage(BaseMessage):
     async def goto_index(self, index, context=None):
         basepage = self.first_page
         while basepage.back_page:
-            basepage = self.first_page.back_page
+            basepage = basepage.back_page
         current = 0
         while basepage:
             for g in basepage.groups:
                 for _ in g.items:
                     if current == index:
-                        await self.goto_group((g, self.get_group_label(g)), context)
+                        await self.goto_group((g,), context)
                         return
                     current += 1
             basepage = basepage.next_page
@@ -813,63 +971,55 @@ class ListPagesTMessage(BaseMessage):
         await self.navigation.goto_menu(self, context, add_if_present=False)
 
     async def goto_group(self, args, context=None):
-        group, label = args
-        headers = {"range": "bytes=0-10", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
+        group: GroupOfNameDurationItems = args[0]
         for item in group.items:
-            if item.thumb and validators.url(item.thumb):
-                async with ClientSession() as session:
-                    async with session.get(item.thumb, headers=headers) as resp:
-                        if not (resp.status >= 200 and resp.status < 300):
-                            item.thumb = item.picture = ''
             try:
-                await self.navigation._send_app_message(item, label, context)
+                await item.send(context)
             except Exception:
                 _LOGGER.error(f'goto_group error {traceback.format_exc()}')
         self.is_alive()
 
-    def get_page_label(self, page):
-        if page.start_item == page.stop_item:
-            return f'{page.start_item + 1}'
-        else:
-            return f'{page.start_item + 1} - {page.stop_item + 1}'
-
-    def get_group_label(self, group):
-        if group.start_item == group.stop_item:
-            beginning = f'{group.start_item + 1}) {group.items[0].name}'
-            if len(beginning) > 70:
-                beginning = beginning[0:70] + '...'
-            return f'{beginning} ({duration2string(group.items[0].secs)})'
-        else:
-            return f'{group.start_item + 1} - {group.stop_item + 1}'
+    def soft_refresh(self):
+        basepage = self.first_page
+        while basepage.back_page:
+            basepage = basepage.back_page
+        while basepage:
+            for g in basepage.groups:
+                for it in g.items:
+                    if not it.refresh_from_cache():
+                        self.first_page = None
+                        return False
+            basepage = basepage.next_page
+        return True
 
     async def update(self, context: Optional[CallbackContext] = None) -> str:
-        if not self.first_page:
+        if not self.first_page or not self.soft_refresh():
             await self.put_items_in_pages()
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         if self.first_page:
             for grp in self.first_page.groups:
-                label = self.get_group_label(grp)
-                self.add_button(label, self.goto_group, args=(grp, label))
+                label = grp.get_label()
+                self.add_button(label, self.goto_group, args=(grp,))
             new_row = True
             if self.first_page.back_page:
-                self.add_button(f':arrow_left: {self.get_page_label(self.first_page.back_page)}', self.goto_page, args=(self.first_page.back_page, ), new_row=new_row)
+                self.add_button(f':arrow_left: {self.first_page.back_page.get_label()}', self.goto_page, args=(self.first_page.back_page, ), new_row=new_row)
                 new_row = False
             if self.first_page.next_page and self.first_page.next_page.is_valid():
-                self.add_button(f'{self.get_page_label(self.first_page.next_page)} :arrow_right:', self.goto_page, args=(self.first_page.next_page, ), new_row=new_row)
+                self.add_button(f'{self.first_page.next_page.get_label()} :arrow_right:', self.goto_page, args=(self.first_page.next_page, ), new_row=new_row)
         return self.update_str
 
 
 class PlaylistsPagesTMessage(ListPagesTMessage):
 
-    def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen=None, firstpage=None, userid=None, username=None, params=None) -> None:
+    def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, firstpage=None, userid=None, username=None, params=None) -> None:
         super().__init__(
             update_str=f'List of <b>{username}</b> playlists',
             navigation=navigation,
             max_items_per_group=max_items_per_group,
             max_group_per_page=max_group_per_page,
             firstpage=firstpage,
-            pagegen=pagegen if pagegen else PlaylistsPagesGenerator(
+            pagegen=PlaylistsPagesGenerator(
                 userid,
                 username,
                 params
@@ -885,7 +1035,7 @@ class PlaylistsPagesTMessage(ListPagesTMessage):
 
 class PlaylistItemsPagesTMessage(ListPagesTMessage):
 
-    def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen=None, firstpage=None, deleted=False, userid=None, username=None, params=None, playlist_obj=None) -> None:
+    def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, firstpage=None, deleted=False, userid=None, username=None, params=None, playlist_obj: Optional[PlaylistTMessage] = None) -> None:
         self.playlist_obj = playlist_obj
         super().__init__(
             update_str=f'List of <b>{playlist_obj.name}</b> items ({playlist_obj.unseen} - \U000023F1 {duration2string(playlist_obj.obj.get_duration())})',
@@ -894,40 +1044,19 @@ class PlaylistItemsPagesTMessage(ListPagesTMessage):
             max_group_per_page=max_group_per_page,
             firstpage=firstpage,
             deleted=deleted,
-            pagegen=pagegen if pagegen else PlaylistItemsPagesGenerator(
+            pagegen=PlaylistItemsPagesGenerator(
                 userid,
                 username,
                 params,
-                playlist_obj
+                playlist_obj.id
             )
         )
-
-    def new_instance(self, page):
-        cp = super().new_instance(page)
-        cp.playlist_obj = self.playlist_obj
-        return cp
 
     def get_label_addition(self):
         return f'{self.playlist_obj.id}'
 
-    async def list_playlists(self, context):
-        await self.navigation.goto_home(context)
-        await self.navigation._menu_queue[0].list_page_of_playlists(None, context)
-
-    async def refresh_playlist_object(self, context):
-        ppg = PlaylistsPagesGenerator(self.pagegen.proc.userid, self.pagegen.proc.username, self.pagegen.proc.params)
-        lst = await ppg.get_items_list(False, playlist=self.playlist_obj.id)
-        if lst:
-            grp = GroupOfNameDurationItems()
-            self.playlist_obj = ppg.item_convert(lst[0], self.playlist_obj.index, self.navigation)
-            grp.add_item(self.playlist_obj)
-            await self.goto_group((grp, self.get_group_label(grp)), context)
-
     async def update(self, context: Optional[CallbackContext] = None) -> str:
         updstr = await super().update(context)
-        grp = GroupOfNameDurationItems()
-        grp.add_item(self.playlist_obj)
-        self.add_button(self.get_group_label(grp), self.refresh_playlist_object, new_row=True)
         self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back, new_row=True)
         self.add_button(label=u"\U0001F3E0 Home", callback=self.navigation.goto_home)
         return updstr

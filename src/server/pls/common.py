@@ -345,9 +345,15 @@ class MessageProcessor(AbstractMessageProcessor):
                     round_iorder = dest_iorder if (dest_iorder % 10) == 0 else (dest_iorder // 10 + 1) * 10
                     plus_idx = -1
                     # await pl.cleanItems(self.db, commit=False)
+                    foundme = False
                     for idx, other_it in enumerate(items):
-                        if other_it.rowid != x and other_it.iorder >= dest_iorder:
-                            plus_idx = idx
+                        if other_it.rowid != x:
+                            if plus_idx < 0 and other_it.iorder >= dest_iorder:
+                                plus_idx = idx
+                        else:
+                            it = other_it
+                            foundme = True
+                        if foundme and plus_idx >= 0:
                             break
                     fix_order = False
                     if plus_idx >= 0:
@@ -359,12 +365,13 @@ class MessageProcessor(AbstractMessageProcessor):
                                 return msg.err(5, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                             items[idx].iorder = -items[idx].iorder
                             cur_iorder -= 10
-                            fix_order = True
+                        fix_order = True
                     if await it.setIOrder(self.db, round_iorder, commit=not fix_order):
                         if fix_order and not await pl.fix_iorder(self.db, commit=fix_order):
                             return msg.err(6, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                         else:
-                            return msg.ok(playlistitem=it)
+                            pl.items.sort(key=lambda x: x.iorder)
+                            return msg.ok(playlistitem=it, playlist=pl)
                     else:
                         return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                 else:
@@ -409,11 +416,7 @@ class MessageProcessor(AbstractMessageProcessor):
                 if pl.items:
                     if not await pl.fix_iorder(self.db, commit=True):
                         return msg.err(2, MSG_PLAYLIST_NOT_FOUND, playlist=None)
-                    items = pl.items
-                    for idx in range(len(items) - 1, -1, -1):
-                        other_it = items[idx]
-                        if other_it.seen:
-                            del items[idx]
+                    pl.items.sort(key=lambda x: x.iorder)
                 return msg.ok(playlist=pl)
             else:
                 msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)

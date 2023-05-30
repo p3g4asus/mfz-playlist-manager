@@ -1056,7 +1056,13 @@ function index_global_init() {
 }
 
 function playlist_dump(plid) {
-    let el = new MainWSQueueElement({cmd: CMD_DUMP, useri:playlist_user, playlist: plid}, function(msg) {
+    const urlParams = new URLSearchParams(URL_PARAMS);
+    let tmpi, el = new MainWSQueueElement({
+        cmd: CMD_DUMP,
+        useri:playlist_user,
+        playlist: plid,
+        load_all: urlParams.has('all') && !isNaN(tmpi = parseInt(urlParams.get('all'))) && tmpi? 1: 0,
+    }, function(msg) {
         return msg.cmd === CMD_DUMP? msg:null;
     }, 30000, 1);
     el.enqueue().then(function(msg) {
