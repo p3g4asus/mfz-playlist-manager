@@ -8,7 +8,7 @@ from enum import Enum, auto
 from html import escape
 from os import stat
 from os.path import exists, isfile, split
-from typing import Any, Coroutine, List, Optional, Union
+from typing import Any, Coroutine, Dict, List, Optional, Union
 from urllib.parse import urlencode, urlparse
 
 import validators
@@ -43,24 +43,96 @@ def duration2string(secs):
         return f'{ss}s'
 
 
-_PLAYLIST_CACHE = dict()
+class PlaylistItemTg(object):
+    def __init__(self, item: PlaylistItem, index: int):
+        self.message: PlaylistItemTMessage = None
+        self.refresh(item, index)
+
+    def refresh(self, item: PlaylistItem, index: int):
+        self.item = item
+        self.index = index
+        if self.message and self.message.has_expired():
+            self.message = None
+
+
+class PlaylistTg(object):
+    def __init__(self, playlist: Playlist, index: int):
+        self.message: PlaylistTMessage = None
+        self.items: Dict[str, PlaylistItemTg] = dict()
+        self.refresh(playlist, index)
+
+    def get_items(self, deleted: bool = False) -> List[PlaylistItemTg]:
+        real_index = 0
+        del_index = 1000000
+        rv = []
+        for _, itTg in self.items.items():
+            it: PlaylistItem = itTg.item
+            if deleted or not it.seen:
+                itTg.refresh(it, real_index if not it.seen else del_index)
+                rv.append(itTg)
+            else:
+                itTg.refresh(it, del_index)
+            if it.seen:
+                del_index += 1
+            else:
+                real_index += 1
+        return rv
+
+    def get_item(self, rowid: int) -> PlaylistItemTg:
+        key = str(rowid)
+        if key in self.items:
+            itemTg: PlaylistItemTg = self.items[key]
+            itemTg.refresh(itemTg.item, itemTg.index)
+            return itemTg
+        else:
+            return None
+
+    def refresh(self, playlist: Playlist, index: int):
+        self.playlist = playlist
+        self.index = index
+        olditems = self.items
+        self.items: Dict[str, PlaylistItemTg] = dict()
+        real_index = 0
+        del_index = 1000000
+        for it in playlist.items:
+            key = str(it.rowid)
+            i = real_index if not it.seen else del_index
+            itemTg: PlaylistItemTg
+            if key in olditems:
+                itemTg = olditems[key]
+                itemTg.refresh(it, i)
+            else:
+                itemTg = PlaylistItemTg(it, i)
+            if not it.seen:
+                real_index += 1
+            else:
+                del_index += 1
+            self.items[key] = itemTg
+        if self.message and self.message.has_expired():
+            self.message = None
+
+
+_PLAYLIST_CACHE: Dict[str, Dict[str, PlaylistTg]] = dict()
 
 
 def cache_store(p: Playlist, index=None):
     useris = str(p.useri)
-    dep = _PLAYLIST_CACHE.get(useris, dict())
+    if useris not in _PLAYLIST_CACHE:
+        dep = _PLAYLIST_CACHE[useris] = dict()
+    else:
+        dep = _PLAYLIST_CACHE[useris]
     pids = str(p.rowid)
     if index is None:
         if pids not in dep:
             index = len(dep)
         else:
-            index = dep[pids]['index']
-    itdict = dict()
-    for i, it in enumerate(p.items):
-        it.index = i
-        itdict[str(it.rowid)] = it
-    p.index = index
-    dep[pids] = dict(index=index, obj=p, items=itdict)
+            index = dep[pids].index
+    plaTg: PlaylistTg
+    if pids in dep:
+        plaTg = dep[pids]
+        plaTg.refresh(p, index)
+    else:
+        dep[pids] = PlaylistTg(p, index)
 
 
 def cache_del(p: Playlist):
@@ -71,49 +143,60 @@ def cache_del(p: Playlist):
         if pids in dep:
             del dep[pids]
             for i, pd in enumerate(dep.values()):
-                if i != pd['index']:
-                    pd['obj'].index = pd['index'] = i
+                pd.index = i
+
+
+def cache_on_item_deleted(useri: int, pid: int):
+    useris = str(useri)
+    dep: dict = _PLAYLIST_CACHE.get(useris, None)
+    if dep:
+        pids = str(pid)
+        if pids in dep:
+            plTg = dep[pids]
+            plTg.refresh(plTg.playlist, plTg.index)
 
 
 def cache_del_user(useri: int, playlists: List[Playlist]):
-    _PLAYLIST_CACHE[str(useri)] = dict()
+    newdict = dict()
+    useris = str(useri)
+    newdict = dict() if useris in _PLAYLIST_CACHE else None
     for p in playlists:
+        pids = str(p.rowid)
         cache_store(p)
+        if newdict is not None:
+            newdict[pids] = _PLAYLIST_CACHE[useris][pids]
+    if newdict is not None:
+        _PLAYLIST_CACHE[useris] = newdict
 
 
-def cache_get(useri: int, pid: Optional[int] = None) -> Union[List[Playlist], Playlist]:
+def cache_get(useri: int, pid: Optional[int] = None) -> Union[List[PlaylistTg], PlaylistTg]:
     useris = str(useri)
     if pid is None:
         dd = _PLAYLIST_CACHE.get(useris, dict())
         pps = []
         for _, p in dd.items():
-            pps.append(p['obj'])
+            if p.message and p.message.has_expired():
+                p.message = None
+            pps.append(p)
         return pps
     else:
         pids = str(pid)
-        dd = _PLAYLIST_CACHE.get(useris, dict()).get(pids, dict(obj=None, index=None))
-        return dd['obj']
+        dd = _PLAYLIST_CACHE.get(useris, dict()).get(pids, None)
+        if dd and dd.message and dd.message.has_expired():
+            dd.message = None
+        return dd
 
 
-def cache_get_items(useri: int, pid: int, deleted: bool) -> List[PlaylistItem]:
+def cache_get_items(useri: int, pid: int, deleted: bool) -> List[PlaylistItemTg]:
     dd = cache_get(useri, pid)
-    rv = []
-    if dd:
-        items = dd.items
-        i = 0
-        for it in items:
-            if deleted or not it.seen:
-                it.index = i
-                i += 1
-                rv.append(it)
-    return rv
+    return dd.get_items(deleted) if dd else []
 
 
-def cache_get_item(useri: int, pid: int, itid: int) -> PlaylistItem:
+def cache_get_item(useri: int, pid: int, itid: int) -> PlaylistItemTg:
     useris = str(useri)
     pids = str(pid)
-    itids = str(itid)
-    return _PLAYLIST_CACHE.get(useris, dict()).get(pids, dict(items=dict()))['items'].get(itids)
+    dd = _PLAYLIST_CACHE.get(useris, dict()).get(pids)
+    return dd.get_item(itid) if dd else None
 
 
 class MyNavigationHandler(NavigationHandler):
@@ -309,7 +392,7 @@ class RefreshingTMessage(StatusTMessage):
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.long_operation_do,
             "interval",
-            id="long_operation_do",
+            id=f"long_operation_do{self.label}",
             seconds=3,
             replace_existing=True,
             next_run_time=datetime.utcnow()
@@ -345,6 +428,25 @@ class NameDurationTMessage(DeletingTMessage):
             await self.navigation._send_app_message(self, self.label)
         else:
             await self.navigation.goto_menu(self, context, add_if_present=False)
+
+    async def edit_or_select(self, context: Optional[CallbackContext] = None):
+        if self.inlined and self._old_thumb != self.thumb:
+            await self.send(context)
+        else:
+            return await super().edit_or_select(context)
+
+    async def edit_or_select_if_exists(self, delay: float = 0, context: Optional[CallbackContext] = None):
+        if self.time_alive and self.refresh_from_cache():
+            if delay > 0.0:
+                self.scheduler_job = self.navigation.scheduler.add_job(
+                    self.edit_or_select,
+                    "date",
+                    id=f"eos{self.label}",
+                    replace_existing=True,
+                    run_date=datetime.utcnow() + timedelta(seconds=delay)
+                )
+            else:
+                await self.edit_or_select()
 
     async def set_picture_path(self):
         if self._old_thumb != self.thumb:
@@ -400,10 +502,11 @@ class PlaylistItemTMessage(NameDurationTMessage):
     def refresh_from_cache(self):
         obj = cache_get_item(self.proc.userid, self.pid, self.id)
         if obj:
-            self.obj = obj
+            self.obj = obj.item
+            obj.message = self
             p = cache_get(self.proc.userid, self.pid)
-            self.playlist_name = p.name
-            self.index = self.obj.index
+            self.playlist_name = p.playlist.name
+            self.index = obj.index
             self.name = self.obj.title
             self.secs = self.obj.dur
             self.thumb = self.obj.img
@@ -437,7 +540,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.long_operation_do,
             "interval",
-            id=f"long_operation_do{id(self)}",
+            id=f"long_operation_do{self.label}",
             seconds=3,
             replace_existing=True,
             next_run_time=datetime.utcnow()
@@ -547,6 +650,11 @@ class PlaylistItemTMessage(NameDurationTMessage):
         if pl.rv == 0:
             self.deleted = not self.deleted
             self.obj.seen = not self.obj.seen
+            cache_on_item_deleted(self.proc.userid, self.pid)
+            plTg = cache_get(self.proc.userid, self.pid)
+            if plTg.message:
+                await plTg.message.edit_or_select_items(2)
+                await plTg.message.edit_or_select_if_exists(2)
             self.return_msg = ('Delete' if self.deleted else 'Restore') + ' OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} {"deleting" if not self.deleted else "restoring"} {self.name} :thumbs_down:'
@@ -556,6 +664,10 @@ class PlaylistItemTMessage(NameDurationTMessage):
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             cache_store(pl.playlist)
+            plTg = cache_get(self.proc.userid, self.pid)
+            if plTg.message:
+                await plTg.message.edit_or_select_items()
+                await plTg.message.edit_or_select_if_exists()
             self.return_msg = 'IOrder OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} IOrdering {self.name} :thumbs_down:'
@@ -565,8 +677,9 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
     def refresh_from_cache(self):
         obj = cache_get(self.proc.userid, self.id)
         if obj:
-            self.obj = obj
-            self.index = self.obj.index
+            self.obj = obj.playlist
+            obj.message = self
+            self.index = obj.index
             self.name = self.obj.name
             img = None
             self.unseen = 0
@@ -592,17 +705,34 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         self.del_and_recreate = False
         self.set_playlist(self.obj)
 
+    async def edit_or_select_items(self, delay: float = 0):
+        itemsTg = cache_get_items(self.proc.userid, self.id, True)
+        for itemTg in itemsTg:
+            if itemTg.message:
+                await itemTg.message.edit_or_select_if_exists(delay)
+
     async def delete_item_do(self):
         pl = PlaylistMessage(CMD_DEL, playlist=self.id)
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             self.deleted = True
-            cache_del(self.obj)
             await self.navigation.delete_message(self.message_id)
+            itemsTg = cache_get_items(self.proc.userid, self.id, True)
+            for itTg in itemsTg:
+                if itTg.message:
+                    await self.navigation.delete_message(itTg.message.message_id)
+            cache_del(self.obj)
+            plsTg: List[PlaylistTMessage] = cache_get(self.proc.userid)
+            for plTg in plsTg:
+                if plTg.message:
+                    await plTg.message.edit_or_select_if_exists()
             lmm = self.navigation._menu_queue[-1]
             if isinstance(lmm, PlaylistItemsPagesTMessage) and\
                     lmm.playlist_obj.id == self.id:
                 await self.navigation.goto_back()
+            lmm = self.navigation._menu_queue[-1]
+            if isinstance(lmm, PlaylistsPagesTMessage):
+                await self.navigation.goto_menu(lmm, None, add_if_present=False)
             self.return_msg = 'Delete OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} deleting {self.name} :thumbs_down:'
@@ -635,7 +765,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.long_operation_do,
             "interval",
-            id="long_operation_do",
+            id=f"long_operation_do{self.label}",
             seconds=3,
             replace_existing=True,
             next_run_time=datetime.utcnow()
@@ -644,6 +774,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             cache_store(pl.playlist)
+            await self.edit_or_select_items()
             self.del_and_recreate = True
             self.return_msg = 'Sort OK :thumbs_up:'
         else:
@@ -656,6 +787,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         if isinstance(lmm, PlaylistsPagesTMessage) or\
            (isinstance(lmm, PlaylistItemsPagesTMessage) and lmm.playlist_obj.id == self.id):
             await self.navigation.goto_menu(lmm, None, add_if_present=False)
+        await self.edit_or_select_items()
         await self.switch_to_idle()
 
     async def on_refresh_abort(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
@@ -781,6 +913,8 @@ class MultipleGroupsOfItems(object):
         self.next_page: MultipleGroupsOfItems = None
         self.back_page: MultipleGroupsOfItems = None
         self.groups: List[GroupOfNameDurationItems] = []
+        self.first_item_index: int = -1
+        self.last_item_index: int = -1
 
     def is_valid(self):
         return self.start_item >= 0 and self.stop_item >= 0
@@ -789,10 +923,17 @@ class MultipleGroupsOfItems(object):
         self.start_item = sta
         self.stop_item = sto
 
+    def set_first_last(self, sta: int, sto: int):
+        self.first_item_index = sta
+        self.last_item_index = sto
+
     def get_next_page(self):
         return self.next_page
 
     def add_group(self, grp):
+        if not self.groups:
+            self.start_item = grp.start_item
+        self.stop_item = grp.stop_item
         self.groups.append(grp)
 
     def set_back_page(self, val):
@@ -821,7 +962,9 @@ class PageGenerator(object):
 class PlaylistsPagesGenerator(PageGenerator):
 
     def item_convert(self, myid, navigation, **_):
-        return PlaylistTMessage(navigation, myid, self.proc.userid, self.proc.username, self.proc.params)
+        plTg = cache_get(self.proc.userid, myid)
+        return plTg.message if plTg and plTg.message and plTg.message.refresh_from_cache() else\
+            PlaylistTMessage(navigation, myid, self.proc.userid, self.proc.username, self.proc.params)
 
     def get_playlist_message(self, pid=None, deleted=False):
         return PlaylistMessage(CMD_DUMP, useri=self.proc.userid, load_all=1 if deleted else 0, playlist=pid)
@@ -842,16 +985,22 @@ class PlaylistItemsPagesGenerator(PageGenerator):
         self.pid = pid
 
     def item_convert(self, myid, navigation):
-        return PlaylistItemTMessage(
-            navigation,
-            myid=myid,
-            userid=self.proc.userid,
-            username=self.proc.username,
-            params=self.proc.params,
-            pid=self.pid)
+        itTg = cache_get_item(self.proc.userid, self.pid, myid)
+        return itTg.message if itTg and itTg.message and itTg.message.refresh_from_cache() else\
+            PlaylistItemTMessage(
+                navigation,
+                myid=myid,
+                userid=self.proc.userid,
+                username=self.proc.username,
+                params=self.proc.params,
+                pid=self.pid)
 
     async def get_items_list(self, deleted=False):
-        return cache_get_items(self.proc.userid, self.pid, deleted)
+        itemsTg = cache_get_items(self.proc.userid, self.pid, deleted)
+        rv = []
+        for itTg in itemsTg:
+            rv.append(itTg.item)
+        return rv
 
 
 class YesNoTMessage(BaseMessage):
@@ -920,26 +1069,32 @@ class ListPagesTMessage(BaseMessage):
             npages = int(ngroups / self.max_group_per_page) + (1 if last_page_groups else 0)
             if not last_page_groups:
                 last_page_groups = self.max_group_per_page
+            first_item_index = None
+            last_item_index = None
+            pages: List[MultipleGroupsOfItems] = []
             if nitems:
                 oldpage = None
                 self.first_page = thispage = MultipleGroupsOfItems()
                 current_item = 0
                 for i in range(npages):
                     groups_of_this_page = last_page_groups if i == npages - 1 else self.max_group_per_page
-                    start = current_item
                     for j in range(groups_of_this_page):
                         items_of_this_group = last_group_items if i == npages - 1 and j == groups_of_this_page - 1 else self.max_items_per_group
                         group = GroupOfNameDurationItems()
-                        thispage.add_group(group)
-                        for k in range(items_of_this_group):
+                        for _ in range(items_of_this_group):
                             item = self.pagegen.item_convert(items[current_item].rowid, self.navigation)
                             group.add_item(item)
-                            if k == items_of_this_group - 1:
-                                thispage.set_start_stop(items[start].index, items[current_item].index)
                             current_item += 1
+                            if current_item == 1:
+                                first_item_index = item.index
+                            last_item_index = item.index
+                        thispage.add_group(group)
                     thispage.set_back_page(oldpage)
                     oldpage = thispage
+                    pages.append(thispage)
                     thispage = oldpage.next_page = MultipleGroupsOfItems()
+                for p in pages:
+                    p.set_first_last(first_item_index, last_item_index)
         except Exception:
             _LOGGER.error(traceback.format_exc())
 
@@ -998,6 +1153,9 @@ class ListPagesTMessage(BaseMessage):
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         if self.first_page:
+            self.input_field = f'{self.first_page.first_item_index + 1} - {self.first_page.last_item_index + 1}'\
+                if self.first_page.last_item_index != self.first_page.first_item_index else\
+                f'{self.first_page.first_item_index + 1}'
             for grp in self.first_page.groups:
                 label = grp.get_label()
                 self.add_button(label, self.goto_group, args=(grp,))
