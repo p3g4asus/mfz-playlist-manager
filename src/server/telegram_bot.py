@@ -655,10 +655,6 @@ class PlaylistItemTMessage(NameDurationTMessage):
             if plTg.message:
                 await plTg.message.edit_or_select_items(2)
                 await plTg.message.edit_or_select_if_exists(2)
-            lmm = self.navigation._menu_queue[-1]
-            if isinstance(lmm, PlaylistItemsPagesTMessage) and\
-                    lmm.playlist_obj.id == self.pid:
-                await self.navigation.goto_menu(lmm, None, add_if_present=False)
             self.return_msg = ('Delete' if self.deleted else 'Restore') + ' OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} {"deleting" if not self.deleted else "restoring"} {self.name} :thumbs_down:'
@@ -1145,7 +1141,7 @@ class ListPagesTMessage(BaseMessage):
         while basepage:
             for g in basepage.groups:
                 for it in g.items:
-                    if not it.refresh_from_cache() or it.deleted and not self.deleted:
+                    if not it.refresh_from_cache():
                         self.first_page = None
                         return False
             basepage = basepage.next_page
