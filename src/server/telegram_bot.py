@@ -1145,7 +1145,7 @@ class ListPagesTMessage(BaseMessage):
         while basepage:
             for g in basepage.groups:
                 for it in g.items:
-                    if not it.refresh_from_cache():
+                    if not it.refresh_from_cache() or it.deleted and not self.deleted:
                         self.first_page = None
                         return False
             basepage = basepage.next_page
