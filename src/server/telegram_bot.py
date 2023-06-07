@@ -1813,6 +1813,9 @@ class StartTMessage(BaseMessage):
         if self.playlists_lister:
             await self.playlists_lister.goto_page((page, ), context)
 
+    def cache_clear(self, context: Optional[CallbackContext] = None):
+        cache_del_user(self.userid, [])
+
     async def async_init(self, context: Optional[CallbackContext] = None):
         res = await self.check_if_username_registred(self.params.db2, self.navigation.user_name)
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
@@ -1844,6 +1847,7 @@ class StartTMessage(BaseMessage):
             self.input_field = 'What do you want to do?'
             self.add_button(label=":memo: List", callback=self.playlists_lister)
             self.add_button(label=":eye: All", callback=listall)
+            self.add_button(label="\U00002B55 Message Cache Clear", callback=self.cache_clear)
             self.add_button(label="\U00002795 Add", callback=PlaylistAddTMessage(self.navigation, userid=self.userid, username=self.username, params=self.params))
             self.add_button(label="\U0001F6AA Sign Out", callback=SignOutTMessage(self.navigation))
         else:
