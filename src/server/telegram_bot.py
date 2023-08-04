@@ -267,6 +267,14 @@ class StatusTMessage(BaseMessage):
     async def switch_to_idle_end(self):
         await self.edit_or_select()
 
+    def scheduler_job_remove(self):
+        if self.scheduler_job:
+            try:
+                self.scheduler_job.remove()
+            except Exception:
+                pass
+            self.scheduler_job = None
+
     async def switch_to_idle(self):
         if self.return_msg and self.sub_status != -1000:
             self.status = NameDurationStatus.RETURNING_IDLE
@@ -275,19 +283,14 @@ class StatusTMessage(BaseMessage):
             self.status = NameDurationStatus.IDLE
             self.sub_status = 0
             self.return_msg = ''
-        if self.scheduler_job:
-            try:
-                self.scheduler_job.remove()
-            except Exception:
-                pass
-            self.scheduler_job = None
+        self.scheduler_job_remove()
         if self.return_msg:
             self.scheduler_job = self.navigation.scheduler.add_job(
                 self.switch_to_idle,
-                "interval",
+                "date",
                 id=f"switch_to_idle{id(self)}",
-                seconds=8 if self.inlined else 0.5,
                 replace_existing=True,
+                run_date=datetime.utcnow() + timedelta(seconds=8 if self.inlined else 0.5)
             )
         await self.switch_to_idle_end()
 
@@ -309,6 +312,7 @@ class DeletingTMessage(StatusTMessage):
     async def wait_undo_job(self):
         if self.sub_status <= 0:
             if self.status == NameDurationStatus.DELETING:
+                self.scheduler_job_remove()
                 await self.delete_item_do()
                 await self.switch_to_idle()
         else:
@@ -438,6 +442,7 @@ class NameDurationTMessage(DeletingTMessage):
     async def edit_or_select_if_exists(self, delay: float = 0, context: Optional[CallbackContext] = None):
         if self.time_alive and self.refresh_from_cache():
             if delay > 0.0:
+                self.scheduler_job_remove()
                 self.scheduler_job = self.navigation.scheduler.add_job(
                     self.edit_or_select,
                     "date",
