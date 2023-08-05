@@ -267,13 +267,20 @@ class StatusTMessage(BaseMessage):
     async def switch_to_idle_end(self):
         await self.edit_or_select()
 
-    def scheduler_job_remove(self):
-        if self.scheduler_job:
+    def scheduler_job_remove(self, name: str = None):
+        if self.scheduler_job and not name:
             try:
+                _LOGGER.debug(f'Deleting {self.scheduler_job.name} for {id(self)}')
                 self.scheduler_job.remove()
             except Exception:
                 pass
             self.scheduler_job = None
+        elif name:
+            try:
+                _LOGGER.debug(f'Deleting {name} for {id(self)}')
+                self.navigation.scheduler.remove_job(name, 'default')
+            except Exception:
+                pass
 
     async def switch_to_idle(self):
         if self.return_msg and self.sub_status != -1000:
@@ -285,7 +292,7 @@ class StatusTMessage(BaseMessage):
             self.return_msg = ''
         self.scheduler_job_remove()
         if self.return_msg:
-            self.scheduler_job = self.navigation.scheduler.add_job(
+            self.navigation.scheduler.add_job(
                 self.switch_to_idle,
                 "date",
                 id=f"switch_to_idle{id(self)}",
@@ -326,10 +333,12 @@ class DeletingTMessage(StatusTMessage):
     def delete_item_pre(self):
         self.status = NameDurationStatus.DELETING
         self.sub_status = 10
+        name: str = f"wait_undo_job{id(self)}"
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.wait_undo_job,
             "interval",
-            id=f"wait_undo_job{id(self)}",
+            name=name,
+            id=name,
             seconds=1,
             replace_existing=True,
         )
@@ -442,11 +451,12 @@ class NameDurationTMessage(DeletingTMessage):
     async def edit_or_select_if_exists(self, delay: float = 0, context: Optional[CallbackContext] = None):
         if self.time_alive and self.refresh_from_cache():
             if delay > 0.0:
-                self.scheduler_job_remove()
-                self.scheduler_job = self.navigation.scheduler.add_job(
+                name = f"eos{self.label}"
+                self.navigation.scheduler.add_job(
                     self.edit_or_select,
                     "date",
-                    id=f"eos{self.label}",
+                    id=name,
+                    name=name,
                     replace_existing=True,
                     run_date=datetime.utcnow() + timedelta(seconds=delay)
                 )
@@ -658,8 +668,8 @@ class PlaylistItemTMessage(NameDurationTMessage):
             cache_on_item_deleted(self.proc.userid, self.pid)
             plTg = cache_get(self.proc.userid, self.pid)
             if plTg.message:
-                await plTg.message.edit_or_select_items(2)
-                await plTg.message.edit_or_select_if_exists(2)
+                await plTg.message.edit_or_select_items(5)
+                await plTg.message.edit_or_select_if_exists(5)
             self.return_msg = ('Delete' if self.deleted else 'Restore') + ' OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} {"deleting" if not self.deleted else "restoring"} {self.name} :thumbs_down:'
