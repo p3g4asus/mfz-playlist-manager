@@ -729,7 +729,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 await itemTg.message.edit_or_select_if_exists(delay)
 
     async def delete_item_do(self):
-        if self.del_action == 'del':
+        if self.del_action == CMD_DEL:
             pl = PlaylistMessage(CMD_DEL, playlist=self.id)
             pl = await self.proc.process(pl)
             if pl.rv == 0:
@@ -878,7 +878,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             if self.status == NameDurationStatus.IDLE:
                 self.add_button(u'\U00002699', self.edit_me)
                 self.add_button(u'\U0001F5D1', self.switch_to_status, args=(NameDurationStatus.DELETING_CONFIRM, ))
-                self.add_button(u'\U0001F9F9', self.delete_item_pre_pre, args=('clean', ))
+                self.add_button(u'\U0001F9F9', self.delete_item_pre_pre, args=(CMD_CLEAR, ))
                 self.add_button(u'\U000000AB\U000000BB', self.switch_to_status, args=(NameDurationStatus.RENAMING, ))
                 self.add_button(u'\U0001F501', self.switch_to_status, args=(NameDurationStatus.UPDATING_INIT, ))
                 self.add_button(u'\U00002211', self.sort_playlist)
@@ -889,7 +889,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return f'Enter new name for <b>{self.name}</b>'
             elif self.status == NameDurationStatus.DELETING_CONFIRM:
-                self.add_button('\U00002705 Yes', self.delete_item_pre_pre, args=('del', ))
+                self.add_button('\U00002705 Yes', self.delete_item_pre_pre, args=(CMD_DEL, ))
                 self.add_button(':cross_mark: No', self.switch_to_idle)
                 return f'Are you sure to delete <b>{self.name}</b>?'
             elif self.status == NameDurationStatus.SORTING:
