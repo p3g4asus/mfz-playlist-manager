@@ -18,7 +18,7 @@ from pythonosc.osc_server import AsyncIOOSCUDPServer
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.udp_client import SimpleUDPClient
 
-from common.const import (CMD_ADD, CMD_CLOSE, CMD_DOWNLOAD, CMD_DEL, CMD_DUMP, CMD_IORDER,
+from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DOWNLOAD, CMD_DEL, CMD_DUMP, CMD_IORDER,
                           CMD_MOVE, CMD_PLAYID, CMD_PLAYITSETT, CMD_PLAYSETT,
                           CMD_REN, CMD_SEEN, CMD_SORT, MSG_BACKEND_ERROR,
                           MSG_INVALID_PARAM, MSG_NAME_TAKEN,
@@ -46,7 +46,8 @@ class MessageProcessor(AbstractMessageProcessor):
         return msg.c(CMD_DEL) or msg.c(CMD_REN) or msg.c(CMD_DUMP) or\
             msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or\
             msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or\
-            msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT) or msg.c(CMD_DOWNLOAD)
+            msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT) or msg.c(CMD_DOWNLOAD) or\
+            msg.c(CMD_CLEAR)
 
     async def processMove(self, msg, userid, executor):
         pdst = msg.playlistId()
@@ -419,7 +420,24 @@ class MessageProcessor(AbstractMessageProcessor):
                     pl.items.sort(key=lambda x: x.iorder)
                 return msg.ok(playlist=pl)
             else:
-                msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+        else:
+            return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+
+    async def processClear(self, msg, userid, executor):
+        x = msg.playlistId()
+        if x is not None:
+            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            if pls:
+                pl: Playlist = pls[0]
+                if pl.useri != userid:
+                    return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                if not await pl.clear(self.db):
+                    return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                else:
+                    return msg.ok(playlist=pl)
+            else:
+                return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
@@ -518,6 +536,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processRen(msg, userid, executor)
         elif msg.c(CMD_DUMP):
             resp = await self.processDump(msg, userid, executor)
+        elif msg.c(CMD_CLEAR):
+            resp = await self.processClear(msg, userid, executor)
         elif msg.c(CMD_SEEN):
             resp = await self.processSeen(msg, userid, executor)
         elif msg.c(CMD_IORDER):

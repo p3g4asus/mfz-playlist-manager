@@ -19,7 +19,7 @@ from telegram_menu import (BaseMessage, ButtonType, NavigationHandler,
                            TelegramMenuSession)
 from telegram_menu.models import MenuButton, emoji_replace
 
-from common.const import (CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
+from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
                           CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK)
 from common.playlist import (Playlist, PlaylistItem, PlaylistMessage)
 
@@ -229,6 +229,7 @@ class NameDurationStatus(Enum):
     IDLE = auto()
     RETURNING_IDLE = auto()
     DELETING = auto()
+    DELETING_CONFIRM = auto()
     RENAMING = auto()
     UPDATING_INIT = auto()
     UPDATING_START = auto()
@@ -719,6 +720,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             params=params)
         self.del_and_recreate = False
         self.set_playlist(self.obj)
+        self.del_action: str = ''
 
     async def edit_or_select_items(self, delay: float = 0):
         itemsTg = cache_get_items(self.proc.userid, self.id, True)
@@ -727,30 +729,50 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 await itemTg.message.edit_or_select_if_exists(delay)
 
     async def delete_item_do(self):
-        pl = PlaylistMessage(CMD_DEL, playlist=self.id)
-        pl = await self.proc.process(pl)
-        if pl.rv == 0:
-            self.deleted = True
-            await self.navigation.delete_message(self.message_id)
-            itemsTg = cache_get_items(self.proc.userid, self.id, True)
-            for itTg in itemsTg:
-                if itTg.message:
-                    await self.navigation.delete_message(itTg.message.message_id)
-            cache_del(self.obj)
-            plsTg: List[PlaylistTMessage] = cache_get(self.proc.userid)
-            for plTg in plsTg:
-                if plTg.message:
-                    await plTg.message.edit_or_select_if_exists()
-            lmm = self.navigation._menu_queue[-1]
-            if isinstance(lmm, PlaylistItemsPagesTMessage) and\
-                    lmm.playlist_obj.id == self.id:
-                await self.navigation.goto_back()
-            lmm = self.navigation._menu_queue[-1]
-            if isinstance(lmm, PlaylistsPagesTMessage):
-                await self.navigation.goto_menu(lmm, None, add_if_present=False)
-            self.return_msg = 'Delete OK :thumbs_up:'
+        if self.del_action == 'del':
+            pl = PlaylistMessage(CMD_DEL, playlist=self.id)
+            pl = await self.proc.process(pl)
+            if pl.rv == 0:
+                self.deleted = True
+                await self.navigation.delete_message(self.message_id)
+                itemsTg = cache_get_items(self.proc.userid, self.id, True)
+                for itTg in itemsTg:
+                    if itTg.message:
+                        await self.navigation.delete_message(itTg.message.message_id)
+                cache_del(self.obj)
+                plsTg: List[PlaylistTg] = cache_get(self.proc.userid)
+                for plTg in plsTg:
+                    if plTg.message:
+                        await plTg.message.edit_or_select_if_exists()
+                lmm = self.navigation._menu_queue[-1]
+                if isinstance(lmm, PlaylistItemsPagesTMessage) and\
+                        lmm.playlist_obj.id == self.id:
+                    await self.navigation.goto_back()
+                lmm = self.navigation._menu_queue[-1]
+                if isinstance(lmm, PlaylistsPagesTMessage):
+                    await self.navigation.goto_menu(lmm, None, add_if_present=False)
+                self.return_msg = 'Delete OK :thumbs_up:'
+            else:
+                self.return_msg = f'Error {pl.rv} deleting {self.name} :thumbs_down:'
         else:
-            self.return_msg = f'Error {pl.rv} deleting {self.name} :thumbs_down:'
+            pl = PlaylistMessage(CMD_CLEAR, playlist=self.id)
+            pl = await self.proc.process(pl)
+            if pl.rv == 0:
+                for pli in self.obj.items:
+                    if not pli.seen:
+                        pli.seen = True
+                itemsTg = cache_get_items(self.proc.userid, self.id, True)
+                for itemTg in itemsTg:
+                    if itemTg.message:
+                        itemTg.message.deleted = True
+                        itemTg.message.obj.seen = True
+                plTg: PlaylistTg = cache_get(self.proc.userid, self.id)
+                plTg.refresh(plTg.playlist, plTg.index)
+                self.return_msg = 'Clear OK :thumbs_up:'
+                await self.edit_or_select_items()
+                await self.edit_or_select_if_exists()
+            else:
+                self.return_msg = f'Error {pl.rv} clearing {self.name} :thumbs_down:'
 
     async def rename_playlist_2(self, newname):
         pl = PlaylistMessage(CMD_REN, playlist=self.id, to=newname)
@@ -844,6 +866,10 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 playlist=self.obj)
             await self.navigation.goto_menu(but)
 
+    def delete_item_pre_pre(self, args):
+        self.del_action = args[0]
+        self.delete_item_pre()
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
@@ -851,16 +877,21 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         if not self.deleted:
             if self.status == NameDurationStatus.IDLE:
                 self.add_button(u'\U00002699', self.edit_me)
-                self.add_button(u'\U0001F5D1', self.delete_item_pre)
+                self.add_button(u'\U0001F5D1', self.switch_to_status, args=(NameDurationStatus.DELETING_CONFIRM, ))
+                self.add_button(u'\U0001F9F9', self.delete_item_pre_pre, args=('clean', ))
                 self.add_button(u'\U000000AB\U000000BB', self.switch_to_status, args=(NameDurationStatus.RENAMING, ))
                 self.add_button(u'\U0001F501', self.switch_to_status, args=(NameDurationStatus.UPDATING_INIT, ))
                 self.add_button(u'\U00002211', self.sort_playlist)
                 self.add_button(':memo:', self.list_items, args=(False, ))
                 self.add_button(':eye:', self.list_items, args=(True, ))
-                self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{self.proc.params.link}/{self.proc.params.args["sid"]}-s/play/workout.htm?{urlencode(dict(name=self.name))}')
+                # self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{self.proc.params.link}/{self.proc.params.args["sid"]}-s/play/workout.htm?{urlencode(dict(name=self.name))}')
             elif self.status == NameDurationStatus.RENAMING:
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return f'Enter new name for <b>{self.name}</b>'
+            elif self.status == NameDurationStatus.DELETING_CONFIRM:
+                self.add_button('\U00002705 Yes', self.delete_item_pre_pre, args=('del', ))
+                self.add_button(':cross_mark: No', self.switch_to_idle)
+                return f'Are you sure to delete <b>{self.name}</b>?'
             elif self.status == NameDurationStatus.SORTING:
                 return f'{self.name} sorting {"." * (self.sub_status & 0xFF)}'
             else:
@@ -883,7 +914,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         upd += f'Update \U000023F3: {datepubo.strftime("%Y-%m-%d %H:%M:%S")} ' + ("\U00002705" if self.obj.autoupdate else "") + '\n'
         lnk = f'{self.proc.params.link}/{self.proc.params.args["sid"]}'
         par = urlencode(dict(username=self.proc.username, name=self.name, host=lnk))
-        upd += f'<a href="{lnk}/m3u?{par}&fmt=m3u">M3U8</a>, <a href="{lnk}/m3u?{par}&fmt=ely">ELY</a>, <a href="{lnk}/m3u?{par}&fmt=json">JSON</a>\n'
+        upd += f'<a href="{lnk}-s/play/workout.htm?{urlencode(dict(name=self.name))}">:play_button:</a>, <a href="{lnk}/m3u?{par}&fmt=m3u">M3U8</a>, <a href="{lnk}/m3u?{par}&fmt=ely">ELY</a>, <a href="{lnk}/m3u?{par}&fmt=json">JSON</a>\n'
         upd += f'<a href="{lnk}/m3u?{par}&fmt=m3u&conv=4">M3U8c4</a>, <a href="{lnk}/m3u?{par}&fmt=ely&conv=4">ELYc4</a>, <a href="{lnk}/m3u?{par}&fmt=json&conv=4">JSONc4</a>\n'
         upd += f'<a href="{lnk}/m3u?{par}&fmt=m3u&conv=2">M3U8c2</a>, <a href="{lnk}/m3u?{par}&fmt=ely&conv=2">ELYc2</a>, <a href="{lnk}/m3u?{par}&fmt=json&conv=2">JSONc2</a>'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'

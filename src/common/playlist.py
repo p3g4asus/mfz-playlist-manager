@@ -190,6 +190,18 @@ class Playlist(JSONAble, Fieldable):
         _LOGGER.debug("Fix iorder OK")
         return True
 
+    async def clear(self, db, commit=True):
+        if self.rowid:
+            async with db.cursor() as cursor:
+                await cursor.execute(
+                    "UPDATE playlist_item_seen SET seen=datetime('now') WHERE playlist=? AND seen IS NULL",
+                    (self.rowid, ))
+            if commit:
+                await db.commit()
+            return True
+        else:
+            return False
+
     async def cleanItems(self, db, datelimit, commit=True):
         items = self.items
         rv = True
