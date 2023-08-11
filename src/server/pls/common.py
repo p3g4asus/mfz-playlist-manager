@@ -20,7 +20,7 @@ from pythonosc.udp_client import SimpleUDPClient
 
 from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DOWNLOAD, CMD_DEL, CMD_DUMP, CMD_IORDER,
                           CMD_MOVE, CMD_PLAYID, CMD_PLAYITSETT, CMD_PLAYSETT,
-                          CMD_REN, CMD_SEEN, CMD_SORT, MSG_BACKEND_ERROR,
+                          CMD_REN, CMD_SEEN, CMD_SORT, DOWNLOADED_SUFFIX, MSG_BACKEND_ERROR,
                           MSG_INVALID_PARAM, MSG_NAME_TAKEN,
                           MSG_PLAYLIST_NOT_FOUND, MSG_PLAYLISTITEM_NOT_FOUND, MSG_TASK_ABORT,
                           MSG_UNAUTHORIZED)
@@ -483,8 +483,14 @@ class MessageProcessor(AbstractMessageProcessor):
                         if oldkeys and oldkeys in play and keys != oldkeys:
                             del play[oldkeys]
                         play[keys] = key
-                        if 'default' not in key or msg.f('default'):
-                            key['default'] = cont
+                        default_key = msg.f('default')
+                        if default_key:
+                            key[default_key] = cont
+                        else:
+                            if 'default' not in key:
+                                key['default'] = cont
+                            if f'default{DOWNLOADED_SUFFIX}' not in key:
+                                key['default{DOWNLOADED_SUFFIX}'] = cont
                         key[msg.f('set')] = cont
                     elif cont is not None:
                         play[keys] = dict()

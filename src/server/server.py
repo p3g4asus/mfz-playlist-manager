@@ -258,7 +258,7 @@ async def start_app(app):
     app.p.myrunners.append(runner)
     app.p.executor = Executor(loop=app.p.loop, nthreads=app.p.args["executors"])
     if app.p.args["static"] is not None:
-        app.router.add_static('/static', app.p.args["static"])
+        app.router.add_static('/static', app.p.args["static"], follow_symlinks=True)
     app.router.add_route('GET', '/', index)
     app.router.add_route('GET', '/rcmd/{hex:[a-fA-F0-9]+}', remote_command)
     app.router.add_route('GET', '/telegram/{hex:[a-fA-F0-9]+}', telegram_command)

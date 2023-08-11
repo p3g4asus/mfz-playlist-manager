@@ -49,12 +49,13 @@ function get_video_params_from_item(idx) {
         playlist_item_current_idx = pos;
     }
     let plk = false;
-    if (playlist_item_current && playlist_play_settings[plk = playlist_key_from_item(playlist_item_current.conf)]) {
+    const default_key = playlist_key_get_suffix(playlist_item_current, 'default');
+    if (playlist_item_current && playlist_play_settings[plk = playlist_key_from_item(playlist_item_current)]) {
         playlist_item_play_settings = playlist_play_settings[plk];
-        plk = JSON.stringify(playlist_item_play_settings) == JSON.stringify(playlist_play_settings.default);
+        plk = JSON.stringify(playlist_item_play_settings) == JSON.stringify(playlist_play_settings[default_key]);
     }
-    else if (playlist_play_settings.default) {
-        playlist_item_play_settings = playlist_play_settings.default;
+    else if (playlist_play_settings[default_key]) {
+        playlist_item_play_settings = playlist_play_settings[default_key];
         console.log('Using settings from default struct');
         plk = true;
     }
@@ -63,7 +64,9 @@ function get_video_params_from_item(idx) {
     let old_height = video_height;
     playlist_player = 'youtube';
 
-    if (playlist_current.type == 'youtube') {
+    if (is_item_downloaded(playlist_item_current))
+        playlist_player = 'html5';
+    else if (playlist_current.type == 'youtube') {
         let extr;
         if (playlist_item_current) {
             if (playlist_item_current.link.indexOf('twitch.tv') >= 0)
@@ -102,6 +105,11 @@ function parse_list(json_list) {
     catch (err) {
         console.log('Error parsing playlist ' + err.message);
     }
+}
+
+function is_item_downloaded(it) {
+    let idx;
+    return it?.dl?.length && (idx = it.dl.lastIndexOf('/')) >= 0 && idx < it.dl.length - 1;
 }
 
 
@@ -158,7 +166,9 @@ function on_play_finished(event) {
     let video_info =  print_duration(index);
     send_video_info_for_remote_play('vinfo', video_info);
     send_video_info_for_remote_play('pinfo', 0);
-    if (vid.length && video_manager_obj.play_video_id)
+    if (is_item_downloaded(playlist_item_current))
+        video_manager_obj.play_video(MAIN_PATH_S + 'dl/' + playlist_item_current.dl.substr(playlist_item_current.dl.lastIndexOf('/') + 1));
+    else if (vid.length && video_manager_obj.play_video_id)
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)
         video_manager_obj.play_video(MAIN_PATH + 'red?link=' + encodeURIComponent(lnk), playlist_item_play_settings?.mime);
@@ -476,13 +486,19 @@ function get_startup_settings() {
     }
 }
 
-function playlist_key_from_item(conf) {
+function playlist_key_get_suffix(ci, prefix) {
+    return (prefix || '') + (is_item_downloaded(ci)?DOWNLOADED_SUFFIX:'');
+}
+
+function playlist_key_from_item(ci) {
+    const conf = ci.conf;
+    const sfx = playlist_key_get_suffix(ci);
     if (conf.playlist)
-        return conf.playlist;
+        return conf.playlist + sfx;
     else if (conf.progid)
-        return playlist_item_current.conf.progid;
+        return conf.progid + sfx;
     else if (conf.brand && conf.subbrand)
-        return '' + conf.brand + '_' + conf.subbrand;
+        return '' + conf.brand + '_' + conf.subbrand + sfx;
     else
         return 'boh';
 }
@@ -541,11 +557,11 @@ function playlist_reload_settings(reset) {
             let el = new MainWSQueueElement({
                 cmd: CMD_PLAYSETT,
                 playlist: playlist_current.rowid,
-                set: reset?'':playlist_key_from_item(playlist_item_current.conf),
+                set: reset?'':playlist_key_from_item(playlist_item_current),
                 key: cname,
                 oldkey: oldv,
                 playid: playlist_item_current.uid,
-                default: get_default_check(),
+                default: get_default_check()?playlist_key_get_suffix(playlist_item_current, 'default'):false,
                 content: (reset & 2)? null: (reset?'':{
                     width: get_spinner_value('width'),
                     height: get_spinner_value('height'),

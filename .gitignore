@@ -133,6 +133,8 @@ dmypy.json
 .vscode/
 node_modules/
 logs/
+src/www/dl/
+src/www/dl
 ca-bundle.crt
 server_local.sh
 google-client-id.txt

@@ -769,6 +769,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 plTg: PlaylistTg = cache_get(self.proc.userid, self.id)
                 plTg.refresh(plTg.playlist, plTg.index)
                 self.return_msg = 'Clear OK :thumbs_up:'
+                self.status = NameDurationStatus.RETURNING_IDLE
                 await self.edit_or_select_items()
                 await self.edit_or_select_if_exists()
             else:
