@@ -9,13 +9,13 @@ from html import escape
 from os import stat
 from os.path import exists, isfile, split
 from typing import Any, Coroutine, Dict, List, Optional, Union
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urlparse, unquote
 
 import validators
 from aiohttp import ClientSession
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
-from telegram_menu import (BaseMessage, ButtonType, NavigationHandler,
+from telegram_menu import (BaseMessage, NavigationHandler,
                            TelegramMenuSession)
 from telegram_menu.models import MenuButton, emoji_replace
 
@@ -468,7 +468,7 @@ class NameDurationTMessage(DeletingTMessage):
         if self._old_thumb != self.thumb:
             self._old_thumb = self.thumb
             headers = {"range": "bytes=0-10", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
-            thumb = f'{self.proc.params.link}/{self.proc.params.args["sid"]}/img{self.thumb}' if self.thumb and self.thumb[0] == '?' else self.thumb
+            thumb = unquote(self.thumb[6:]) if self.thumb and self.thumb[0] == '?' else self.thumb
             if thumb and validators.url(thumb):
                 async with ClientSession() as session:
                     async with session.get(thumb, headers=headers) as resp:
@@ -1632,9 +1632,15 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, Coroutine[Any, Any, None]]:
         if self.status == NameDurationStatus.IDLE:
             if self.listings_cache:
-                mo = re.search(r'^/brand_([0-9]+)$', text)
-                if mo:
+                if (mo := re.search(r'^/brand_([0-9]+)$', text)):
                     self.playlist.conf['brand'] = self.listings_cache[int(mo.group(1))]
+                    self.download_subbrand()
+                elif (mo := re.search(r'^/brandid ([0-9a-zA-Z_\-]+)$', text)):
+                    self.playlist.conf['brand'] = dict(
+                        id=mo.group(1),
+                        title=mo.group(1),
+                        starttime=int(datetime.now().timestamp() * 1000)
+                    )
                     self.download_subbrand()
                 else:
                     self.listings_filter = text.strip()

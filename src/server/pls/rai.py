@@ -245,7 +245,7 @@ class MessageProcessor(RefreshMessageProcessor):
         try:
             async with aiohttp.ClientSession() as session:
                 programs = dict()
-                rurls = ['/tipologia/film', '/tipologia/fiction', '/tipologia/bambini', '/tipologia/programmi']
+                rurls = ['/tipologia/film', '/tipologia/bambini', '/tipologia/programmi', '/tipologia/sport', '/tipologia/serieitaliane']
                 for rurl in rurls:
                     try:
                         url = MessageProcessor.relativeUrl(rurl) + '/index.json'
