@@ -19,7 +19,7 @@ from telegram_menu import (BaseMessage, NavigationHandler,
                            TelegramMenuSession)
 from telegram_menu.models import MenuButton, emoji_replace
 
-from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
+from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
                           CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK)
 from common.playlist import (Playlist, PlaylistItem, PlaylistMessage)
 
@@ -84,6 +84,20 @@ class PlaylistTg(object):
             itemTg: PlaylistItemTg = self.items[key]
             itemTg.refresh(itemTg.item, itemTg.index)
             return itemTg
+        else:
+            return None
+
+    def del_item(self, rowid: int) -> PlaylistItemTg:
+        for i, it in enumerate(self.playlist.items):
+            if it.rowid == rowid:
+                del self.playlist.items[i]
+                break
+        key = str(rowid)
+        if key in self.items:
+            out = self.items[key]
+            del self.items[key]
+            self.refresh(self.playlist, self.index)
+            return out
         else:
             return None
 
@@ -241,6 +255,7 @@ class NameDurationStatus(Enum):
     DOWNLOADING_WAITING = auto()
     NAMING = auto()
     LISTING = auto()
+    MOVING = auto()
 
 
 class StatusTMessage(BaseMessage):
@@ -586,6 +601,32 @@ class PlaylistItemTMessage(NameDurationTMessage):
     def dictget(dcn, key, default=None):
         return dcn[key] if key in dcn and dcn[key] else default
 
+    async def move_to_do(self, args):
+        pdst: PlaylistTg
+        psrc: PlaylistTg
+        pdst, psrc = args
+        pl = PlaylistMessage(CMD_MOVE, playlistitem=self.id, playlist=pdst.playlist.rowid)
+        pl = await self.proc.process(pl)
+        if pl.rv == 0:
+            cache_store(pl.playlist)
+            plTg: PlaylistTg = cache_get(self.proc.userid, pl.playlist.rowid)
+            itemTg = cache_get_item(self.proc.userid, pl.playlist.rowid, self.id)
+            oldItemTg = psrc.del_item(self.id)
+            itemTg.message = oldItemTg.message
+            itemTg.message.pid = pl.playlist.rowid
+            if itemTg.message:
+                await itemTg.message.edit_or_select_if_exists()
+            if psrc.message:
+                await psrc.message.edit_or_select_items()
+                await psrc.message.edit_or_select_if_exists()
+            if plTg.message:
+                await plTg.message.edit_or_select_items()
+                await plTg.message.edit_or_select_if_exists()
+            self.return_msg = 'Move OK :thumbs_up:'
+        else:
+            self.return_msg = f'Error {pl.rv} Moving {self.name} in {plTg.playlist.name} :thumbs_down:'
+        await self.switch_to_idle()
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
@@ -595,6 +636,14 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 self.add_button(u'\U0001F5D1', self.delete_item_pre)
                 self.add_button(u'\U00002211', self.switch_to_status, args=(NameDurationStatus.SORTING, ))
                 self.add_button(u'\U0001F517', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, ))
+                self.add_button(u'\U0001F4EE', self.switch_to_status, args=(NameDurationStatus.MOVING, ))
+            elif self.status == NameDurationStatus.MOVING:
+                pps: List[PlaylistTg] = cache_get(self.proc.userid)
+                myself: PlaylistTg = cache_get(self.proc.userid, self.obj.playlist)
+                for pp in pps:
+                    if pp.playlist.rowid != self.obj.playlist:
+                        self.add_button(pp.playlist.name, self.move_to_do, args=(pp, myself))
+                self.add_button(':cross_mark: Abort', self.switch_to_idle)
             elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
                 self.add_button('bestaudio', self.download_format, args=('bestaudio/best', 0))
                 self.add_button('best', self.download_format, args=('best', 0))

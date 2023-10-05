@@ -194,7 +194,7 @@ class Playlist(JSONAble, Fieldable):
         if self.rowid:
             async with db.cursor() as cursor:
                 await cursor.execute(
-                    "UPDATE playlist_item_seen SET seen=datetime('now') WHERE playlist=? AND seen IS NULL",
+                    "UPDATE playlist_item SET seen=datetime('now') WHERE playlist=? AND seen IS NULL",
                     (self.rowid, ))
             if commit:
                 await db.commit()
@@ -381,7 +381,7 @@ class PlaylistItem(JSONAble, Fieldable):
         else:
             where = f'WHERE PI.playlist = {playlist}'
             if loaditems == LOAD_ITEMS_UNSEEN:
-                where += ' AND seen IS NULL AND PI.link IS NOT NULL'
+                where += ' AND PI.seen IS NULL AND PI.link IS NOT NULL'
             listresult = True
         if limit is not None and offset is not None:
             lc = f'LIMIT {offset},{limit}'
@@ -389,10 +389,8 @@ class PlaylistItem(JSONAble, Fieldable):
             lc = ''
         subcursor = await db.execute(
             f'''
-            SELECT PI.*,
-                   seen
+            SELECT PI.*
                    FROM playlist_item AS PI
-                   LEFT JOIN playlist_item_seen AS PS ON PI.uid = PS.uid AND PI.playlist = PS.playlist
                    {where}
                    ORDER BY {sortby}
                    {lc}
@@ -416,11 +414,11 @@ class PlaylistItem(JSONAble, Fieldable):
             async with db.cursor() as cursor:
                 if value:
                     await cursor.execute(
-                        "UPDATE playlist_item_seen SET seen=datetime('now') WHERE uid=? and playlist=?",
+                        "UPDATE playlist_item SET seen=datetime('now') WHERE uid=? and playlist=?",
                         (self.uid, self.playlist))
                 else:
                     await cursor.execute(
-                        "UPDATE playlist_item_seen SET seen=NULL WHERE uid=? and playlist=?",
+                        "UPDATE playlist_item SET seen=NULL WHERE uid=? and playlist=?",
                         (self.uid, self.playlist))
                 rv = cursor.rowcount > 0
         if rv and commit:
@@ -480,8 +478,6 @@ class PlaylistItem(JSONAble, Fieldable):
         return self.link and self.uid and self.playlist
 
     async def move_to(self, playlist, db):
-        await self.setSeen(db, True)
-        self.rowid = None
         self.seen = None
         self.playlist = playlist
         self.iorder = None
@@ -511,8 +507,8 @@ class PlaylistItem(JSONAble, Fieldable):
                 await cursor.execute(
                     '''
                     INSERT OR REPLACE INTO playlist_item(
-                        rowid,uid,link,title,playlist,conf,datepub,img,dur,iorder,dl
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                        rowid,uid,link,title,playlist,conf,datepub,img,dur,iorder,dl,seen
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                     ''',
                     (self.rowid,
                      self.uid,
@@ -524,17 +520,9 @@ class PlaylistItem(JSONAble, Fieldable):
                      self.img,
                      self.dur,
                      self.iorder,
-                     self.dl))
-                self.rowid = cursor.lastrowid
-                await cursor.execute(
-                    '''
-                    INSERT OR REPLACE INTO playlist_item_seen(
-                        uid,playlist,seen
-                    ) VALUES (?,?,?)
-                    ''',
-                    (self.uid,
-                     self.playlist,
+                     self.dl,
                      self.seen))
+                self.rowid = cursor.lastrowid
             if commit:
                 await db.commit()
             return True
