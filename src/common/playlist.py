@@ -414,12 +414,12 @@ class PlaylistItem(JSONAble, Fieldable):
             async with db.cursor() as cursor:
                 if value:
                     await cursor.execute(
-                        "UPDATE playlist_item SET seen=datetime('now') WHERE uid=? and playlist=?",
-                        (self.uid, self.playlist))
+                        "UPDATE playlist_item SET seen=datetime('now') WHERE rowid=?",
+                        (self.rowid,))
                 else:
                     await cursor.execute(
-                        "UPDATE playlist_item SET seen=NULL WHERE uid=? and playlist=?",
-                        (self.uid, self.playlist))
+                        "UPDATE playlist_item SET seen=NULL WHERE rowid=?",
+                        (self.rowid,))
                 rv = cursor.rowcount > 0
         if rv and commit:
             await db.commit()

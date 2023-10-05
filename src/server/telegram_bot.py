@@ -1609,7 +1609,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
             self.listings_changed = True
             self.return_msg = ''
         else:
-            self.return_msg = f'Error {pl.rv} finding listings :tumbs_down:'
+            self.return_msg = f'Error {pl.rv} finding listings :thumbs_down:'
         await self.switch_to_idle()
 
     async def get_listings_command_params(self):

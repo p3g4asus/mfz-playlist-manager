@@ -135,6 +135,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                 return msg.err(12, MSG_BACKEND_ERROR)
                 return msg.err(15, MSG_BACKEND_ERROR)
             except Exception:
+                _LOGGER.warning(f'Error searching for listings {traceback.format_exc()}')
                 return msg.err(11, MSG_BACKEND_ERROR)
         else:
             return msg.err(14, MSG_INVALID_DATE)
