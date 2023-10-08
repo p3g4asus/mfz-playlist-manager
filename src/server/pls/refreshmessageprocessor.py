@@ -5,7 +5,7 @@ import traceback
 from datetime import datetime
 
 from common.const import (CMD_REFRESH, CMD_SYNC, MSG_DB_ERROR, MSG_PLAYLIST_NOT_FOUND,
-                          MSG_UNAUTHORIZED)
+                          MSG_UNAUTHORIZED, RV_NO_VIDEOS)
 from common.playlist import PlaylistMessage, LOAD_ITEMS_ALL, LOAD_ITEMS_NO, Playlist
 from common.utils import AbstractMessageProcessor, MyEncoder
 
@@ -151,26 +151,29 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                 x.items = []
             _LOGGER.debug(f"Datefrom = {datefrom}, dateto={dateto}")
             resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid, executor=executor)
-            if resp.rv == 0:
+            if resp.rv == 0 or resp.rv == RV_NO_VIDEOS:
                 n_new = 0
-                items = x.items
-                for i in resp.items:
-                    if i not in items:
-                        items.append(i)
-                        _LOGGER.debug("PlsItem new %s" % str(i))
-                        n_new += 1
-                    else:
-                        idx = items.index(i)
-                        _LOGGER.debug("PlsItem exists %s. Is %s [%d]" % (str(i), items[idx], not items[idx].seen))
-                        if not items[idx].seen and items[idx].isOk():
-                            i.iorder = items[idx].iorder
-                            i.rowid = items[idx].rowid
-                            items[idx].conf.update(i.conf)
-                            i.conf = items[idx].conf
-                            items[idx] = i
+                if not resp.rv:
+                    items = x.items
+                    for i in resp.items:
+                        if i not in items:
+                            items.append(i)
+                            _LOGGER.debug("PlsItem new %s" % str(i))
+                            n_new += 1
+                        else:
+                            idx = items.index(i)
+                            _LOGGER.debug("PlsItem exists %s. Is %s [%d]" % (str(i), items[idx], not items[idx].seen))
+                            if not items[idx].seen and items[idx].isOk():
+                                i.iorder = items[idx].iorder
+                                i.rowid = items[idx].rowid
+                                items[idx].conf.update(i.conf)
+                                i.conf = items[idx].conf
+                                items[idx] = i
+                else:
+                    _LOGGER.warning('Refresh OK but no new video')
                 try:
                     await x.cleanItems(self.db, dateto - 86400 * 120000, commit=False)
-                    _LOGGER.debug(f"BTDB PL={x} Items: {items}")
+                    _LOGGER.debug(f"BTDB PL={x} Items: {x.items}")
                     x.dateupdate = dateto - 86400 * 3000
                     rv = await x.toDB(self.db)
                     if rv:

@@ -5,7 +5,7 @@ import yt_dlp as youtube_dl
 from datetime import (datetime, timedelta, timezone)
 
 from common.const import (CMD_YT_PLAYLISTCHECK, MSG_YT_INVALID_PLAYLIST,
-                          MSG_BACKEND_ERROR, MSG_NO_VIDEOS)
+                          MSG_BACKEND_ERROR, MSG_NO_VIDEOS, RV_NO_VIDEOS)
 from common.playlist import PlaylistItem
 from common.utils import parse_isoduration
 
@@ -397,7 +397,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                 if cont_n >= 3:
                                     startFrom = 0
                 if not len(programs):
-                    return msg.err(13, MSG_NO_VIDEOS)
+                    return msg.err(RV_NO_VIDEOS, MSG_NO_VIDEOS)
                 else:
                     programs = list(programs.values())
                     programs.sort(key=lambda item: item.datepub)
