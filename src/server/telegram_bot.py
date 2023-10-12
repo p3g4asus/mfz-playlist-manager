@@ -906,6 +906,8 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             cls = MediasetPlaylistTMessage
         elif self.obj.type == 'rai':
             cls = RaiPlaylistTMessage
+        elif self.obj.type == 'localfolder':
+            cls = LocalFolderPlaylistTMessage
 
         if cls:
             but = cls(
