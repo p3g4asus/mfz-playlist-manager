@@ -273,12 +273,20 @@ function bootstrap_table_date_uploader_formatter(row, classv) {
     return up;
 }
 
+function playlist_transform_thumbnail_path(dbpath) {
+    return dbpath[0] == '?'?MAIN_PATH + 'img' + dbpath:(dbpath[0] == '@'?MAIN_PATH_S + dbpath.substring(1):dbpath);
+}
+
+function playlist_transform_video_path(dbpath) {
+    return dbpath[0] == '@'?MAIN_PATH_S + dbpath.substring(1):dbpath;
+}
+
 function bootstrap_table_img_formatter(value, row, index, field) {
     let up = bootstrap_table_date_uploader_formatter(row, 'h5 font-reduced');
     let s = xl?'':up.prop('outerHTML');
     return `
-    <a href="${row.link}"><div class="thumb-container">
-        <img src="${value[0] == '?'?MAIN_PATH + 'img' + value:value}" class="thumb-image">
+    <a href="${playlist_transform_video_path(row.link)}"><div class="thumb-container">
+        <img src="${playlist_transform_thumbnail_path(value)}" class="thumb-image">
         <div class="thumb-duration-overlay-${bootstrap_breakpoint.name}">${format_duration(row.dur)}</div>
     </div></a>
     ${s}
@@ -292,6 +300,10 @@ function playlist_medrai_listings_formatter(value, row, index, field, type) {
     </a>`;
 }
 
+function playlist_localfolder_listings_formatter(value, row, index, field) {
+    return playlist_medrai_brands_formatter(value, row, index, field, 'localfolder');
+}
+
 function playlist_mediaset_listings_formatter(value, row, index, field) {
     return playlist_medrai_listings_formatter(value, row, index, field, 'mediaset');
 }
@@ -303,7 +315,7 @@ function playlist_rai_listings_formatter(value, row, index, field) {
 function playlist_medrai_brands_formatter(value, row, index, field, type) {
     return `
         <span class="col-12 badge badge-${bootstrap_styles[index%bootstrap_styles.length]}">
-            <p class="h5">${row.desc?row.desc:(row.title?row.title:'N/A')}</p>
+            <p class="h5">${row.desc?row.desc:(row.description?row.description:(row.title?row.title:'N/A'))}</p>
             <p class="h6">${(row.desc?row.title + '/':'') + row.id}</p>
         </span>`;
 }
@@ -350,6 +362,65 @@ function playlist_medrai_get_subbrands(brandid, type) {
         $search.show();
         if (!manage_errors(msg)) {
             $('#pl-add-view-medrai-brands-table').bootstrapTable('load', msg.brands);
+        }
+    })
+        .catch(function(err) {
+            $progress.hide();
+            $search.show();
+            console.log(err);
+            let errmsg = 'Exception detected: '+err;
+            toast_msg(errmsg, 'danger');
+        });
+}
+
+function playlist_localfolder_load_listings_table(pl, folders) {
+    const $listingsTable = $('#pl-add-view-localfolder-listings-table');
+    const $progress = $('#pl-add-view-localfolder-progress');
+    const $search = $('#pl-add-view-localfolder-search');
+    $listingsTable.bootstrapTable('removeAll');
+    $listingsTable.bootstrapTable('load', folders);
+    let idx = 0;
+    for (let fold of folders) {
+        if (pl.conf.playlists[fold.id]) {
+            $listingsTable.bootstrapTable('check', idx);
+        } else {
+            $listingsTable.bootstrapTable('uncheck', idx);
+        }
+        idx ++;
+    }
+    const pls = Object.values(pl.conf.playlists);
+    for (let pl of pls) {
+        if (!pl.conf.folders[pl.id]) {
+            delete pl.conf.playlists[pl.id];
+        }
+    }
+    set_button_enabled('#pl-add-view-add', playlist_types['localfolder'].on_add(pl));
+    $progress.hide();
+    $search.show();
+}
+
+function playlist_localfolder_get_listings_ws() {
+    const $listingsTable = $('#pl-add-view-localfolder-listings-table');
+    const $progress = $('#pl-add-view-localfolder-progress');
+    const $search = $('#pl-add-view-localfolder-search');
+    $listingsTable.bootstrapTable('removeAll');
+    $progress.show();
+    $search.hide();
+    let qel = new MainWSQueueElement({cmd: CMD_FOLDER_LIST}, function(msg) {
+        if (msg.cmd == CMD_PING)
+            return 0;
+        else if (msg.cmd == CMD_FOLDER_LIST)
+            return msg;
+        else
+            return null;
+    }, 50000, 1);
+    qel.enqueue().then(function(msg) {
+        let errmsg;
+        $progress.hide();
+        $search.show();
+        if (!(errmsg = manage_errors(msg))) {
+            const arr = Object.values(current_playlist.conf.folders = msg.folders);
+            playlist_localfolder_load_listings_table(current_playlist, arr);
         }
     })
         .catch(function(err) {
@@ -706,6 +777,70 @@ let playlist_types = {
                     $(this).addClass('is-invalid');
             });
             set_button_enabled('#pl-add-view-add', pl.conf.playlists.length);
+            return el.children().addClass(PL_ADD_VIEW_TYPE_CLASS);
+        }
+    },
+    localfolder: {
+        on_add: function(pl) {
+            return pl.conf.playlists && Object.keys(pl.conf.playlists).length;
+        },
+        add: function(pl) {
+            let el = $(`
+                <div id="pl-add-view-localfolder">
+                    <div class="row row-buffer">
+                        <div class="col-12">
+                            <form id="pl-add-view-localfolder-form" class="form">
+                                <div class="form-row">
+                                    <div class="col-12">
+                                        <a id="pl-add-view-localfolder-search" class="btn btn-primary col-12 btn-block" href="#" role="button"><p class="h3"><i class="fas fa-redo-alt"></i>&nbsp;&nbsp;Refresh</p></a>
+                                        <div id="pl-add-view-localfolder-progress" class="progress bigger-progress">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="col-12">
+                                        <table id="pl-add-view-localfolder-listings-table" data-maintain-meta-data="true" data-page-size="10" data-pagination="true" data-show-header="false" data-classes="table table-borderless table-hover table-condensed" data-multiple-select-row="true" data-click-to-select="true" data-search="true">
+                                            <thead>
+                                                <tr>
+                                                    <th data-field="state" data-checkbox="true"></th>
+                                                    <th data-field="id" data-visible="true" data-formatter="playlist_localfolder_listings_formatter">Name</th>
+                                                </tr>
+                                            </thead>
+                                        </table>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `);
+            const $listingsTable = el.find('#pl-add-view-localfolder-listings-table');
+            const $search = el.find('#pl-add-view-localfolder-search');
+            $listingsTable.bootstrapTable().on('check.bs.table uncheck.bs.table ' +
+                'check-all.bs.table uncheck-all.bs.table', function() {
+                const sels = $listingsTable.bootstrapTable('getSelections');
+                pl.conf.playlists = {};
+                for (let sel of sels) {
+                    pl.conf.playlists[sel.id] = pl.conf.folders[sel.id];
+                }
+                set_button_enabled('#pl-add-view-add', playlist_types['localfolder'].on_add(pl));
+            });
+            if (!pl.conf.folders) {
+                pl.conf.folders = {};
+                pl.conf.playlists = {};
+            } else if (!pl.conf.playlists)
+                pl.conf.playlists = {};
+            const arr = pl.conf.folders?Object.values(pl.conf.folders):null;
+            if (arr && arr.length) {
+                playlist_localfolder_load_listings_table(pl, arr);
+            } else {
+                playlist_localfolder_get_listings_ws();
+            }
+            
+            $search.click(function() {
+                playlist_localfolder_get_listings_ws();
+            });
             return el.children().addClass(PL_ADD_VIEW_TYPE_CLASS);
         }
     }
@@ -1201,7 +1336,7 @@ function bootstrap_table_name_formatter(value, row, index, field) {
     }
     return `
     <a data-rowid="${row.rowid}" href="#" onclick="playlist_select(this); return false;"><div class="thumb-container">
-        <img src="${unseen?(unseen.img[0] == '?'?MAIN_PATH + 'img' + unseen.img:unseen.img):'./img/no-videos.png'}" class="thumb-image">
+        <img src="${unseen?playlist_transform_thumbnail_path(unseen.img):'./img/no-videos.png'}" class="thumb-image">
         <div class="thumb-name-overlay-${bootstrap_breakpoint.name}">${value}</div>
     </div></a>
         ` + '<br />' + bootstrap_table_info_formatter(value, row, index, field);
@@ -1216,8 +1351,10 @@ function bootstrap_table_info_formatter(value, row, index, field) {
         tpstr += '<span class="badge badge-danger even-larger-badge">youtube</span>&nbsp;&nbsp;';
     else if (row.type == 'rai')
         tpstr += '<span class="badge badge-primary even-larger-badge">rai</span>&nbsp;&nbsp;';
-    else
+    else if (row.type == 'mediaset')
         tpstr += '<span class="badge badge-secondary even-larger-badge">mediaset</span>&nbsp;&nbsp;';
+    else
+        tpstr += '<span class="badge badge-warning even-larger-badge">localfolder</span>&nbsp;&nbsp;';
     let nitems = 0;
     for (let r of row.items) {
         if (!r.seen)

@@ -191,6 +191,8 @@ async def _init_db(app, create_db=False):
                                 k2 = k[len(x) + 1:]
                                 if k2:
                                     dct[k2] = v
+                            else:
+                                dct[k] = v
                         processors[x] = cla(db, **dct)
                         if x != "common" and create_db:
                             await db.execute("INSERT OR IGNORE INTO type(name) VALUES (?)", (x,))
@@ -337,6 +339,7 @@ def main():
     parser.add_argument('--telegram', required=False, default='')
     parser.add_argument('--common-dldir', required=False, default='')
     parser.add_argument('--youtube-apikey', required=False, default="")
+    parser.add_argument('--localfolder-basedir', required=False, default=None)
     parser.add_argument('--host', required=False, default="0.0.0.0")
     parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))
     parser.add_argument("-v", "--verbose", help="increase output verbosity",

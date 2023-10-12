@@ -114,17 +114,18 @@ class MessageProcessor(RefreshMessageProcessor):
                 it2 = dict()
                 if resp2.status == 200:
                     it2 = await resp2.json()
-                    if 'date_published' in it2:
+                    if ((updd := it2.get('track_info', dict()).get('update_date', '')) and (fmt := '%Y-%m-%d %H:%M')) or\
+                       ((updd := it2.get('date_published', '')) and (fmt := '%d-%m-%Y %H:%M')):
                         if 'time_published' in it2:
                             datepubs = it2['time_published']
                         else:
                             datepubs = '00:01'
-                        datepubs = it2['date_published'] + ' ' + datepubs
+                        datepubs = updd + ' ' + datepubs
                 _LOGGER.debug("Date trying %s rv=%d: %s" % (url, resp2.status, str(it2)))
         except Exception:
             _LOGGER.error(traceback.format_exc())
         _LOGGER.debug("Processing date: %s" % datepubs)
-        datepubo = datetime.strptime(datepubs, '%d-%m-%Y %H:%M')
+        datepubo = datetime.strptime(datepubs, fmt)
         datepubi = int(datepubo.timestamp() * 1000)
         datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
         return (datepub, datepubi)
@@ -184,7 +185,9 @@ class MessageProcessor(RefreshMessageProcessor):
                 async with aiohttp.ClientSession() as session:
                     programs = dict()
                     for set in sets:
-                        async with session.get(MessageProcessor.programsUrl(progid, set)) as resp:
+                        url = MessageProcessor.programsUrl(progid, set)
+                        _LOGGER.info(f'Getting {url}')
+                        async with session.get(url) as resp:
                             if resp.status == 200:
                                 js = await resp.json()
                                 for it in js['items']:

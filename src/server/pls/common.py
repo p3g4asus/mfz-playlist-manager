@@ -12,7 +12,7 @@ import sys
 import traceback
 import zlib
 from base64 import b64encode
-from os.path import exists, join, isfile, splitext, split
+from os.path import join, splitext, split
 
 from pythonosc.osc_server import AsyncIOOSCUDPServer
 from pythonosc.dispatcher import Dispatcher
@@ -155,13 +155,6 @@ class MessageProcessor(AbstractMessageProcessor):
                         if pls[0].useri != userid:
                             return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                         todb = False
-                        if seen[i] and it.dl and exists(it.dl) and isfile(it.dl):
-                            try:
-                                remove(it.dl)
-                                it.dl = None
-                                todb = True
-                            except Exception:
-                                pass
                         if isinstance(it.conf, dict) and 'sec' in it.conf:
                             del it.conf['sec']
                             todb = True

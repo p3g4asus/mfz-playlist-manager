@@ -19,7 +19,7 @@ from telegram_menu import (BaseMessage, NavigationHandler,
                            TelegramMenuSession)
 from telegram_menu.models import MenuButton, emoji_replace
 
-from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
+from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_FOLDER_LIST, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
                           CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK)
 from common.playlist import (Playlist, PlaylistItem, PlaylistMessage)
 
@@ -483,7 +483,7 @@ class NameDurationTMessage(DeletingTMessage):
         if self._old_thumb != self.thumb:
             self._old_thumb = self.thumb
             headers = {"range": "bytes=0-10", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
-            thumb = unquote(self.thumb[6:]) if self.thumb and self.thumb[0] == '?' else self.thumb
+            thumb = unquote(self.thumb[6:]) if self.thumb and self.thumb[0] == '?' else (f'{self.proc.params.link}/{self.proc.params.args["sid"]}-s/{self.thumb[1:]}' if self.thumb and self.thumb[0] == '@' else self.thumb)
             if thumb and validators.url(thumb):
                 async with ClientSession() as session:
                     async with session.get(thumb, headers=headers) as resp:
@@ -1469,6 +1469,114 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
         return upd if upd else self.input_field
 
 
+class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
+        if not playlist:
+            playlist = Playlist(
+                type='localfolder',
+                useri=userid,
+                autoupdate=False,
+                dateupdate=0,
+                conf=dict(playlists=dict(), folders=dict(), play=dict()))
+        super().__init__(
+            navigation,
+            userid=userid,
+            username=username,
+            params=params,
+            playlist=playlist)
+        self.listings_changed = False
+        self.listings_done = False
+
+    def get_listings_command(self):
+        return PlaylistMessage(CMD_FOLDER_LIST)
+
+    async def listing_refresh_1(self, cmd, context):
+        self.status = NameDurationStatus.LISTING
+        self.sub_status = 10
+        self.scheduler_job = self.navigation.scheduler.add_job(
+            self.long_operation_do,
+            "interval",
+            id="listing_refresh",
+            seconds=3,
+            replace_existing=True,
+            next_run_time=datetime.utcnow()
+        )
+        pl = await self.proc.process(cmd)
+        if pl.rv == 0:
+            self.playlist.conf['folders'] = pl.folders
+            self.listings_changed = True
+            self.return_msg = ''
+        else:
+            self.return_msg = f'Error {pl.rv} listing folders :thumbs_down:'
+        await self.switch_to_idle()
+
+    async def listings_refresh(self, context: Optional[CallbackContext] = None):
+        if self.status == NameDurationStatus.IDLE:
+            self.playlist.conf['folders'] = dict()
+            cmd = self.get_listings_command()
+            asyncio.create_task(self.listing_refresh_1(cmd, context))
+
+    async def toggle_autoupdate(self, context: Optional[CallbackContext] = None):
+        self.playlist.autoupdate = not self.playlist.autoupdate
+        await self.edit_or_select(context)
+
+    async def toggle_playlist(self, args, context: Optional[CallbackContext] = None):
+        pid = args[0]
+        if pid in self.playlist.conf['playlists']:
+            del self.playlist.conf['playlists'][pid]
+        else:
+            self.playlist.conf['playlists'][pid] = self.playlist.conf['folders'][pid]
+        await self.edit_or_select(context)
+
+    async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
+        upd = ''
+        self.keyboard_previous: List[List["MenuButton"]] = [[]]
+        self.keyboard: List[List["MenuButton"]] = [[]]
+        await PlaylistNamingTMessage.update(self, context)
+        if self.status == NameDurationStatus.IDLE:
+            self.input_field = '\U0001F50D Select folder'
+            self.add_button(f'Name: {self.playlist.name}', self.switch_to_status, args=(NameDurationStatus.NAMING, ), new_row=True)
+            self.add_button('AutoUpdate: ' + ("\U00002611" if self.playlist.autoupdate else "\U00002610"), self.toggle_autoupdate)
+            self.add_button('Refresh Listings', self.listings_refresh)
+            new_row = True
+            foldd = self.playlist.conf['folders']
+            playd = self.playlist.conf['playlists']
+            if foldd:
+                n_ok: int = 0
+                for pid, p in playd.copy().items():
+                    sel = pid in foldd
+                    if not sel:
+                        del playd[pid]
+                for pid, p in foldd.items():
+                    sel = pid in playd
+                    self.add_button(("\U00002611 " if sel else "\U00002610 ") + p["title"], self.toggle_playlist, args=(pid, ), new_row=True)
+                    if sel:
+                        n_ok += 1
+                if n_ok:
+                    self.add_button(u'\U0001F501', RefreshNewPlaylistTMessage(
+                        self.navigation,
+                        userid=self.proc.userid,
+                        username=self.proc.username,
+                        params=self.proc.params,
+                        playlist=self.playlist
+                    ), new_row=True)
+                    new_row = False
+            elif not self.listings_done:
+                self.listings_done = True
+                await self.listings_refresh()
+            self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=new_row)
+            if self.listings_changed:
+                upd = 'Available folders:\n'
+                self.listings_changed = False
+                for f in self.playlist.conf['folders']:
+                    upd += f['title'] + '\r\n'
+        elif self.status == NameDurationStatus.LISTING:
+            return f'Downloading listings {"." * (self.sub_status & 0xFF)}'
+        if self.return_msg:
+            upd = f'<b>{self.return_msg}</b>'
+        return upd if upd else self.input_field
+
+
 class SubBrandSelectTMessage(BaseMessage):
     def __init__(self, navigation: NavigationHandler, playlist: Playlist = None) -> None:
         self.playlist = playlist
@@ -1817,6 +1925,7 @@ class PlaylistAddTMessage(StatusTMessage):
         self.add_button('\U0001F534 YoutubeDL', YoutubeDLPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
         self.add_button('\U0001F535 Rai', RaiPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
         self.add_button('\U00002B24 Mediaset', MediasetPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
+        self.add_button('\U0001F4C2 Folder', LocalFolderPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
         self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=True)
         return 'Select Playlist Type'
 

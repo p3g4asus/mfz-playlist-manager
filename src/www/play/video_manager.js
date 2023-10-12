@@ -64,7 +64,7 @@ function get_video_params_from_item(idx) {
     let old_height = video_height;
     playlist_player = 'youtube';
 
-    if (is_item_downloaded(playlist_item_current))
+    if (is_item_downloaded(playlist_item_current) || playlist_current.type == 'localfolder')
         playlist_player = 'html5';
     else if (playlist_current.type == 'youtube') {
         let extr;
@@ -168,6 +168,8 @@ function on_play_finished(event) {
     send_video_info_for_remote_play('pinfo', 0);
     if (is_item_downloaded(playlist_item_current))
         video_manager_obj.play_video(MAIN_PATH_S + 'dl/' + playlist_item_current.dl.substr(playlist_item_current.dl.lastIndexOf('/') + 1));
+    else if (playlist_item_current.link.charAt(0) == '@')
+        video_manager_obj.play_video(MAIN_PATH_S + playlist_item_current.link.substring(1));
     else if (vid.length && video_manager_obj.play_video_id)
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)

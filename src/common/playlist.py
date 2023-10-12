@@ -2,7 +2,8 @@ import json
 import logging
 import urllib.parse
 from datetime import datetime
-
+from os import remove
+from os.path import exists, isfile
 from common.const import CONV_LINK_MASK, CONV_LINK_REDIRECT, CONV_LINK_TWITCH, CONV_LINK_UNTOUCH, CONV_LINK_YTDL_DICT, CONV_LINK_YTDL_REDIRECT
 
 from .utils import Fieldable, JSONAble
@@ -458,20 +459,35 @@ class PlaylistItem(JSONAble, Fieldable):
 
     async def delete(self, db, commit=True):
         rv = False
+        should_check = False
         if self.rowid:
             async with db.cursor() as cursor:
                 await cursor.execute("DELETE FROM playlist_item WHERE rowid=?", (self.rowid,))
                 rv = cursor.rowcount > 0
+                should_check = True
         elif self.uid and self.playlist:
             async with db.cursor() as cursor:
                 await cursor.execute("DELETE FROM playlist_item WHERE uid=? AND playlist=?", (self.uid, self.playlist))
                 rv = cursor.rowcount > 0
+                should_check = True
         elif self.playlist:
             async with db.cursor() as cursor:
                 await cursor.execute("DELETE FROM playlist_item WHERE playlist=?", (self.playlist,))
                 rv = cursor.rowcount > 0
         if rv and commit:
             await db.commit()
+        if should_check:
+            todel = []
+            if self.dl and exists(self.dl) and isfile(self.dl):
+                todel.append(self.dl)
+            if self.conf and 'todel' in self.conf:
+                todel.extend(self.conf['todel'])
+            _LOGGER.info(f'Clean needs to remove those files: {todel}')
+            for fl in todel:
+                try:
+                    remove(fl)
+                except Exception:
+                    pass
         return rv
 
     def isOk(self):

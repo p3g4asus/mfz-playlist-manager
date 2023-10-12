@@ -97,6 +97,7 @@ module.exports = {
         'add_playlist_to_button': true,
         'set_playlist_enabled': true,
         'CMD_REMOTEPLAY': true,
+        'CMD_FOLDER_LIST': true,
         'CMD_REMOTEPLAY_JS': true,
         'QRCode': true,
         'main_ws_qel_exists': true,
