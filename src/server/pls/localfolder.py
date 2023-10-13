@@ -119,7 +119,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     thun = f'{bn}_thu.jpg'
                     thup = join(absolute, thun)
                     space = video['duration'] / 2
-                    await executor(self.generate_thumb, f, thup, space, playlist_dict)
+                    await executor(self.generate_thumb, f, thup, min(space, 60), playlist_dict)
                     conf = dict(todel=[f])
                     video['id'] = f
                     video['title'] = bn
