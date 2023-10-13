@@ -557,7 +557,7 @@ let playlist_types = {
                                 </div>
                                 <div class="form-row">
                                     <div class="col-12">
-                                        <table id="pl-add-view-medrai-brands-table" data-page-size="10" data-pagination="true" data-show-header="false" data-classes="table table-borderless table-hover table-condensed" data-multiple-select-row="true" data-click-to-select="true">
+                                        <table id="pl-add-view-medrai-brands-table" data-page-size="10" data-pagination="true" data-show-header="false" data-classes="table table-borderless table-hover table-condensed" data-click-to-select="true">
                                             <thead>
                                                 <tr>
                                                     <th data-field="state" data-checkbox="true"></th>
@@ -805,7 +805,7 @@ let playlist_types = {
                                 </div>
                                 <div class="form-row">
                                     <div class="col-12">
-                                        <table id="pl-add-view-localfolder-listings-table" data-maintain-meta-data="true" data-page-size="10" data-pagination="true" data-show-header="false" data-classes="table table-borderless table-hover table-condensed" data-multiple-select-row="true" data-click-to-select="true" data-search="true">
+                                        <table id="pl-add-view-localfolder-listings-table" data-maintain-meta-data="true" data-page-size="10" data-pagination="true" data-show-header="false" data-classes="table table-borderless table-hover table-condensed" data-click-to-select="true" data-search="true">
                                             <thead>
                                                 <tr>
                                                     <th data-field="state" data-checkbox="true" data-formatter="playlist_localfolder_listings_formatter_chk"></th>
