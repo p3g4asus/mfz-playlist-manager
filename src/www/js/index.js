@@ -808,7 +808,7 @@ let playlist_types = {
                                         <table id="pl-add-view-localfolder-listings-table" data-maintain-meta-data="true" data-page-size="10" data-pagination="true" data-show-header="false" data-classes="table table-borderless table-hover table-condensed" data-multiple-select-row="true" data-click-to-select="true" data-search="true">
                                             <thead>
                                                 <tr>
-                                                    <th data-field="title" data-checkbox="true" data-formatter="playlist_localfolder_listings_formatter_chk"></th>
+                                                    <th data-field="state" data-checkbox="true" data-formatter="playlist_localfolder_listings_formatter_chk"></th>
                                                     <th data-field="id" data-visible="true" data-formatter="playlist_localfolder_listings_formatter_main">Name</th>
                                                 </tr>
                                             </thead>
