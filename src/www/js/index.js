@@ -300,8 +300,12 @@ function playlist_medrai_listings_formatter(value, row, index, field, type) {
     </a>`;
 }
 
-function playlist_localfolder_listings_formatter(value, row, index, field) {
+function playlist_localfolder_listings_formatter_main(value, row, index, field) {
     return playlist_medrai_brands_formatter(value, row, index, field, 'localfolder');
+}
+
+function playlist_localfolder_listings_formatter_chk(value, row, index, field) {
+    return current_playlist?.conf?.playlists[row.id]?true:false;
 }
 
 function playlist_mediaset_listings_formatter(value, row, index, field) {
@@ -373,25 +377,26 @@ function playlist_medrai_get_subbrands(brandid, type) {
         });
 }
 
+function playlist_localfolder_check_react() {
+    const $listingsTable = $('#pl-add-view-localfolder-listings-table');
+    const sels = $listingsTable.bootstrapTable('getSelections');
+    current_playlist.conf.playlists = {};
+    for (let sel of sels) {
+        current_playlist.conf.playlists[sel.id] = current_playlist.conf.folders[sel.id];
+    }
+    set_button_enabled('#pl-add-view-add', playlist_types['localfolder'].on_add(current_playlist));
+}
+
 function playlist_localfolder_load_listings_table(pl, folders) {
     const $listingsTable = $('#pl-add-view-localfolder-listings-table');
     const $progress = $('#pl-add-view-localfolder-progress');
     const $search = $('#pl-add-view-localfolder-search');
     $listingsTable.bootstrapTable('removeAll');
     $listingsTable.bootstrapTable('load', folders);
-    let idx = 0;
-    for (let fold of folders) {
-        if (pl.conf.playlists[fold.id]) {
-            $listingsTable.bootstrapTable('check', idx);
-        } else {
-            $listingsTable.bootstrapTable('uncheck', idx);
-        }
-        idx ++;
-    }
     const pls = Object.values(pl.conf.playlists);
-    for (let pl of pls) {
-        if (!pl.conf.folders[pl.id]) {
-            delete pl.conf.playlists[pl.id];
+    for (let p of pls) {
+        if (!pl.conf.folders[p.id]) {
+            delete pl.conf.playlists[p.id];
         }
     }
     set_button_enabled('#pl-add-view-add', playlist_types['localfolder'].on_add(pl));
@@ -803,8 +808,8 @@ let playlist_types = {
                                         <table id="pl-add-view-localfolder-listings-table" data-maintain-meta-data="true" data-page-size="10" data-pagination="true" data-show-header="false" data-classes="table table-borderless table-hover table-condensed" data-multiple-select-row="true" data-click-to-select="true" data-search="true">
                                             <thead>
                                                 <tr>
-                                                    <th data-field="state" data-checkbox="true"></th>
-                                                    <th data-field="id" data-visible="true" data-formatter="playlist_localfolder_listings_formatter">Name</th>
+                                                    <th data-field="title" data-checkbox="true" data-formatter="playlist_localfolder_listings_formatter_chk"></th>
+                                                    <th data-field="id" data-visible="true" data-formatter="playlist_localfolder_listings_formatter_main">Name</th>
                                                 </tr>
                                             </thead>
                                         </table>
@@ -818,14 +823,7 @@ let playlist_types = {
             const $listingsTable = el.find('#pl-add-view-localfolder-listings-table');
             const $search = el.find('#pl-add-view-localfolder-search');
             $listingsTable.bootstrapTable().on('check.bs.table uncheck.bs.table ' +
-                'check-all.bs.table uncheck-all.bs.table', function() {
-                const sels = $listingsTable.bootstrapTable('getSelections');
-                pl.conf.playlists = {};
-                for (let sel of sels) {
-                    pl.conf.playlists[sel.id] = pl.conf.folders[sel.id];
-                }
-                set_button_enabled('#pl-add-view-add', playlist_types['localfolder'].on_add(pl));
-            });
+                'check-all.bs.table uncheck-all.bs.table', playlist_localfolder_check_react);
             if (!pl.conf.folders) {
                 pl.conf.folders = {};
                 pl.conf.playlists = {};
@@ -833,7 +831,7 @@ let playlist_types = {
                 pl.conf.playlists = {};
             const arr = pl.conf.folders?Object.values(pl.conf.folders):null;
             if (arr && arr.length) {
-                playlist_localfolder_load_listings_table(pl, arr);
+                setTimeout(() => playlist_localfolder_load_listings_table(pl, arr, el), 500);
             } else {
                 playlist_localfolder_get_listings_ws();
             }
