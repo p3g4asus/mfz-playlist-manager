@@ -469,7 +469,7 @@ class PlaylistItem(JSONAble, Fieldable):
 
     async def clean(self, db=None, commit=True):
         todel = []
-        if self.dl and exists(self.dl) and isfile(self.dl):
+        if self.dl:
             todel.append(self.dl)
             self.dl = None
         if self.conf and 'todel' in self.conf:
