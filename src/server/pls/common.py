@@ -18,7 +18,7 @@ from pythonosc.osc_server import AsyncIOOSCUDPServer
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.udp_client import SimpleUDPClient
 
-from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DOWNLOAD, CMD_DEL, CMD_DUMP, CMD_IORDER,
+from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DOWNLOAD, CMD_DEL, CMD_DUMP, CMD_FREESPACE, CMD_IORDER,
                           CMD_MOVE, CMD_PLAYID, CMD_PLAYITSETT, CMD_PLAYSETT,
                           CMD_REN, CMD_SEEN, CMD_SORT, DOWNLOADED_SUFFIX, MSG_BACKEND_ERROR,
                           MSG_INVALID_PARAM, MSG_NAME_TAKEN,
@@ -47,7 +47,7 @@ class MessageProcessor(AbstractMessageProcessor):
             msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or\
             msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or\
             msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT) or msg.c(CMD_DOWNLOAD) or\
-            msg.c(CMD_CLEAR)
+            msg.c(CMD_CLEAR) or msg.c(CMD_FREESPACE)
 
     async def processMove(self, msg, userid, executor):
         pdst = msg.playlistId()
@@ -324,6 +324,25 @@ class MessageProcessor(AbstractMessageProcessor):
             self.osc_c.send_message('/haltjob', 1)
             return msg.ok()
 
+    async def processFreeSpace(self, msg, userid, executor):
+        x = msg.playlistItemId()
+        if x:
+            it = await PlaylistItem.loadbyid(self.db, rowid=x)
+            if it:
+                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+                if pls:
+                    if pls[0].useri != userid:
+                        return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                    else:
+                        todel = await it.clean(self.db, True)
+                        return msg.ok(playlistitem=it, deleted=todel)
+                else:
+                    msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+            else:
+                return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+        else:
+            return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+
     async def processIOrder(self, msg, userid, executor):
         x = msg.playlistItemId()
         if x is not None:
@@ -545,6 +564,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processDl(msg, userid, executor)
         elif msg.c(CMD_SORT):
             resp = await self.processSort(msg, userid, executor)
+        elif msg.c(CMD_FREESPACE):
+            resp = await self.processFreeSpace(msg, userid, executor)
         elif msg.c(CMD_CLOSE):
             if ws is not None:
                 await ws.close()

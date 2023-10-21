@@ -13,6 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 LOAD_ITEMS_NO = 0
 LOAD_ITEMS_ALL = 1
 LOAD_ITEMS_UNSEEN = 2
+LOAD_ITEMS_SEEN = 3
 
 
 class Playlist(JSONAble, Fieldable):
@@ -373,7 +374,7 @@ class PlaylistItem(JSONAble, Fieldable):
         return None
 
     @staticmethod
-    async def loadbyid(db, rowid, playlist=None, loaditems=LOAD_ITEMS_UNSEEN, sortby='iorder', offset=None, limit=None):
+    async def loadbyid(db, rowid, playlist=None, loaditems=LOAD_ITEMS_UNSEEN, sortby='iorder', offset=None, limit=None, user=None, dl=None):
         if isinstance(rowid, int):
             where = f'WHERE rowid={rowid}'
             listresult = False
@@ -383,11 +384,17 @@ class PlaylistItem(JSONAble, Fieldable):
             where = f'WHERE PI.playlist = {playlist}'
             if loaditems == LOAD_ITEMS_UNSEEN:
                 where += ' AND PI.seen IS NULL AND PI.link IS NOT NULL'
+            elif loaditems == LOAD_ITEMS_SEEN:
+                where += ' AND PI.seen IS NOT NULL'
             listresult = True
         if limit is not None and offset is not None:
             lc = f'LIMIT {offset},{limit}'
         else:
             lc = ''
+        if dl:
+            where += ' AND (PI.dl IS NOT NULL OR instr(PI.conf, \'"todel"\') > 0)'
+        if user:
+            where = f'INNER JOIN playlist ON playlist.user={user} AND playlist.rowid=PI.playlist ' + where
         subcursor = await db.execute(
             f'''
             SELECT PI.*
@@ -457,6 +464,27 @@ class PlaylistItem(JSONAble, Fieldable):
                 return data > 0
             return False
 
+    def takes_space(self):
+        return self.dl or (self.conf and 'todel' in self.conf and self.conf['todel'])
+
+    async def clean(self, db=None, commit=True):
+        todel = []
+        if self.dl and exists(self.dl) and isfile(self.dl):
+            todel.append(self.dl)
+            self.dl = None
+        if self.conf and 'todel' in self.conf:
+            todel.extend(self.conf['todel'])
+            del self.conf['todel']
+        _LOGGER.info(f'Clean needs to remove those files: {todel}')
+        for fl in todel:
+            try:
+                remove(fl)
+            except Exception:
+                pass
+        if todel and db:
+            await self.toDB(db, commit)
+        return todel
+
     async def delete(self, db, commit=True):
         rv = False
         should_check = False
@@ -477,17 +505,7 @@ class PlaylistItem(JSONAble, Fieldable):
         if rv and commit:
             await db.commit()
         if should_check:
-            todel = []
-            if self.dl and exists(self.dl) and isfile(self.dl):
-                todel.append(self.dl)
-            if self.conf and 'todel' in self.conf:
-                todel.extend(self.conf['todel'])
-            _LOGGER.info(f'Clean needs to remove those files: {todel}')
-            for fl in todel:
-                try:
-                    remove(fl)
-                except Exception:
-                    pass
+            await self.clean()
         return rv
 
     def isOk(self):

@@ -1268,13 +1268,15 @@ function playlists_dump(params, fast_videoidx, fast_videostep) {
                     no_more = false;
             }
             if (params) {
-                let rid = docCookies.getItem(COOKIE_SELECTEDPL);
+                let rid;
+                const urlParams = new URLSearchParams(URL_PARAMS);
                 params.success({
                     rows: msg.playlists,
                     total: msg.playlists.length
                 });
-                if (rid !== null) {
-                    let idxOf = msg.playlists.map(function(e) { return e.rowid; }).indexOf(parseInt(rid));
+                if ((urlParams.has('pid') && (rid = urlParams.get('pid')) !== null && !isNaN(rid = parseInt(rid))) ||
+                    ((rid = docCookies.getItem(COOKIE_SELECTEDPL)) !== null && !isNaN(rid = parseInt(rid)))) {
+                    let idxOf = msg.playlists.map(function(e) { return e.rowid; }).indexOf(rid);
                     if (idxOf >= 0) {
                         playlist_select(msg.playlists[idxOf]);
                         playlist_interface_manage('back-list');

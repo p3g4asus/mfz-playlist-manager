@@ -353,8 +353,10 @@ function playlist_dump(useri, plid) {
                     for (let it of msg.playlists) {
                         add_playlist_to_button(it.name);
                         let obj = it?.conf?.play;
-                        for (const conf of Object.keys(obj)) {
-                            playlists_conf_map[conf] = true;
+                        if (obj) {
+                            for (const conf of Object.keys(obj)) {
+                                playlists_conf_map[conf] = true;
+                            }
                         }
                     }
                     playlists_arr = msg.playlists;

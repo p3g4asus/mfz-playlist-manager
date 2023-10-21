@@ -8,18 +8,18 @@ from enum import Enum, auto
 from html import escape
 from os import stat
 from os.path import exists, isfile, split
-from typing import Any, Coroutine, Dict, List, Optional, Union
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Union
 from urllib.parse import urlencode, urlparse, unquote
 
 import validators
 from aiohttp import ClientSession
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
-from telegram_menu import (BaseMessage, NavigationHandler,
+from telegram_menu import (BaseMessage, ButtonType, NavigationHandler,
                            TelegramMenuSession)
 from telegram_menu.models import MenuButton, emoji_replace
 
-from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_FOLDER_LIST, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
+from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
                           CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK)
 from common.playlist import (Playlist, PlaylistItem, PlaylistMessage)
 
@@ -61,13 +61,13 @@ class PlaylistTg(object):
         self.items: Dict[str, PlaylistItemTg] = dict()
         self.refresh(playlist, index)
 
-    def get_items(self, deleted: bool = False) -> List[PlaylistItemTg]:
+    def get_items(self, deleted: Union[bool, Callable[[PlaylistItem], bool]] = False) -> List[PlaylistItemTg]:
         real_index = 0
         del_index = 1000000
         rv = []
         for _, itTg in self.items.items():
             it: PlaylistItem = itTg.item
-            if deleted or not it.seen:
+            if (isinstance(deleted, bool) and (deleted or not it.seen)) or (not isinstance(deleted, bool) and deleted(it)):
                 itTg.refresh(it, real_index if not it.seen else del_index)
                 rv.append(itTg)
             else:
@@ -201,7 +201,7 @@ def cache_get(useri: int, pid: Optional[int] = None) -> Union[List[PlaylistTg], 
         return dd
 
 
-def cache_get_items(useri: int, pid: int, deleted: bool) -> List[PlaylistItemTg]:
+def cache_get_items(useri: int, pid: int, deleted: Union[bool, Callable[[PlaylistItem], bool]]) -> List[PlaylistItemTg]:
     dd = cache_get(useri, pid)
     return dd.get_items(deleted) if dd else []
 
@@ -345,6 +345,14 @@ class DeletingTMessage(StatusTMessage):
     @abstractmethod
     async def delete_item_do(self):
         return
+
+    def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: timedelta | None = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", userid: int = None, username: str = None, params: object = None, **argw) -> None:
+        self.del_action: str = ''
+        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, userid, username, params, **argw)
+
+    def delete_item_pre_pre(self, args):
+        self.del_action = args[0]
+        self.delete_item_pre()
 
     def delete_item_pre(self):
         self.status = NameDurationStatus.DELETING
@@ -633,10 +641,12 @@ class PlaylistItemTMessage(NameDurationTMessage):
         self.refresh_from_cache()
         if not self.deleted:
             if self.status == NameDurationStatus.IDLE:
-                self.add_button(u'\U0001F5D1', self.delete_item_pre)
+                self.add_button(u'\U0001F5D1', self.delete_item_pre_pre, args=(CMD_SEEN, ))
                 self.add_button(u'\U00002211', self.switch_to_status, args=(NameDurationStatus.SORTING, ))
                 self.add_button(u'\U0001F517', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, ))
                 self.add_button(u'\U0001F4EE', self.switch_to_status, args=(NameDurationStatus.MOVING, ))
+                if self.obj.takes_space():
+                    self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
             elif self.status == NameDurationStatus.MOVING:
                 pps: List[PlaylistTg] = cache_get(self.proc.userid)
                 myself: PlaylistTg = cache_get(self.proc.userid, self.obj.playlist)
@@ -684,7 +694,9 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return f'Enter \U00002211 for <b>{self.name}</b>'
         elif self.status == NameDurationStatus.IDLE:
-            self.add_button(u'\U0000267B', self.delete_item_pre)
+            self.add_button(u'\U0000267B', self.delete_item_pre_pre, args=(CMD_SEEN, ))
+            if self.obj.takes_space():
+                self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
         upd = await super().update(context)
         if upd:
             return upd
@@ -710,19 +722,30 @@ class PlaylistItemTMessage(NameDurationTMessage):
         return upd
 
     async def delete_item_do(self):
-        pl = PlaylistMessage(CMD_SEEN, playlistitem=self.id, seen=not self.deleted)
-        pl = await self.proc.process(pl)
-        if pl.rv == 0:
-            self.deleted = not self.deleted
-            self.obj.seen = not self.obj.seen
-            cache_on_item_deleted(self.proc.userid, self.pid)
-            plTg = cache_get(self.proc.userid, self.pid)
-            if plTg.message:
-                await plTg.message.edit_or_select_items(5)
-                await plTg.message.edit_or_select_if_exists(5)
-            self.return_msg = ('Delete' if self.deleted else 'Restore') + ' OK :thumbs_up:'
-        else:
-            self.return_msg = f'Error {pl.rv} {"deleting" if not self.deleted else "restoring"} {self.name} :thumbs_down:'
+        if self.del_action == CMD_SEEN:
+            pl = PlaylistMessage(CMD_SEEN, playlistitem=self.id, seen=not self.deleted)
+            pl = await self.proc.process(pl)
+            if pl.rv == 0:
+                self.deleted = not self.deleted
+                self.obj.seen = not self.obj.seen
+                cache_on_item_deleted(self.proc.userid, self.pid)
+                plTg = cache_get(self.proc.userid, self.pid)
+                if plTg.message:
+                    await plTg.message.edit_or_select_items(5)
+                    await plTg.message.edit_or_select_if_exists(5)
+                self.return_msg = ('Delete' if self.deleted else 'Restore') + ' OK :thumbs_up:'
+            else:
+                self.return_msg = f'Error {pl.rv} {"deleting" if not self.deleted else "restoring"} {self.name} :thumbs_down:'
+        elif self.del_action == CMD_FREESPACE:
+            pl = PlaylistMessage(CMD_FREESPACE, playlistitem=self.id)
+            pl = await self.proc.process(pl)
+            if pl.rv == 0:
+                self.obj = pl.playlistitem
+                itemTg = cache_get_item(self.proc.userid, self.obj.playlist, self.id)
+                itemTg.refresh(pl.playlistitem, itemTg.index)
+                self.return_msg = f'Free Space OK (deleted files: {pl.deleted}):thumbs_up:'
+            else:
+                self.return_msg = f'Error {pl.rv} freeing space of {self.name} :thumbs_down:'
 
     async def set_iorder_do(self, iorder):
         pl = PlaylistMessage(CMD_IORDER, playlistitem=self.id, iorder=iorder)
@@ -769,7 +792,6 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             params=params)
         self.del_and_recreate = False
         self.set_playlist(self.obj)
-        self.del_action: str = ''
 
     async def edit_or_select_items(self, delay: float = 0):
         itemsTg = cache_get_items(self.proc.userid, self.id, True)
@@ -918,24 +940,28 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 playlist=self.obj)
             await self.navigation.goto_menu(but)
 
-    def delete_item_pre_pre(self, args):
-        self.del_action = args[0]
-        self.delete_item_pre()
+    @staticmethod
+    def list_items_taking_space(it: PlaylistItem) -> bool:
+        return it.takes_space()
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.refresh_from_cache()
+        lnk = f'{self.proc.params.link}/{self.proc.params.args["sid"]}'
         if not self.deleted:
             if self.status == NameDurationStatus.IDLE:
                 self.add_button(u'\U00002699', self.edit_me)
+                self.add_button(u'\U000000AB\U000000BB', self.switch_to_status, args=(NameDurationStatus.RENAMING, ))
                 self.add_button(u'\U0001F5D1', self.switch_to_status, args=(NameDurationStatus.DELETING_CONFIRM, ))
                 self.add_button(u'\U0001F9F9', self.delete_item_pre_pre, args=(CMD_CLEAR, ))
-                self.add_button(u'\U000000AB\U000000BB', self.switch_to_status, args=(NameDurationStatus.RENAMING, ))
                 self.add_button(u'\U0001F501', self.switch_to_status, args=(NameDurationStatus.UPDATING_INIT, ))
                 self.add_button(u'\U00002211', self.sort_playlist)
+                self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{lnk}-s/play/workout.htm?{urlencode(dict(name=self.name))}')
+                self.add_button(u'\U0001F4D2', btype=ButtonType.LINK, web_app_url=f'{lnk}-s/index.htm?{urlencode(dict(pid=self.id))}')
                 self.add_button(':memo:', self.list_items, args=(False, ))
                 self.add_button(':eye:', self.list_items, args=(True, ))
+                self.add_button(u'\U0001F4A3', self.list_items, args=(PlaylistTMessage.list_items_taking_space, ))
                 # self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{self.proc.params.link}/{self.proc.params.args["sid"]}-s/play/workout.htm?{urlencode(dict(name=self.name))}')
             elif self.status == NameDurationStatus.RENAMING:
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
@@ -964,9 +990,8 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         upd += f'\nLength: {self.unseen} \U000023F1 {duration2string(self.obj.get_duration())}\n'
         upd += f':eye: {len(self.obj.items)} \U000023F1 {duration2string(self.obj.get_duration(True))}\n'
         upd += f'Update \U000023F3: {datepubo.strftime("%Y-%m-%d %H:%M:%S")} ' + ("\U00002705" if self.obj.autoupdate else "") + '\n'
-        lnk = f'{self.proc.params.link}/{self.proc.params.args["sid"]}'
         par = urlencode(dict(username=self.proc.username, name=self.name, host=lnk))
-        upd += f'<a href="{lnk}-s/play/workout.htm?{urlencode(dict(name=self.name))}">:play_button:</a>, <a href="{lnk}/m3u?{par}&fmt=m3u">M3U8</a>, <a href="{lnk}/m3u?{par}&fmt=ely">ELY</a>, <a href="{lnk}/m3u?{par}&fmt=json">JSON</a>\n'
+        upd += f'<a href="{lnk}/m3u?{par}&fmt=m3u">M3U8</a>, <a href="{lnk}/m3u?{par}&fmt=ely">ELY</a>, <a href="{lnk}/m3u?{par}&fmt=json">JSON</a>\n'
         upd += f'<a href="{lnk}/m3u?{par}&fmt=m3u&conv=4">M3U8c4</a>, <a href="{lnk}/m3u?{par}&fmt=ely&conv=4">ELYc4</a>, <a href="{lnk}/m3u?{par}&fmt=json&conv=4">JSONc4</a>\n'
         upd += f'<a href="{lnk}/m3u?{par}&fmt=m3u&conv=2">M3U8c2</a>, <a href="{lnk}/m3u?{par}&fmt=ely&conv=2">ELYc2</a>, <a href="{lnk}/m3u?{par}&fmt=json&conv=2">JSONc2</a>'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'
@@ -1159,20 +1184,20 @@ class ListPagesTMessage(BaseMessage):
         try:
             items = await self.pagegen.get_items_list(self.deleted)
             nitems = len(items)
-            last_group_items = nitems % self.max_items_per_group
-            ngroups = int(nitems / self.max_items_per_group) + (1 if last_group_items else 0)
-            if not last_group_items:
-                last_group_items = self.max_items_per_group
-            last_page_groups = ngroups % self.max_group_per_page
-            npages = int(ngroups / self.max_group_per_page) + (1 if last_page_groups else 0)
-            if not last_page_groups:
-                last_page_groups = self.max_group_per_page
-            first_item_index = None
-            last_item_index = None
-            pages: List[MultipleGroupsOfItems] = []
+            self.first_page = thispage = MultipleGroupsOfItems()
             if nitems:
+                last_group_items = nitems % self.max_items_per_group
+                ngroups = int(nitems / self.max_items_per_group) + (1 if last_group_items else 0)
+                if not last_group_items:
+                    last_group_items = self.max_items_per_group
+                last_page_groups = ngroups % self.max_group_per_page
+                npages = int(ngroups / self.max_group_per_page) + (1 if last_page_groups else 0)
+                if not last_page_groups:
+                    last_page_groups = self.max_group_per_page
+                first_item_index = None
+                last_item_index = None
+                pages: List[MultipleGroupsOfItems] = []
                 oldpage = None
-                self.first_page = thispage = MultipleGroupsOfItems()
                 current_item = 0
                 for i in range(npages):
                     groups_of_this_page = last_page_groups if i == npages - 1 else self.max_group_per_page
