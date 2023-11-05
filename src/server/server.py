@@ -104,6 +104,7 @@ CREATE_DB_IF_NOT_EXIST = [
         rowid INTEGER PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
+        conf TEXT,
         tg TEXT
     )
     ''',

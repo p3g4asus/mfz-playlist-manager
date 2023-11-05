@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import re
 import traceback
@@ -8,8 +9,8 @@ from enum import Enum, auto
 from html import escape
 from os import stat
 from os.path import exists, isfile, split
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Union
-from urllib.parse import urlencode, urlparse, unquote
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union
+from urllib.parse import urlencode, urlparse, urlunparse, unquote, parse_qs, ParseResult
 
 import validators
 from aiohttp import ClientSession
@@ -20,7 +21,7 @@ from telegram_menu import (BaseMessage, ButtonType, NavigationHandler,
 from telegram_menu.models import MenuButton, emoji_replace
 
 from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
-                          CMD_REFRESH, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK)
+                          CMD_REFRESH, CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SEC, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK)
 from common.playlist import (Playlist, PlaylistItem, PlaylistMessage)
 
 _LOGGER = logging.getLogger(__name__)
@@ -276,7 +277,7 @@ class StatusTMessage(BaseMessage):
         except Exception:
             _LOGGER.warning(f'edit error {traceback.format_exc()}')
 
-    async def switch_to_status(self, args, context):
+    async def switch_to_status(self, args, context=None):
         self.status = args[0]
         await self.edit_or_select(context)
 
@@ -371,6 +372,335 @@ class DeletingTMessage(StatusTMessage):
         if self.status == NameDurationStatus.DELETING:
             self.add_button(f':cross_mark: Undo in {self.sub_status} sec', self.switch_to_idle)
         return ''
+
+
+class PlayerInfo(object):
+    END_URL_PATH: str = '-s/play/player_remote_commands.htm'
+    DEFAULT_VINFO = dict(title='N/A', durs='0s', tot_n=0, tot_durs='0s', duri=0)
+    DEFAULT_PINFO = dict(sec=0)
+
+    @staticmethod
+    def is_player_url_ok(url) -> Tuple[ParseResult, Dict[str, List[str]]]:
+        parsed_url = urlparse(url)
+        dictspar = parse_qs(parsed_url.query)
+        return (parsed_url, dictspar) if parsed_url.scheme and 'name' in dictspar and 'hex' in dictspar and parsed_url.path.endswith(PlayerInfo.END_URL_PATH) else None
+
+    def __init__(self, name: str, url: str) -> None:
+        if not (pr := self.is_player_url_ok(url)):
+            raise Exception(f'Invalid player url {url}')
+        self.name: str = name
+        self.url: str = url
+        self.plnames: List[str] = list(pr[1]['name'])
+        self.pinfo: Dict[str, str] = PlayerInfo.DEFAULT_PINFO
+        self.vinfo: Dict[str, str] = PlayerInfo.DEFAULT_VINFO
+        self.play_url = urlunparse(pr[0]._replace(path=pr[0].path[1:-len(PlayerInfo.END_URL_PATH)] + '-s/play/workout.htm')._replace(query=''))
+        self.base_cmd: ParseResult = pr[0]._replace(path=pr[0].path[1:-len(PlayerInfo.END_URL_PATH)] + f'/rcmd/{pr[1]["hex"][0]}')
+
+    async def sendGenericCommand(self, **cmdo):
+        urlp = self.base_cmd._replace(query=urlencode(cmdo, doseq=True))
+        urls = urlunparse(urlp)
+        async with ClientSession() as session:
+            async with session.get(urls) as resp:
+                if not (resp.status >= 200 and resp.status < 300):
+                    return None
+                else:
+                    try:
+                        rv = None
+                        data = await resp.json()
+                        if 'pinfo' in data:
+                            rv = data
+                            if isinstance(data['pinfo'], dict):
+                                self.pinfo = data['pinfo']
+                            else:
+                                self.pinfo = PlayerInfo.DEFAULT_PINFO
+                        if 'vinfo' in data:
+                            rv = data
+                            if isinstance(data['vinfo'], dict):
+                                self.vinfo = data['vinfo']
+                            else:
+                                self.vinfo = PlayerInfo.DEFAULT_VINFO
+                    except Exception:
+                        pass
+                    return rv
+
+
+class PlayerInfoMessage(StatusTMessage):
+    def __init__(self, navigation: NavigationHandler, player_info: PlayerInfo, userid: int = None, username: str = None, params: object = None, **argw) -> None:
+        self.pi = player_info
+        self.time_btn: datetime = None
+        self.btn_type: int = 0
+        self.time_status: int = 0
+        self.info_changed: bool = False
+        super().__init__(
+            navigation,
+            label=self.__class__.__name__ + player_info.name,
+            expiry_period=timedelta(hours=3),
+            input_field='Timestamp',
+            userid=userid,
+            username=username,
+            params=params)
+
+    def calc_dyn_sec(self):
+        if not self.time_btn:
+            return 0
+        else:
+            return (round((datetime.now() - self.time_btn).seconds * 5) + 10) * self.btn_type
+
+    async def refresh_msg(self):
+        if self.time_btn:
+            passed = (datetime.now() - self.time_btn).seconds
+            if passed > 120:
+                await self.switch_to_idle()
+            else:
+                await self.edit_or_select()
+
+    async def play(self, args: tuple):
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_PAUSE)
+
+    async def move(self, args: tuple):
+        val = args[0]
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_FFW if val > 0 else CMD_REMOTEPLAY_JS_REW, n=abs(val))
+
+    async def move_pl(self, args: tuple):
+        val = args[0]
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_NEXT if val > 0 else (CMD_REMOTEPLAY_JS_PREV if val < 0 else CMD_REMOTEPLAY_JS_DEL))
+
+    async def switch_pl(self, args: tuple):
+        val = args[0]
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_GOTO, link=self.pi.play_url + f'?{urlencode(dict(name=val))}')
+        await self.switch_to_idle()
+
+    async def move_abs(self, args: tuple):
+        val = args[0]
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_SEC, n=val)
+
+    async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
+        if self.status == NameDurationStatus.IDLE:
+            text = text.strip()
+            try:
+                sect = None
+                while True:
+                    if (mo := re.search(r'^\s*([0-9]+)\s*([msh]?)', text)):
+                        sec = int(mo.group(1))
+                        um = mo.group(2)
+                        if um == 'm':
+                            sec *= 60
+                        elif um == 'h':
+                            sec *= 3600
+                        text = text[len(mo.group(0)):]
+                        sect = sec if sect is None else sect + sec
+                    else:
+                        break
+                if sect is not None:
+                    await self.move_abs((sect, ))
+            except Exception:
+                pass
+
+    async def info(self, args: tuple):
+        await self.pi.sendGenericCommand(get=['vinfo', 'pinfo'])
+        self.info_changed = True
+        await self.edit_or_select()
+
+    async def manage_state_change(self, args: tuple, context: Optional[CallbackContext] = None):
+        btn_id: int = 0
+        f = args[0]
+        if isinstance(f, int):
+            btn_id = f
+            args = args[1:]
+        _LOGGER.debug(f'btn_id={btn_id} type={self.btn_type}')
+        if btn_id and not self.btn_type:
+            self.btn_type = btn_id
+            self.time_btn = datetime.now()
+            name: str = f"manage_state_change{id(self)}"
+            self.scheduler_job = self.navigation.scheduler.add_job(
+                self.refresh_msg,
+                "interval",
+                name=name,
+                id=name,
+                seconds=1,
+                replace_existing=True,
+            )
+            await self.switch_to_status((NameDurationStatus.RENAMING, ), context)
+            return
+        elif not btn_id and self.btn_type:
+            self.btn_type = 0
+            self.time_btn = None
+            await self.switch_to_idle()
+            if args[0] == self.move:
+                return
+        elif btn_id and self.btn_type and self.btn_type != btn_id:
+            self.btn_type = btn_id
+            self.time_btn = datetime.now()
+            return
+        elif btn_id and self.btn_type:
+            await self.move((self.calc_dyn_sec(),))
+            self.btn_type = 0
+            self.time_btn = None
+            await self.switch_to_idle()
+            return
+        await args[0](args[1:])
+
+    TIMES = [
+        u'\U0001F55B',
+        u'\U0001F550',
+        u'\U0001F55C',
+        u'\U0001F551',
+        u'\U0001F55D',
+        u'\U0001F552',
+        u'\U0001F55E',
+        u'\U0001F553',
+        u'\U0001F55F',
+        u'\U0001F554',
+        u'\U0001F560',
+        u'\U0001F555',
+        u'\U0001F561',
+        u'\U0001F556',
+        u'\U0001F562',
+        u'\U0001F557',
+        u'\U0001F563',
+        u'\U0001F558',
+        u'\U0001F564',
+        u'\U0001F559',
+        u'\U0001F565',
+        u'\U0001F55A',
+        u'\U0001F566',
+    ]
+
+    async def update(self, context: CallbackContext | None = None) -> str:
+        self.keyboard: List[List["MenuButton"]] = [[]]
+        addtxt = ''
+        if self.status == NameDurationStatus.IDLE or self.status == NameDurationStatus.RENAMING:
+            self.add_button(u'\U000023EF', self.manage_state_change, args=(self.play,))
+            self.add_button(u'\U00002139', self.manage_state_change, args=(self.info, ))
+            self.add_button(u'\U000023EE', self.manage_state_change, args=(self.move_pl, -1), new_row=True)
+            self.add_button(u'\U000023ED', self.manage_state_change, args=(self.move_pl, +1))
+            self.add_button(u'\U000023ED \U0001F5D1', self.manage_state_change, args=(self.move_pl, 0), new_row=True)
+            self.add_button(u'\U0001F51C', self.manage_state_change, args=(self.switch_to_status, NameDurationStatus.DOWNLOADING_WAITING, context))
+            if self.status == NameDurationStatus.RENAMING:
+                if self.btn_type == 1:
+                    addtxt = f'{self.calc_dyn_sec()}'
+                elif self.btn_type == -1:
+                    addtxt = f'{-self.calc_dyn_sec()}'
+            self.add_button(u'...\U000023EA', self.manage_state_change, args=(-1, self.move, -1), new_row=True)
+            self.add_button(u'\U000023E9...', self.manage_state_change, args=(+1, self.move, +1))
+            self.add_button(u'10s\U000023EA', self.manage_state_change, args=(self.move, -10), new_row=True)
+            self.add_button(u'\U000023E910s', self.manage_state_change, args=(self.move, +10))
+            self.add_button(u'30s\U000023EA', self.manage_state_change, args=(self.move, -30), new_row=True)
+            self.add_button(u'\U000023E930s', self.manage_state_change, args=(self.move, +30))
+            self.add_button(u'60s\U000023EA', self.manage_state_change, args=(self.move, -60), new_row=True)
+            self.add_button(u'\U000023E960s', self.manage_state_change, args=(self.move, +60))
+            self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back, new_row=True)
+        elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
+            for plname in self.pi.plnames:
+                self.add_button(plname, self.switch_pl, args=(plname, ))
+            self.add_button(u'\U00002934', self.switch_to_idle)
+        if addtxt:
+            rv = ''
+            for x in addtxt:
+                rv += x + u'\U0000FE0F\U000020E3'
+            return rv
+        elif not self.info_changed:
+            idx = self.time_status
+            self.time_status += 1
+            if self.time_status >= len(self.TIMES):
+                self.time_status = 0
+            return self.TIMES[idx]
+        else:
+            self.info_changed = False
+            rv = f'{self.pi.vinfo["title"]}\n'
+            rv += u'\U000023F3 ' + f'{self.pi.vinfo["durs"]}\n'
+            rv += u'\U0001F4B0 ' + f'{self.pi.vinfo["tot_n"]} ({self.pi.vinfo["tot_durs"]})\n'
+            no = int(round(30.0 * (perc := self.pi.pinfo["sec"] / self.pi.vinfo["duri"]))) if self.pi.vinfo["duri"] else (perc := 0)
+            rv += f'<code>{duration2string(round(self.pi.pinfo["sec"]))} ({self.pi.vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}%</code>'
+            return rv
+
+
+class PlayerListMessage(StatusTMessage):
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, **argw) -> None:
+        self.players: Dict[str, PlayerInfo] = None
+        self.players_cache: Dict[str, PlayerInfoMessage] = dict()
+        self.current_url = ''
+        super().__init__(navigation, label=self.__class__.__name__, input_field='Player Url', userid=userid, username=username, params=params, **argw)
+
+    async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
+        if self.status == NameDurationStatus.IDLE:
+            text = text.strip()
+            if not self.current_url:
+                if PlayerInfo.is_player_url_ok(text):
+                    self.current_url = text
+                    await self.edit_or_select()
+            elif PlayerInfo.is_player_url_ok(text):
+                self.current_url = text
+            else:
+                await self.add_player(PlayerInfo(text, self.current_url))
+                self.current_url = ''
+                await self.edit_or_select()
+
+    async def get_user_conf_field(self) -> Dict[str, str]:
+        res = dict()
+        try:
+            async with self.proc.params.db2.execute(
+                '''
+                SELECT conf FROM user
+                WHERE rowid = ?
+                ''', (self.proc.userid,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    res = json.loads(row['conf'])
+        except Exception:
+            res = dict()
+            _LOGGER.warning(f"TGDB access error: {traceback.format_exc()}")
+        return res
+
+    async def set_user_conf_field(self):
+        res = await self.get_user_conf_field()
+        plrs = dict()
+        for pin, pi in self.players.items():
+            plrs[pin] = pi.url
+        res['players'] = plrs
+        await self.proc.params.db2.execute("UPDATE user set conf=? WHERE rowid=?", (json.dumps(res), self.proc.userid))
+        await self.proc.params.db2.commit()
+
+    async def add_player(self, pi: PlayerInfo):
+        self.players[pi.name] = pi
+        self.players_cache[pi.name] = PlayerInfoMessage(self.navigation, pi, userid=self.proc.userid, username=self.proc.username, params=self.proc.params)
+        await self.set_user_conf_field()
+        await self.edit_or_select()
+
+    async def player_clicked(self, args: tuple):
+        self.current_url = ''
+        if self.status == NameDurationStatus.DELETING:
+            del self.players[args[0]]
+            del self.players_cache[args[0]]
+            await self.set_user_conf_field()
+            await self.switch_to_idle()
+        else:
+            await self.players_cache[args[0]].edit_or_select()
+
+    async def prepare_for_delete(self, args: tuple, context: Union[CallbackContext, None] = None):
+        self.current_url = ''
+        await self.switch_to_status((NameDurationStatus.DELETING, ), context)
+
+    async def update(self, _: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
+        self.input_field = 'Player Url' if not self.current_url else 'Player alias'
+        if self.players is None:
+            res = (await self.get_user_conf_field()).get('players', dict())
+            self.players = dict()
+            for pin, piu in res.items():
+                self.players[pin] = pi = PlayerInfo(pin, piu)
+                self.players_cache[pin] = PlayerInfoMessage(self.navigation, pi, userid=self.proc.userid, username=self.proc.username, params=self.proc.params)
+        self.keyboard: List[List["MenuButton"]] = [[]]
+        for pin in sorted(self.players.keys(), key=str.casefold):
+            self.add_button(pin, self.player_clicked, args=(pin,), new_row=True)
+        if self.status == NameDurationStatus.IDLE:
+            if self.players:
+                self.add_button(u'\U0001F5D1', self.prepare_for_delete, new_row=True)
+            self.add_button(label=u"\U0001F3E0 Home", callback=self.navigation.goto_back, new_row=True)
+            return 'Click player to open or add new player'
+        else:
+            self.add_button(':cross_mark: Abort', self.switch_to_idle, new_row=True)
+            return 'Click player to delete'
 
 
 class RefreshingTMessage(StatusTMessage):
@@ -2086,6 +2416,7 @@ class StartTMessage(BaseMessage):
             self.add_button(label=":memo: List", callback=self.playlists_lister)
             self.add_button(label=":eye: All", callback=listall)
             self.add_button(label="\U00002B55 Message Cache Clear", callback=self.cache_clear)
+            self.add_button(label="\U0001F3A7 Player", callback=PlayerListMessage(self.navigation, userid=self.userid, username=self.username, params=self.params))
             self.add_button(label="\U00002795 Add", callback=PlaylistAddTMessage(self.navigation, userid=self.userid, username=self.username, params=self.params))
             self.add_button(label="\U0001F6AA Sign Out", callback=SignOutTMessage(self.navigation))
         else:
