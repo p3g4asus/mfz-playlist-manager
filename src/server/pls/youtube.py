@@ -66,7 +66,7 @@ class MessageProcessor(RefreshMessageProcessor):
                         if np2.endswith('_mfzpm'):
                             params[np2[0:-6]] = vp2
                             del params2[np2]
-                    urlp = urlp._replace(query=urlencode(params2))
+                    urlp = urlp._replace(query=urlencode(params2, doseq=True))
                     text = urlunparse(urlp)
                 else:
                     urlp = None
@@ -194,6 +194,7 @@ class MessageProcessor(RefreshMessageProcessor):
         try:
             with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                 try:
+                    _LOGGER.debug(f'YTDL request {current_url} opt={ydl_opts}')
                     playlist_dict = ydl.extract_info(current_url, download=False)
                 except Exception:
                     _LOGGER.error(f'YTDLP2: {traceback.format_exc()}')
@@ -267,6 +268,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                     if 'entries' in playlist_dict and playlist_dict['entries']:
                                         secadd = 86000
                                         for video in playlist_dict['entries']:
+                                            video_priv = dict()
                                             try:
                                                 if set[0] == '%':
                                                     current_url = video['url']
@@ -282,10 +284,10 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                     except Exception:
                                                                         pass
                                                         if 'timestamp' not in video:
-                                                            _LOGGER.debug("thumb does not match " + video["thumbnail"])
-                                                            _LOGGER.debug("SetTwitch = %s url = %s" % (set, current_url))
+                                                            _LOGGER.debug("Twitch thumb does not match " + video["thumbnail"])
                                                             video = dict()
                                                             await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                                            video_priv = video
 
                                                         else:
                                                             mo = re.search(r'twitch.tv/([^/]+)/videos', set)
@@ -303,6 +305,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                         if 'timestamp' not in video or 'thumbnail' not in video or not video['timestamp'] or not video['thumbnail']:
                                                             video = dict()
                                                             await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                                            video_priv = video
                                                         if 'timestamp' in video and video['timestamp']:
                                                             datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
                                                             video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -344,9 +347,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                                         except Exception:
                                                             _LOGGER.error(f'APIKEY ERROR {traceback.format_exc()}')
                                                     if 'upload_date' not in video:
-                                                        _LOGGER.debug("Set = %s url = %s" % (set, current_url))
                                                         video = dict()
                                                         await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                                        video_priv = video
                                                         datepubo_conf = datetime.strptime(video['upload_date'], '%Y%m%d')
                                                         datepubo = datetime.strptime(video['upload_date'] + ' 00:00:01', '%Y%m%d %H:%M:%S')
                                                         datepubo = datepubo + timedelta(seconds=secadd)
@@ -364,8 +367,11 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             extr = video.get('extractor')
                                                             if not extr:
                                                                 extr = playlist_dict.get('extractor')
+                                                            if not video_priv:
+                                                                await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video_priv)
                                                             conf = dict(playlist=set,
                                                                         extractor=extr,
+                                                                        chapters=video_priv.get('chapters'),
                                                                         userid=video.get('uploader_id'),
                                                                         author=video.get('uploader'))
                                                             pr = PlaylistItem(

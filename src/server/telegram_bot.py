@@ -376,7 +376,7 @@ class DeletingTMessage(StatusTMessage):
 
 class PlayerInfo(object):
     END_URL_PATH: str = '-s/play/player_remote_commands.htm'
-    DEFAULT_VINFO = dict(title='N/A', durs='0s', tot_n=0, tot_durs='0s', duri=0)
+    DEFAULT_VINFO = dict(title='N/A', durs='0s', tot_n=0, tot_durs='0s', duri=0, chapters=[])
     DEFAULT_PINFO = dict(sec=0)
 
     @staticmethod
@@ -479,6 +479,8 @@ class PlayerInfoMessage(StatusTMessage):
             text = text.strip()
             try:
                 sect = None
+                if text.startswith('/TT'):
+                    text = text[3:]
                 while True:
                     if (mo := re.search(r'^\s*([0-9]+)\s*([msh]?)', text)):
                         sec = int(mo.group(1))
@@ -612,6 +614,8 @@ class PlayerInfoMessage(StatusTMessage):
             rv += u'\U0001F4B0 ' + f'{self.pi.vinfo["tot_n"]} ({self.pi.vinfo["tot_durs"]})\n'
             no = int(round(30.0 * (perc := self.pi.pinfo["sec"] / self.pi.vinfo["duri"]))) if self.pi.vinfo["duri"] else (perc := 0)
             rv += f'<code>{duration2string(round(self.pi.pinfo["sec"]))} ({self.pi.vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}%</code>'
+            for ch in self.pi.vinfo["chapters"]:
+                rv += f'\n/TT{int(ch["start_time"])}s {ch["title"]}'
             return rv
 
 

@@ -223,6 +223,7 @@ function print_duration(idx) {
             video_info.duri = durationi;
             video_info.durs = duration1;
             video_info.title = video?.title || 'N/A';
+            video_info.chapters = video?.conf?.chapters || [];
         }
         tot_dur += durationi;
     }
