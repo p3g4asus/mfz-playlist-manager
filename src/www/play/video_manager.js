@@ -165,7 +165,7 @@ function on_play_finished(event) {
     set_video_enabled(vid);
     let video_info =  print_duration(index);
     send_video_info_for_remote_play('vinfo', video_info);
-    send_video_info_for_remote_play('pinfo', 0);
+    send_video_info_for_remote_play('pinfo', {sec: 0});
     if (is_item_downloaded(playlist_item_current))
         video_manager_obj.play_video(MAIN_PATH_S + 'dl/' + playlist_item_current.dl.substr(playlist_item_current.dl.lastIndexOf('/') + 1));
     else if (playlist_item_current.link.charAt(0) == '@')

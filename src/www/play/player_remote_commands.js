@@ -11,6 +11,27 @@ function send_remote_command(cmdo) {
                     $('#vinfo-div dd:nth-child(2)').text(data.vinfo.title);
                     $('#vinfo-div dd:nth-child(4)').text(data.vinfo.durs);
                     $('#vinfo-div dd:nth-child(6)').text(data.vinfo.tot_n + ' (' + data.vinfo.tot_durs + ')');
+                    const $tb = $('#vinfo-div dl');
+                    const clickfn = (e) => {
+                        const $e = $(e.target);
+                        const v = $e.data('timer');
+                        send_remote_command({
+                            cmd: CMD_REMOTEPLAY_JS,
+                            sub: CMD_REMOTEPLAY_JS_SEC,
+                            n: v
+                        });
+                        return false;
+                    };
+                    $('#vinfo-div dd.chapter-sect, #vinfo-div dt.chapter-sect').remove();
+                    for (let ch of data.vinfo.chapters) {
+                        const $a0 = $('<a />');
+                        const tm = parseInt(ch.start_time);
+                        $a0.prop('href','#').data('timer', tm).text(ch.title).on('click', clickfn);
+                        const $ch0 = $('<dt class="col-sm-3 chapter-sect"></dt>').text(format_duration(tm));
+                        const $ch1 = $('<dd class="col-sm-9 chapter-sect"></dd>').append($a0);
+                        $tb.append($ch0);
+                        $tb.append($ch1);
+                    }
                 }
                 if (data.pinfo) {
                     $('#vinfo-div dt:nth-child(7)').text(format_duration(Math.round(data.pinfo.sec)));
