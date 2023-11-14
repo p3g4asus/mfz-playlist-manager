@@ -356,9 +356,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                                         datepubo = datepubo + timedelta(seconds=secadd)
                                                         secadd -= 1
                                                 _LOGGER.debug("Found [%s] = %s | %s | %s" % (video.get('id'),
-                                                                                            video.get('title'),
-                                                                                            video.get('upload_date'),
-                                                                                            video.get('duration')))
+                                                                                             video.get('title'),
+                                                                                             video.get('upload_date'),
+                                                                                             video.get('duration')))
                                                 # datepubi = int(datepubo.timestamp() * 1000)
                                                 datepubi_conf = int(datepubo_conf.timestamp() * 1000)
                                                 if video['id'] not in programs and self.video_is_not_filtered_out(video, filters):
