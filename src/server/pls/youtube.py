@@ -339,6 +339,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                         video['duration'] = 0 if not cdt['duration'] else parse_isoduration(cdt['duration'])
                                                                         video['uploader'] = base.get('channelTitle')
                                                                         video['uploader_id'] = base.get('channelId')
+                                                                        video['description'] = base.get('description')
                                                                         video['title'] = base.get('title', video['title'])
                                                                         for x in ths:
                                                                             if x in base['thumbnails']:
@@ -367,7 +368,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             extr = video.get('extractor')
                                                             if not extr:
                                                                 extr = playlist_dict.get('extractor')
-                                                            if not video_priv:
+                                                            if not video_priv and (extr.find('youtube') < 0 or 'description' not in video or not video['description'] or re.search(r'(\d{0,2}:?\d{1,2}:\d{2})', video['description'])):
                                                                 await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video_priv)
                                                             conf = dict(playlist=set,
                                                                         extractor=extr,
