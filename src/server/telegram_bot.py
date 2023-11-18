@@ -385,11 +385,12 @@ class PlayerInfo(object):
         dictspar = parse_qs(parsed_url.query)
         return (parsed_url, dictspar) if parsed_url.scheme and 'name' in dictspar and 'hex' in dictspar and parsed_url.path.endswith(PlayerInfo.END_URL_PATH) else None
 
-    def __init__(self, name: str, url: str) -> None:
+    def __init__(self, name: str, url: str, sel: bool) -> None:
         if not (pr := self.is_player_url_ok(url)):
             raise Exception(f'Invalid player url {url}')
         self.name: str = name
         self.url: str = url
+        self.sel = sel
         self.plnames: List[str] = list(pr[1]['name'])
         self.pinfo: Dict[str, str] = PlayerInfo.DEFAULT_PINFO
         self.vinfo: Dict[str, str] = PlayerInfo.DEFAULT_VINFO
@@ -640,14 +641,15 @@ class PlayerListMessage(StatusTMessage):
                 self.current_url = ''
                 await self.edit_or_select()
 
-    async def get_user_conf_field(self) -> Dict[str, str]:
+    @staticmethod
+    async def get_user_conf_field(proc: ProcessorMessage) -> Dict[str, str]:
         res = dict()
         try:
-            async with self.proc.params.db2.execute(
+            async with proc.params.db2.execute(
                 '''
                 SELECT conf FROM user
                 WHERE rowid = ?
-                ''', (self.proc.userid,)
+                ''', (proc.userid,)
             ) as cursor:
                 row = await cursor.fetchone()
                 if row:
@@ -657,19 +659,39 @@ class PlayerListMessage(StatusTMessage):
             _LOGGER.warning(f"TGDB access error: {traceback.format_exc()}")
         return res
 
-    async def set_user_conf_field(self):
-        res = await self.get_user_conf_field()
+    @staticmethod
+    async def set_user_conf_field(players: Dict[str, PlayerInfo], proc: ProcessorMessage):
+        res = await PlayerListMessage.get_user_conf_field(proc)
         plrs = dict()
-        for pin, pi in self.players.items():
-            plrs[pin] = pi.url
+        for pin, pi in players.items():
+            plrs[pin] = dict(url=pi.url, sel=pi.sel)
         res['players'] = plrs
-        await self.proc.params.db2.execute("UPDATE user set conf=? WHERE rowid=?", (json.dumps(res), self.proc.userid))
-        await self.proc.params.db2.commit()
+        await proc.params.db2.execute("UPDATE user set conf=? WHERE rowid=?", (json.dumps(res), proc.userid))
+        await proc.params.db2.commit()
+
+    @staticmethod
+    def user_conf_field_to_players_dict(usrconf: dict, navigation: NavigationHandler, proc: ProcessorMessage, sel_only: bool = False) -> Tuple[Dict[str, PlayerInfo], Dict[str, PlayerInfoMessage]]:
+        players = dict()
+        players_cache = dict()
+        for pin, pid in usrconf.get('players', dict()).items():
+            if isinstance(pid, str):
+                piu = pid
+                sel = False
+            elif isinstance(pid, dict):
+                piu = pid['url']
+                sel = pid['sel']
+            else:
+                piu = None
+            if piu and (sel or not sel_only):
+                players[pin] = pi = PlayerInfo(pin, piu, sel)
+                if navigation and proc:
+                    players_cache[pin] = PlayerInfoMessage(navigation, pi, userid=proc.userid, username=proc.username, params=proc.params)
+        return (players, players_cache)
 
     async def add_player(self, pi: PlayerInfo):
         self.players[pi.name] = pi
         self.players_cache[pi.name] = PlayerInfoMessage(self.navigation, pi, userid=self.proc.userid, username=self.proc.username, params=self.proc.params)
-        await self.set_user_conf_field()
+        await self.set_user_conf_field(self.players, self.proc)
         await self.edit_or_select()
 
     async def player_clicked(self, args: tuple):
@@ -677,29 +699,30 @@ class PlayerListMessage(StatusTMessage):
         if self.status == NameDurationStatus.DELETING:
             del self.players[args[0]]
             del self.players_cache[args[0]]
-            await self.set_user_conf_field()
+            await self.set_user_conf_field(self.players, self.proc)
+            await self.switch_to_idle()
+        elif self.status == NameDurationStatus.SORTING:
+            self.players[args[0]].sel = not self.players[args[0]].sel
+            await self.set_user_conf_field(self.players, self.proc)
             await self.switch_to_idle()
         else:
             await self.players_cache[args[0]].edit_or_select()
 
-    async def prepare_for_delete(self, args: tuple, context: Union[CallbackContext, None] = None):
+    async def prepare_for_mod(self, args: tuple, context: Union[CallbackContext, None] = None):
         self.current_url = ''
-        await self.switch_to_status((NameDurationStatus.DELETING, ), context)
+        await self.switch_to_status(args, context)
 
     async def update(self, _: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         self.input_field = 'Player Url' if not self.current_url else 'Player alias'
         if self.players is None:
-            res = (await self.get_user_conf_field()).get('players', dict())
-            self.players = dict()
-            for pin, piu in res.items():
-                self.players[pin] = pi = PlayerInfo(pin, piu)
-                self.players_cache[pin] = PlayerInfoMessage(self.navigation, pi, userid=self.proc.userid, username=self.proc.username, params=self.proc.params)
+            self.players, self.players_cache = self.user_conf_field_to_players_dict(await self.get_user_conf_field(self.proc), self.navigation, self.proc)
         self.keyboard: List[List["MenuButton"]] = [[]]
         for pin in sorted(self.players.keys(), key=str.casefold):
-            self.add_button(pin, self.player_clicked, args=(pin,), new_row=True)
+            self.add_button(pin + (u' \U0001F4CD' if self.players[pin].sel else ''), self.player_clicked, args=(pin,), new_row=True)
         if self.status == NameDurationStatus.IDLE:
             if self.players:
-                self.add_button(u'\U0001F5D1', self.prepare_for_delete, new_row=True)
+                self.add_button(u'\U0001F5D1', self.prepare_for_mod, args=(NameDurationStatus.DELETING, ), new_row=True)
+                self.add_button(u'\U0001F4CC', self.prepare_for_mod, args=(NameDurationStatus.SORTING, ))
             self.add_button(label=u"\U0001F3E0 Home", callback=self.navigation.goto_back, new_row=True)
             return 'Click player to open or add new player'
         else:
@@ -1510,6 +1533,7 @@ class ListPagesTMessage(BaseMessage):
         self.first_page = firstpage
         self.deleted = deleted
         self.pagegen = pagegen
+        self.sel_players: Dict[str, PlayerInfoMessage] = None
 
     def get_label_addition(self):
         return ''
@@ -1622,6 +1646,16 @@ class ListPagesTMessage(BaseMessage):
                 new_row = False
             if self.first_page.next_page and self.first_page.next_page.is_valid():
                 self.add_button(f'{self.first_page.next_page.get_label()} :arrow_right:', self.goto_page, args=(self.first_page.next_page, ), new_row=new_row)
+        if self.sel_players is None:
+            _, self.sel_players = PlayerListMessage.user_conf_field_to_players_dict(
+                await PlayerListMessage.get_user_conf_field(self.pagegen.proc),
+                self.navigation,
+                self.pagegen.proc,
+                True)
+        new_row = True
+        for pi, pim in self.sel_players.items():
+            self.add_button(label=u"\U0001F3A6 " + pi, callback=pim, new_row=new_row)
+            new_row = False
         return self.update_str
 
 
