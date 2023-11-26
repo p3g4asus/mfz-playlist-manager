@@ -174,7 +174,9 @@ class Playlist(JSONAble, Fieldable):
             return False
 
     async def fix_iorder(self, db, commit=True):
+        rv = False
         if self.rowid is not None:
+            rv = True
             async with db.cursor() as cursor:
                 await cursor.execute(
                     '''
@@ -183,14 +185,14 @@ class Playlist(JSONAble, Fieldable):
                 )
                 if cursor.rowcount <= 0:
                     _LOGGER.debug(f"Fix iorder No Items rowid={self.rowid}")
-                    return False
-            if commit:
+                    rv = False
+            if commit and rv:
                 await db.commit()
         for i in self.items:
             if isinstance(i.iorder, int):
                 i.iorder = abs(i.iorder)
-        _LOGGER.debug("Fix iorder OK")
-        return True
+        _LOGGER.debug(f"Fix iorder rv = {rv}")
+        return rv
 
     async def clear(self, db, commit=True):
         if self.rowid:
