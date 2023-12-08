@@ -370,6 +370,7 @@ class DeletingTMessage(StatusTMessage):
 
     async def update(self, _: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         if self.status == NameDurationStatus.DELETING:
+            self.input_field = u'\U0001F570'
             self.add_button(f':cross_mark: Undo in {self.sub_status} sec', self.switch_to_idle)
         return ''
 
@@ -595,6 +596,7 @@ class PlayerInfoMessage(StatusTMessage):
             self.add_button(u'\U000023E960s', self.manage_state_change, args=(self.move, +60))
             self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back, new_row=True)
         elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
+            self.input_field = u'\U0001F449'
             for plname in self.pi.plnames:
                 self.add_button(plname, self.switch_pl, args=(plname, ))
             self.add_button(u'\U00002934', self.switch_to_idle)
@@ -714,7 +716,7 @@ class PlayerListMessage(StatusTMessage):
         await self.switch_to_status(args, context)
 
     async def update(self, _: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
-        self.input_field = 'Player Url' if not self.current_url else 'Player alias'
+        self.input_field = ('Player Url' if not self.current_url else 'Player alias') + u' or \U0001F559'
         if self.players is None:
             self.players, self.players_cache = self.user_conf_field_to_players_dict(await self.get_user_conf_field(self.proc), self.navigation, self.proc)
         self.keyboard: List[List["MenuButton"]] = [[]]
@@ -756,12 +758,16 @@ class RefreshingTMessage(StatusTMessage):
             self.add_button(':cross_mark: Abort Refresh', self.on_refresh_abort_cond, new_row=True)
             self.add_button(u'\U0001F501', self.update_playlist)
             if self.status == NameDurationStatus.UPDATING_START:
+                self.input_field = 'Start date (YYMMDD)'
                 return '<u>Start date</u> (YYMMDD)'
             elif self.status == NameDurationStatus.UPDATING_STOP:
+                self.input_field = 'Stop date (YYMMDD)'
                 return '<u>Stop date</u> (YYMMDD)'
             elif self.status == NameDurationStatus.UPDATING_WAITING:
+                self.input_field = u'\U0001F449'
                 return f'Review params for {self.playlist.name} and update or abort'
         if self.status == NameDurationStatus.UPDATING_RUNNING:
+            self.input_field = u'\U0001F570'
             return f'{self.playlist.name} updating {"." * (self.sub_status & 0xFF)}'
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
@@ -1006,6 +1012,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 if self.obj.takes_space():
                     self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
             elif self.status == NameDurationStatus.MOVING:
+                self.input_field = u'\U0001F449'
                 pps: List[PlaylistTg] = cache_get(self.proc.userid)
                 myself: PlaylistTg = cache_get(self.proc.userid, self.obj.playlist)
                 for pp in pps:
@@ -1013,6 +1020,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                         self.add_button(pp.playlist.name, self.move_to_do, args=(pp, myself))
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
             elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
+                self.input_field = u'\U0001F449'
                 self.add_button('bestaudio', self.download_format, args=('bestaudio/best', 0))
                 self.add_button('best', self.download_format, args=('best', 0))
                 self.add_button('worstaudio', self.download_format, args=('worstaudio/worst', 0))
@@ -1050,6 +1058,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 return upd
             elif self.status == NameDurationStatus.SORTING:
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
+                self.input_field = f'Enter \U00002211 for {self.name}'
                 return f'Enter \U00002211 for <b>{self.name}</b>'
         elif self.status == NameDurationStatus.IDLE:
             self.add_button(u'\U0000267B', self.delete_item_pre_pre, args=(CMD_SEEN, ))
@@ -1322,13 +1331,16 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 self.add_button(u'\U0001F4A3', self.list_items, args=(PlaylistTMessage.list_items_taking_space, ))
                 # self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{self.proc.params.link}/{self.proc.params.args["sid"]}-s/play/workout.htm?{urlencode(dict(name=self.name))}')
             elif self.status == NameDurationStatus.RENAMING:
+                self.input_field = f'Enter new name for {self.name}'
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return f'Enter new name for <b>{self.name}</b>'
             elif self.status == NameDurationStatus.DELETING_CONFIRM:
+                self.input_field = u'\U0001F449'
                 self.add_button('\U00002705 Yes', self.delete_item_pre_pre, args=(CMD_DEL, ))
                 self.add_button(':cross_mark: No', self.switch_to_idle)
                 return f'Are you sure to delete <b>{self.name}</b>?'
             elif self.status == NameDurationStatus.SORTING:
+                self.input_field = u'\U0001F570'
                 return f'{self.name} sorting {"." * (self.sub_status & 0xFF)}'
             else:
                 updt = await DeletingTMessage.update(self, context)
@@ -1637,7 +1649,7 @@ class ListPagesTMessage(BaseMessage):
         if self.first_page:
             self.input_field = f'{self.first_page.first_item_index + 1} - {self.first_page.last_item_index + 1}'\
                 if self.first_page.last_item_index != self.first_page.first_item_index else\
-                f'{self.first_page.first_item_index + 1}'
+                (f'{self.first_page.first_item_index + 1}' if self.first_page.groups else u'\U00002205')
             for grp in self.first_page.groups:
                 label = grp.get_label()
                 self.add_button(label, self.goto_group, args=(grp,))
