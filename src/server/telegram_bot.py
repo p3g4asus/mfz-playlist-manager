@@ -571,6 +571,7 @@ class PlayerInfoMessage(StatusTMessage):
 
     async def update(self, context: CallbackContext | None = None) -> str:
         self.keyboard: List[List["MenuButton"]] = [[]]
+        self.input_field = u'\U000023F2 Timestamp'
         addtxt = ''
         if self.status == NameDurationStatus.IDLE or self.status == NameDurationStatus.RENAMING:
             self.add_button(u'\U000023EF', self.manage_state_change, args=(self.play,))
@@ -637,7 +638,7 @@ class PlayerListMessage(StatusTMessage):
             elif PlayerInfo.is_player_url_ok(text):
                 self.current_url = text
             else:
-                await self.add_player(PlayerInfo(text, self.current_url))
+                await self.add_player(PlayerInfo(text, self.current_url, False))
                 self.current_url = ''
                 await self.edit_or_select()
 
@@ -1646,6 +1647,8 @@ class ListPagesTMessage(BaseMessage):
                 new_row = False
             if self.first_page.next_page and self.first_page.next_page.is_valid():
                 self.add_button(f'{self.first_page.next_page.get_label()} :arrow_right:', self.goto_page, args=(self.first_page.next_page, ), new_row=new_row)
+        else:
+            self.input_field = u'\U00002205'
         if self.sel_players is None:
             _, self.sel_players = PlayerListMessage.user_conf_field_to_players_dict(
                 await PlayerListMessage.get_user_conf_field(self.pagegen.proc),
@@ -1736,6 +1739,7 @@ class ChangeOrderedOrDeleteOrCancelTMessage(BaseMessage):
     async def update(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
+        self.input_field = self.plinfo["title"]
         self.add_button('Ordered: ' + ("\U00002611" if self.plinfo["ordered"] else "\U00002610"), self.toggle_ordered, new_row=True)
         self.add_button('Remove: \U0001F5D1', self.remove, new_row=True)
         self.add_button('OK: \U0001F197', self.navigation.goto_back, new_row=True)
@@ -1772,6 +1776,8 @@ class PlaylistNamingTMessage(StatusTMessage):
                 self.add_button(':cross_mark: Abort Naming', self.switch_to_status, args=(NameDurationStatus.IDLE, ))
             else:
                 self.add_button(':cross_mark: Abort', self.navigation.goto_back)
+        else:
+            self.input_field = '\U0001F50D Playlist link or id'
 
 
 class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
@@ -1858,6 +1864,7 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
                 new_row = False
             self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=new_row)
         elif self.status == NameDurationStatus.DOWNLOADING:
+            self.input_field = u'\U0001F570'
             upd = f'{escape(self.checking_playlist)} finding playlist info {"." * (self.sub_status & 0xFF)}'
         if self.return_msg:
             upd = f'<b>{self.return_msg}</b>'
@@ -1966,6 +1973,7 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
                 for f in self.playlist.conf['folders']:
                     upd += f['title'] + '\r\n'
         elif self.status == NameDurationStatus.LISTING:
+            self.input_field = u'\U0001F570'
             return f'Downloading listings {"." * (self.sub_status & 0xFF)}'
         if self.return_msg:
             upd = f'<b>{self.return_msg}</b>'
@@ -2008,6 +2016,7 @@ class SubBrandSelectTMessage(BaseMessage):
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
+        self.input_field = f'Select content for {self.playlist.conf["brand"]["title"]}'
         for b in self.playlist.conf['subbrands_all']:
             subid = b["id"]
             subchk = False
@@ -2049,6 +2058,7 @@ class SelectDayTMessage(BaseMessage):
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
+        self.input_field = 'Select day of listing'
         d = self.nearest_weekday(0)
         for _ in range(7):
             self.add_button(f'{d:%a}', self.select_day, args=(d.weekday(), ))
@@ -2236,8 +2246,10 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
                 upd = self.get_listings_text()
                 self.listings_changed = False
         elif self.status == NameDurationStatus.LISTING:
+            self.input_field = u'\U0001F570'
             return f'Downloading listings {"." * (self.sub_status & 0xFF)}'
         elif self.status == NameDurationStatus.DOWNLOADING:
+            self.input_field = u'\U0001F570'
             return f'Downloading brand content for {self.playlist.conf["brand"]["title"]} {"." * (self.sub_status & 0xFF)}'
         if self.return_msg:
             upd = f'\n<b>{self.return_msg}</b>'
@@ -2297,6 +2309,7 @@ class RefreshNewPlaylistTMessage(RefreshingTMessage):
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         upd = await super().update(context)
+        self.input_field = f'Refresh {self.playlist.name}'
         if not upd:
             upd = ''
         if self.return_msg:
@@ -2322,7 +2335,8 @@ class PlaylistAddTMessage(StatusTMessage):
         self.add_button('\U00002B24 Mediaset', MediasetPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
         self.add_button('\U0001F4C2 Folder', LocalFolderPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
         self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=True)
-        return 'Select Playlist Type'
+        self.input_field = 'Select Playlist Type'
+        return self.input_field
 
 # test 16 Nov 2014 humansafari e https://www.youtube.com/@HumanSafari/videos e https://www.youtube.com/@safariumano/videos
 
@@ -2349,10 +2363,13 @@ class SignUpTMessage(BaseMessage):
 
     def update(self, context: Optional[CallbackContext] = None) -> str:
         """Update message content."""
-        content = "Please insert auth link"
+        if self.status == SignUpTMessage.STATUS_IDLE:
+            self.input_field = "Please insert auth link"
+        else:
+            self.input_field = 'Please insert the token code'
         if context:
             self.user_data = context.user_data.setdefault('user_data', dict())
-        return content
+        return self.input_field
 
     async def text_input(self, text: str, context: Optional[CallbackContext] = None) -> None:
         """Receive text from console. If used, this function must be instantiated in the child class."""
@@ -2450,7 +2467,6 @@ class StartTMessage(BaseMessage):
             # second_menu = SecondMenuMessage(navigation, update_callback=message_args)
             self.userid = res['userid']
             self.username = res['username']
-            self.input_field = 'What do you want to do?'
             self.add_button(label=":memo: List", callback=self.playlists_lister)
             self.add_button(label=":eye: All", callback=listall)
             self.add_button(label="\U00002B55 Message Cache Clear", callback=self.cache_clear)
@@ -2463,7 +2479,6 @@ class StartTMessage(BaseMessage):
             action_message = SignUpTMessage(self.navigation, params=self.params)
             # second_menu = SecondMenuMessage(navigation, update_callback=message_args)
             self.add_button(label=":writing_hand: Sign Up", callback=action_message)
-            self.input_field = 'Click Sign Up to start procedure'
             # self.add_button(label="Second menu", callback=second_menu)
 
     def __init__(self, navigation: MyNavigationHandler, message_args) -> None:
@@ -2481,9 +2496,11 @@ class StartTMessage(BaseMessage):
     async def update(self, context: Optional[CallbackContext] = None):
         await self.async_init(context)
         if self.username:
-            return f'Hello <b>{self.username}</b> :musical_note:'
+            content = f'Hello <b>{self.username}</b> :musical_note:'
+            self.input_field = emoji_replace(f'Hello {self.username} :musical_note:')
         else:
-            return 'Hello: please click :writing_hand: Sign Up'
+            content = self.input_field = emoji_replace('Hello: please click :writing_hand: Sign Up')
+        return content
 
     @staticmethod
     def run_and_notify() -> str:
