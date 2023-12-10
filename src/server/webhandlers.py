@@ -52,7 +52,7 @@ index_template = dedent("""
 
 
 async def index(request):
-    auid, hextoken = await authorized_userid(request)
+    auid, hextoken, _ = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
     else:
@@ -75,7 +75,7 @@ async def index(request):
 
 
 async def modify_pw(request):
-    auid, hextoken = await authorized_userid(request)
+    auid, hextoken, _ = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
     else:
@@ -99,7 +99,7 @@ async def modify_pw(request):
 
 async def playlist_m3u(request):
     _LOGGER.debug("host is %s" % str(request.host))
-    auid, hextoken = await authorized_userid(request)
+    auid, hextoken, _ = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
     else:
@@ -332,7 +332,7 @@ async def login_g(request):
     # (Receive token by HTTPS POST)
     # ...
     try:
-        auid, _ = await authorized_userid(request)
+        auid, _, _ = await authorized_userid(request)
         response = web.HTTPNoContent()
         if isinstance(auid, int):
             await remember(request, response, INVALID_SID, max_age=86400 * 365 if form.get('remember') else None)
@@ -384,7 +384,7 @@ async def login_g(request):
 
 async def login(request):
     response = web.HTTPNoContent()
-    auid, _ = await authorized_userid(request)
+    auid, _, _ = await authorized_userid(request)
     form = await request.post()
     if isinstance(auid, int):
         await remember(request, response, INVALID_SID, max_age=86400 * 365 if form.get('remember') else None)
@@ -467,7 +467,7 @@ async def download(request):
     except Exception:
         stream = False
     if not stream:
-        auid, _ = await authorized_userid(request)
+        auid, _, _ = await authorized_userid(request)
         if not isinstance(auid, int):
             userid = None
         else:
@@ -589,7 +589,7 @@ async def remote_command(request):
 
 
 async def pls_h(request):
-    auid, hextoken = await authorized_userid(request)
+    auid, _, player_hex = await authorized_userid(request)
     if not isinstance(auid, int):
         userid = None
     else:
@@ -605,36 +605,36 @@ async def pls_h(request):
                 await ws.send_str(json.dumps(pl.err(501, MSG_UNAUTHORIZED), cls=MyEncoder))
                 break
             elif pl.c(CMD_REMOTEPLAY):
-                if not hextoken:
+                if not player_hex:
                     _LOGGER.info("Invalid token")
                     await ws.send_str(json.dumps(pl.err(502, MSG_UNAUTHORIZED), cls=MyEncoder))
                 else:
                     dws = request.app.p.ws
-                    dd = dws.get(hextoken, dict())
+                    dd = dws.get(player_hex, dict())
                     if isinstance(dd, dict):
                         dd.update(dict(ws=ws, uid=userid))
-                        dws[hextoken] = dd
+                        dws[player_hex] = dd
                         if 'telegram' in dd and dd['telegram'] in dws:
                             del dws[dd['telegram']]
                         telegram = dd['telegram'] = hashlib.sha256(str(uuid4()).encode('utf-8')).hexdigest()
-                        dws[telegram] = hextoken
-                        host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{hextoken}"
+                        dws[telegram] = player_hex
+                        host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{player_hex}"
                         host2 = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}telegram/{telegram}"
-                        await ws.send_str(json.dumps(pl.ok(url=host, telegram=host2, hex=hextoken), cls=MyEncoder))
+                        await ws.send_str(json.dumps(pl.ok(url=host, telegram=host2, hex=player_hex), cls=MyEncoder))
                         dd['cmdqueue'] = (await process_remoteplay_cmd_queue(ws, dd['cmdqueue'])) if 'cmdqueue' in dd else []
                     else:
                         await ws.send_str(json.dumps(pl.err(20, MSG_INVALID_PARAM)))
             elif pl.c(CMD_REMOTEPLAY_PUSH):
-                if not hextoken:
+                if not player_hex:
                     _LOGGER.info("Invalid token")
                     await ws.send_str(json.dumps(pl.err(502, MSG_UNAUTHORIZED), cls=MyEncoder))
                 else:
                     try:
                         w = pl.f(pl.what)
-                        dd = request.app.p.ws.get(hextoken, dict())
+                        dd = request.app.p.ws.get(player_hex, dict())
                         dd.update({'ws': ws, pl.what: w, 'uid': userid})
-                        request.app.p.ws[hextoken] = dd
-                        _LOGGER.info(f'New dict el for {hextoken} [{pl.what}] -> {json.dumps(w)}')
+                        request.app.p.ws[player_hex] = dd
+                        _LOGGER.info(f'New dict el for {player_hex} [{pl.what}] -> {json.dumps(w)}')
                         await ws.send_str(json.dumps(pl.ok(), cls=MyEncoder))
                     except Exception:
                         await ws.send_str(json.dumps(pl.err(509, traceback.format_exc()), cls=MyEncoder))
@@ -657,7 +657,7 @@ async def pls_h(request):
 
 
 async def register(request):
-    auid = await authorized_userid(request)
+    auid, _, _ = await authorized_userid(request)
     if isinstance(auid, int):
         response = web.HTTPFound('/')
         await remember(request, response, INVALID_SID)

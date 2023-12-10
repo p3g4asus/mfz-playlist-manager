@@ -84,7 +84,10 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
         token = str(uuid4())
         clogin = login.copy()
         clogin['token'] = token
-        login['token'] = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        hextoken = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        if 'pl' not in login:
+            login['pl'] = login['token'] if 'token' in login else hextoken
+        login['token'] = hextoken
         if not session.identity and session.new:
             session.set_new_identity(login.get('sid'))
         logins = json.dumps(login)

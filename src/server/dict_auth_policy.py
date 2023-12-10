@@ -25,9 +25,12 @@ class DictAuthorizationPolicy(AbstractAuthorizationPolicy):
         if tokenrefresh >= 0 and dsid == login.get('sid', 'b') and dsid == sid and csid == sid and\
            login.get('uid', 'a') == clogin.get('uid', 'b') and\
            hashlib.sha256(clogin.get('token', 'a').encode('utf-8')).hexdigest() == hextoken:
-            return login.get('uid'), hextoken if not tokenrefresh else ''
+            player_hex = login.get('pl', None)
+            if not player_hex:
+                player_hex = hextoken
+            return login.get('uid'), hextoken if not tokenrefresh else '', player_hex
         else:
-            return sid if len(sid) > 1 else csid if len(csid) > 1 else dsid, None
+            return sid if len(sid) > 1 else csid if len(csid) > 1 else dsid, None, None
 
     async def permits(self, identity, permission, context=None):
         """Check user permissions.
