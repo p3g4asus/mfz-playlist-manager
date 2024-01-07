@@ -10,6 +10,7 @@ import socket
 import subprocess
 import sys
 import traceback
+from uuid import uuid4
 import zlib
 from base64 import b64encode
 from os.path import join, splitext, split
@@ -20,7 +21,7 @@ from pythonosc.udp_client import SimpleUDPClient
 
 from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DOWNLOAD, CMD_DEL, CMD_DUMP, CMD_FREESPACE, CMD_IORDER,
                           CMD_MOVE, CMD_PLAYID, CMD_PLAYITSETT, CMD_PLAYSETT,
-                          CMD_REN, CMD_SEEN, CMD_SORT, DOWNLOADED_SUFFIX, MSG_BACKEND_ERROR,
+                          CMD_REN, CMD_SEEN, CMD_SORT, CMD_TOKEN, DOWNLOADED_SUFFIX, MSG_BACKEND_ERROR,
                           MSG_INVALID_PARAM, MSG_NAME_TAKEN,
                           MSG_PLAYLIST_NOT_FOUND, MSG_PLAYLISTITEM_NOT_FOUND, MSG_TASK_ABORT,
                           MSG_UNAUTHORIZED)
@@ -47,7 +48,7 @@ class MessageProcessor(AbstractMessageProcessor):
             msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or\
             msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or\
             msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT) or msg.c(CMD_DOWNLOAD) or\
-            msg.c(CMD_CLEAR) or msg.c(CMD_FREESPACE)
+            msg.c(CMD_CLEAR) or msg.c(CMD_FREESPACE) or msg.c(CMD_TOKEN)
 
     async def processMove(self, msg, userid, executor):
         pdst = msg.playlistId()
@@ -95,6 +96,40 @@ class MessageProcessor(AbstractMessageProcessor):
                 return msg.err(2, MSG_NAME_TAKEN, playlist=None)
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+
+    async def processTokenRefresh(self, userid):
+        token = ''
+        while True:
+            try:
+                token = str(uuid4())
+                async with self.db.cursor() as cursor:
+                    await cursor.execute(
+                        "UPDATE user set token=? WHERE rowid=?", (token, userid, ))
+                    if cursor.rowcount > 0:
+                        await self.db.commit()
+                        break
+            except Exception:
+                pass
+        return token
+
+    async def processTokenGet(self, userid):
+        try:
+            async with self.db.execute(
+                '''
+                SELECT token FROM user
+                WHERE rowid = ?
+                ''', (userid,)
+            ) as cursor:
+                return (await cursor.fetchone())[0]
+        except Exception:
+            return None
+
+    async def processToken(self, msg, userid, executor):
+        refresh = msg.f('refresh')
+        token = None
+        if refresh or not (token := await self.processTokenGet(userid)):
+            token = await self.processTokenRefresh(userid)
+        return msg.ok(token=token)
 
     async def processDump(self, msg, userid, executor):
         u = msg.f("useri", (int,))
@@ -564,6 +599,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processDl(msg, userid, executor)
         elif msg.c(CMD_SORT):
             resp = await self.processSort(msg, userid, executor)
+        elif msg.c(CMD_TOKEN):
+            resp = await self.processToken(msg, userid, executor)
         elif msg.c(CMD_FREESPACE):
             resp = await self.processFreeSpace(msg, userid, executor)
         elif msg.c(CMD_CLOSE):

@@ -66,6 +66,26 @@
             </button>
         </div>
         <div class="row row-buffer logout" style="display: none;">
+            <a
+                data-bs-toggle="collapse"
+                href="#token-row"
+                role="button"
+                class="btn btn-primary btn-lg col-12 btn-block"
+                aria-expanded="false" aria-controls="token-row">
+                <p class="h3"><i class="fas fa-qrcode"></i></p>
+            </a>
+        </div>
+        <div id="token-row" class="row row-buffer collapse">
+            <div class="col-md-12 col-lg-12">
+                <div id="token-copy-tool"></div>
+                <div class="input-group">
+                    <input type="text" id="token-input-value" class="form-control" placeholder="Playlist Token" aria-label="Playlist Token" readonly>
+                    <button class="btn btn-primary" type="button" id="token-button-copy"><i class="fas fa-copy"></i></button>
+                    <button class="btn btn-success" type="button" id="token-button-refresh"><i class="fas fa-sync-alt"></i></button>
+                </div>
+            </div>
+        </div>
+        <div class="row row-buffer logout" style="display: none;">
             <div class="dropdown" id="playlist_cont">
                 <a id="try_button" href="#" role="button" class="btn btn-success dropdown-toggle btn-lg col-12 btn-block" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 2rem;"><i class="fas fa-play"></i>&nbsp;&nbsp;Play</a>
                 <ul class="dropdown-menu" aria-labelledby="try_button">

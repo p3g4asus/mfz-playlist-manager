@@ -84,6 +84,22 @@ function login_google_new(obj) {
     }
 }
 
+function token_refresh(refresh) {
+    let el = new MainWSQueueElement(
+        {cmd: CMD_TOKEN, refresh: refresh},
+        function(msg) {
+            return msg.cmd === CMD_TOKEN? msg:null;
+        }, 30000, 1);
+    el.enqueue().then(function(msg) {
+        if (msg.rv == 501 || msg.rv == 502) {
+            $('.login').show();
+        }
+        else {
+            $('#token-input-value').val(msg.token);
+        }
+    });
+}
+
 function playlist_dump(useri) {
     let el = new MainWSQueueElement(
         {cmd: CMD_DUMP, useri:useri, load_all: -1},
@@ -119,6 +135,30 @@ function playlist_dump(useri) {
                 for (let it of msg.playlists) {
                     add_playlist_to_button(it.name);
                 }
+                let $bc = $('#token-button-copy');
+                $bc.click(() => {
+                    let lnk = $('#token-input-value').val();
+                    if (lnk && lnk.length) {
+                        navigator.clipboard.writeText(lnk).then(function() {
+                            console.log('Async: Copying to clipboard was successful!');
+                            let $tct = $('#token-copy-tool');
+                            let tooltip = bootstrap.Tooltip.getOrCreateInstance($tct.get(0), {
+                                'container': $bc.get(0),
+                                'title': 'Copied!'
+                            }); 
+                            tooltip.show();
+                            $tct.on('shown.bs.tooltip', () => {
+                                setTimeout(() => tooltip.dispose(), 5000);
+                            });
+                        }, function(err) {
+                            console.error('Async: Could not copy text: ', err);
+                        });
+                    }
+                });
+                $('#token-button-refresh').click(() => {
+                    token_refresh(1);
+                });
+                token_refresh(0);
                 $('.logout').show();
             }
         }

@@ -21,7 +21,7 @@ from telegram_menu import (BaseMessage, ButtonType, NavigationHandler,
 from telegram_menu.models import MenuButton, emoji_replace
 
 from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
-                          CMD_REFRESH, CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SEC, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK)
+                          CMD_REFRESH, CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SEC, CMD_REN, CMD_SEEN, CMD_SORT, CMD_TOKEN, CMD_YT_PLAYLISTCHECK)
 from common.playlist import (Playlist, PlaylistItem, PlaylistMessage)
 
 _LOGGER = logging.getLogger(__name__)
@@ -223,9 +223,10 @@ class MyNavigationHandler(NavigationHandler):
 
 
 class ProcessorMessage(object):
-    def __init__(self, userid, username, params):
+    def __init__(self, userid, username, token, params):
         self.userid = userid
         self.username = username
+        self.token = token
         self.params = params
         self.processors = params.processors2
         self.executor = params.telegram_executor
@@ -260,13 +261,13 @@ class NameDurationStatus(Enum):
 
 
 class StatusTMessage(BaseMessage):
-    def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", userid: int = None, username: str = None, params: object = None, **argw) -> None:
+    def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", userid: int = None, username: str = None, token: str = None, params: object = None, **argw) -> None:
         super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, **argw)
         self.status = NameDurationStatus.IDLE
         self.sub_status = 0
         self.return_msg = ''
         self.scheduler_job = None
-        self.proc = ProcessorMessage(userid, username, params)
+        self.proc = ProcessorMessage(userid, username, token, params)
 
     async def edit_or_select(self, context: Optional[CallbackContext] = None):
         try:
@@ -347,9 +348,9 @@ class DeletingTMessage(StatusTMessage):
     async def delete_item_do(self):
         return
 
-    def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: timedelta | None = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", userid: int = None, username: str = None, params: object = None, **argw) -> None:
+    def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: timedelta | None = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", userid: int = None, username: str = None, token: str = None, params: object = None, **argw) -> None:
         self.del_action: str = ''
-        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, userid, username, params, **argw)
+        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, userid, username, token, params, **argw)
 
     def delete_item_pre_pre(self, args):
         self.del_action = args[0]
@@ -427,7 +428,7 @@ class PlayerInfo(object):
 
 
 class PlayerInfoMessage(StatusTMessage):
-    def __init__(self, navigation: NavigationHandler, player_info: PlayerInfo, userid: int = None, username: str = None, params: object = None, **argw) -> None:
+    def __init__(self, navigation: NavigationHandler, player_info: PlayerInfo, userid: int = None, username: str = None, token: str = None, params: object = None, **argw) -> None:
         self.pi = player_info
         self.time_btn: datetime = None
         self.btn_type: int = 0
@@ -440,6 +441,7 @@ class PlayerInfoMessage(StatusTMessage):
             input_field='Timestamp',
             userid=userid,
             username=username,
+            token=token,
             params=params)
 
     def calc_dyn_sec(self):
@@ -624,11 +626,11 @@ class PlayerInfoMessage(StatusTMessage):
 
 
 class PlayerListMessage(StatusTMessage):
-    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, **argw) -> None:
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, token: str = None, params: object = None, **argw) -> None:
         self.players: Dict[str, PlayerInfo] = None
         self.players_cache: Dict[str, PlayerInfoMessage] = dict()
         self.current_url = ''
-        super().__init__(navigation, label=self.__class__.__name__, input_field='Player Url', userid=userid, username=username, params=params, **argw)
+        super().__init__(navigation, label=self.__class__.__name__, input_field='Player Url', userid=userid, username=username, token=token, params=params, **argw)
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status == NameDurationStatus.IDLE:
@@ -688,12 +690,12 @@ class PlayerListMessage(StatusTMessage):
             if piu and (sel or not sel_only):
                 players[pin] = pi = PlayerInfo(pin, piu, sel)
                 if navigation and proc:
-                    players_cache[pin] = PlayerInfoMessage(navigation, pi, userid=proc.userid, username=proc.username, params=proc.params)
+                    players_cache[pin] = PlayerInfoMessage(navigation, pi, userid=proc.userid, username=proc.username, token=proc.token, params=proc.params)
         return (players, players_cache)
 
     async def add_player(self, pi: PlayerInfo):
         self.players[pi.name] = pi
-        self.players_cache[pi.name] = PlayerInfoMessage(self.navigation, pi, userid=self.proc.userid, username=self.proc.username, params=self.proc.params)
+        self.players_cache[pi.name] = PlayerInfoMessage(self.navigation, pi, userid=self.proc.userid, username=self.proc.username, token=self.proc.token, params=self.proc.params)
         await self.set_user_conf_field(self.players, self.proc)
         await self.edit_or_select()
 
@@ -734,8 +736,8 @@ class PlayerListMessage(StatusTMessage):
 
 
 class RefreshingTMessage(StatusTMessage):
-    def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", userid: int = None, username: str = None, params: object = None, playlist: Playlist = None, **argw) -> None:
-        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, userid, username, params, **argw)
+    def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", userid: int = None, username: str = None, token: str = None, params: object = None, playlist: Playlist = None, **argw) -> None:
+        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, userid, username, token, params, **argw)
         self.playlist = playlist
         self.upd_sta = None
         self.upd_sto = None
@@ -877,7 +879,7 @@ class NameDurationTMessage(DeletingTMessage):
         else:
             return False
 
-    def __init__(self, navigation, myid, userid, username, params, **argw) -> None:
+    def __init__(self, navigation: NavigationHandler, myid: int = None, userid: int = None, username: str = None, token: str = None, params: object = None, **argw) -> None:
         self.index = None
         self.id = myid
         self.name = None
@@ -895,6 +897,7 @@ class NameDurationTMessage(DeletingTMessage):
             expiry_period=timedelta(hours=10),
             userid=userid,
             username=username,
+            token=token,
             params=params,
             **argw
         )
@@ -918,9 +921,9 @@ class PlaylistItemTMessage(NameDurationTMessage):
         else:
             return False
 
-    def __init__(self, navigation, myid, userid, username, params, pid) -> None:
+    def __init__(self, navigation: NavigationHandler, myid: int = None, userid: int = None, username: str = None, token: str = None, params: object = None, pid: int = None, **argw) -> None:
         self.pid = pid
-        super().__init__(navigation, myid, userid, username, params)
+        super().__init__(navigation, myid, userid, username, token, params)
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status == NameDurationStatus.SORTING:
@@ -1150,12 +1153,13 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         else:
             return False
 
-    def __init__(self, navigation, myid, userid, username, params) -> None:
+    def __init__(self, navigation: NavigationHandler, myid: int = None, userid: int = None, username: str = None, token: str = None, params: object = None, **argw) -> None:
         super().__init__(
             navigation,
             myid=myid,
             userid=userid,
             username=username,
+            token=token,
             params=params)
         self.del_and_recreate = False
         self.set_playlist(self.obj)
@@ -1279,7 +1283,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             await super().text_input(text, context)
 
     async def list_items(self, args, context):
-        p = PlaylistItemsPagesTMessage(self.navigation, deleted=args[0], userid=self.proc.userid, username=self.proc.username, params=self.proc.params, playlist_obj=self)
+        p = PlaylistItemsPagesTMessage(self.navigation, deleted=args[0], userid=self.proc.userid, username=self.proc.username, token=self.proc.token, params=self.proc.params, playlist_obj=self)
         if self.navigation._menu_queue and isinstance(self.navigation._menu_queue[-1], PlaylistItemsPagesTMessage):
             await self.navigation.goto_back()
         await self.navigation.goto_menu(p, context)
@@ -1303,6 +1307,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 self.navigation,
                 userid=self.proc.userid,
                 username=self.proc.username,
+                token=self.proc.token,
                 params=self.proc.params,
                 playlist=self.obj)
             await self.navigation.goto_menu(but)
@@ -1361,9 +1366,9 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         upd += f':eye: {len(self.obj.items)} \U000023F1 {duration2string(self.obj.get_duration(True))}\n'
         upd += f'Update \U000023F3: {datepubo.strftime("%Y-%m-%d %H:%M:%S")} ' + ("\U00002705" if self.obj.autoupdate else "") + '\n'
         par = urlencode(dict(username=self.proc.username, name=self.name, host=lnk))
-        upd += f'<a href="{lnk}/m3u?{par}&fmt=m3u">M3U8</a>, <a href="{lnk}/m3u?{par}&fmt=ely">ELY</a>, <a href="{lnk}/m3u?{par}&fmt=json">JSON</a>\n'
-        upd += f'<a href="{lnk}/m3u?{par}&fmt=m3u&conv=4">M3U8c4</a>, <a href="{lnk}/m3u?{par}&fmt=ely&conv=4">ELYc4</a>, <a href="{lnk}/m3u?{par}&fmt=json&conv=4">JSONc4</a>\n'
-        upd += f'<a href="{lnk}/m3u?{par}&fmt=m3u&conv=2">M3U8c2</a>, <a href="{lnk}/m3u?{par}&fmt=ely&conv=2">ELYc2</a>, <a href="{lnk}/m3u?{par}&fmt=json&conv=2">JSONc2</a>'
+        upd += f'<a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=m3u">M3U8</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=ely">ELY</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=json">JSON</a>\n'
+        upd += f'<a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=m3u&conv=4">M3U8c4</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=ely&conv=4">ELYc4</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=json&conv=4">JSONc4</a>\n'
+        upd += f'<a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=m3u&conv=2">M3U8c2</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=ely&conv=2">ELYc2</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=json&conv=2">JSONc2</a>'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'
         if self.return_msg:
             upd += f'\n<b>{self.return_msg}</b>'
@@ -1440,8 +1445,8 @@ class MultipleGroupsOfItems(object):
 
 
 class PageGenerator(object):
-    def __init__(self, userid, username, params) -> None:
-        self.proc = ProcessorMessage(userid, username, params)
+    def __init__(self, userid, username, token, params) -> None:
+        self.proc = ProcessorMessage(userid, username, token, params)
 
     @abstractmethod
     def item_convert(self, myid, navigation, **kwargs) -> NameDurationTMessage:
@@ -1457,7 +1462,7 @@ class PlaylistsPagesGenerator(PageGenerator):
     def item_convert(self, myid, navigation, **_):
         plTg = cache_get(self.proc.userid, myid)
         return plTg.message if plTg and plTg.message and plTg.message.refresh_from_cache() else\
-            PlaylistTMessage(navigation, myid, self.proc.userid, self.proc.username, self.proc.params)
+            PlaylistTMessage(navigation, myid, self.proc.userid, self.proc.username, self.proc.token, self.proc.params)
 
     def get_playlist_message(self, pid=None, deleted=False):
         return PlaylistMessage(CMD_DUMP, useri=self.proc.userid, load_all=1 if deleted else 0, playlist=pid)
@@ -1469,10 +1474,11 @@ class PlaylistsPagesGenerator(PageGenerator):
 
 
 class PlaylistItemsPagesGenerator(PageGenerator):
-    def __init__(self, userid, username, params, pid):
+    def __init__(self, userid, username, token, params, pid):
         super().__init__(
             userid,
             username,
+            token,
             params
         )
         self.pid = pid
@@ -1485,6 +1491,7 @@ class PlaylistItemsPagesGenerator(PageGenerator):
                 myid=myid,
                 userid=self.proc.userid,
                 username=self.proc.username,
+                token=self.proc.token,
                 params=self.proc.params,
                 pid=self.pid)
 
@@ -1676,7 +1683,7 @@ class ListPagesTMessage(BaseMessage):
 
 class PlaylistsPagesTMessage(ListPagesTMessage):
 
-    def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, firstpage=None, deleted=False, userid=None, username=None, params=None) -> None:
+    def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, firstpage=None, deleted=False, userid=None, username=None, token=None, params=None) -> None:
         super().__init__(
             update_str=f'List of <b>{username}</b> playlists',
             navigation=navigation,
@@ -1687,6 +1694,7 @@ class PlaylistsPagesTMessage(ListPagesTMessage):
             pagegen=PlaylistsPagesGenerator(
                 userid,
                 username,
+                token,
                 params
             ),
             input_field='Select Playlist'
@@ -1700,7 +1708,7 @@ class PlaylistsPagesTMessage(ListPagesTMessage):
 
 class PlaylistItemsPagesTMessage(ListPagesTMessage):
 
-    def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, firstpage=None, deleted=False, userid=None, username=None, params=None, playlist_obj: Optional[PlaylistTMessage] = None) -> None:
+    def __init__(self, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, firstpage=None, deleted=False, userid=None, username=None, token=None, params=None, playlist_obj: Optional[PlaylistTMessage] = None) -> None:
         self.playlist_obj = playlist_obj
         super().__init__(
             update_str=f'List of <b>{playlist_obj.name}</b> items ({playlist_obj.unseen} - \U000023F1 {duration2string(playlist_obj.obj.get_duration())})',
@@ -1712,6 +1720,7 @@ class PlaylistItemsPagesTMessage(ListPagesTMessage):
             pagegen=PlaylistItemsPagesGenerator(
                 userid,
                 username,
+                token,
                 params,
                 playlist_obj.id
             )
@@ -1759,7 +1768,7 @@ class ChangeOrderedOrDeleteOrCancelTMessage(BaseMessage):
 
 
 class PlaylistNamingTMessage(StatusTMessage):
-    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, token: str = None, params: object = None, playlist: Playlist = None) -> None:
         self.playlist = playlist
         super().__init__(
             navigation,
@@ -1767,6 +1776,7 @@ class PlaylistNamingTMessage(StatusTMessage):
             input_field='\U0001F50D Playlist link or id' if self.playlist.name else 'Enter Playlist Name',
             userid=userid,
             username=username,
+            token=token,
             params=params)
         if not self.playlist.name:
             self.status = NameDurationStatus.NAMING
@@ -1793,7 +1803,7 @@ class PlaylistNamingTMessage(StatusTMessage):
 
 
 class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
-    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, token: str = None, params: object = None, playlist: Playlist = None) -> None:
         if not playlist:
             playlist = Playlist(
                 type='youtube',
@@ -1805,6 +1815,7 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
             navigation,
             userid=userid,
             username=username,
+            token=token,
             params=params,
             playlist=playlist)
         self.checking_playlist = ''
@@ -1870,6 +1881,7 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
                     self.navigation,
                     userid=self.proc.userid,
                     username=self.proc.username,
+                    token=self.proc.token,
                     params=self.proc.params,
                     playlist=self.playlist
                 ), new_row=True)
@@ -1884,7 +1896,7 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
 
 
 class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
-    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, token: str = None, params: object = None, playlist: Playlist = None) -> None:
         if not playlist:
             playlist = Playlist(
                 type='localfolder',
@@ -1896,6 +1908,7 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
             navigation,
             userid=userid,
             username=username,
+            token=token,
             params=params,
             playlist=playlist)
         self.listings_changed = False
@@ -1971,6 +1984,7 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
                         self.navigation,
                         userid=self.proc.userid,
                         username=self.proc.username,
+                        token=self.proc.token,
                         params=self.proc.params,
                         playlist=self.playlist
                     ), new_row=True)
@@ -2079,7 +2093,7 @@ class SelectDayTMessage(BaseMessage):
 
 
 class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
-    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None, playlist_type: str = None) -> None:
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, token: str = None, params: object = None, playlist: Playlist = None, playlist_type: str = None) -> None:
         if not playlist:
             playlist = Playlist(
                 type=playlist_type,
@@ -2099,6 +2113,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
             navigation,
             userid=userid,
             username=username,
+            token=token,
             params=params,
             playlist=playlist)
         self.listings_cache = []
@@ -2249,6 +2264,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
                                         self.navigation,
                                         userid=self.proc.userid,
                                         username=self.proc.username,
+                                        token=self.proc.token,
                                         params=self.proc.params,
                                         playlist=self.playlist
                                         ), new_row=True)
@@ -2269,8 +2285,8 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
 
 
 class MediasetPlaylistTMessage(MedRaiPlaylistTMessage):
-    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
-        super().__init__(navigation, userid, username, params, playlist, playlist_type='mediaset')
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, token: str = None, params: object = None, playlist: Playlist = None) -> None:
+        super().__init__(navigation, userid, username, token, params, playlist, playlist_type='mediaset')
 
     def get_listings_command(self):
         if self.playlist.conf['listings_command']:
@@ -2286,8 +2302,8 @@ class MediasetPlaylistTMessage(MedRaiPlaylistTMessage):
 
 
 class RaiPlaylistTMessage(MedRaiPlaylistTMessage):
-    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
-        super().__init__(navigation, userid, username, params, playlist, playlist_type='rai')
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, token: str = None, params: object = None, playlist: Playlist = None) -> None:
+        super().__init__(navigation, userid, username, token, params, playlist, playlist_type='rai')
 
     def get_listings_command(self):
         return PlaylistMessage(CMD_RAI_LISTINGS)
@@ -2297,13 +2313,14 @@ class RaiPlaylistTMessage(MedRaiPlaylistTMessage):
 
 
 class RefreshNewPlaylistTMessage(RefreshingTMessage):
-    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None, playlist: Playlist = None) -> None:
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, token: str = None, params: object = None, playlist: Playlist = None) -> None:
         super().__init__(
             navigation,
             label=self.__class__.__name__,
             input_field=f'Refresh {playlist.name}',
             userid=userid,
             username=username,
+            token=token,
             params=params,
             playlist=playlist)
         self.status = NameDurationStatus.UPDATING_INIT
@@ -2330,22 +2347,23 @@ class RefreshNewPlaylistTMessage(RefreshingTMessage):
 
 
 class PlaylistAddTMessage(StatusTMessage):
-    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, params: object = None) -> None:
+    def __init__(self, navigation: NavigationHandler, userid: int = None, username: str = None, token: str = None, params: object = None) -> None:
         super().__init__(
             navigation,
             label=self.__class__.__name__,
             input_field='Select Playlist Type',
             userid=userid,
             username=username,
+            token=token,
             params=params)
 
     def update(self, _: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
-        self.add_button('\U0001F534 YoutubeDL', YoutubeDLPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
-        self.add_button('\U0001F535 Rai', RaiPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
-        self.add_button('\U00002B24 Mediaset', MediasetPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
-        self.add_button('\U0001F4C2 Folder', LocalFolderPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, params=self.proc.params))
+        self.add_button('\U0001F534 YoutubeDL', YoutubeDLPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, token=self.proc.token, params=self.proc.params))
+        self.add_button('\U0001F535 Rai', RaiPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, token=self.proc.token, params=self.proc.params))
+        self.add_button('\U00002B24 Mediaset', MediasetPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, token=self.proc.token, params=self.proc.params))
+        self.add_button('\U0001F4C2 Folder', LocalFolderPlaylistTMessage(self.navigation, userid=self.proc.userid, username=self.proc.username, token=self.proc.token, params=self.proc.params))
         self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=True)
         self.input_field = 'Select Playlist Type'
         return self.input_field
@@ -2427,13 +2445,13 @@ class StartTMessage(BaseMessage):
         try:
             async with db.execute(
                 '''
-                SELECT username, rowid FROM user
+                SELECT username, rowid, token FROM user
                 WHERE tg = ?
                 ''', (tg,)
             ) as cursor:
                 row = await cursor.fetchone()
                 if row:
-                    res = dict(userid=row['rowid'], username=row['username'])
+                    res = dict(userid=row['rowid'], username=row['username'], token=row['token'])
         except Exception:
             _LOGGER.warning(f"TGDB access error: {traceback.format_exc()}")
         return res
@@ -2441,7 +2459,7 @@ class StartTMessage(BaseMessage):
     async def sign_out(self, context):
         await self.params.db2.execute("UPDATE user set tg=null WHERE rowid=?", (self.userid, ))
         await self.params.db2.commit()
-        self.userid = self.username = self.link = None
+        self.userid = self.username = self.token = self.link = None
         await self.navigation.goto_home(context)
 
     async def list_page_of_playlists(self, page, context: Optional[CallbackContext] = None):
@@ -2461,33 +2479,43 @@ class StartTMessage(BaseMessage):
                 self.link = self.user_data['link']
         if res and self.link:
             self.params.link = self.link
+            # second_menu = SecondMenuMessage(navigation, update_callback=message_args)
+            self.userid = res['userid']
+            self.username = res['username']
+            self.token = res['token']
+            self.proc = ProcessorMessage(self.userid, self.username, self.token, self.params)
+            if not self.token:
+                pl = PlaylistMessage(CMD_TOKEN, refresh=1)
+                pl = await self.proc.process(pl)
+                self.token = self.proc.token = pl.token
             self.playlists_lister = PlaylistsPagesTMessage(
                 self.navigation,
                 max_group_per_page=6,
                 max_items_per_group=1,
                 params=self.params,
-                userid=res['userid'],
-                username=res['username'])
+                userid=self.userid,
+                username=self.username,
+                token=self.token)
             listall = PlaylistsPagesTMessage(
                 self.navigation,
                 max_group_per_page=6,
                 max_items_per_group=1,
                 params=self.params,
                 deleted=True,
-                userid=res['userid'],
-                username=res['username'])
-            # second_menu = SecondMenuMessage(navigation, update_callback=message_args)
-            self.userid = res['userid']
-            self.username = res['username']
+                userid=self.userid,
+                username=self.username,
+                token=self.token)
             self.add_button(label=":memo: List", callback=self.playlists_lister)
             self.add_button(label=":eye: All", callback=listall)
             self.add_button(label="\U00002B55 Message Cache Clear", callback=self.cache_clear)
-            self.add_button(label="\U0001F3A7 Player", callback=PlayerListMessage(self.navigation, userid=self.userid, username=self.username, params=self.params))
-            self.add_button(label="\U00002795 Add", callback=PlaylistAddTMessage(self.navigation, userid=self.userid, username=self.username, params=self.params))
+            self.add_button(label="\U0001F3A7 Player", callback=PlayerListMessage(self.navigation, userid=self.userid, username=self.username, token=self.token, params=self.params))
+            self.add_button(label="\U00002795 Add", callback=PlaylistAddTMessage(self.navigation, userid=self.userid, username=self.username, token=self.token, params=self.params))
             self.add_button(label="\U0001F6AA Sign Out", callback=SignOutTMessage(self.navigation))
         else:
             self.username = None
+            self.token = None
             self.userid = None
+            self.proc = None
             action_message = SignUpTMessage(self.navigation, params=self.params)
             # second_menu = SecondMenuMessage(navigation, update_callback=message_args)
             self.add_button(label=":writing_hand: Sign Up", callback=action_message)
@@ -2499,9 +2527,11 @@ class StartTMessage(BaseMessage):
         self.params = message_args[0]
         _LOGGER.debug(f'Start Message {message_args[0].args}')
         self.username = None
+        self.token = None
         self.userid = None
         self.link = None
         self.playlists_lister = None
+        self.proc: ProcessorMessage = None
 
         # define menu buttons
 

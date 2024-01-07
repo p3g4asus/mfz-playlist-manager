@@ -97,31 +97,38 @@ async def modify_pw(request):
     return web.HTTPUnauthorized(body='Invalid username / password combination')
 
 
-async def playlist_m3u(request):
+async def playlist_m3u_2(request):
+    try:
+        async with request.app.p.db.execute(
+            '''
+            SELECT rowid FROM user
+            WHERE token = ?
+            ''', (request.match_info['token'],)
+        ) as cursor:
+            uid = await cursor.fetchone()
+            return await playlist_m3u(request, userid=uid)
+    except Exception:
+        uid = None
+    if not uid:
+        return web.HTTPUnauthorized(body='Invalid User Token')
+
+
+async def playlist_m3u(request, userid=None):
     _LOGGER.debug("host is %s" % str(request.host))
-    auid, hextoken, _ = await authorized_userid(request)
-    if isinstance(auid, int):
-        identity = auid
-    else:
-        identity = None
-    if identity:
-        userid = identity
-        username = None
-    elif 'useri' in request.query:
-        userid = request.query['useri']
-        username = None
-    elif 'username' in request.query:
-        userid = None
-        username = request.query['username']
-    else:
-        return web.HTTPUnauthorized(body='Invalid username / password combination')
+    identity = None
+    if userid is None:
+        auid, hextoken, _ = await authorized_userid(request)
+        if isinstance(auid, int):
+            identity = userid = auid
+        else:
+            return web.HTTPUnauthorized(body='Invalid user specification')
 
     conv = int(request.query['conv']) if 'conv' in request.query else 0
     fmt = request.query['fmt'] if 'fmt' in request.query else 'm3u'
 
     if 'name' in request.query:
         host = request.query['host'] if 'host' in request.query else f"{request.scheme}://{request.host}"
-        pl = await Playlist.loadbyid(request.app.p.db, useri=userid, username=username, name=request.query['name'])
+        pl = await Playlist.loadbyid(request.app.p.db, useri=userid, name=request.query['name'])
         asconv = (conv >> CONV_LINK_ASYNCH_SHIFT) & CONV_LINK_MASK
         if asconv == CONV_LINK_ASYNCH_TWITCH:
             for it in pl[0].items:

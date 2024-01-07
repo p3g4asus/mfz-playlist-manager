@@ -28,6 +28,7 @@ CMD_REMOTEPLAY_PUSH = 'remotepush'
 CMD_PING = "ping"
 CMD_REFRESH = "refresh"
 CMD_LS = "ls"
+CMD_TOKEN = "token"
 CMD_PLAYSETT = "playsett"
 CMD_PLAYITSETT = "playitsett"
 CMD_PLAYID = "playid"

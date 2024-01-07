@@ -27,7 +27,7 @@ from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
 from server.telegram_bot import start_telegram_bot, stop_telegram_bot
 from server.webhandlers import (download, img_link, index, login, login_g, logout,
-                                modify_pw, playlist_m3u, pls_h,
+                                modify_pw, playlist_m3u, playlist_m3u_2, pls_h,
                                 redirect_till_last, register, remote_command,
                                 telegram_command, twitch_redir_do,
                                 youtube_dl_do, youtube_redir_do)
@@ -104,6 +104,7 @@ CREATE_DB_IF_NOT_EXIST = [
         rowid INTEGER PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
+        token TEXT UNIQUE,
         conf TEXT,
         tg TEXT
     )
@@ -253,6 +254,7 @@ async def start_app(app):
         app.router.add_static('/static', app.p.args["static"], follow_symlinks=True)
     app.router.add_route('GET', '/', index)
     app.router.add_route('GET', '/rcmd/{hex:[a-fA-F0-9]+}', remote_command)
+    app.router.add_route('GET', '/m3u2/{token:[a-fA-F0-9\\-]+}', playlist_m3u_2)
     app.router.add_route('GET', '/telegram/{hex:[a-fA-F0-9]+}', telegram_command)
     app.router.add_route('POST', '/login_g', login_g)
     app.router.add_route('POST', '/login', login)

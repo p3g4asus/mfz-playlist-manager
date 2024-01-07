@@ -34,6 +34,7 @@ const CMD_REMOTEPLAY_JS_SEC = 'sec';
 const CMD_REMOTEPLAY_JS_TELEGRAM = 'telegram';
 const CMD_REMOTEPLAY_PUSH = 'remotepush';
 const CMD_LS = 'ls';
+const CMD_TOKEN = 'token';
 const CMD_RAI_CONTENTSET = 'rai.contentset';
 const CMD_YT_PLAYLISTCHECK = 'youtube.playlistcheck';
 const CMD_MEDIASET_BRANDS = 'mediaset.brands';

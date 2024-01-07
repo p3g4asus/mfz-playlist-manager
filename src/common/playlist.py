@@ -3,7 +3,6 @@ import logging
 import urllib.parse
 from datetime import datetime
 from os import remove
-from os.path import exists, isfile
 from common.const import CONV_LINK_MASK, CONV_LINK_REDIRECT, CONV_LINK_TWITCH, CONV_LINK_UNTOUCH, CONV_LINK_YTDL_DICT, CONV_LINK_YTDL_REDIRECT
 
 from .utils import Fieldable, JSONAble

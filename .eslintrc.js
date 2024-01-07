@@ -112,6 +112,7 @@ module.exports = {
         'CMD_REMOTEPLAY_JS_TELEGRAM': true,
         'CMD_REMOTEPLAY_PUSH': true,
         'CMD_PLAYITSETT': true,
+        'CMD_TOKEN': true,
         'get_selected_mime': true,
         'set_selected_mime': true,
         'PTHREG': true,
