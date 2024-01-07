@@ -106,7 +106,8 @@ async def playlist_m3u_2(request):
             ''', (request.match_info['token'],)
         ) as cursor:
             uid = await cursor.fetchone()
-            return await playlist_m3u(request, userid=uid)
+            if uid and isinstance(uid[0], int):
+                return await playlist_m3u(request, userid=uid[0])
     except Exception:
         uid = None
     if not uid:
