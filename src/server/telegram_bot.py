@@ -1365,7 +1365,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         upd += f'\nLength: {self.unseen} \U000023F1 {duration2string(self.obj.get_duration())}\n'
         upd += f':eye: {len(self.obj.items)} \U000023F1 {duration2string(self.obj.get_duration(True))}\n'
         upd += f'Update \U000023F3: {datepubo.strftime("%Y-%m-%d %H:%M:%S")} ' + ("\U00002705" if self.obj.autoupdate else "") + '\n'
-        par = urlencode(dict(username=self.proc.username, name=self.name, host=lnk))
+        par = urlencode(dict(name=self.name, host=lnk))
         upd += f'<a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=m3u">M3U8</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=ely">ELY</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=json">JSON</a>\n'
         upd += f'<a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=m3u&conv=4">M3U8c4</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=ely&conv=4">ELYc4</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=json&conv=4">JSONc4</a>\n'
         upd += f'<a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=m3u&conv=2">M3U8c2</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=ely&conv=2">ELYc2</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=json&conv=2">JSONc2</a>'
