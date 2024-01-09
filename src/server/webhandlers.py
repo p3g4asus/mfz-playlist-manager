@@ -97,21 +97,30 @@ async def modify_pw(request):
     return web.HTTPUnauthorized(body='Invalid username / password combination')
 
 
-async def playlist_m3u_2(request):
-    try:
-        async with request.app.p.db.execute(
-            '''
-            SELECT rowid FROM user
-            WHERE token = ?
-            ''', (request.match_info['token'],)
-        ) as cursor:
-            uid = await cursor.fetchone()
-            if uid and isinstance(uid[0], int):
-                return await playlist_m3u(request, userid=uid[0])
-    except Exception:
-        uid = None
-    if not uid:
+async def user_check_token(request):
+    if 'token' in request.match_info and request.match_info['token']:
+        try:
+            async with request.app.p.db.execute(
+                '''
+                SELECT rowid FROM user
+                WHERE token = ?
+                ''', (request.match_info['token'][1:],)
+            ) as cursor:
+                uid = await cursor.fetchone()
+                if uid and isinstance(uid[0], int):
+                    return uid[0]
+        except Exception:
+            pass
         return web.HTTPUnauthorized(body='Invalid User Token')
+    else:
+        return None
+
+
+async def playlist_m3u_2(request):
+    if (rv := await user_check_token(request)) is None or isinstance(rv, int):
+        return await playlist_m3u(request, rv)
+    else:
+        return rv
 
 
 async def playlist_m3u(request, userid=None):
@@ -134,6 +143,9 @@ async def playlist_m3u(request, userid=None):
         if asconv == CONV_LINK_ASYNCH_TWITCH:
             for it in pl[0].items:
                 it.link = await twitch_link_finder(it.link, request.app)
+        if pl[0].type == 'localfolder':
+            for it in pl[0].items:
+                it.link = f'{host}/dl/{it.rowid}'
         if pl:
             if fmt == 'm3u':
                 txt = pl[0].toM3U(host, conv)
@@ -469,44 +481,34 @@ async def file_sender(writer, file_path=None):
             chunk = f.read(2 ** 16)
 
 
-async def download(request):
-    try:
-        stream = int(request.query['stream'])
-    except Exception:
-        stream = False
-    if not stream:
+async def download_2(request):
+    if (rv := await user_check_token(request)) is None or isinstance(rv, int):
+        return await download(request, rv)
+    else:
+        return rv
+
+
+async def download(request, userid=None):
+    if not userid:
         auid, _, _ = await authorized_userid(request)
         if not isinstance(auid, int):
             userid = None
         else:
             userid = auid
     rowid = int(request.match_info['rowid'])
-    if (stream or userid) and rowid:
+    if userid and rowid:
         it = await PlaylistItem.loadbyid(request.app.p.db, rowid=rowid)
         if it:
             pls = await Playlist.loadbyid(request.app.p.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
             if pls:
-                if not stream and pls[0].useri != userid:
+                if not it.dl and it.conf and isinstance(it.conf, dict) and 'todel' in it.conf and it.conf['todel']:
+                    it.dl = it.conf['todel'][0]
+                if pls[0].useri != userid:
                     return web.HTTPUnauthorized(body='Invalid user id')
                 elif not it.dl or not exists(it.dl) or not isfile(it.dl):
                     return web.HTTPBadRequest(body=f'Invalid dl: {it.dl} for {it.title}')
                 else:
-                    if stream:
-                        headers = dict()
-                        mime, _ = mimetypes.guess_type(it.dl)
-                        if not mime:
-                            return web.HTTPNotAcceptable(reason='Invalid MIME type')
-                    else:
-                        headers = {
-                            "Content-disposition": f"attachment; filename={slugify(it.title + splitext(it.dl)[1], separator=' ', lowercase=False)}"
-                        }
-                        mime = 'application/octet-stream'
-
-                    return web.Response(
-                        body=file_sender(file_path=it.dl),
-                        headers=headers,
-                        content_type=mime,
-                    )
+                    return web.FileResponse(it.dl)
         return web.HTTPNotFound(body='Invalid playlist or playlist item')
     else:
         return web.HTTPNotAcceptable(body="Invalid userid or rowid")

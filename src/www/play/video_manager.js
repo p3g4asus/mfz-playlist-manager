@@ -162,14 +162,14 @@ function on_play_finished(event) {
     lnk = playlist_item_current.link;
     title = playlist_item_current.title;
     set_video_title(title);
-    set_video_enabled(vid);
+    set_video_enabled(playlist_item_current.rowid);
     let video_info =  print_duration(index);
     send_video_info_for_remote_play('vinfo', video_info);
     send_video_info_for_remote_play('pinfo', {sec: 0});
-    if (is_item_downloaded(playlist_item_current))
-        video_manager_obj.play_video(MAIN_PATH_S + 'dl/' + playlist_item_current.dl.substr(playlist_item_current.dl.lastIndexOf('/') + 1));
-    else if (playlist_item_current.link.charAt(0) == '@')
-        video_manager_obj.play_video(MAIN_PATH_S + playlist_item_current.link.substring(1));
+    if (is_item_downloaded(playlist_item_current) || playlist_current.type == 'localfolder')
+        video_manager_obj.play_video(MAIN_PATH + 'dl/' + playlist_item_current.rowid);
+    /* else if (playlist_item_current.link.charAt(0) == '@')
+        video_manager_obj.play_video(MAIN_PATH_S + playlist_item_current.link.substring(1));*/
     else if (vid.length && video_manager_obj.play_video_id)
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)

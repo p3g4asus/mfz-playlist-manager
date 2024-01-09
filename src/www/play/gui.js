@@ -12,7 +12,7 @@ function add_video_to_button(item) {
     let a = $('<a>');
     a.attr('href', '#');
     a.addClass('dropdown-item');
-    a.attr('data-uid', item.uid);
+    a.attr('data-uid', '' + item.rowid);
     a.text(item.title);
     a.click(function (e) {
         go_to_video(item.uid);

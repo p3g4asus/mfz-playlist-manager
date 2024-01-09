@@ -1081,9 +1081,11 @@ class PlaylistItemTMessage(NameDurationTMessage):
             upd += f'\n<a href="{lnk}{par}">\U0001F7E3 TWI</a>'
         if 'pageurl' in self.obj.conf:
             upd += f'\n<a href="{self.obj.conf["pageurl"]}">\U0001F4C3 Main</a>'
+        if not self.obj.dl and self.obj.conf and isinstance(self.obj.conf, dict) and 'todel' in self.obj.conf and self.obj.conf['todel']:
+            self.obj.dl = self.obj.conf['todel'][0]
         if self.obj.dl and exists(self.obj.dl) and isfile(self.obj.dl):
             sta = stat(self.obj.dl)
-            upd += f'\n<a href="{mainlnk}/dl/{self.id}">DL {self.sizeof_fmt(sta.st_size) if sta else ""}</a> <a href="{mainlnk}/dl/{self.id}?stream=1">\U0001F3BC</a>'
+            upd += f'\n<a href="{mainlnk}/dl/{self.proc.token}/{self.id}">DL {self.sizeof_fmt(sta.st_size) if sta else ""}</a>'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'
         if self.return_msg:
             upd += f'\n<b>{self.return_msg}</b>'
@@ -1366,9 +1368,10 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         upd += f':eye: {len(self.obj.items)} \U000023F1 {duration2string(self.obj.get_duration(True))}\n'
         upd += f'Update \U000023F3: {datepubo.strftime("%Y-%m-%d %H:%M:%S")} ' + ("\U00002705" if self.obj.autoupdate else "") + '\n'
         par = urlencode(dict(name=self.name, host=lnk))
-        upd += f'<a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=m3u">M3U8</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=ely">ELY</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=json">JSON</a>\n'
-        upd += f'<a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=m3u&conv=4">M3U8c4</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=ely&conv=4">ELYc4</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=json&conv=4">JSONc4</a>\n'
-        upd += f'<a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=m3u&conv=2">M3U8c2</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=ely&conv=2">ELYc2</a>, <a href="{lnk}/m3u2/{self.proc.token}?{par}&fmt=json&conv=2">JSONc2</a>'
+        uprefix: str = f'{lnk}/m3u/{self.proc.token}?{par}&'
+        upd += f'<a href="{uprefix}fmt=m3u">M3U8</a>, <a href="{uprefix}fmt=ely">ELY</a>, <a href="{uprefix}fmt=json">JSON</a>\n'
+        upd += f'<a href="{uprefix}fmt=m3u&conv=4">M3U8c4</a>, <a href="{uprefix}fmt=ely&conv=4">ELYc4</a>, <a href="{uprefix}fmt=json&conv=4">JSONc4</a>\n'
+        upd += f'<a href="{uprefix}fmt=m3u&conv=2">M3U8c2</a>, <a href="{uprefix}fmt=ely&conv=2">ELYc2</a>, <a href="{uprefix}fmt=json&conv=2">JSONc2</a>'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'
         if self.return_msg:
             upd += f'\n<b>{self.return_msg}</b>'
