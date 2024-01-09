@@ -1,11 +1,10 @@
 import hashlib
 import json
 import logging
-import mimetypes
 import traceback
 from email.message import EmailMessage
 from functools import partial
-from os.path import exists, isfile, splitext
+from os.path import exists, isfile
 from textwrap import dedent
 from time import time
 from urllib.parse import urlencode
@@ -18,7 +17,6 @@ from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
 from google.auth.transport import requests
 from google.oauth2 import id_token
-from slugify import slugify
 
 from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_JS,
                           CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH,
