@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 from uuid import uuid4
 
 import yt_dlp as youtube_dl
+from aiosqlite import Connection
 from aiohttp import ClientSession, WSMsgType, streamer, web
 from aiohttp.web_response import Response
 from aiohttp_security import (authorized_userid, check_authorized, forget,
@@ -25,6 +26,7 @@ from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_JS,
                           MSG_UNAUTHORIZED)
 from common.playlist import LOAD_ITEMS_NO, Playlist, PlaylistItem, PlaylistMessage
 from common.timer import Timer
+from common.user import User
 from common.utils import MyEncoder, get_json_encoder
 from server.dict_auth_policy import check_credentials, identity2username
 from server.twitch_vod_id import vod_get_id
@@ -86,11 +88,16 @@ async def modify_pw(request):
             return web.HTTPUnauthorized(body='Invalid username provided')
         password = form.get('password')
         if password and len(password) >= 5:
-            await request.app.p.db.execute("UPDATE user set password=? WHERE username=?", (password, username))
-            await request.app.p.db.commit()
-            resp = web.HTTPFound('/')
-            if identity and not hextoken:
-                await remember(request, resp, INVALID_SID)
+            users: list[User] = await User.loadbyid(request.app.p.db, rowid=identity)
+            if users:
+                u = users[0]
+                u.password = password
+                await u.toDB(request.app.p.db)
+                resp = web.HTTPFound('/')
+                if identity and not hextoken:
+                    await remember(request, resp, INVALID_SID)
+            else:
+                resp = web.HTTPForbidden(body='Unknown user')
             return resp
     return web.HTTPUnauthorized(body='Invalid username / password combination')
 
@@ -98,15 +105,10 @@ async def modify_pw(request):
 async def user_check_token(request):
     if 'token' in request.match_info and request.match_info['token']:
         try:
-            async with request.app.p.db.execute(
-                '''
-                SELECT rowid FROM user
-                WHERE token = ?
-                ''', (request.match_info['token'][1:],)
-            ) as cursor:
-                uid = await cursor.fetchone()
-                if uid and isinstance(uid[0], int):
-                    return uid[0]
+            users: list[User] = await User.loadbyid(request.app.p.db, token=request.match_info['token'][1:])
+            if users:
+                u = users[0]
+                return u.rowid
         except Exception:
             pass
         return web.HTTPUnauthorized(body='Invalid User Token')
@@ -370,22 +372,18 @@ async def login_g(request):
 
         # ID token is valid. Get the user's Google Account ID from the decoded token.
         password = idinfo['sub']
+        username = idinfo['email']
         _LOGGER.debug(f"token is {idinfo}")
         db = request.app.p.db
-        async with db.execute(
-            '''
-            SELECT U.rowid as rowid,
-                U.username as username,
-                U.password as password from user as U WHERE password=?
-            ''', (password,)
-        ) as cursor:
-            row = await cursor.fetchone()
-            if row:
-                userid = row['rowid']
+        users: list[User] = await User.loadbyid(db, username=username, password=password)
+        if users:
+            userid = users[0].rowid
+        else:
+            user: User = User(username=username, password=password)
+            if await user.toDB(db):
+                userid = user.rowid
             else:
-                async with db.execute('INSERT INTO user(username,password) VALUES (?,?)', (idinfo['email'], password)) as cursor2:
-                    userid = cursor2.lastrowid
-                    await db.commit()
+                userid = None
         if userid:
             if isinstance(auid, str):
                 ids = json.dumps(dict(sid=auid, uid=userid))
@@ -525,10 +523,17 @@ async def telegram_command(request):
             tok = dct['token_info']['token']
             del dct['token_info']
             if q['token'] == tok:
-                db = request.app.p.db
+                db: Connection = request.app.p.db
                 cmd = dict(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_TELEGRAM, act='finish')
-                await db.execute("UPDATE user set tg=null WHERE tg=?", (q['username'], ))
-                await db.execute("UPDATE user set tg=? WHERE rowid=?", (q['username'], dct['uid']))
+                users: list[User] = await User.loadbyid(db, tg=q['username'])
+                for u in users:
+                    u.tg = None
+                    await u.toDB(db, commit=False)
+                users: list[User] = await User.loadbyid(db, rowid=dct['uid'])
+                if users:
+                    u = users[0]
+                    u.tg = q['username']
+                    await u.toDB(db, commit=False)
                 await db.commit()
             else:
                 return web.HTTPUnauthorized(body='Invalid token: please retry')
@@ -676,17 +681,10 @@ async def register(request):
     _LOGGER.debug("Usermame=%s Password=%s" % (username, password))
     if username and len(username) >= 5 and password and len(password) >= 5:
         db = request.app.p.db
-        async with db.execute(
-            '''
-            SELECT count(*) FROM user
-            WHERE username = ?
-            ''', (username,)
-        ) as cursor:
-            data = (await cursor.fetchone())[0]
-            if data:
-                return web.HTTPUnauthorized(body='Username already taken')
-        await db.execute('INSERT INTO user(username,password) VALUES (?,?)', (username, password))
-        await db.commit()
-        return web.HTTPFound('/')
+        user = User(username=username, password=password)
+        if await user.toDB(db):
+            return web.HTTPFound('/')
+        else:
+            return web.HTTPUnauthorized(body='Username already taken')
     else:
         return web.HTTPUnauthorized(body='Invalid username / password combination')

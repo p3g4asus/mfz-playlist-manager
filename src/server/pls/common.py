@@ -10,7 +10,6 @@ import socket
 import subprocess
 import sys
 import traceback
-from uuid import uuid4
 import zlib
 from base64 import b64encode
 from os.path import join, splitext, split
@@ -27,6 +26,7 @@ from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DOWNLOAD, CMD_DEL, 
                           MSG_UNAUTHORIZED)
 from common.playlist import (LOAD_ITEMS_ALL, LOAD_ITEMS_NO, LOAD_ITEMS_UNSEEN,
                              Playlist, PlaylistItem)
+from common.user import User
 from common.utils import AbstractMessageProcessor, MyEncoder
 
 _LOGGER = logging.getLogger(__name__)
@@ -98,30 +98,17 @@ class MessageProcessor(AbstractMessageProcessor):
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
     async def processTokenRefresh(self, userid):
-        token = ''
-        while True:
-            try:
-                token = str(uuid4())
-                async with self.db.cursor() as cursor:
-                    await cursor.execute(
-                        "UPDATE user set token=? WHERE rowid=?", (token, userid, ))
-                    if cursor.rowcount > 0:
-                        await self.db.commit()
-                        break
-            except Exception:
-                pass
-        return token
+        users: list[User] = await User.loadbyid(self.db, rowid=userid)
+        if users:
+            return await users[0].refreshToken(self.db)
+        else:
+            return None
 
     async def processTokenGet(self, userid):
-        try:
-            async with self.db.execute(
-                '''
-                SELECT token FROM user
-                WHERE rowid = ?
-                ''', (userid,)
-            ) as cursor:
-                return (await cursor.fetchone())[0]
-        except Exception:
+        users: list[User] = await User.loadbyid(self.db, rowid=userid)
+        if users:
+            return users[0].token
+        else:
             return None
 
     async def processToken(self, msg, userid, executor):

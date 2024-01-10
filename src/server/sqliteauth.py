@@ -2,6 +2,8 @@ from aiohttp_security.abc import AbstractAuthorizationPolicy
 import json
 from time import time
 
+from common.user import User
+
 
 class SqliteAuthorizationPolicy(AbstractAuthorizationPolicy):
     def __init__(self, sqlitedb):
@@ -15,14 +17,9 @@ class SqliteAuthorizationPolicy(AbstractAuthorizationPolicy):
         """
         try:
             dct = json.loads(identity)
-            async with self.db.execute(
-                '''
-                select count(*) from user WHERE username=? AND rowid=?
-                ''', (dct['username'], dct['rowid'])
-            ) as cursor:
-                n = (await cursor.fetchone())[0]
-                if n:
-                    return identity
+            users: list[User] = await User.loadbyid(self.db, rowid=dct['rowid'])
+            if users and users[0].username == dct['username']:
+                return identity
         except Exception:
             pass
         return None
@@ -36,18 +33,11 @@ class SqliteAuthorizationPolicy(AbstractAuthorizationPolicy):
 
 
 async def check_credentials(db, username, password):
-    async with db.execute(
-        '''
-        SELECT U.rowid as rowid,
-               U.username as username,
-               U.password as password from user as U WHERE username=?
-        ''', (username,)
-    ) as cursor:
-        row = await cursor.fetchone()
-        if row and row['password'] == password:
-            return json.dumps(
-                dict(rowid=row['rowid'], username=username, time=time()))
-    return None
+    users: list[User] = await User.loadbyid(db, username=username, password=password)
+    if users:
+        return json.dumps(dict(rowid=users[0].rowid, username=username, time=time()))
+    else:
+        return None
 
 
 def identity2username(identity):
