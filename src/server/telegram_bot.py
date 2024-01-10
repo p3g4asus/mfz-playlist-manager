@@ -2461,9 +2461,12 @@ class StartTMessage(BaseMessage):
             if 'link' in self.user_data:
                 self.link = self.user_data['link']
         if res and self.link:
+            if self.user:
+                self.user.cp(**res.toJSON())
+            else:
+                self.user = res
             self.params.link = self.link
             # second_menu = SecondMenuMessage(navigation, update_callback=message_args)
-            self.user = res
             self.proc = ProcessorMessage(res, self.params)
             if not res.token:
                 pl = PlaylistMessage(CMD_TOKEN, refresh=1)
