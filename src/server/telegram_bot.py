@@ -2387,7 +2387,7 @@ class SignUpTMessage(BaseMessage):
 
 class TokenMessage(StatusTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, **argw) -> None:
-        super().__init__(navigation, label=self.__class__.__name__, inlined=False, user=user, params=params, **argw)
+        super().__init__(navigation, label=f'{self.__class__.__name__}{id(self)}', inlined=True, expiry_period=timedelta(minutes=1), user=user, params=params, **argw)
 
     async def token_refresh(self, context: Optional[CallbackContext] = None):
         self.status = NameDurationStatus.UPDATING_RUNNING
@@ -2408,7 +2408,7 @@ class TokenMessage(StatusTMessage):
             await asyncio.sleep(1.5 - df)
         if pl.rv == 0:
             self.proc.user.token = pl.token
-            self.return_msg = pl.token
+            self.return_msg = ':thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} refreshing token :thumbs_down:'
         await self.switch_to_idle()
@@ -2418,10 +2418,12 @@ class TokenMessage(StatusTMessage):
         self.keyboard: List[List["MenuButton"]] = [[]]
         if self.status == NameDurationStatus.IDLE:
             self.add_button(u'\U0001F503', self.token_refresh)
-            self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back)
+            # self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back)
             msg = self.proc.user.token
-        else:
+        elif self.status == NameDurationStatus.UPDATING_RUNNING:
             msg = f'Token updating {"." * (self.sub_status & 0xFF)}'
+        else:
+            msg = await super().update(self, context)
         return msg
 
 
