@@ -2416,15 +2416,13 @@ class TokenMessage(StatusTMessage):
     async def update(self, context: CallbackContext | None = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
+        msg = self.proc.user.token
         if self.status == NameDurationStatus.IDLE:
             self.add_button(u'\U0001F503', self.token_refresh)
             # self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back)
-            msg = self.proc.user.token
         elif self.status == NameDurationStatus.UPDATING_RUNNING:
             msg = f'Token updating {"." * (self.sub_status & 0xFF)}'
-        else:
-            msg = await super().update(self, context)
-        return msg
+        return msg if not self.return_msg else f'{msg}\n<b>{self.return_msg}</b>'
 
 
 class StartTMessage(BaseMessage):
