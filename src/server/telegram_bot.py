@@ -985,12 +985,22 @@ class PlaylistItemTMessage(NameDurationTMessage):
         await self.switch_to_status((NameDurationStatus.SORTING, ))
 
     async def set_iorder(self) -> None:
-        await self.set_iorder_do(int(self.current_sort))
+        await self.set_iorder_do(int(self.current_sort) if self.current_sort[0] != u'\U0001F502' else self.get_iorder_from_index(int(self.current_sort[1:])))
         await self.switch_to_idle()
 
     async def add_to_sort(self, args) -> None:
         self.current_sort += f'{args[0]}'
         await self.edit_or_select()
+
+    def get_iorder_from_index(self, index: int) -> int:
+        p = cache_get(self.proc.user.rowid, self.pid)
+        pis = p.get_items(deleted=False)
+        if not index:
+            return pis[0].item.iorder - 1
+        elif index - 1 < len(pis):
+            return pis[index - 1].item.iorder + 1
+        else:
+            return pis[-1].item.iorder + 1
 
     async def remove_from_sort(self) -> None:
         if self.current_sort:
@@ -1057,9 +1067,11 @@ class PlaylistItemTMessage(NameDurationTMessage):
             elif self.status == NameDurationStatus.SORTING:
                 for i in range(10):
                     self.add_button(f'{(i + 1) % 10}' + u'\U0000FE0F\U000020E3', self.add_to_sort, args=((i + 1) % 10, ))
-                self.add_button(u'\U000002C2', self.remove_from_sort, new_row=True)
+                self.add_button(u'\U000002C2', self.remove_from_sort)
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
-                if self.current_sort:
+                if not self.current_sort:
+                    self.add_button(u'\U0001F502', self.add_to_sort, args=(u'\U0001F502', ), new_row=True)
+                else:
                     self.add_button(self.current_sort, self.set_iorder, new_row=True)
                 self.input_field = f'Enter \U00002211 for {self.name}'
                 return f'Enter \U00002211 for <b>{self.name}</b>'
