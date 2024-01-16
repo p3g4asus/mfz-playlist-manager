@@ -900,6 +900,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
 
     def __init__(self, navigation: NavigationHandler, myid: int = None, user: User = None, params: object = None, pid: int = None, **argw) -> None:
         self.pid = pid
+        self.current_sort: str = ''
         super().__init__(navigation, myid, user, params)
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
@@ -979,6 +980,23 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.return_msg = f'Error {pl.rv} Moving {self.name} in {plTg.playlist.name} :thumbs_down:'
         await self.switch_to_idle()
 
+    async def prepare_for_sort(self) -> None:
+        self.current_sort = ''
+        await self.switch_to_status((NameDurationStatus.SORTING, ))
+
+    async def set_iorder(self) -> None:
+        await self.set_iorder_do(int(self.current_sort))
+        await self.switch_to_idle()
+
+    async def add_to_sort(self, args) -> None:
+        self.current_sort += f'{args[0]}'
+        await self.edit_or_select()
+
+    async def remove_from_sort(self) -> None:
+        if self.current_sort:
+            self.current_sort = self.current_sort[0:-1]
+            await self.edit_or_select()
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
@@ -1037,7 +1055,12 @@ class PlaylistItemTMessage(NameDurationTMessage):
                     upd = f'{escape(self.name)} waiting in queue {"." * (self.sub_status & 0xFF)}'
                 return upd
             elif self.status == NameDurationStatus.SORTING:
+                for i in range(10):
+                    self.add_button(f'{(i + 1) % 10}' + u'\U0000FE0F\U000020E3', self.add_to_sort, args=((i + 1) % 10, ))
+                self.add_button(u'\U000002C2', self.remove_from_sort, new_row=True)
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
+                if self.current_sort:
+                    self.add_button(self.current_sort, self.set_iorder, new_row=True)
                 self.input_field = f'Enter \U00002211 for {self.name}'
                 return f'Enter \U00002211 for <b>{self.name}</b>'
         elif self.status == NameDurationStatus.IDLE:
