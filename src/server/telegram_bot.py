@@ -985,8 +985,9 @@ class PlaylistItemTMessage(NameDurationTMessage):
         await self.switch_to_status((NameDurationStatus.SORTING, ))
 
     async def set_iorder(self) -> None:
-        await self.set_iorder_do(int(self.current_sort) if self.current_sort[0] != u'\U0001F502' else self.get_iorder_from_index(int(self.current_sort[1:])))
-        await self.switch_to_idle()
+        if self.current_sort[0] != u'\U0001F502' or len(self.current_sort) > 1:
+            await self.set_iorder_do(int(self.current_sort) if self.current_sort[0] != u'\U0001F502' else self.get_iorder_from_index(int(self.current_sort[1:])))
+            await self.switch_to_idle()
 
     async def add_to_sort(self, args) -> None:
         self.current_sort += f'{args[0]}'
