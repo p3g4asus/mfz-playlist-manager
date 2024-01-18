@@ -1083,7 +1083,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
         upd = await super().update(context)
         if upd:
             return upd
-        upd += f'<a href="{self.obj.link}">{self.index + 1})<b> {escape(self.name)}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub}\n'
+        upd += f'<a href="{self.obj.link}">{self.index + 1})<b> {escape(self.name)}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub[0:19]}\n'
         if self.obj.conf and 'author' in self.obj.conf and self.obj.conf['author']:
             upd += f'\U0001F64B: {self.obj.conf["author"]}\n'
         upd += f'\U00002211: {self.obj.iorder}'
