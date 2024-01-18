@@ -1096,6 +1096,8 @@ class PlaylistItemTMessage(NameDurationTMessage):
             upd += f'\n<a href="{self.obj.conf["pageurl"]}">\U0001F4C3 Main</a>'
         if not self.obj.dl and self.obj.conf and isinstance(self.obj.conf, dict) and 'todel' in self.obj.conf and self.obj.conf['todel']:
             self.obj.dl = self.obj.conf['todel'][0]
+        if isinstance(self.obj.conf, dict) and 'sec' in self.obj.conf:
+            upd += f'\n\U000025B6 {duration2string(int(self.obj.conf["sec"]))}'
         if self.obj.dl and exists(self.obj.dl) and isfile(self.obj.dl):
             sta = stat(self.obj.dl)
             upd += f'\n<a href="{mainlnk}/dl/{self.proc.user.token}/{self.id}">DL {self.sizeof_fmt(sta.st_size) if sta else ""}</a>'
