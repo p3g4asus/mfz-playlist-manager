@@ -16,19 +16,30 @@ async def get_vod_link(vodid):
             async with session.post(url, data=json.encode('utf8'), headers=headers) as resp:
                 tokens = await resp.json()
                 _LOGGER.debug(f"Auth resp {tokens}")
-                try:
-                    data = tokens[0]["data"]["video"]["previewThumbnailURL"]
-                    mo = re.search('/([a-z0-9]+)/([a-f0-9]+_.+?_[0-9]+_[0-9]+)/', data)
-                    if mo:
-                        link = f'https://{mo.group(1)}.cloudfront.net/{mo.group(2)}/chunked/index-dvr.m3u8'
-                        return link
-                except Exception:
-                    pass
-                data = tokens[0]["data"]["video"]["seekPreviewsURL"]
-                mo = re.search(r'^(https://[a-z0-9]+\.cloudfront.net/[a-f0-9]+_.+?_[0-9]+_[0-9]+)/', data)
-                if mo:
-                    link = f'{mo.group(1)}/chunked/index-dvr.m3u8'
-                    return link
+                for token in tokens:
+                    try:
+                        data = token["data"]["video"]["previewThumbnailURL"]
+                        mo = re.search('/([a-z0-9]+)/([a-f0-9]+_.+?_[0-9]+_[0-9]+)/', data)
+                        if mo:
+                            link = f'https://{mo.group(1)}.cloudfront.net/{mo.group(2)}/chunked/index-dvr.m3u8'
+                            headers = {"range": "bytes=0-200", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
+                            async with aiohttp.ClientSession() as session2:
+                                async with session2.get(link, headers=headers) as resp:
+                                    if resp.status >= 200 and resp.status < 300:
+                                        txt = await resp.text()
+                                        if txt and txt.strip()[0] == '#':
+                                            return link
+                    except Exception:
+                        pass
+                for token in tokens:
+                    try:
+                        data = token["data"]["video"]["seekPreviewsURL"]
+                        mo = re.search(r'^(https://[a-z0-9]+\.cloudfront.net/[a-f0-9]+_.+?_[0-9]+_[0-9]+)/', data)
+                        if mo:
+                            link = f'{mo.group(1)}/chunked/index-dvr.m3u8'
+                            return link
+                    except Exception:
+                        pass
 
     except Exception:
         _LOGGER.error(traceback.format_exc())
