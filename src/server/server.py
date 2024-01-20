@@ -339,6 +339,7 @@ def main():
     parser.add_argument('--sid', required=False, default='')
     parser.add_argument('--pickle', required=False, default='')
     parser.add_argument('--telegram', required=False, default='')
+    parser.add_argument('--redirect-files', required=False, default=False, action="store_true")
     parser.add_argument('--common-dldir', required=False, default='')
     parser.add_argument('--youtube-apikey', required=False, default="")
     parser.add_argument('--localfolder-basedir', required=False, default=None)

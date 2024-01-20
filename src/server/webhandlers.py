@@ -4,10 +4,10 @@ import logging
 import traceback
 from email.message import EmailMessage
 from functools import partial
-from os.path import exists, isfile
+from os.path import exists, isfile, abspath, relpath
 from textwrap import dedent
 from time import time
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from uuid import uuid4
 
 import yt_dlp as youtube_dl
@@ -61,17 +61,21 @@ async def index(request):
     if identity:
         template = index_template.format(
             message='Hello, {username}!'.format(username=await identity2username(request.app.p.db, identity)))
+        resp = web.Response(
+            text=template,
+            content_type='text/html',
+        )
+        if not hextoken:
+            await remember(request, resp, INVALID_SID)
+        return resp
     else:
         template = index_template.format(message='You need to login')
-    resp = web.Response(
-        text=template,
-        content_type='text/html',
-    )
-    if identity and not hextoken:
-        await remember(request, resp, INVALID_SID)
-    # if identity:
-    #     resp.set_cookie(COOKIE_USERID, str(identity2id(identity)))
-    return resp
+        resp = web.Response(
+            status=403,
+            text=template,
+            content_type='text/html',
+        )
+        return resp
 
 
 async def modify_pw(request):
@@ -497,12 +501,23 @@ async def download(request, userid=None):
         if it:
             pls = await Playlist.loadbyid(request.app.p.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
             if pls:
+                args = request.app.p.args
                 if not it.dl and it.conf and isinstance(it.conf, dict) and 'todel' in it.conf and it.conf['todel']:
                     it.dl = it.conf['todel'][0]
+                    fromp = args['localfolder_basedir']
+                    subp = 'local'
+                else:
+                    fromp = args['common_dldir']
+                    subp = 'download'
                 if pls[0].useri != userid:
                     return web.HTTPUnauthorized(body='Invalid user id')
                 elif not it.dl or not exists(it.dl) or not isfile(it.dl):
                     return web.HTTPBadRequest(body=f'Invalid dl: {it.dl} for {it.title}')
+                elif args['redirect_files']:
+                    pth = abspath(fromp)
+                    pthc = abspath(it.dl)
+                    pthd = f'{request.scheme}://{request.host}/{args["sid"]}/{subp}/{quote(relpath(pthc, pth))}'
+                    return web.HTTPFound(pthd)
                 else:
                     return web.FileResponse(it.dl)
         return web.HTTPNotFound(body='Invalid playlist or playlist item')
