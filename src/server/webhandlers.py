@@ -52,10 +52,13 @@ index_template = dedent("""
 
 
 async def auth_for_item(request):
-    auid, _, _ = await authorized_userid(request)
-    if not isinstance(auid, int):
-        userid = None
-    else:
+    if (auid := await user_check_token(request)) is None:
+        auid, _, _ = await authorized_userid(request)
+        if not isinstance(auid, int):
+            userid = None
+        else:
+            userid = auid
+    elif isinstance(auid, int):
         userid = auid
     rowid = int(request.match_info['rowid'])
     if userid and rowid:
@@ -149,7 +152,7 @@ async def modify_pw(request):
 
 
 async def user_check_token(request):
-    if 'token' in request.match_info and request.match_info['token']:
+    if 'token' in request.match_info and request.match_info['token'] and request.match_info['token'] != '/0':
         try:
             users: list[User] = await User.loadbyid(request.app.p.db, token=request.match_info['token'][1:])
             if users:
@@ -534,7 +537,7 @@ def get_local_play_file(it: PlaylistItem) -> str:
     return it.conf['todel'][0] if not it.dl and it.conf and isinstance(it.conf, dict) and 'todel' in it.conf and it.conf['todel'] else it.dl
 
 
-def get_download_url_path(it: PlaylistItem, args: dict) -> str:
+def get_download_url_path(it: PlaylistItem, args: dict, token: str = '') -> str:
     dl = get_local_play_file(it)
     if dl != it.dl:
         fromp = args['localfolder_basedir']
@@ -546,7 +549,7 @@ def get_download_url_path(it: PlaylistItem, args: dict) -> str:
     if args['redirect_files']:
         pth = abspath(fromp)
         pthc = abspath(dl)
-        return f'{subp}/{it.rowid}/{quote(relpath(pthc, pth))}'
+        return f'{subp}{"/" + token if token else ""}/{it.rowid}/{quote(relpath(pthc, pth))}'
     else:
         return dl
 
@@ -570,7 +573,7 @@ async def download(request, userid=None):
                     return web.HTTPUnauthorized(body='Invalid user id')
                 elif not dl or not exists(dl) or not isfile(dl):
                     return web.HTTPBadRequest(body=f'Invalid dl: {dl} for {it.title}')
-                dlp = get_download_url_path(it, args)
+                dlp = get_download_url_path(it, args, '0' if 'token' not in request.match_info or not request.match_info['token'] else request.match_info['token'][1:])
                 if args['redirect_files']:
                     pthd = f'{request.scheme}://{request.host}/{args["sid"]}/{dlp}'
                     return web.HTTPFound(pthd)
