@@ -51,7 +51,34 @@ index_template = dedent("""
 """)
 
 
-async def index(request):
+async def auth_for_item(request):
+    auid, _, _ = await authorized_userid(request)
+    if not isinstance(auid, int):
+        userid = None
+    else:
+        userid = auid
+    rowid = int(request.match_info['rowid'])
+    if userid and rowid:
+        it = await PlaylistItem.loadbyid(request.app.p.db, rowid=rowid)
+        if it:
+            pls = await Playlist.loadbyid(request.app.p.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            if pls:
+                args = request.app.p.args
+                dl = get_local_play_file(it)
+                if pls[0].useri != userid:
+                    return web.HTTPUnauthorized(body='Invalid user id')
+                elif not dl or not exists(dl) or not isfile(dl):
+                    return web.HTTPBadRequest(body=f'Invalid dl: {dl} for {it.title}')
+                dlp = get_download_url_path(it, args)
+                if dlp == quote(f'{request.match_info["subp"]}/{rowid}/{request.match_info["fil"]}'):
+                    return web.Response(
+                        text='OK',
+                        content_type='text/html',
+                    )
+    return web.HTTPNotAcceptable(body="You don't seem to be allowed to go here")
+
+
+async def index(request, item_id: int = None):
     auid, hextoken, _ = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
@@ -59,15 +86,30 @@ async def index(request):
         identity = None
     _LOGGER.debug("Identity is %s" % str(identity))
     if identity:
-        template = index_template.format(
-            message='Hello, {username}!'.format(username=await identity2username(request.app.p.db, identity)))
-        resp = web.Response(
-            text=template,
-            content_type='text/html',
-        )
-        if not hextoken:
-            await remember(request, resp, INVALID_SID)
-        return resp
+        uid = None
+        if item_id is not None:
+            users: list[User] = await User.loadbyid(request.app.p.db, item_id=item_id)
+            uid = -1
+            if users:
+                u = users[0]
+                uid = u.rowid
+        if uid is None or uid == identity:
+            template = index_template.format(
+                message='Hello, {username}!'.format(username=await identity2username(request.app.p.db, identity)))
+            resp = web.Response(
+                text=template,
+                content_type='text/html',
+            )
+            if not hextoken:
+                await remember(request, resp, INVALID_SID)
+            return resp
+        else:
+            resp = web.Response(
+                status=403,
+                text='You are not authorized to view this',
+                content_type='text/html',
+            )
+            return resp
     else:
         template = index_template.format(message='You need to login')
         resp = web.Response(
@@ -488,6 +530,27 @@ async def download_2(request):
         return rv
 
 
+def get_local_play_file(it: PlaylistItem) -> str:
+    return it.conf['todel'][0] if not it.dl and it.conf and isinstance(it.conf, dict) and 'todel' in it.conf and it.conf['todel'] else it.dl
+
+
+def get_download_url_path(it: PlaylistItem, args: dict) -> str:
+    dl = get_local_play_file(it)
+    if dl != it.dl:
+        fromp = args['localfolder_basedir']
+        subp = 'local'
+    else:
+        fromp = args['common_dldir']
+        subp = 'download'
+
+    if args['redirect_files']:
+        pth = abspath(fromp)
+        pthc = abspath(dl)
+        return f'{subp}/{it.rowid}/{quote(relpath(pthc, pth))}'
+    else:
+        return dl
+
+
 async def download(request, userid=None):
     if not userid:
         auid, _, _ = await authorized_userid(request)
@@ -502,24 +565,17 @@ async def download(request, userid=None):
             pls = await Playlist.loadbyid(request.app.p.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
             if pls:
                 args = request.app.p.args
-                if not it.dl and it.conf and isinstance(it.conf, dict) and 'todel' in it.conf and it.conf['todel']:
-                    it.dl = it.conf['todel'][0]
-                    fromp = args['localfolder_basedir']
-                    subp = 'local'
-                else:
-                    fromp = args['common_dldir']
-                    subp = 'download'
+                dl = get_local_play_file(it)
                 if pls[0].useri != userid:
                     return web.HTTPUnauthorized(body='Invalid user id')
-                elif not it.dl or not exists(it.dl) or not isfile(it.dl):
-                    return web.HTTPBadRequest(body=f'Invalid dl: {it.dl} for {it.title}')
-                elif args['redirect_files']:
-                    pth = abspath(fromp)
-                    pthc = abspath(it.dl)
-                    pthd = f'{request.scheme}://{request.host}/{args["sid"]}/{subp}/{quote(relpath(pthc, pth))}'
+                elif not dl or not exists(dl) or not isfile(dl):
+                    return web.HTTPBadRequest(body=f'Invalid dl: {dl} for {it.title}')
+                dlp = get_download_url_path(it, args)
+                if args['redirect_files']:
+                    pthd = f'{request.scheme}://{request.host}/{args["sid"]}/{dlp}'
                     return web.HTTPFound(pthd)
                 else:
-                    return web.FileResponse(it.dl)
+                    return web.FileResponse(dlp)
         return web.HTTPNotFound(body='Invalid playlist or playlist item')
     else:
         return web.HTTPNotAcceptable(body="Invalid userid or rowid")

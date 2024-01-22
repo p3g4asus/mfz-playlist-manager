@@ -43,16 +43,16 @@ class User(Fieldable, JSONAble):
         return dct
 
     @staticmethod
-    async def loadbyid(db: Connection, rowid: int = None, username: str = None, token: str = None, password: str = None, tg: str = None) -> list:
+    async def loadbyid(db: Connection, rowid: int = None, username: str = None, token: str = None, password: str = None, tg: str = None, item_id: int = None) -> list:
         pls = []
-        commontxt = '''
+        commontxt = f'''
             SELECT P.username AS username,
             P.password AS password,
             P.rowid AS rowid,
             P.token AS token,
             P.conf AS conf,
             P.tg AS tg
-            FROM user AS P
+            FROM user AS P{", playlist AS K, playlist_item AS Z" if item_id else ""}
             WHERE
         '''
         where = ''
@@ -69,6 +69,9 @@ class User(Fieldable, JSONAble):
         elif tg:
             where = ' P.tg=?'
             pars = (tg, )
+        elif isinstance(item_id, int):
+            where = ' K.user=P.rowid AND K.rowid=Z.playlist AND Z.rowid=?'
+            pars = (item_id, )
         else:
             return list()
         cursor = await db.execute(

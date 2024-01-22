@@ -26,7 +26,7 @@ from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
 from server.telegram_bot import start_telegram_bot, stop_telegram_bot
-from server.webhandlers import (download_2, img_link, index, login, login_g, logout,
+from server.webhandlers import (auth_for_item, download_2, img_link, index, login, login_g, logout,
                                 modify_pw, playlist_m3u_2, pls_h,
                                 redirect_till_last, register, remote_command,
                                 telegram_command, twitch_redir_do,
@@ -253,6 +253,7 @@ async def start_app(app):
     if app.p.args["static"] is not None:
         app.router.add_static('/static', app.p.args["static"], follow_symlinks=True)
     app.router.add_route('GET', '/', index)
+    app.router.add_route('GET', '/auth/{subp:(local|download)}/{rowid:[0-9]+}/{fil:.+}', auth_for_item)
     app.router.add_route('GET', '/rcmd/{hex:[a-fA-F0-9]+}', remote_command)
     app.router.add_route('GET', '/telegram/{hex:[a-fA-F0-9]+}', telegram_command)
     app.router.add_route('POST', '/login_g', login_g)
