@@ -275,9 +275,15 @@ class MessageProcessor(RefreshMessageProcessor):
                                                 if set[0] == '%':
                                                     current_url = video['url']
                                                     if set.find('twitch.tv') >= 0:
+                                                        if 'uploader' not in video:
+                                                            mo = re.search(r'twitch.tv/([^/]+)', set)
+                                                            if mo:
+                                                                video['uploader_id'] = video['uploader'] = mo.group(1)
                                                         if 'extractor' in video and video['extractor'] == 'twitch:stream':
                                                             current_url = video['url'] = set[1:]
                                                             video['id'] = video['uploader_id']
+                                                        elif video['id'][0] == 'v':
+                                                            video['id'] = video['id'][1:]
                                                         if 'timestamp' not in video:
                                                             mo = re.search(r'_([0-9]{7,})/+thumb', video["thumbnail"])
                                                             if mo:
@@ -293,15 +299,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             video = dict()
                                                             await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
                                                             video_priv = video
-
-                                                        elif 'uploader' not in video:
-                                                            mo = re.search(r'twitch.tv/([^/]+)/videos', set)
-                                                            if mo:
-                                                                video['uploader_id'] = video['uploader'] = mo.group(1)
                                                         if 'duration' not in video:
                                                             video['duration'] = 0
-                                                        if video['id'][0] == 'v':
-                                                            video['id'] = video['id'][1:]
                                                         if 'timestamp' in video:
                                                             datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
                                                         else:
