@@ -70,13 +70,15 @@ class MessageProcessor(RefreshMessageProcessor):
                     text = urlunparse(urlp)
                 else:
                     urlp = None
-                if text.find('twitch.tv') >= 0:
-                    plid = '%'
-                    if text.find('/videos') >= 0:
-                        url = text
-                    else:
-                        url = text + '/videos?filter=archives&sort=time'
-                    plid += url
+                if urlp.hostname.find('twitch.tv') >= 0 and (mo := re.search(r'^/([^/]+)/?$', urlp.path)):
+                    plinfo = dict(
+                        title=f'{mo.group(1)} Live',
+                        params=params,
+                        channel=mo.group(1),
+                        id='%' + text,
+                        description=f'{mo.group(1)} Live streams'
+                    )
+                    return msg.ok(playlistinfo=plinfo)
                 elif text.find('youtu') >= 0:
                     mo2 = re.search(r'v=([^&?/]+)', text)
                     if mo2:
@@ -273,6 +275,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                                 if set[0] == '%':
                                                     current_url = video['url']
                                                     if set.find('twitch.tv') >= 0:
+                                                        if 'extractor' in video and video['extractor'] == 'twitch:stream':
+                                                            current_url = video['url'] = set[1:]
+                                                            video['id'] = video['uploader_id']
                                                         if 'timestamp' not in video:
                                                             mo = re.search(r'_([0-9]{7,})/+thumb', video["thumbnail"])
                                                             if mo:
@@ -289,10 +294,12 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
                                                             video_priv = video
 
-                                                        else:
+                                                        elif 'uploader' not in video:
                                                             mo = re.search(r'twitch.tv/([^/]+)/videos', set)
                                                             if mo:
                                                                 video['uploader_id'] = video['uploader'] = mo.group(1)
+                                                        if 'duration' not in video:
+                                                            video['duration'] = 0
                                                         if video['id'][0] == 'v':
                                                             video['id'] = video['id'][1:]
                                                         if 'timestamp' in video:
