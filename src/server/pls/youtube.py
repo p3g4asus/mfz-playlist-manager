@@ -340,6 +340,13 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                     base = base['snippet']
                                                                     if 'publishedAt' in base and 'thumbnails' in base and 'duration' in cdt:
                                                                         datepubo = datepubo_conf = datetime.strptime(base['publishedAt'], "%Y-%m-%dT%H:%M:%S%z").astimezone(localtz)
+                                                                        if 'liveBroadcastContent' in base and base['liveBroadcastContent'] == 'upcoming':
+                                                                            try:
+                                                                                req = self.youtubeApiBuild().videos().list(part="liveStreamingDetails", id=video['id'])
+                                                                                resp2 = req.execute()
+                                                                                datepubo = datetime.strptime(resp2['items'][0]['liveStreamingDetails']['scheduledStartTime'], "%Y-%m-%dT%H:%M:%S%z").astimezone(localtz)
+                                                                            except Exception:
+                                                                                pass
                                                                         video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                                                         ths = ['maxres', 'standard', 'medium', 'default']
                                                                         video['duration'] = 0 if not cdt['duration'] else parse_isoduration(cdt['duration'])

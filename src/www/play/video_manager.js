@@ -132,7 +132,7 @@ function on_play_finished(event) {
     }
     else {
         if (dir == 10535 || dir == 10536) {
-            if (playlist_item_play_settings?.remove_end || dir == 10536) {
+            if ((playlist_item_play_settings?.remove_end && Date.parse(playlist_item_current.datepub) <= new Date()) || dir == 10536) {
                 let title = playlist_item_current.title;
                 let cel = playlist_item_current;
                 let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:cel.rowid, seen:1}, function(msg) {
