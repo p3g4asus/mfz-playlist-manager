@@ -81,7 +81,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     return msg.ok(playlistinfo=plinfo)
                 elif text.find('youtu') >= 0:
                     mo2 = re.search(r'v=([^&?/]+)', text)
-                    if (mo2 := re.search(r'v=([^&?/]+)', text)) or ((not urlp.path.startswith('/channel/')) and (mo2 := re.search(r'^/([^@][^/]+)', urlp.path))):
+                    if (mo2 := re.search(r'v=([^&?/]+)', text)) or (urlp.hostname.find('youtu.be') >= 0 and (mo2 := re.search(r'^/([^/]+)$', urlp.path))):
                         plid = "&" + mo2.group(1)
                         url = MessageProcessor.programsUrl(plid)
                     else:
