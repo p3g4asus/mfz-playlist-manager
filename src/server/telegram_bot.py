@@ -963,12 +963,9 @@ class PlaylistItemTMessage(NameDurationTMessage):
         if pl.rv == 0:
             cache_store(pl.playlist)
             plTg: PlaylistTg = cache_get(self.proc.user.rowid, pl.playlist.rowid)
-            itemTg = cache_get_item(self.proc.user.rowid, pl.playlist.rowid, self.id)
-            oldItemTg = psrc.del_item(self.id)
-            itemTg.message = oldItemTg.message
-            itemTg.message.pid = pl.playlist.rowid
-            if itemTg.message:
-                await itemTg.message.edit_or_select_if_exists()
+            cache_on_item_deleted(self.proc.user.rowid, self.id)
+            self.deleted = True
+            self.obj.seen = True
             if psrc.message:
                 await psrc.message.edit_or_select_items()
                 await psrc.message.edit_or_select_if_exists()

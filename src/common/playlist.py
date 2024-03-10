@@ -513,8 +513,11 @@ class PlaylistItem(JSONAble, Fieldable):
         return self.link and self.uid and self.playlist
 
     async def move_to(self, playlist, db):
+        if playlist != self.playlist:
+            await self.setSeen(db)
+            self.rowid = None
+            self.playlist = playlist
         self.seen = None
-        self.playlist = playlist
         self.iorder = None
         return await self.toDB(db)
 
