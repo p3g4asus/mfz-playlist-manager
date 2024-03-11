@@ -210,7 +210,7 @@ async def init_db(app):
     app.p.db2, app.p.processors2 = await _init_db(app, False)
 
 
-def init_auth(app):
+async def init_auth(app):
     app.p.redis = aioredis.from_url(app.p.args['redis'], encoding="utf-8", decode_responses=False)
     term = f'_{app.p.args["sid"]}'
     csid = COOKIE_SID + term
@@ -218,6 +218,7 @@ def init_auth(app):
     setup_session(app, storage)
 
     policy = SessionCookieIdentityPolicy(sid_key=csid, login_key=COOKIE_LOGIN + term, user_key=COOKIE_USERID + term)
+    await policy.clean_redis_sessions(app.p.redis, app.p.args['redis_lim'] if app.p.args['redis_lim'] >= 0.1 else 7 * 24 * 2)
     setup_security(app, policy, DictAuthorizationPolicy())
 
 
@@ -246,7 +247,7 @@ async def do_auto_refresh(app):
 async def start_app(app):
     cors = aiohttp_cors.setup(app)
     _LOGGER.info("Setting up")
-    init_auth(app)
+    await init_auth(app)
     runner = web.AppRunner(app)
     app.p.myrunners.append(runner)
     app.p.executor = Executor(loop=app.p.loop, nthreads=app.p.args["executors"])
@@ -331,6 +332,7 @@ def main():
     os.environ['SSL_CERT_FILE'] = certifi.where()
     parser = argparse.ArgumentParser(prog=__prog__)
     parser.add_argument('--port', type=int, help='port number', required=False, default=8080)
+    parser.add_argument('--redis-lim', type=float, help='Redis session duration (hours)', required=False, default=7 * 24 * 2)
     parser.add_argument('--autoupdate', type=int, help='autoupdate time', required=False, default=25)
     parser.add_argument('--client-id', help='Google client id', required=False, default='')
     parser.add_argument('--executors', type=int, help='executor number', required=False, default=2)

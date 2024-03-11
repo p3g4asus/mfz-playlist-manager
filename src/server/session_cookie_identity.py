@@ -5,6 +5,7 @@ to configure aiohttp_session properly.
 """
 from aiohttp_session import get_session, SESSION_KEY
 from aiohttp_security.abc import AbstractIdentityPolicy
+from datetime import datetime, timedelta
 import json
 import logging
 from uuid import uuid4
@@ -22,6 +23,32 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
         self._login_key = login_key
         self._user_key = user_key
         self._max_age = max_age
+
+    async def clean_redis_sessions(self, redis, hours):
+        keys = await redis.keys()
+        for key in keys:
+            value = await redis.get(key)
+            s = str(value, encoding='utf-8')
+            dateo = None
+            try:
+                js = json.loads(s)
+                if 'session' not in js or self._login_key not in js['session']:
+                    pass
+                else:
+                    js2 = json.loads(js['session'][self._login_key])
+                    if 'pl' in js2:
+                        if 'la' not in js2:
+                            js2['la'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            js['session'][self._login_key] = json.dumps(js2)
+                            await redis.set(key, json.dumps(js).encode('utf-8'))
+                        dateo = datetime.strptime(js2['la'], '%Y-%m-%d %H:%M:%S')
+            except Exception:
+                pass
+            if not dateo or dateo + timedelta(hours=hours) < datetime.now():
+                _LOGGER.debug(f'[redis - DEL {key}] - {s}')
+                await redis.delete(key)
+            else:
+                pass
 
     async def identify(self, request):
         request[self._sid_key] = None
@@ -88,6 +115,7 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
         if 'pl' not in login:
             login['pl'] = login['token'] if 'token' in login else hextoken
         login['token'] = hextoken
+        login['la'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if not session.identity and session.new:
             session.set_new_identity(login.get('sid'))
         logins = json.dumps(login)
