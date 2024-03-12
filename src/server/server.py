@@ -218,6 +218,7 @@ async def init_auth(app):
     setup_session(app, storage)
 
     policy = SessionCookieIdentityPolicy(sid_key=csid, login_key=COOKIE_LOGIN + term, user_key=COOKIE_USERID + term, max_age=app.p.args['redis_lim'] * 3600)
+    await policy.clean_redis_sessions(app.p.redis, app.p.args['redis_lim'] if app.p.args['redis_lim'] >= 0.1 else 7 * 24 * 2)
     setup_security(app, policy, DictAuthorizationPolicy())
 
 
