@@ -82,7 +82,7 @@ async def auth_for_item(request):
 
 
 async def index(request, item_id: int = None):
-    auid, hextoken, _ = await authorized_userid(request)
+    auid, _, _ = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
     else:
@@ -103,8 +103,7 @@ async def index(request, item_id: int = None):
                 text=template,
                 content_type='text/html',
             )
-            if not hextoken:
-                await remember(request, resp, INVALID_SID)
+            await remember(request, resp, INVALID_SID)
             return resp
         else:
             resp = web.Response(

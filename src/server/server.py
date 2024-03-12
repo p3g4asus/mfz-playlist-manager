@@ -214,11 +214,10 @@ async def init_auth(app):
     app.p.redis = aioredis.from_url(app.p.args['redis'], encoding="utf-8", decode_responses=False)
     term = f'_{app.p.args["sid"]}'
     csid = COOKIE_SID + term
-    storage = RedisKeyStorage(cookie_name=csid, httponly=True, redis_pool=app.p.redis)
+    storage = RedisKeyStorage(cookie_name=csid, httponly=True, redis_pool=app.p.redis, max_age=app.p.args['redis_lim'] * 3600)
     setup_session(app, storage)
 
-    policy = SessionCookieIdentityPolicy(sid_key=csid, login_key=COOKIE_LOGIN + term, user_key=COOKIE_USERID + term)
-    await policy.clean_redis_sessions(app.p.redis, app.p.args['redis_lim'] if app.p.args['redis_lim'] >= 0.1 else 7 * 24 * 2)
+    policy = SessionCookieIdentityPolicy(sid_key=csid, login_key=COOKIE_LOGIN + term, user_key=COOKIE_USERID + term, max_age=app.p.args['redis_lim'] * 3600)
     setup_security(app, policy, DictAuthorizationPolicy())
 
 
