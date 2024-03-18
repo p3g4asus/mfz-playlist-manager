@@ -1124,9 +1124,8 @@ class PlaylistItemTMessage(NameDurationTMessage):
             pl = PlaylistMessage(CMD_FREESPACE, playlistitem=self.id)
             pl = await self.proc.process(pl)
             if pl.rv == 0:
-                self.obj = pl.playlistitem
-                itemTg = cache_get_item(self.proc.user.rowid, self.obj.playlist, self.id)
-                itemTg.refresh(pl.playlistitem, itemTg.index)
+                self.obj.dl = None
+                self.obj.conf = pl.playlistitem.conf
                 self.return_msg = f'Free Space OK (deleted files: {pl.deleted}):thumbs_up:'
             else:
                 self.return_msg = f'Error {pl.rv} freeing space of {self.name} :thumbs_down:'
