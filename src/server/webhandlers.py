@@ -12,7 +12,7 @@ from uuid import uuid4
 
 import yt_dlp as youtube_dl
 from aiosqlite import Connection
-from aiohttp import ClientSession, WSMsgType, streamer, web
+from aiohttp import ClientSession, WSMsgType, streamer, web, hdrs
 from aiohttp.web_response import Response
 from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
@@ -28,6 +28,7 @@ from common.playlist import LOAD_ITEMS_NO, Playlist, PlaylistItem, PlaylistMessa
 from common.timer import Timer
 from common.user import User
 from common.utils import MyEncoder, get_json_encoder
+from multidict import CIMultiDict
 from server.dict_auth_policy import check_credentials, identity2username
 from server.twitch_vod_id import vod_get_id
 
@@ -269,6 +270,30 @@ async def youtube_dl_do(request):
         if '_err' not in playlist_dict:
             return web.json_response(playlist_dict)
     _LOGGER.debug("url = %s answ is %s" % (current_url, str(playlist_dict)))
+    return web.HTTPBadRequest(body='Link not found in URL')
+
+
+async def post_proxy(request):
+    rq = request.query
+    if 'link' in rq:
+        link = rq['link']
+    elif 't' in rq and 'a' in rq and 'p' in rq:
+        # https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid={pid}&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F{aid}&schema=1.0&token={token}
+        link = f'https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid={rq["p"]}&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F{rq["a"]}&schema=1.0&token={rq["t"]}'
+    else:
+        link = None
+    if link:
+        body = await request.read()
+        _LOGGER.debug('[proxy] url = ' + link + ' req headers = ' + str(request.headers) + " dt = " + str(body))
+        async with ClientSession(headers=request.headers) as session:
+            resp = await session.post(link, data=body)
+            body = await resp.read()
+            rh = CIMultiDict(resp.headers)
+            del rh[hdrs.ACCESS_CONTROL_ALLOW_ORIGIN]
+            del rh[hdrs.ACCESS_CONTROL_ALLOW_CREDENTIALS]
+            del rh[hdrs.ACCESS_CONTROL_EXPOSE_HEADERS]
+            _LOGGER.debug('[proxy] resp headers = ' + str(rh) + " dt = " + str(body) + " sta = " + str(resp.status))
+            return Response(body=body, status=resp.status, headers=rh)
     return web.HTTPBadRequest(body='Link not found in URL')
 
 

@@ -54,16 +54,31 @@ class DashPlayer {
         this.player.reset();
     }
 
-    play_video(url) {
+    play_video(url, conf) {
         if (this.first_load) {
             this.player.on(dashjs.MediaPlayer.events['CAN_PLAY'], this.onPlayerStateChange.bind(this));
-            this.player.initialize(document.querySelector('video'), url, true);
+            this.player.initialize();
+            this.player.setAutoPlay(true);
+            this.player.attachView(document.querySelector('video'));
             this.first_load = false;
         }
-        else {
-            this.player.attachSource(url);
-            this.player.play();
+        let protData = null;
+        if (conf._drm_m) {
+            let p = conf._drm_p;
+            let a = conf._drm_a;
+            let t = conf._drm_t;
+            url = conf._drm_m;
+            const lurl = location.origin + MAIN_PATH + 'proxy?p=' + encodeURIComponent(p) + '&a=' + encodeURIComponent(a) + '&t=' + encodeURIComponent(t);
+            console.log(lurl + ' ' +lurl.length);
+            protData = {
+                'com.widevine.alpha': {
+                    'serverURL': lurl
+                }
+            };
         }
+        this.player.setProtectionData(protData);
+        this.player.attachSource(url);
+        this.player.play();
     }
 
     togglePause() {

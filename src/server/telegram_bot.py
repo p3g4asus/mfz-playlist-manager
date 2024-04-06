@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import re
-from time import time
 import traceback
 from abc import abstractmethod
 from datetime import datetime, timedelta
@@ -9,8 +8,10 @@ from enum import Enum, auto
 from html import escape
 from os import stat
 from os.path import exists, isfile, split
+from time import time
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union
-from urllib.parse import urlencode, urlparse, urlunparse, unquote, parse_qs, ParseResult
+from urllib.parse import (ParseResult, parse_qs, unquote, urlencode, urlparse,
+                          urlunparse)
 
 import validators
 from aiohttp import ClientSession
@@ -20,9 +21,18 @@ from telegram_menu import (BaseMessage, ButtonType, NavigationHandler,
                            TelegramMenuSession)
 from telegram_menu.models import MenuButton, emoji_replace
 
-from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP, CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER, CMD_MEDIASET_BRANDS, CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS,
-                          CMD_REFRESH, CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SEC, CMD_REN, CMD_SEEN, CMD_SORT, CMD_TOKEN, CMD_YT_PLAYLISTCHECK)
-from common.playlist import (Playlist, PlaylistItem, PlaylistMessage)
+from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
+                          CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER,
+                          CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
+                          CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_RAI_CONTENTSET,
+                          CMD_RAI_LISTINGS, CMD_REFRESH, CMD_REMOTEPLAY_JS,
+                          CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW,
+                          CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_NEXT,
+                          CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV,
+                          CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SEC,
+                          CMD_REN, CMD_SEEN, CMD_SORT, CMD_TOKEN,
+                          CMD_YT_PLAYLISTCHECK)
+from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
 
 _LOGGER = logging.getLogger(__name__)
@@ -888,6 +898,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.obj = obj.item
             obj.message = self
             p = cache_get(self.proc.user.rowid, self.pid)
+            self.type = p.playlist.type
             self.playlist_name = p.playlist.name
             self.index = obj.index
             self.name = self.obj.title
@@ -909,6 +920,34 @@ class PlaylistItemTMessage(NameDurationTMessage):
             if re.match(r'^[0-9]+$', text):
                 await self.set_iorder_do(int(text))
                 await self.switch_to_idle()
+        elif self.status == NameDurationStatus.UPDATING_WAITING:
+            text = text.strip()
+            if text == '/autodetect':
+                text = '0'
+            if len(text) == 1 or re.match(r'^https://link\.theplatform\.eu', text) and text.find('format=SMIL'):
+                await self.get_keys(text)
+
+    async def get_keys(self, smil):
+        self.status = NameDurationStatus.UPDATING_RUNNING
+        self.sub_status = 10
+        self.scheduler_job = self.navigation.scheduler.add_job(
+            self.long_operation_do,
+            "interval",
+            id=f"long_operation_do{self.label}",
+            seconds=3,
+            replace_existing=True,
+            next_run_time=datetime.utcnow()
+        )
+        pl = PlaylistMessage(CMD_MEDIASET_KEYS,
+                             playlistitem=self.id,
+                             smil=smil)
+        pl = await self.proc.process(pl)
+        if pl.rv == 0:
+            self.obj.conf = pl.playlistitem.conf
+            self.return_msg = 'Key get OK :thumbs_up:'
+        else:
+            self.return_msg = f'Error {pl.rv} getting keys :thumbs_down:'
+        await self.switch_to_idle()
 
     async def stop_download(self, args, _):
         myid = args[0]
@@ -1015,8 +1054,15 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 self.add_button(u'\U00002211', self.switch_to_status, args=(NameDurationStatus.SORTING, ))
                 self.add_button(u'\U0001F517', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, ))
                 self.add_button(u'\U0001F4EE', self.switch_to_status, args=(NameDurationStatus.MOVING, ))
+                if self.type == "mediaset":
+                    self.add_button(u'\U0001F511', self.switch_to_status, args=(NameDurationStatus.UPDATING_WAITING, ))
                 if self.obj.takes_space():
                     self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
+            elif self.status == NameDurationStatus.UPDATING_WAITING:
+                self.add_button(':cross_mark: Abort', self.switch_to_idle)
+                return 'Enter network filter ' + ("<a href=\"" + self.obj.conf["pageurl"] + "\">here</a> " if "pageurl" in self.obj.conf else "") + '<u>SMIL</u> or /autodetect'
+            elif self.status == NameDurationStatus.UPDATING_RUNNING:
+                return f'Getting keys {"." * (self.sub_status & 0xFF)}'
             elif self.status == NameDurationStatus.MOVING:
                 self.input_field = u'\U0001F449'
                 pps: List[PlaylistTg] = cache_get(self.proc.user.rowid)
@@ -1046,6 +1092,8 @@ class PlaylistItemTMessage(NameDurationTMessage):
                     if 'dl' in status and 'raw' in status['dl']:
                         dl = status['dl']['raw']
                         upd2 = ''
+                        if 'status' in dl:
+                            upd2 += dl['status'] + '\n'
                         fi = self.dictget(dl, 'fragment_index', self.dictget(dl, 'downloaded_bytes'))
                         fc = self.dictget(dl, 'fragment_count', self.dictget(dl, 'total_bytes', self.dictget(dl, 'total_bytes_estimate')))
                         if isinstance(fi, (int, float)) and isinstance(fc, (int, float)):
@@ -1091,6 +1139,10 @@ class PlaylistItemTMessage(NameDurationTMessage):
             upd += f'\n<a href="{lnk}{par}">\U0001F7E3 TWI</a>'
         if 'pageurl' in self.obj.conf:
             upd += f'\n<a href="{self.obj.conf["pageurl"]}">\U0001F4C3 Main</a>'
+        if '_drm_m' in self.obj.conf and self.obj.conf['_drm_m']:
+            upd += u'\n\U0001F511'
+            if '_drm_k' in self.obj.conf and self.obj.conf['_drm_k']:
+                upd += u'\U0001F511'
         if not self.obj.dl and self.obj.conf and isinstance(self.obj.conf, dict) and 'todel' in self.obj.conf and self.obj.conf['todel']:
             self.obj.dl = self.obj.conf['todel'][0]
         if isinstance(self.obj.conf, dict) and 'sec' in self.obj.conf:

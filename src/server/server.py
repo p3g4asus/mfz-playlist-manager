@@ -27,7 +27,7 @@ from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
 from server.telegram_bot import start_telegram_bot, stop_telegram_bot
 from server.webhandlers import (auth_for_item, download_2, img_link, index, login, login_g, logout,
-                                modify_pw, playlist_m3u_2, pls_h,
+                                modify_pw, playlist_m3u_2, pls_h, post_proxy,
                                 redirect_till_last, register, remote_command,
                                 telegram_command, twitch_redir_do,
                                 youtube_dl_do, youtube_redir_do)
@@ -270,6 +270,10 @@ async def start_app(app):
     resource = cors.add(app.router.add_resource("/red"))
     cors.add(resource.add_route('GET', redirect_till_last), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
+    })
+    resource = cors.add(app.router.add_resource("/proxy"))
+    cors.add(resource.add_route('POST', post_proxy), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=True, expose_headers="*", allow_headers="*")
     })
     resource = cors.add(app.router.add_resource("/ytdl"))
     cors.add(resource.add_route('GET', youtube_dl_do), {

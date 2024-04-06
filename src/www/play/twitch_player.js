@@ -55,6 +55,7 @@ class TwitchPlayer {
     3 (buffering)
     5 (video cued).*/
     onPlayerStateChange(event) {
+        console.log('[twitch] state changed to ' + event.type);
         if (this.is_orig_channel) {
             clearTimeout(this.next_channel_timer);
             this.is_orig_channel = false;
@@ -97,7 +98,10 @@ class TwitchPlayer {
                 this.player.setVideo(null,5);
                 this.player.setChannel(vid);
             }
-            this.player.play();
+            setTimeout((() => {
+                this.player.play();
+                console.log('[twitch] play called for ' + vid);
+            }).bind(this), 700);
         }
     }
 

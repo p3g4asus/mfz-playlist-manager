@@ -173,7 +173,7 @@ function on_play_finished(event) {
     else if (vid.length && video_manager_obj.play_video_id)
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)
-        video_manager_obj.play_video(MAIN_PATH + 'red?link=' + encodeURIComponent(lnk), playlist_item_play_settings?.mime);
+        video_manager_obj.play_video(MAIN_PATH + 'red?link=' + encodeURIComponent(lnk), Object.assign({}, playlist_item_current.conf, {mime: playlist_item_play_settings?.mime}));
     save_playlist_settings(vid);
 }
 
