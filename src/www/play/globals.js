@@ -7,6 +7,7 @@ const VIDEO_STATUS_PLAYING = 1;
 const VIDEO_STATUS_PAUSED = 2;
 const VIDEO_STATUS_BUFFERING = 3;
 const VIDEO_STATUS_CUED = 5;
+const VIDEO_STATUS_CANNOT_PLAY = 6;
 const workout_file = 'workout.htm';
 const lastconf_key = 'lastconf';
 const TWITCH_CLIENT_ID = '318czv1wdow8qwvx5offlit5ul8klg';

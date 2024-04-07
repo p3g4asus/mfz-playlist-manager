@@ -172,6 +172,12 @@ class MessageProcessor(RefreshMessageProcessor):
                     it.conf['_drm_a'] = aid
                     it.conf['_drm_t'] = token
                     it.conf['_drm_m'] = mpd
+                    drmi = it.conf['_drm_i'] = f'b{it.conf["brand"]}s{it.conf["subbrand"]}'
+                    plc = pls[0].conf
+                    if '_drm_i' not in plc or drmi not in plc['_drm_i']:
+                        plc['_drm_i'] = plc.get('_drm_i', [])
+                        plc['_drm_i'].append(drmi)
+                        await pls[0].toDB(self.db, commit=False)
                     try:
                         headers_clone = {
                             'Connection': 'keep-alive',

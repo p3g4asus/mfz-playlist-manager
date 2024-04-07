@@ -39,6 +39,7 @@ const CMD_RAI_CONTENTSET = 'rai.contentset';
 const CMD_YT_PLAYLISTCHECK = 'youtube.playlistcheck';
 const CMD_MEDIASET_BRANDS = 'mediaset.brands';
 const CMD_MEDIASET_LISTINGS = 'mediaset.listings';
+const CMD_MEDIASET_KEYS = 'mediaset.keys';
 const CMD_RAI_LISTINGS = 'rai.listings';
 const CMD_FOLDER_LIST = 'localfolder.folderlist';
 const PL_ADD_VIEW_TYPE_CLASS = 'pl-add-view-type-class';

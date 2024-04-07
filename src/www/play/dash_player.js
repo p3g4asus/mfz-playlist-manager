@@ -10,9 +10,12 @@ class DashPlayer {
         this.player.on(dashjs.MediaPlayer.events['PLAYBACK_PAUSED'], this.onPlayerStateChange.bind(this));
         this.player.on(dashjs.MediaPlayer.events['PLAYBACK_ENDED'], this.onPlayerStateChange.bind(this));
         this.player.on(dashjs.MediaPlayer.events['PLAYBACK_WAITING'], this.onPlayerStateChange.bind(this));
+        this.player.on(dashjs.MediaPlayer.events['CAN_PLAY'], this.onPlayerStateChange.bind(this));
         this.on_play_finished = null;
         this.on_state_changed = null;
+        this.play_done = 0;
         this.first_load = true;
+        this.can_play_timer = null;
         this.state = VIDEO_STATUS_UNSTARTED;
         $('#player').append($vid);
         on_player_load('dash', this);
@@ -26,8 +29,11 @@ class DashPlayer {
     3 (buffering)
     5 (video cued).*/
     onPlayerStateChange(event) {
+        console.log('[dash] event now ' + event.type);
         if (event.type == 'canPlay') {
-            this.player.off(dashjs.MediaPlayer.events['CAN_PLAY'], this.onPlayerStateChange.bind(this));
+            this.play_done = 3;
+            clearTimeout(this.can_play_timer);
+            this.can_play_timer = null;
             this.player.play();
         }
         else {
@@ -41,10 +47,20 @@ class DashPlayer {
                     this.state = VIDEO_STATUS_PAUSED;
                 else if (event.type == 'playbackError')
                     this.state = VIDEO_STATUS_BUFFERING;
-                else if (event.type == 'playbackWaiting')
+                else if (event.type == 'playbackWaiting') {
                     this.state = VIDEO_STATUS_BUFFERING;
-                else if (event.type == 'playbackPlaying')
+                    if (this.on_state_changed && this.play_done == 1) {
+                        this.play_done = 2;
+                        this.can_play_timer = setTimeout((() => {
+                            this.can_play_timer = null;
+                            if (this.play_done == 2)
+                                this.on_state_changed(this, this.state = VIDEO_STATUS_CANNOT_PLAY);
+                        }).bind(this), 3000);
+                    }
+                } else if (event.type == 'playbackPlaying') {
                     this.state = VIDEO_STATUS_PLAYING;
+                    this.play_done = 4;
+                }
                 this.on_state_changed(this, this.state);
             }
         }
@@ -54,15 +70,19 @@ class DashPlayer {
         this.player.reset();
     }
 
+    // al play di un video si va dal waiting al canplay al playing se va tutto bene. Altrimenti ci si ferma al waiting
     play_video(url, conf) {
+        this.play_done = 1;
         if (this.first_load) {
-            this.player.on(dashjs.MediaPlayer.events['CAN_PLAY'], this.onPlayerStateChange.bind(this));
             this.player.initialize();
             this.player.setAutoPlay(true);
             this.player.attachView(document.querySelector('video'));
             this.first_load = false;
         }
         let protData = null;
+        if (this.can_play_timer !== null) {
+            clearTimeout(this.can_play_timer);
+        }
         if (conf._drm_m) {
             let p = conf._drm_p;
             let a = conf._drm_a;
@@ -78,6 +98,7 @@ class DashPlayer {
         }
         this.player.setProtectionData(protData);
         this.player.attachSource(url);
+        console.log('[dash] play for url ' + url);
         this.player.play();
     }
 

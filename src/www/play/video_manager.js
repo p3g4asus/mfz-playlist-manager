@@ -112,6 +112,19 @@ function is_item_downloaded(it) {
     return it?.dl?.length && (idx = it.dl.lastIndexOf('/')) >= 0 && idx < it.dl.length - 1;
 }
 
+function playlist_play_current_video() {
+    const vid = playlist_item_current.uid;
+    const lnk = playlist_item_current.link;
+    if (is_item_downloaded(playlist_item_current) || playlist_current.type == 'localfolder')
+        video_manager_obj.play_video(MAIN_PATH + 'dl/' + playlist_item_current.rowid);
+    /* else if (playlist_item_current.link.charAt(0) == '@')
+        video_manager_obj.play_video(MAIN_PATH_S + playlist_item_current.link.substring(1));*/
+    else if (vid.length && video_manager_obj.play_video_id)
+        video_manager_obj.play_video_id(vid);
+    else if (lnk.length && video_manager_obj.play_video)
+        video_manager_obj.play_video(MAIN_PATH + 'red?link=' + encodeURIComponent(lnk), Object.assign({}, playlist_item_current.conf, {mime: playlist_item_play_settings?.mime}));
+}
+
 
 function on_play_finished(event) {
     let dir = event && typeof(event.dir) !== 'undefined'? event.dir:10535;
@@ -166,21 +179,45 @@ function on_play_finished(event) {
     let video_info =  print_duration(index);
     send_video_info_for_remote_play('vinfo', video_info);
     send_video_info_for_remote_play('pinfo', {sec: 0});
-    if (is_item_downloaded(playlist_item_current) || playlist_current.type == 'localfolder')
-        video_manager_obj.play_video(MAIN_PATH + 'dl/' + playlist_item_current.rowid);
-    /* else if (playlist_item_current.link.charAt(0) == '@')
-        video_manager_obj.play_video(MAIN_PATH_S + playlist_item_current.link.substring(1));*/
-    else if (vid.length && video_manager_obj.play_video_id)
-        video_manager_obj.play_video_id(vid);
-    else if (lnk.length && video_manager_obj.play_video)
-        video_manager_obj.play_video(MAIN_PATH + 'red?link=' + encodeURIComponent(lnk), Object.assign({}, playlist_item_current.conf, {mime: playlist_item_play_settings?.mime}));
+    playlist_play_current_video();
     save_playlist_settings(vid);
+}
+
+function get_item_playlist_identity(pl, it)  {
+    const tp = pl.type;
+    if (tp == 'mediaset') {
+        return 'b' + it.conf.brand + 's' + it.conf.subbrand;
+    } else if (tp == 'rai') {
+        return 'b' + it.conf.progid + 's' + it.conf.set;
+    } else if (tp == 'youtube') {
+        return it.conf.playlist;
+    } else if (tp == 'local') {
+        return it.link;
+    } else return '';
 }
 
 function on_player_state_changed(player, event) {
     console.log('Player state changed: new ' + event);
     if (event == VIDEO_STATUS_UNSTARTED || event == VIDEO_STATUS_PAUSED || event === VIDEO_STATUS_CUED)
         set_pause_button_enabled(true, '<i class="fas fa-play"></i>&nbsp;&nbsp;Play', true);
+    else if (event == VIDEO_STATUS_CANNOT_PLAY) {
+        set_pause_button_enabled(true, '<i class="fas fa-play"></i>&nbsp;&nbsp;Play', true);
+        if (playlist_current.conf?._drm_i.indexOf(get_item_playlist_identity(playlist_current, playlist_item_current)) >= 0) {
+            if (playlist_current.type == 'mediaset') {
+                let qel = new MainWSQueueElement({cmd: CMD_MEDIASET_KEYS, playlistitem:playlist_item_current.rowid, smil:'0'}, function(msg) {
+                    if (msg.cmd == CMD_PING)
+                        return 0;
+                    return msg.cmd === CMD_MEDIASET_KEYS? msg:null;
+                }, 40000, 1, 'keys');
+                qel.enqueue().then(function(msg) {
+                    if (!manage_errors(msg)) {
+                        playlist_item_current.conf = msg.playlistitem.conf;
+                        playlist_play_current_video();
+                    }
+                });
+            }
+        }
+    }
     else if (event == VIDEO_STATUS_PLAYING) {
         set_pause_button_enabled(true, '<i class="fas fa-pause"></i>&nbsp;&nbsp;Pause');
         if (playlist_item_current_oldrowid !== playlist_item_current.rowid) {
