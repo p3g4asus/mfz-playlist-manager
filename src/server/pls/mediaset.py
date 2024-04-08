@@ -84,15 +84,18 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
                 login_log |= ($el.length?16:0);
                 $el.click();
                 callback(login_log);
-            }, 10000);
-        }, 10000);
+            }, %d);
+        }, %d);
     } else callback(0);
 } else callback(0);
 """
 
-    def __init__(self, db, user='', password='', **kwargs):
+    def __init__(self, db, user='', password='', d1=4, d2=4, d3=65, **kwargs):
         self.user = user
         self.password = password
+        self.d1 = d1
+        self.d2 = d2
+        self.d3 = d3
         super().__init__(db, **kwargs)
 
     @staticmethod
@@ -179,7 +182,7 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
                 if tstart < 0:
                     break
                 else:
-                    if time.time() - tstart > 65:
+                    if time.time() - tstart > self.d3:
                         resp['err'] = 32
                         break
                     else:
@@ -187,7 +190,7 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
                             driver.execute_async_script(self.INOCULATE_SCR)
                             scriptload = True
                             waitdone = 1
-                        if waitdone >= 0 and (rv := driver.execute_async_script(self.INOCULATE_SCR2 % (self.user, self.password))):
+                        if waitdone >= 0 and (rv := driver.execute_async_script(self.INOCULATE_SCR2 % (self.user, self.password, int(self.d2 * 1000), int(self.d1 * 1000)))):
                             tstart = time.time()
                             _LOGGER.info('[mediaset] SMIL need login: inserted -> ' + str(rv))
                             waitdone = -1
