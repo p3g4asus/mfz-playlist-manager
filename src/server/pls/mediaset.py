@@ -65,18 +65,29 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
     console.log('login needed = ' + login_needed);
     if (login_needed) {
         login_needed = 5000;
-        jQuery('div:contains("Login/R")').click();
+        let login_log = 1;
+        let $el = jQuery('div:contains("Login/R")');
+        login_log |= ($el.length?2:0);
+        $el.click();
         setTimeout(function() {
-            jQuery('input[value*="Accedi con email"').click();
+            $el = jQuery('input[value*="Accedi con email"');
+            login_log |= ($el.length?32:0);
+            $el.click();
             setTimeout(function() {
-                jQuery('input[name=username]').val('%s');
-                jQuery('input[name=password]').val('%s');
-                jQuery('input[value=Continua]').click();
-                callback(1);
-            }, 1500);
-        }, 3000);
-    } else callback();
-} else callback();
+                $el = jQuery('input[name=username]');
+                login_log |= ($el.length?4:0);
+                $el.val('%s');
+                $el = jQuery('input[name=password]');
+                login_log |= ($el.length?8:0);
+                $el.val('%s');
+                $el = jQuery('input[value=Continua]');
+                login_log |= ($el.length?16:0);
+                $el.click();
+                callback(login_log);
+            }, 10000);
+        }, 10000);
+    } else callback(0);
+} else callback(0);
 """
 
     def __init__(self, db, user='', password='', **kwargs):
@@ -176,9 +187,9 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
                             driver.execute_async_script(self.INOCULATE_SCR)
                             scriptload = True
                             waitdone = 1
-                        if waitdone >= 0 and driver.execute_async_script(self.INOCULATE_SCR2 % (self.user, self.password)) == 1:
+                        if waitdone >= 0 and (rv := driver.execute_async_script(self.INOCULATE_SCR2 % (self.user, self.password))):
                             tstart = time.time()
-                            _LOGGER.info('[mediaset] SMIL need login: inserted')
+                            _LOGGER.info('[mediaset] SMIL need login: inserted -> ' + str(rv))
                             waitdone = -1
                         if waitdone <= 0:
                             time.sleep(3)
