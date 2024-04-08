@@ -21,6 +21,69 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class MessageProcessor(RefreshMessageProcessor):
+    INOCULATE_SCR = """
+function dyn_module_load(link, onload, type) {
+    let tag;
+    if (type == 'css') {
+        tag = document.createElement('link');
+        tag.setAttribute('rel', 'stylesheet');
+        tag.setAttribute('type', 'text/css');
+        tag.setAttribute('href', link);
+    }
+    else {
+        tag = document.createElement('script');
+        tag.type = 'text/javascript';
+        if (link.startsWith('//'))
+            tag.text = link.substring(2);
+        else
+            tag.src = link;
+    }
+    if (onload) {
+        tag.addEventListener('load', function(event) {
+            console.log('script loaded ' + link);
+            onload();
+        });
+    }
+    let firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+}
+dyn_module_load('//var login_needed = 0;');
+var callback = arguments[arguments.length - 1];
+dyn_module_load('https://code.jquery.com/jquery-3.7.1.slim.min.js', function() {
+    $.noConflict();
+    setTimeout(function() {
+        callback(1);
+    }, 3000);
+});
+"""
+
+    INOCULATE_SCR2 = """
+var callback = arguments[arguments.length - 1];
+if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
+    let spanacc = jQuery('span:contains("accesso")');
+    login_needed = spanacc.length;
+    console.log('login needed = ' + login_needed);
+    if (login_needed) {
+        login_needed = 5000;
+        jQuery('div:contains("Login/R")').click();
+        setTimeout(function() {
+            jQuery('input[value*="Accedi con email"').click();
+            setTimeout(function() {
+                jQuery('input[name=username]').val('%s');
+                jQuery('input[name=password]').val('%s');
+                jQuery('input[value=Continua]').click();
+                callback(1);
+            }, 1500);
+        }, 3000);
+    } else callback();
+} else callback();
+"""
+
+    def __init__(self, db, user='', password='', **kwargs):
+        self.user = user
+        self.password = password
+        super().__init__(db, **kwargs)
+
     @staticmethod
     def programsUrl(brand, subbrand, startFrom):
         return ('https://feed.entertainment.tv.theplatform.eu/'
@@ -91,6 +154,8 @@ class MessageProcessor(RefreshMessageProcessor):
             except Exception:
                 resp['sta'] = 'w1-0'
             tstart = time.time()
+            scriptload = False
+            waitdone = 0
             while True:
                 logs_raw = driver.get_log("performance")
                 logs = [json.loads(lr["message"])["message"] for lr in logs_raw]
@@ -107,7 +172,17 @@ class MessageProcessor(RefreshMessageProcessor):
                         resp['err'] = 32
                         break
                     else:
-                        time.sleep(3)
+                        if not scriptload:
+                            driver.execute_async_script(self.INOCULATE_SCR)
+                            scriptload = True
+                            waitdone = 1
+                        if waitdone >= 0 and driver.execute_async_script(self.INOCULATE_SCR2 % (self.user, self.password)) == 1:
+                            tstart = time.time()
+                            waitdone = -1
+                        if waitdone <= 0:
+                            time.sleep(3)
+                        else:
+                            waitdone = 0
         except ImportError:
             resp['err'] = 31
 

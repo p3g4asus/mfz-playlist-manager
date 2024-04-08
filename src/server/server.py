@@ -348,6 +348,8 @@ def main():
     parser.add_argument('--telegram', required=False, default='')
     parser.add_argument('--redirect-files', required=False, default=False, action="store_true")
     parser.add_argument('--common-dldir', required=False, default='')
+    parser.add_argument('--mediaset-user', required=False, default='')
+    parser.add_argument('--mediaset-password', required=False, default='')
     parser.add_argument('--youtube-apikey', required=False, default="")
     parser.add_argument('--localfolder-basedir', required=False, default=None)
     parser.add_argument('--host', required=False, default="0.0.0.0")
