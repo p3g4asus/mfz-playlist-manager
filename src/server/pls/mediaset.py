@@ -178,6 +178,7 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
                             waitdone = 1
                         if waitdone >= 0 and driver.execute_async_script(self.INOCULATE_SCR2 % (self.user, self.password)) == 1:
                             tstart = time.time()
+                            _LOGGER.info('[mediaset] SMIL need login: inserted')
                             waitdone = -1
                         if waitdone <= 0:
                             time.sleep(3)
