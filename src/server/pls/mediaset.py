@@ -1,3 +1,4 @@
+from asyncio import get_event_loop, run_coroutine_threadsafe
 import json
 import logging
 import re
@@ -14,6 +15,7 @@ from common.const import (CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
                           MSG_PLAYLISTITEM_NOT_FOUND, MSG_UNAUTHORIZED,
                           RV_NO_VIDEOS)
 from common.playlist import LOAD_ITEMS_NO, Playlist, PlaylistItem
+from common.user import User
 
 from .refreshmessageprocessor import RefreshMessageProcessor
 
@@ -65,34 +67,40 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
     console.log('login needed = ' + login_needed);
     if (login_needed) {
         login_needed = 5000;
-        let login_log = 1;
-        let $el = jQuery('div:contains("Login/R")');
-        login_log |= ($el.length?2:0);
-        $el.click();
-        setTimeout(function() {
-            $el = jQuery('input[value*="Accedi con email"');
-            login_log |= ($el.length?32:0);
-            $el.click();
-            setTimeout(function() {
-                $el = jQuery('input[name=username]');
-                login_log |= ($el.length?4:0);
-                $el.val('%s');
-                $el = jQuery('input[name=password]');
-                login_log |= ($el.length?8:0);
-                $el.val('%s');
-                $el = jQuery('input[value=Continua]');
-                login_log |= ($el.length?16:0);
-                $el.click();
-                callback(login_log);
-            }, %d);
-        }, %d);
+        callback(1);
     } else callback(0);
 } else callback(0);
 """
 
-    def __init__(self, db, user='', password='', d1=4, d2=4, d3=65, **kwargs):
-        self.user = user
-        self.password = password
+    INOCULATE_SCR3 = """
+var callback = arguments[arguments.length - 1];
+if (login_needed == 5000) {
+    let login_log = 1;
+    let $el = jQuery('div:contains("Login/R")');
+    login_log |= ($el.length?2:0);
+    $el.click();
+    setTimeout(function() {
+        $el = jQuery('input[value*="Accedi con email"');
+        login_log |= ($el.length?32:0);
+        $el.click();
+        setTimeout(function() {
+            $el = jQuery('input[name=username]');
+            login_log |= ($el.length?4:0);
+            $el.val('%s');
+            $el = jQuery('input[name=password]');
+            login_log |= ($el.length?8:0);
+            $el.val('%s');
+            $el = jQuery('input[value=Continua]');
+            login_log |= ($el.length?16:0);
+            $el.click();
+            console.log('Exiting from script with ' + login_log);
+            callback(login_log);
+        }, %d);
+    }, %d);
+} else callback(0);
+"""
+
+    def __init__(self, db, d1=4, d2=4, d3=65, **kwargs):
         self.d1 = d1
         self.d2 = d2
         self.d3 = d3
@@ -132,7 +140,15 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
     def isLastPage(self, jsond):
         return jsond['entryCount'] < jsond['itemsPerPage']
 
-    def processGetSMIL(self, url, resp):
+    async def get_user_credentials(self, userid):
+        users: list[User] = await User.loadbyid(self.db, rowid=userid)
+        if users:
+            dct: dict = users[0].conf.get('settings', dict())
+            if (usr := dct.get('mediaset_user')) and (pw := dct.get('mediaset_password')):
+                return (usr, pw)
+        return None
+
+    def processGetSMIL(self, url, resp, userid, loop):
         resp['sta'] = 'N/A'
         try:
             from selenium import webdriver
@@ -170,6 +186,7 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
             tstart = time.time()
             scriptload = False
             waitdone = 0
+            uspw = None
             while True:
                 logs_raw = driver.get_log("performance")
                 logs = [json.loads(lr["message"])["message"] for lr in logs_raw]
@@ -190,9 +207,16 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
                             driver.execute_async_script(self.INOCULATE_SCR)
                             scriptload = True
                             waitdone = 1
-                        if waitdone >= 0 and (rv := driver.execute_async_script(self.INOCULATE_SCR2 % (self.user, self.password, int(self.d2 * 1000), int(self.d1 * 1000)))):
-                            tstart = time.time()
-                            _LOGGER.info('[mediaset] SMIL need login: inserted -> ' + str(rv))
+                        if waitdone >= 0 and driver.execute_async_script(self.INOCULATE_SCR2):
+                            fut = run_coroutine_threadsafe(self.get_user_credentials(userid), loop)
+                            uspw = fut.result()
+                            if uspw:
+                                rv = driver.execute_async_script(self.INOCULATE_SCR3 % (*uspw, int(self.d2 * 1000), int(self.d1 * 1000)))
+                                tstart = time.time()
+                                _LOGGER.info('[mediaset] SMIL need login: inserted -> ' + str(rv))
+                                resp['sta'] += f'-l-{rv}'
+                            else:
+                                resp['sta'] += '-l-0'
                             waitdone = -1
                         if waitdone <= 0:
                             time.sleep(3)
@@ -213,7 +237,7 @@ if (typeof(login_needed) !== 'undefined' && login_needed < 5000) {
                     msg.smil = None if len(msg.smil) < 10 else msg.smil
                     if not msg.smil and 'pageurl' in it.conf:
                         out_resp = dict()
-                        await executor(self.processGetSMIL, it.conf['pageurl'], out_resp)
+                        await executor(self.processGetSMIL, it.conf['pageurl'], out_resp, userid, get_event_loop())
                         _LOGGER.info(f'[mediaset] SMIL get sta={out_resp["sta"]} err={out_resp["err"]}')
                         if 'err' in out_resp and out_resp['err']:
                             return msg.err(out_resp['err'], MSG_BACKEND_ERROR)

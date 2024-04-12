@@ -348,8 +348,6 @@ def main():
     parser.add_argument('--telegram', required=False, default='')
     parser.add_argument('--redirect-files', required=False, default=False, action="store_true")
     parser.add_argument('--common-dldir', required=False, default='')
-    parser.add_argument('--mediaset-user', required=False, default='')
-    parser.add_argument('--mediaset-password', required=False, default='')
     parser.add_argument('--mediaset-d1', required=False, default=4, type=float)
     parser.add_argument('--mediaset-d2', required=False, default=4, type=float)
     parser.add_argument('--mediaset-d3', required=False, default=65, type=int)

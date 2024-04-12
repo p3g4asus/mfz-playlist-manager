@@ -1,4 +1,6 @@
+import abc
 import asyncio
+from copy import deepcopy
 import logging
 import re
 import traceback
@@ -30,7 +32,7 @@ from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
                           CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_NEXT,
                           CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV,
                           CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SEC,
-                          CMD_REN, CMD_SEEN, CMD_SORT, CMD_TOKEN,
+                          CMD_REN, CMD_SEEN, CMD_SORT, CMD_TOKEN, CMD_USER_SETTINGS,
                           CMD_YT_PLAYLISTCHECK)
 from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
@@ -2511,6 +2513,136 @@ class TokenMessage(StatusTMessage):
         return msg if not self.return_msg else f'{msg}\n<b>{self.return_msg}</b>'
 
 
+class GenericSetting:
+    def __init__(self, ptn: str, desc: str, field: str, default: str, sett: dict | None = None) -> None:
+        self.re: re.Pattern = re.compile(ptn)
+        self.field: str = field
+        self.desc: str = desc
+        self.default: Any = default
+        if sett:
+            self.from_user_conf(sett)
+        else:
+            self.obj_value: Any = default
+
+    def to_user_conf(self, sett: dict) -> bool:
+        if sett.get(self.field) != self.obj_value:
+            sett[self.field] = self.obj_value
+            return True
+        else:
+            return False
+
+    def from_user_conf(self, sett: dict):
+        self.obj_value = sett[self.field] if self.field in sett else self.default
+
+    def match_to_value(self, match: re.Match) -> Any:
+        self.obj_value = match.group(1 if self.re.groups else 0)
+        return self.obj_value
+
+    def _parse(self, text: str) -> re.Match:
+        return self.re.search(text)
+
+    def on_text_enter(self, text: str) -> bool:
+        return bool((mo := self._parse(text)) and self.match_to_value(mo))
+
+    def __str__(self) -> str:
+        return f'<code>{self.desc}: <u>{self.obj_value}</u></code> /{self.field}\n'
+
+    def req(self) -> str:
+        return f'Enter {self.desc}:'
+
+
+class PasswordSetting(GenericSetting):
+    def __str__(self) -> str:
+        return f'<code>{self.desc}: <u>{self.obj_value[0]}{(len(self.obj_value) - 2) * "*"}{self.obj_value[-1]}</u></code> /{self.field}\n'
+
+
+class UserSettingsMessage(StatusTMessage):
+    def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, **argw) -> None:
+        super().__init__(navigation, label=f'{self.__class__.__name__}{id(self)}', inlined=True, expiry_period=timedelta(minutes=1), user=user, params=params, **argw)
+        self.user = User(self.proc.user.toJSON())
+        self.re: re.Pattern = None
+        self.current_setting: str = ''
+        self.changed = False
+        cnf = self.user.conf
+        if 'settings' not in cnf:
+            cnf['settings'] = dict()
+        cnf = deepcopy(cnf['settings'])
+        self.cnf: dict = cnf
+        self.setts: dict[str, GenericSetting] = dict(
+            mediaset_user=GenericSetting(
+                r"^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$",
+                'Mediaset username',
+                'mediaset_user',
+                'anyuser@domain.com',
+                cnf
+            ),
+            mediaset_password=PasswordSetting(
+                r'^.{6,}$',
+                'Mediaset password',
+                'mediaset_password',
+                'mypassisgood',
+                cnf
+            )
+        )
+
+    async def settings_save(self, context: Optional[CallbackContext] = None):
+        self.status = NameDurationStatus.UPDATING_RUNNING
+        self.sub_status = 10
+        self.scheduler_job = self.navigation.scheduler.add_job(
+            self.long_operation_do,
+            "interval",
+            id=f"long_operation_do{self.label}",
+            seconds=3,
+            replace_existing=True,
+            next_run_time=datetime.utcnow()
+        )
+        pl = PlaylistMessage(CMD_USER_SETTINGS, settings=self.cnf)
+        opt = time()
+        pl = await self.proc.process(pl)
+        df = time() - opt
+        if df < 1.5:
+            await asyncio.sleep(1.5 - df)
+        if pl.rv == 0:
+            self.proc.user.conf['settings'] = deepcopy(self.cnf)
+            self.return_msg = ':thumbs_up:'
+            self.changed = False
+        else:
+            self.return_msg = f'Error {pl.rv} saving settings :thumbs_down:'
+        await self.switch_to_idle()
+
+    async def text_input(self, text: str, context: Optional[CallbackContext] = None) -> None:
+        if self.current_setting:
+            s = self.setts[self.current_setting]
+            if s.on_text_enter(text):
+                if s.to_user_conf(self.cnf):
+                    self.changed = True
+                self.current_setting = ''
+                await self.edit_or_select(context)
+        elif text and text[0] == '/':
+            for k, s in self.setts.items():
+                if text == '/' + k:
+                    self.current_setting = k
+                    await self.edit_or_select(context)
+                    break
+
+    async def update(self, context: CallbackContext | None = None) -> str:
+        self.keyboard_previous: List[List["MenuButton"]] = [[]]
+        self.keyboard: List[List["MenuButton"]] = [[]]
+        if self.status == NameDurationStatus.IDLE:
+            if not self.current_setting:
+                msg = ''
+                for _, s in self.setts.items():
+                    msg += str(s)
+                if self.changed:
+                    self.add_button(u'\U0001F4BE', self.settings_save)
+                # self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back)
+            else:
+                msg = self.setts[self.current_setting].req()
+        else:
+            msg = f'Saving {"." * (self.sub_status & 0xFF)}'
+        return msg if not self.return_msg else f'{msg}\n<b>{self.return_msg}</b>'
+
+
 class StartTMessage(BaseMessage):
     """Start menu, create all app sub-menus."""
 
@@ -2575,6 +2707,7 @@ class StartTMessage(BaseMessage):
             self.add_button(label="\U0001F3A7 Player", callback=PlayerListMessage(self.navigation, user=self.user, params=self.params))
             self.add_button(label="\U00002795 Add", callback=PlaylistAddTMessage(self.navigation, user=self.user, params=self.params))
             self.add_button(label="\U000026D7 Token", callback=TokenMessage(self.navigation, user=self.user, params=self.params))
+            self.add_button(label='\U00002699 Settings',callback=UserSettingsMessage(self.navigation, user=self.user, params=self.params))
             self.add_button(label="\U0001F6AA Sign Out", callback=SignOutTMessage(self.navigation))
         else:
             self.user = None
