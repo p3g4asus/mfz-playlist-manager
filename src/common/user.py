@@ -140,3 +140,13 @@ class User(Fieldable, JSONAble):
                 self.token = token
                 await self.toDB(db, commit)
                 return self.token
+
+    @staticmethod
+    async def get_settings(db, userid, *args, **kwargs):
+        users: list[User] = await User.loadbyid(db, rowid=userid)
+        out = []
+        if users:
+            dct: dict = users[0].conf.get('settings', dict())
+            for a in args:
+                out.append(dct.get(a, kwargs.get(a)))
+        return out[0] if len(out) == 1 else out

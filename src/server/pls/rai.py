@@ -173,7 +173,7 @@ class MessageProcessor(RefreshMessageProcessor):
             playlist=playlist
         ), datepubi)
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         try:
             progid = conf['brand']['id']
             sets = [s['id'] for s in conf['subbrands']]

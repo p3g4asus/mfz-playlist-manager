@@ -143,7 +143,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     )
                     programs[video['id']] = pr
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         try:
             sets = [(s['id'], s['relative']) for _, s in conf['playlists'].items()]
         except (KeyError, AttributeError):

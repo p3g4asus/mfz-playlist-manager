@@ -48,7 +48,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
         pass
 
     @abc.abstractmethod
-    def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
+    def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         pass
 
     async def processSync(self, msg, userid, executor):
@@ -74,7 +74,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                 x.autoupdate = u
             elif x.items is None:
                 x.items = []
-            resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid, executor=executor)
+            resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid, userid=userid, executor=executor)
             if resp.rv == 0:
                 n_new = len(resp.items)
                 items = x.items
@@ -150,7 +150,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             elif x.items is None:
                 x.items = []
             _LOGGER.debug(f"Datefrom = {datefrom}, dateto={dateto}")
-            resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid, executor=executor)
+            resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid, userid=userid, executor=executor)
             if resp.rv == 0 or resp.rv == RV_NO_VIDEOS:
                 n_new = 0
                 if not resp.rv:

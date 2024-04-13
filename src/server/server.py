@@ -351,7 +351,6 @@ def main():
     parser.add_argument('--mediaset-d1', required=False, default=4, type=float)
     parser.add_argument('--mediaset-d2', required=False, default=4, type=float)
     parser.add_argument('--mediaset-d3', required=False, default=65, type=int)
-    parser.add_argument('--youtube-apikey', required=False, default="")
     parser.add_argument('--localfolder-basedir', required=False, default=None)
     parser.add_argument('--host', required=False, default="0.0.0.0")
     parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))

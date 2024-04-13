@@ -2553,12 +2553,13 @@ class GenericSetting:
 
 class PasswordSetting(GenericSetting):
     def __str__(self) -> str:
-        return f'<code>{self.desc}: <u>{self.obj_value[0]}{(len(self.obj_value) - 2) * "*"}{self.obj_value[-1]}</u></code> /{self.field}\n'
+        s = f'{self.obj_value[0]}{(len(self.obj_value) - 2) * "*"}{self.obj_value[-1]}' if self.obj_value else "----------"
+        return f'<code>{self.desc}: <u>{s}</u></code> /{self.field}\n'
 
 
 class UserSettingsMessage(StatusTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, **argw) -> None:
-        super().__init__(navigation, label=f'{self.__class__.__name__}{id(self)}', inlined=True, expiry_period=timedelta(minutes=1), user=user, params=params, **argw)
+        super().__init__(navigation, label=f'{self.__class__.__name__}{id(self)}', inlined=True, expiry_period=timedelta(minutes=10), user=user, params=params, **argw)
         self.user = User(self.proc.user.toJSON())
         self.re: re.Pattern = None
         self.current_setting: str = ''
@@ -2582,8 +2583,19 @@ class UserSettingsMessage(StatusTMessage):
                 'mediaset_password',
                 'mypassisgood',
                 cnf
+            ),
+            youtube_apikey=PasswordSetting(
+                r'^.{30,}$',
+                'Yputube API key',
+                'youtube_apikey',
+                '',
+                cnf
             )
         )
+
+    async def abort_edit(self, context: Optional[CallbackContext] = None):
+        self.current_setting = ''
+        await self.edit_or_select()
 
     async def settings_save(self, context: Optional[CallbackContext] = None):
         self.status = NameDurationStatus.UPDATING_RUNNING
@@ -2628,6 +2640,8 @@ class UserSettingsMessage(StatusTMessage):
     async def update(self, context: CallbackContext | None = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
+        if self.has_expired():
+            self.current_setting = ''
         if self.status == NameDurationStatus.IDLE:
             if not self.current_setting:
                 msg = ''
@@ -2637,6 +2651,7 @@ class UserSettingsMessage(StatusTMessage):
                     self.add_button(u'\U0001F4BE', self.settings_save)
                 # self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back)
             else:
+                self.add_button(':cross_mark: Abort', self.abort_edit)
                 msg = self.setts[self.current_setting].req()
         else:
             msg = f'Saving {"." * (self.sub_status & 0xFF)}'

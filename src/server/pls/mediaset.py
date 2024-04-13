@@ -141,12 +141,8 @@ if (login_needed == 5000) {
         return jsond['entryCount'] < jsond['itemsPerPage']
 
     async def get_user_credentials(self, userid):
-        users: list[User] = await User.loadbyid(self.db, rowid=userid)
-        if users:
-            dct: dict = users[0].conf.get('settings', dict())
-            if (usr := dct.get('mediaset_user')) and (pw := dct.get('mediaset_password')):
-                return (usr, pw)
-        return None
+        setts = await User.get_settings(self.db, userid, 'mediaset_user', 'mediaset_password')
+        return None if not setts or not setts[0] or not setts[1] else setts
 
     def processGetSMIL(self, url, resp, userid, loop):
         resp['sta'] = 'N/A'
@@ -461,7 +457,7 @@ if (login_needed == 5000) {
             playlist=playlist
         ), datepubi)
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         try:
             brand = conf['brand']['id']
             subbrands = [s['id'] for s in conf['subbrands']]

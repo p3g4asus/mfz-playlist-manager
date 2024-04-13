@@ -7,6 +7,7 @@ from datetime import (datetime, timedelta, timezone)
 from common.const import (CMD_YT_PLAYLISTCHECK, MSG_YT_INVALID_PLAYLIST,
                           MSG_BACKEND_ERROR, MSG_NO_VIDEOS, RV_NO_VIDEOS)
 from common.playlist import PlaylistItem
+from common.user import User
 from common.utils import parse_isoduration
 
 from .refreshmessageprocessor import RefreshMessageProcessor
@@ -25,12 +26,7 @@ class MessageProcessor(RefreshMessageProcessor):
 
     def __init__(self, db, **kwargs):
         super().__init__(db, **kwargs)
-        try:
-            from googleapiclient.discovery import build
-            self.apikey = kwargs.get('apikey', '')
-        except ImportError:
-            self.apikey = ''
-        self.youtube = None
+        self.youtube_cache = dict()
 
     @staticmethod
     def programsUrl(plid):
@@ -45,11 +41,15 @@ class MessageProcessor(RefreshMessageProcessor):
         else:
             return f'https://m.youtube.com/playlist?list={plid}'
 
-    def youtubeApiBuild(self):
-        if self.youtube is None:
-            from googleapiclient.discovery import build
-            self.youtube = build('youtube', 'v3', developerKey=self.apikey)
-        return self.youtube
+    async def youtubeApiBuild(self, userid):
+        apikey = await User.get_settings(self.db, userid, 'youtube_apikey')
+        if apikey and apikey not in self.youtube_cache:
+            try:
+                from googleapiclient.discovery import build
+                self.youtube_cache[apikey] = build('youtube', 'v3', developerKey=apikey)
+            except Exception:
+                _LOGGER.warning(f'Cannot create youtube object: invalid apikey? {traceback.format_exc()}')
+        return self.youtube_cache.get(apikey)
 
     async def processPlaylistCheck(self, msg, userid, executor):
         text = msg.f('text', (str,))
@@ -92,8 +92,8 @@ class MessageProcessor(RefreshMessageProcessor):
                         elif urlp:
                             mo2 = re.search(r'/channel/([^/]+)/?$', urlp.path)
                             mo3 = re.search(r'/@([^/]+)/?$', urlp.path)
-                            if (mo2 or mo3) and self.apikey:
-                                req = self.youtubeApiBuild().channels().list(part="contentDetails", **(dict(id=mo2.group(1)) if mo2 else dict(forUsername=mo3.group(1))))
+                            if (mo2 or mo3) and (youtube := await self.youtubeApiBuild(userid)):
+                                req = youtube.channels().list(part="contentDetails", **(dict(id=mo2.group(1)) if mo2 else dict(forUsername=mo3.group(1))))
                                 resp = req.execute()
                                 try:
                                     plid = resp['items'][0]['contentDetails']['relatedPlaylists']['uploads']
@@ -227,7 +227,7 @@ class MessageProcessor(RefreshMessageProcessor):
             return False
         return True
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         try:
             sets = [(s['id'], s['ordered'] if 'ordered' in s else True, s['params'] if 'params' in s else dict()) for s in conf['playlists']]
         except (KeyError, AttributeError):
@@ -235,6 +235,7 @@ class MessageProcessor(RefreshMessageProcessor):
             return msg.err(11, MSG_BACKEND_ERROR)
         if sets:
             try:
+                youtube = await self.youtubeApiBuild(userid)
                 ydl_opts = {
                     'ignoreerrors': True,
                     'quiet': True,
@@ -328,9 +329,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                                         video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                                 else:
                                                     current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
-                                                    if self.apikey:
+                                                    if youtube:
                                                         try:
-                                                            req = self.youtubeApiBuild().videos().list(part="snippet,contentDetails", id=video['id'])
+                                                            req = youtube.videos().list(part="snippet,contentDetails", id=video['id'])
                                                             resp = req.execute()
                                                             _LOGGER.debug(f'Using apikey: resp is {resp}')
                                                             if 'items' in resp and resp['items']:
@@ -342,7 +343,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                         datepubo = datepubo_conf = datetime.strptime(base['publishedAt'], "%Y-%m-%dT%H:%M:%S%z").astimezone(localtz)
                                                                         if 'liveBroadcastContent' in base and base['liveBroadcastContent'] == 'upcoming':
                                                                             try:
-                                                                                req = self.youtubeApiBuild().videos().list(part="liveStreamingDetails", id=video['id'])
+                                                                                req = youtube.videos().list(part="liveStreamingDetails", id=video['id'])
                                                                                 resp2 = req.execute()
                                                                                 datepubo = datetime.strptime(resp2['items'][0]['liveStreamingDetails']['scheduledStartTime'], "%Y-%m-%dT%H:%M:%S%z").astimezone(localtz)
                                                                             except Exception:
