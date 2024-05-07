@@ -680,7 +680,11 @@ class MessageProcessor(AbstractMessageProcessor):
                 # await pl.cleanItems(self.db, commit=False)
                 play = pl.conf.get('play', dict())
                 pl.conf['play'] = play
-                play['id'] = msg.f('playid')
+                newid = msg.f('playid')
+                if not newid and 'id' in play:
+                    del play['id']
+                elif newid:
+                    play['id'] = newid
                 rv = await pl.toDB(self.db)
                 if not rv:
                     return msg.err(20, MSG_INVALID_PARAM, playlist=None)

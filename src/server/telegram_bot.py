@@ -26,7 +26,7 @@ from telegram_menu.models import MenuButton, emoji_replace
 from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
                           CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER,
                           CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
-                          CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_RAI_CONTENTSET,
+                          CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_PLAYID, CMD_RAI_CONTENTSET,
                           CMD_RAI_LISTINGS, CMD_REFRESH, CMD_REMOTEPLAY_JS,
                           CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW,
                           CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_NEXT,
@@ -907,6 +907,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.secs = self.obj.dur
             self.thumb = self.obj.img
             self.deleted = self.obj.seen
+            self.is_playing = p.playlist.conf.get('play', dict()).get('id') == self.obj.uid
             return True
         else:
             return False
@@ -1046,6 +1047,15 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.current_sort = self.current_sort[0:-1]
             await self.edit_or_select()
 
+    async def set_play_id(self):
+        pl = PlaylistMessage(CMD_PLAYID, playlist=self.pid, playid=self.obj.uid if not self.is_playing else None)
+        pl = await self.proc.process(pl)
+        if pl.rv == 0:
+            plTg = cache_get(self.proc.user.rowid, self.pid)
+            plTg.playlist.conf.update(pl.playlist.conf)
+            if plTg.message:
+                await plTg.message.edit_or_select_items()
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
@@ -1056,6 +1066,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 self.add_button(u'\U00002211', self.switch_to_status, args=(NameDurationStatus.SORTING, ))
                 self.add_button(u'\U0001F517', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, ))
                 self.add_button(u'\U0001F4EE', self.switch_to_status, args=(NameDurationStatus.MOVING, ))
+                self.add_button(u'\U000025B6', self.set_play_id)
                 if self.type == "mediaset":
                     self.add_button(u'\U0001F511', self.switch_to_status, args=(NameDurationStatus.UPDATING_WAITING, ))
                 if self.obj.takes_space():
@@ -1147,8 +1158,14 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 upd += u'\U0001F511'
         if not self.obj.dl and self.obj.conf and isinstance(self.obj.conf, dict) and 'todel' in self.obj.conf and self.obj.conf['todel']:
             self.obj.dl = self.obj.conf['todel'][0]
-        if isinstance(self.obj.conf, dict) and 'sec' in self.obj.conf:
-            upd += f'\n\U000025B6 {duration2string(int(self.obj.conf["sec"]))}'
+        if (isinstance(self.obj.conf, dict) and (sec := 'sec' in self.obj.conf)) or self.is_playing:
+            upd += '\n'
+            if sec:
+                upd += f'\U000023F2 {duration2string(int(self.obj.conf["sec"]))}'
+            if self.is_playing:
+                if not sec:
+                    upd += '0s'
+                upd += ' \U000025B6'
         if self.obj.dl and exists(self.obj.dl) and isfile(self.obj.dl):
             sta = stat(self.obj.dl)
             upd += f'\n<a href="{mainlnk}/dl/{self.proc.user.token}/{self.id}">DL {self.sizeof_fmt(sta.st_size) if sta else ""}</a>'
