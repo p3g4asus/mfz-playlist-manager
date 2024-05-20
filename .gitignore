@@ -135,9 +135,16 @@ node_modules/
 logs/
 src/www/dl/
 src/www/dl
+src/www/telegram_web.htm
+src/www/dash.html
+src/www/js/telegram_web.js
 ca-bundle.crt
 server_local.sh
 google-client-id.txt
 youtube-apikey.txt
 redis-url.txt
 server.conf
+mfz-remote-tabs/chrome.crx
+mfz-remote-tabs/chrome.pem
+mfz-remote-tabs/firefox/web-ext-artifacts/
+mfz-remote-tabs/firefox/.web-extension-id

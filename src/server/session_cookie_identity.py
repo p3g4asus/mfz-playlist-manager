@@ -27,6 +27,8 @@ class SessionCookieIdentityPolicy(AbstractIdentityPolicy):
     async def clean_redis_sessions(self, redis, hours):
         keys = await redis.keys()
         for key in keys:
+            if key.startswith(b'urls'):
+                continue
             value = await redis.get(key)
             s = str(value, encoding='utf-8')
             dateo = None

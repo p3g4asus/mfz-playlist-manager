@@ -1,0 +1,28 @@
+{
+  "browser_specific_settings": {
+    "gecko": {
+      "strict_min_version": "58.0a1"
+    }
+  },
+  "background": {
+      "scripts": ["const.js", "main_ws_manager.js", "background.js"]
+  },
+  "browser_action": {
+    "browser_style": true,
+    "default_title": "mfz-remote-tabs",
+    "default_popup": "tabs.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "browser_style": true
+  },
+  "description": "A list of methods you can perform on a tab.",
+  "homepage_url": "https://github.com/mdn/webextensions-examples/tree/master/tabs-tabs-tabs",
+  "manifest_version": 2,
+  "name": "mfz-remote-tabs",
+  "permissions": [
+    "tabs",
+    "storage"
+  ],
+  "version": "1.3"
+}

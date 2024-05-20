@@ -131,6 +131,15 @@ module.exports = {
         'set_telegram_link': true,
         'Telegram': true,
         'DOWNLOADED_SUFFIX': true,
+        'globalThis': false,
+        '$': true,
+        'CMD_REMOTEBROWSER_JS_CLOSE': true,
+        'CMD_REMOTEBROWSER_JS_ACTIVATE': true,
+        'CMD_REMOTEBROWSER_JS': true,
+        'CMD_REMOTEBROWSER_JS_GOTO': true,
+        'browser': true,
+        'chrome': true,
+        'importScripts': true
     },
     'rules': {
         'indent': [

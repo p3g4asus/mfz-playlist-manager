@@ -25,9 +25,9 @@ from server.dict_auth_policy import DictAuthorizationPolicy
 from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
-from server.telegram_bot import start_telegram_bot, stop_telegram_bot
+from server.telegram.main import start_telegram_bot, stop_telegram_bot
 from server.webhandlers import (auth_for_item, download_2, img_link, index, login, login_g, logout,
-                                modify_pw, playlist_m3u_2, pls_h, post_proxy,
+                                modify_pw, playlist_m3u_2, pls_h_2, post_proxy,
                                 redirect_till_last, register, remote_command,
                                 telegram_command, twitch_redir_do,
                                 youtube_dl_do, youtube_redir_do)
@@ -255,7 +255,7 @@ async def start_app(app):
         app.router.add_static('/static', app.p.args["static"], follow_symlinks=True)
     app.router.add_route('GET', '/', index)
     app.router.add_route('GET', '/auth/{subp:(local|download)}{token:/[a-fA-F0-9\\-]+}/{rowid:[0-9]+}/{fil:.+}', auth_for_item)
-    app.router.add_route('GET', '/rcmd/{hex:[a-fA-F0-9]+}', remote_command)
+    app.router.add_route('GET', '/rcmd/{sfx:[g-z]?}{hex:[a-fA-F0-9]+}', remote_command)
     app.router.add_route('GET', '/telegram/{hex:[a-fA-F0-9]+}', telegram_command)
     app.router.add_route('POST', '/login_g', login_g)
     app.router.add_route('POST', '/login', login)
@@ -291,7 +291,10 @@ async def start_app(app):
     cors.add(resource.add_route('GET', img_link), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
-    app.router.add_route('GET', '/ws', pls_h)
+    resource = cors.add(app.router.add_resource("/ws{hex:(/[g-z][a-f0-9]+)?}"))
+    cors.add(resource.add_route('GET', pls_h_2), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
+    })
     await runner.setup()
     _LOGGER.info("Creating site (%s:%d)" % (app.p.args["host"], app.p.args["port"]))
     site = web.TCPSite(runner, app.p.args["host"], app.p.args["port"])
