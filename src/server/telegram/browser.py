@@ -153,13 +153,16 @@ class BrowserInfoMessage(RemoteInfoMessage):
             if self.current_tab:
                 self.picture = self.current_tab.ico if self.current_tab.ico else ''
                 if self.picture:
-                    if self.picture.startswith('data:'):
+                    if self.picture.startswith('data:') or self.picture.endswith('.svg') or self.picture.endswith('.ico'):
                         try:
                             import urllib
                             from PIL import Image
                             from io import BytesIO
                             response = urllib.request.urlopen(self.picture)
-                            self.picture = BytesIO(response.file.read())
+                            try:
+                                self.picture = BytesIO(response.file.read())
+                            except Exception:
+                                self.picture = BytesIO(response.read())
                             if not imghdr.what(self.picture):
                                 img = Image.open(self.picture)
                                 membuf = BytesIO()
