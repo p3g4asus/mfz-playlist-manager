@@ -137,6 +137,7 @@ module.exports = {
         'CMD_REMOTEBROWSER_JS_ACTIVATE': true,
         'CMD_REMOTEBROWSER_JS': true,
         'CMD_REMOTEBROWSER_JS_GOTO': true,
+        'CMD_REMOTEBROWSER_JS_RELOAD': true,
         'browser': true,
         'chrome': true,
         'importScripts': true

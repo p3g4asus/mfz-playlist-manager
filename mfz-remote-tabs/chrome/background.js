@@ -87,7 +87,14 @@ function remotejs_process(msg) {
             }).catch(() => {
                 console.warn(msg.id + ' Tab activate fail');
             });
-        } 
+        }
+        else if (msg.sub == CMD_REMOTEBROWSER_JS_RELOAD) {
+            browser.tabs.reload(parseInt(msg.id)).then(() => {
+                console.log(msg.id + ' Tab reload ok');
+            }).catch(() => {
+                console.warn(msg.id + ' Tab reload fail');
+            });
+        }
         else if (msg.sub == CMD_REMOTEBROWSER_JS_CLOSE) {
             getTabId(msg.id).then((ids) => {
                 browser.tabs.remove(ids).then(() => {

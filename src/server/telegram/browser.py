@@ -11,7 +11,7 @@ from telegram_menu import MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
-from common.const import CMD_REMOTEBROWSER_JS, CMD_REMOTEBROWSER_JS_ACTIVATE, CMD_REMOTEBROWSER_JS_CLOSE, CMD_REMOTEBROWSER_JS_GOTO
+from common.const import CMD_REMOTEBROWSER_JS, CMD_REMOTEBROWSER_JS_ACTIVATE, CMD_REMOTEBROWSER_JS_CLOSE, CMD_REMOTEBROWSER_JS_GOTO, CMD_REMOTEBROWSER_JS_RELOAD
 from common.user import User
 from common.utils import Fieldable
 from server.telegram.message import NameDurationStatus, ProcessorMessage
@@ -77,8 +77,13 @@ class BrowserInfoMessage(RemoteInfoMessage):
         await asyncio.sleep(2.5)
         await self.info()
 
+    async def reload(self, args: tuple):
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_RELOAD, id=self.current_tab.id if self.current_tab else self.pi.tab.id)
+
     async def activate(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_ACTIVATE, id=self.current_tab.id if self.current_tab else self.pi.tab.id)
+        await asyncio.sleep(2.5)
+        await self.info()
 
     async def goto(self, url: str):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_GOTO, id=self.current_tab.id if self.current_tab else 'New', url=url, act=self.activate_tab)
@@ -143,6 +148,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
         if self.status == NameDurationStatus.IDLE:
             self.add_button(u'\U00002139', self.info, args=tuple())
             if self.current_tab or self.pi.tab:
+                self.add_button(u'\U0001F501', self.reload)
                 self.add_button(u'\U0000274C', self.close)
                 if self.current_tab:
                     self.add_button(u'\U0001F7E9', self.activate)
