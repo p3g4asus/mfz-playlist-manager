@@ -130,7 +130,8 @@ function remotejs_enqueue() {
 
 function logStorageChange(changes) {
     if (changes.tabControl) {
-        reconnect_ws(changes.tabControl);
+        console.log('Setting change detected: reconnecting...');
+        reconnect_ws(changes.tabControl.newValue);
     }
 }
 
@@ -160,7 +161,10 @@ function reconnect_ws(tc) {
     let res;
     if (tc?.url && (res = (new RegExp('https://([^/]+)/([^\\-]+)-s/play/player_remote_commands\\.htm\\?hex=([a-f0-9]+)')).exec(tc.url))) {
         const urlws = `wss://${res[1]}/${res[2]}-ws/g${res[3]}`;
+        console.log('Asking to reconnect with websocket url ' + urlws);
         main_ws_reconnect(reconnect_ws_onopen2,urlws);
+    } else {
+        console.log('Invalid url detected: ' + tc?.url);
     }
 }
 

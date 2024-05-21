@@ -3,8 +3,6 @@ const ZOOM_INCREMENT = 0.2;
 const MAX_ZOOM = 5;
 const MIN_ZOOM = 0.3;
 const DEFAULT_ZOOM = 1;
-var browser = chrome;
-browser.browserAction = chrome.action;
 
 function firstUnpinnedTab(tabs) {
     for (let tab of tabs) {

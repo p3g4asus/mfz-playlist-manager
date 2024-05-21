@@ -122,6 +122,7 @@ function main_ws_queue_process(msg) {
 
 function main_ws_reconnect(onopen2, url) {
     if (main_ws) {
+        console.log('Asked to reconnect to url=' + url + ' old was ' + main_ws_url);
         main_ws_url = url;
         main_ws_onopen2 = onopen2;
         main_ws.close();
@@ -134,6 +135,7 @@ function main_ws_reconnect(onopen2, url) {
 
 
 function main_ws_connect(onopen2, url) {
+    console.log('Connecting to url ' + url);
     let socket = new WebSocket(main_ws_url = url);
     main_ws_onopen2 = onopen2;
     socket.onopen = function (event) {
