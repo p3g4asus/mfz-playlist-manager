@@ -145,6 +145,9 @@ function logStorageChange(changes) {
 function reconnect_ws_onopen2() {
     updateCount();
     remotejs_enqueue();
+    setInterval(() => {
+        send_video_info_for_remote_play('ping', new Date().getTime());
+    }, 15000);
     let o = {cmd: CMD_REMOTEPLAY};
     let el = new MainWSQueueElement(o, ((msg) => {
         return msg.cmd === CMD_REMOTEPLAY? msg:null;
