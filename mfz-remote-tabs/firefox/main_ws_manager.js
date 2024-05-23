@@ -97,7 +97,8 @@ function main_ws_qel_exists(name) {
 function main_ws_enqueue(el) {
     let oldel;
     if (!el || (el.name.startsWith('$') && (oldel = main_ws_qel_exists(el.name)) && oldel.needs_to_send)) {
-        oldel.msg_to_send = el.msg_to_send;
+        if (el)
+            oldel.msg_to_send = el.msg_to_send;
         return false;
     }
     main_ws_queue.push(el);
