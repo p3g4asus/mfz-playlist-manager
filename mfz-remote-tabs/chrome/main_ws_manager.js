@@ -56,11 +56,13 @@ class MainWSQueueElement {
     }
 
     enqueue() {
-        main_ws_enqueue(this);
-        return new Promise((resolve, reject) => {
-            this.resolve = resolve;
-            this.reject = reject;
-        });
+        if (main_ws_enqueue(this))
+            return new Promise((resolve, reject) => {
+                this.resolve = resolve;
+                this.reject = reject;
+            });
+        else
+            return Promise.reject(0);
     }
 
     pop_msg_to_send() {
@@ -88,15 +90,20 @@ function main_ws_qel_exists(name) {
         return false;
     for (let el of main_ws_queue)
         if (el.name == name)
-            return true;
+            return el;
     return false;
 }
 
 function main_ws_enqueue(el) {
-    if (el)
-        main_ws_queue.push(el);
+    let oldel;
+    if (!el || (el.name.startsWith('$') && (oldel = main_ws_qel_exists(el.name)) && oldel.needs_to_send)) {
+        oldel.msg_to_send = el.msg_to_send;
+        return false;
+    }
+    main_ws_queue.push(el);
     if (main_ws)
         main_ws_queue_process();
+    return true;
 }
 
 function main_ws_queue_process(msg) {

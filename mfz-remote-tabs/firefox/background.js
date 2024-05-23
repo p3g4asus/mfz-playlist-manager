@@ -1,10 +1,12 @@
+let ping_interval = -1;
+
 function send_video_info_for_remote_play(w, video_info, exp) {
     let o = {cmd: CMD_REMOTEPLAY_PUSH, what: w};
     o[w] = video_info;
     o.exp = exp;
     let el = new MainWSQueueElement(o, ((msg) => {
         return msg.cmd === CMD_REMOTEPLAY_PUSH? msg:null;
-    }), 3000, 1, 'remoteplay_vinfo');
+    }), 3000, 1, '$' + w);
     return el.enqueue().then((msg) => {
         if (!msg.rv) {
             console.log('Remoteplay push ok ' + JSON.stringify(msg.what));
@@ -15,7 +17,8 @@ function send_video_info_for_remote_play(w, video_info, exp) {
         return msg;
     })
         .catch((err) => {
-            console.log('Remoteplay push fail ' + err);
+            if (err)
+                console.log('Remoteplay push fail ' + err);
             return err;
         });
 }
@@ -145,24 +148,25 @@ function logStorageChange(changes) {
 function reconnect_ws_onopen2() {
     updateCount();
     remotejs_enqueue();
-    setInterval(() => {
-        send_video_info_for_remote_play('ping', new Date().getTime());
-    }, 15000);
+    if (ping_interval < 0)
+        ping_interval = setInterval(() => {
+            send_video_info_for_remote_play('ping', new Date().getTime());
+        }, 15000);
     let o = {cmd: CMD_REMOTEPLAY};
     let el = new MainWSQueueElement(o, ((msg) => {
         return msg.cmd === CMD_REMOTEPLAY? msg:null;
     }), 3000, 1, 'remoteplay');
     return el.enqueue().then((msg) => {
         if (!msg.rv) {
-            console.log('Remoteplay push ok ' + JSON.stringify(msg.what));
+            console.log('Remoteplay ok ' + JSON.stringify(msg.what));
         }
         else {
-            console.log('Remoteplay push fail: ' + JSON.stringify(msg));
+            console.log('Remoteplay fail: ' + JSON.stringify(msg));
         }
         return msg;
     })
         .catch((err) => {
-            console.log('Remoteplay push fail ' + err);
+            console.log('Remoteplay fail ' + err);
             return err;
         });
 }
