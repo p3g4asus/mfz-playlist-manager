@@ -17,6 +17,7 @@ module.exports = {
         'CMD_REFRESH': true,
         'main_ws_connect': true,
         'main_ws_reconnect': true,
+        'WS_URL': true,
         'MAIN_PATH': true,
         'MAIN_PATH_S': true,
         'CMD_PING': true,

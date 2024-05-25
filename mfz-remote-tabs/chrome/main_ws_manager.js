@@ -162,9 +162,11 @@ function main_ws_connect(onopen2, url) {
     };
 
     socket.onerror = function(err) {
-        main_ws = null;
-        console.error('Socket encountered error: ', err.message, 'Closing socket');
-        socket.close();
+        if (main_ws) {
+            main_ws = null;
+            console.error('Socket encountered error: ', err.message, 'Closing socket');
+            socket.close();
+        } else socket.onclose(err);
     };
     socket.onmessage = function (event) {
         console.log(event.data);

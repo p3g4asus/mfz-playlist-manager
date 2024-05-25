@@ -1,4 +1,6 @@
 let main_ws = null;
+let main_ws_url = null;
+let main_ws_onopen2 = null;
 let main_ws_queue = [];
 
 class MainWSQueueElement {
@@ -32,7 +34,7 @@ class MainWSQueueElement {
                 rearm = true;
             }
             if (this.resolve && out)
-                setTimeout(function() { this.resolve(out); }.bind(this), 0);
+                setTimeout(() => { this.resolve(out); }, 0);
             else if (!out && rearm && this.timeout)
                 this.timer = setTimeout(this.timeout_action.bind(this), this.timeout);
         }
@@ -54,11 +56,13 @@ class MainWSQueueElement {
     }
 
     enqueue() {
-        main_ws_enqueue(this);
-        return new Promise(function(resolve, reject) {
-            this.resolve = resolve;
-            this.reject = reject;
-        }.bind(this));
+        if (main_ws_enqueue(this))
+            return new Promise((resolve, reject) => {
+                this.resolve = resolve;
+                this.reject = reject;
+            });
+        else
+            return Promise.reject(0);
     }
 
     pop_msg_to_send() {
@@ -86,15 +90,21 @@ function main_ws_qel_exists(name) {
         return false;
     for (let el of main_ws_queue)
         if (el.name == name)
-            return true;
+            return el;
     return false;
 }
 
 function main_ws_enqueue(el) {
-    if (el)
-        main_ws_queue.push(el);
+    let oldel;
+    if (!el || (el.name.startsWith('$') && (oldel = main_ws_qel_exists(el.name)) && oldel.needs_to_send)) {
+        if (el)
+            oldel.msg_to_send = el.msg_to_send;
+        return false;
+    }
+    main_ws_queue.push(el);
     if (main_ws)
         main_ws_queue_process();
+    return true;
 }
 
 function main_ws_queue_process(msg) {
@@ -118,38 +128,45 @@ function main_ws_queue_process(msg) {
     }
 }
 
-function main_ws_reconnect(onopen2) {
+function main_ws_reconnect(onopen2, url) {
     if (main_ws) {
+        console.log('Asked to reconnect to url=' + url + ' old was ' + main_ws_url);
+        main_ws_url = url;
+        main_ws_onopen2 = onopen2;
         main_ws.close();
         main_ws = null;
     }
     else {
-        main_ws_connect(onopen2);
+        main_ws_connect(onopen2, url);
     }
 }
 
 
-function main_ws_connect(onopen2) {
-    let socket = new WebSocket(location.protocol == 'https:'?'wss://' + location.host + (PTHREG?'/' + PTHREG[1] + '-ws/':'/pm-ws/'):'ws://' + location.host + '/ws');
+function main_ws_connect(onopen2, url) {
+    console.log('Connecting to url ' + url);
+    let socket = new WebSocket(main_ws_url = url);
+    main_ws_onopen2 = onopen2;
     socket.onopen = function (event) {
         console.log('Upgrade HTTP connection OK');
         main_ws = socket;
         main_ws_queue_process();
-        if (onopen2)
-            onopen2();
+        if (main_ws_onopen2)
+            main_ws_onopen2();
     };
     socket.onclose = function(e) {
         main_ws = null;
-        console.log('Socket is closed. Reconnect will be attempted in 10 second.', e.reason);
-        setTimeout(function() {
-            main_ws_connect(onopen2);
+        console.log('Socket is closed. Reconnect will be attempted in 10 second.');
+        setTimeout(() => {
+            main_ws_connect(main_ws_onopen2, main_ws_url);
         }, 10000);
     };
 
     socket.onerror = function(err) {
-        main_ws = null;
-        console.error('Socket encountered error: ', err.message, 'Closing socket');
-        socket.close();
+        if (main_ws) {
+            main_ws = null;
+            console.error('Socket encountered error: ', err.message, 'Closing socket');
+            socket.close();
+        } else socket.onclose(err);
     };
     socket.onmessage = function (event) {
         console.log(event.data);

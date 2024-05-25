@@ -172,7 +172,7 @@ function playlist_dump(useri) {
 
 $(window).on('load', function () {
     find_user_cookie().then(function (uid) {
-        main_ws_reconnect();
+        main_ws_reconnect(null, WS_URL);
         playlist_dump(uid);
     }).catch(function() {
         $('.loading').hide();

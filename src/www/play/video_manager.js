@@ -515,7 +515,7 @@ function get_startup_settings() {
     let plname;
     if (orig_up.has('name') && (plname = orig_up.get('name')).length) {
         find_user_cookie().then(function (useri) {
-            main_ws_reconnect(get_remoteplay_link);
+            main_ws_reconnect(get_remoteplay_link, WS_URL);
             playlist_current_userid = useri;
             playlist_dump(useri);
             playlist_dump(useri, plname);

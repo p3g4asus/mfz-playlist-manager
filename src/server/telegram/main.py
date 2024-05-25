@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 import logging
 from typing import List, Optional
 from urllib.parse import urlencode, urlparse
@@ -173,7 +174,7 @@ class StartTMessage(BaseMessage):
 
     def __init__(self, navigation: MyNavigationHandler, message_args) -> None:
         """Init StartTMessage class."""
-        super().__init__(navigation, self.__class__.__name__)
+        super().__init__(navigation, self.__class__.__name__, expiry_period=timedelta(weeks=500))
         self.params = message_args[0]
         _LOGGER.debug(f'Start Message {message_args[0].args}')
         self.user: User = None
