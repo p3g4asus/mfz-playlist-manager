@@ -1305,7 +1305,7 @@ function bootstrap_table_get_data_ws(params) {
         main_ws_reconnect(null, WS_URL);
         playlists_all = [];
         playlists_dump(params);
-    }).catch(function() {
+    }).catch(function(err) {
         manage_errors({rv: 501, err: 'Cannot find user cookie!'});
     });
 }

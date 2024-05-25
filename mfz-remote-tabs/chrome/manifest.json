@@ -10,7 +10,7 @@
     "tabs",
     "storage"
   ],
-  "version": "1.10",
+  "version": "1.11",
   "background": {
     "service_worker": "bg-wrapper.js"
   },
