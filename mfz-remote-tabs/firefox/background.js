@@ -1,4 +1,7 @@
 let ping_interval = -1;
+let tab_removed_time = 0;
+let tab_removed_window = null;
+let tab_history = {};
 
 function send_video_info_for_remote_play(w, video_info, exp) {
     let o = {cmd: CMD_REMOTEPLAY_PUSH, what: w};
@@ -183,16 +186,65 @@ function reconnect_ws(tc) {
 }
 
 browser.tabs.onRemoved.addListener(
-    (tabId) => { updateCount(tabId, true);
+    (tabId, remI) => {
+        console.log('[TAB] Removed ' + tabId);
+        const wid = remI.windowId;
+        if (remI.isWindowClosing) {
+            tab_history[wid] = undefined;
+        } else {
+            const index = !tab_history[wid]?-1:tab_history[wid].indexOf(tabId);
+            tab_removed_time = new Date().getTime();
+            if (index > -1) { // only splice array when item is found
+                tab_history[wid].splice(index, 1); // 2nd parameter means remove one item only
+            }
+            tab_removed_window = wid;
+        }
+        updateCount(tabId, true);
     });
 browser.tabs.onCreated.addListener(
-    (tabId) => { updateCount(tabId, false);
+    (tabId) => {
+        console.log('[TAB] Created ' + tabId.id);
+        updateCount(tabId, false);
     });
 browser.tabs.onActivated.addListener(
-    (tabId) => { updateCount(tabId, false);
+    (actI) => {
+        const myId = actI.tabId;
+        console.log('[TAB] Activated ' + myId);
+        let in_tab_hist = true;
+        const wid = actI.windowId;
+        if (tab_removed_time) {
+            if (tab_removed_window == wid) {
+                if (tab_history[wid] && tab_history[wid].length) {
+                    const hist_id = tab_history[wid][tab_history[wid].length - 1];
+                    if (new Date().getTime() - tab_removed_time < 700) {
+                        if (myId !== hist_id) {
+                            browser.tabs.update(hist_id, {active: true}).then(() => {
+                                console.log(hist_id + ' Tab update ok');
+                            }).catch(() => {
+                                console.warn(hist_id + ' Tab update fail');
+                            });
+                        }
+                        in_tab_hist = false;
+                    }
+                }
+                tab_removed_time = 0;
+            }
+        }
+        if (in_tab_hist) {
+            if (!tab_history[wid]) tab_history[wid] = [];
+            else {
+                const idx = tab_history[wid].indexOf(myId);
+                if (idx >= 0)
+                    tab_history[wid].splice(idx, 1);
+            }
+            tab_history[wid].push(myId);
+        }
+        updateCount(myId, false);
     });
 browser.tabs.onUpdated.addListener(
-    (tabId) => { updateCount(tabId, false);
+    (tabId) => {
+        console.log('[TAB] Updated ' + tabId);
+        updateCount(tabId, false);
     });
 browser.storage.local.onChanged.addListener(logStorageChange);
 
