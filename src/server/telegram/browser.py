@@ -201,7 +201,9 @@ class BrowserInfoMessage(RemoteInfoMessage):
             self.input_field = 'url'
             self.picture = None
             try:
-                self.lst_sel = await self.redis.zrange(f'urls_{self.proc.user.rowid}', 0, -1, desc=True)
+                urls = f'urls_{self.proc.user.rowid}'
+                await self.redis.zremrangebyscore(urls, '-inf', int(time() - 864000))
+                self.lst_sel = await self.redis.zrange(urls, 0, -1, desc=True)
                 out = ''
                 for i, url in enumerate(self.lst_sel):
                     if not i:
