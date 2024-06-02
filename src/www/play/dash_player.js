@@ -70,6 +70,10 @@ class DashPlayer {
         this.player.reset();
     }
 
+    rate(v) {
+        this.player.setPlaybackRate(v);
+    }
+
     // al play di un video si va dal waiting al canplay al playing se va tutto bene. Altrimenti ci si ferma al waiting
     play_video(url, conf) {
         this.play_done = 1;

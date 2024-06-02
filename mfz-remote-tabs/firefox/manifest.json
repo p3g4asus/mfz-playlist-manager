@@ -22,7 +22,9 @@
   "name": "mfz-remote-tabs",
   "permissions": [
     "tabs",
-    "storage"
+    "storage",
+    "scripting",
+    "<all_urls>"
   ],
-  "version": "1.13"
+  "version": "1.15"
 }

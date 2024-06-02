@@ -78,6 +78,10 @@ class TwitchPlayer {
         }
     }
 
+    rate(v) {
+        //not supported
+    }
+
     play_video_id(vid) {
         if (this.is_orig_channel) {
             this.next_channel = vid;

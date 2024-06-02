@@ -32,6 +32,10 @@ class YoutubePlayer {
             this.on_state_changed(this, event.data);
     }
 
+    rate(v) {
+        this.player.setPlaybackRate(v);
+    }
+
     play_video_id(vid) {
         this.player.loadVideoById({videoId:vid});
     }

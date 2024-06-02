@@ -8,7 +8,7 @@ from telegram_menu import MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
-from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SEC
+from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SEC
 from common.user import User
 from server.telegram.message import NameDurationStatus, duration2string
 from server.telegram.remote import RemoteInfo, RemoteInfoMessage, RemoteListMessage
@@ -70,6 +70,9 @@ class PlayerInfoMessage(RemoteInfoMessage):
 
     async def play(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_PAUSE)
+
+    async def rate(self, args: tuple):
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_RATE, n=args[0])
 
     async def move(self, args: tuple):
         val = args[0]
@@ -167,6 +170,10 @@ class PlayerInfoMessage(RemoteInfoMessage):
             self.add_button(u'\U000023ED', self.manage_state_change, args=(self.move_pl, +1))
             self.add_button(u'\U000023ED \U0001F5D1', self.manage_state_change, args=(self.move_pl, 0), new_row=True)
             self.add_button(u'\U0001F51C', self.manage_state_change, args=(self.switch_to_status, NameDurationStatus.DOWNLOADING_WAITING, context))
+            self.add_button(u'\U000025B61x', self.manage_state_change, args=(self.rate, 1.0))
+            self.add_button(u'\U000025B61.5x', self.manage_state_change, args=(self.rate, 1.5))
+            self.add_button(u'\U000025B61.8x', self.manage_state_change, args=(self.rate, 1.8))
+            self.add_button(u'\U000025B62x', self.manage_state_change, args=(self.rate, 2))
             if self.status == NameDurationStatus.RENAMING:
                 if self.btn_type == 1:
                     addtxt = f'{self.calc_dyn_sec()}'

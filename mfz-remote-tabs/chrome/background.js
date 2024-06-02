@@ -101,6 +101,28 @@ function remotejs_process(msg) {
                 console.warn(msg.id + ' Tab reload fail');
             });
         }
+        else if (msg.sub == CMD_REMOTEBROWSER_JS_KEY) {
+            getTabId('None').then((ids) => {
+                for (let tabId of ids) {
+                    browser.scripting.executeScript(
+                        {
+                            args: [msg.k, msg.c, parseInt(msg.kc)],
+                            func: (key, code, kc) => {
+                                document.dispatchEvent(new KeyboardEvent('keydown',{'bubbles': true, 'key':key,'code':code, 'keyCode': kc, 'which': kc}));
+                            },
+                            target: {
+                                allFrames: true,
+                                tabId: tabId
+                            }
+                        }
+                    ).then(() => {
+                        console.log('Send ' + msg.c + ' to ' + tabId + ' OK');
+                    });
+                }
+            }).catch((err) => {
+                console.warn('Send ' + msg.c + ' to active tab FAIL');
+            });
+        }
         else if (msg.sub == CMD_REMOTEBROWSER_JS_CLOSE) {
             getTabId(msg.id).then((ids) => {
                 browser.tabs.remove(ids).then(() => {

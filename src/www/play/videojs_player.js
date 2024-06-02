@@ -55,6 +55,10 @@ class VideojsPlayer {
         this.player.dispose();
     }
 
+    rate(v) {
+        this.player.playbackRate(v);
+    }
+
     play_video(url, typeV) {
         this.player.src({type: typeV && typeV.mime? typeV.mime:'application/x-mpegURL', src: url});
         this.player.play();

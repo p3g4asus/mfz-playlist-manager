@@ -11,7 +11,7 @@ from telegram_menu import MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
-from common.const import CMD_REMOTEBROWSER_JS, CMD_REMOTEBROWSER_JS_ACTIVATE, CMD_REMOTEBROWSER_JS_CLOSE, CMD_REMOTEBROWSER_JS_GOTO, CMD_REMOTEBROWSER_JS_RELOAD
+from common.const import CMD_REMOTEBROWSER_JS, CMD_REMOTEBROWSER_JS_ACTIVATE, CMD_REMOTEBROWSER_JS_CLOSE, CMD_REMOTEBROWSER_JS_GOTO, CMD_REMOTEBROWSER_JS_KEY, CMD_REMOTEBROWSER_JS_RELOAD
 from common.user import User
 from common.utils import Fieldable
 from server.telegram.message import NameDurationStatus, ProcessorMessage
@@ -79,6 +79,9 @@ class BrowserInfoMessage(RemoteInfoMessage):
 
     async def reload(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_RELOAD, id=self.current_tab.id if self.current_tab else self.pi.tab.id)
+
+    async def key(self, args: tuple):
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_KEY, k=args[0], c=args[1], kc=ord(args[0]) if len(args) == 2 else args[2])
 
     async def activate(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_ACTIVATE, id=self.current_tab.id if self.current_tab else self.pi.tab.id)
@@ -153,6 +156,15 @@ class BrowserInfoMessage(RemoteInfoMessage):
                 if self.current_tab:
                     self.add_button(u'\U0001F7E9', self.activate)
                 self.add_button(u'\U0001F310', self.prepare_for_overwrite_tab)
+                if self.pi.tab:
+                    self.add_button('s', self.key, args=('s', 'KeyS', 83))
+                    self.add_button('d', self.key, args=('d', 'KeyD', 68))
+                    self.add_button('r', self.key, args=('r', 'KeyR', 82))
+                    self.add_button('k', self.key, args=('k', 'KeyK', 75))
+                    self.add_button(u'\U00002190', self.key, args=('ArrowLeft', 'ArrowLeft', 37))
+                    self.add_button(u'\U00002192', self.key, args=('ArrowRight', 'ArrowRight', 39))
+                    self.add_button(u'\U00002193', self.key, args=('ArrowDown', 'ArrowDown', 40))
+                    self.add_button(u'\U00002191', self.key, args=('ArrowUp', 'ArrowUp', 38))
             self.add_button(u'\U0001F310\U00002795', self.prepare_for_new_tab)
             self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back, new_row=True)
             self.picture = None

@@ -432,6 +432,9 @@ function remotejs_process(msg) {
         else if (msg.sub == CMD_REMOTEPLAY_JS_PAUSE) {
             on_play_finished({dir: null});
         }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_RATE) {
+            video_manager_obj.rate(parseFloat(msg.n));
+        }
         else if (msg.sub == CMD_REMOTEPLAY_JS_SEC) {
             video_manager_obj.currenttime(parseInt(msg.n));
             save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');

@@ -6,11 +6,15 @@
   "description": "A list of methods you can perform on a tab.",
   "homepage_url": "https://github.com/mdn/webextensions-examples/tree/master/tabs-tabs-tabs",
   "name": "mfz-remote-tabs",
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "permissions": [
     "tabs",
-    "storage"
+    "storage",
+    "scripting"
   ],
-  "version": "1.13",
+  "version": "1.15",
   "background": {
     "service_worker": "bg-wrapper.js"
   },

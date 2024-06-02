@@ -48,6 +48,7 @@ const CMD_REMOTEBROWSER_JS_CLOSE = 'close';
 const CMD_REMOTEBROWSER_JS_ACTIVATE = 'on';
 const CMD_REMOTEBROWSER_JS_GOTO = 'goto';
 const CMD_REMOTEBROWSER_JS_RELOAD = 'f5';
+const CMD_REMOTEBROWSER_JS_KEY = 'key';
 
 const COLORS = {
     'info': ['#fff', '#17a2b8'],

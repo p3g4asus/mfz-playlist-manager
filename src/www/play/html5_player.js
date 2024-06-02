@@ -52,6 +52,10 @@ class Html5Player {
         this.player.load();
     }
 
+    rate(v) {
+        this.player.playbackRate = v;
+    }
+
     play_video(url, typeV) {
         this.$player.attr('src', url);
         this.player.play();
