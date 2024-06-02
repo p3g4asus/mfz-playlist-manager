@@ -114,6 +114,7 @@ module.exports = {
         'CMD_REMOTEPLAY_JS_SEC': true,
         'CMD_REMOTEPLAY_JS_TELEGRAM': true,
         'CMD_REMOTEPLAY_PUSH': true,
+        'CMD_REMOTEPLAY_JS_RATE': true,
         'CMD_PLAYITSETT': true,
         'CMD_TOKEN': true,
         'get_selected_mime': true,
@@ -139,6 +140,7 @@ module.exports = {
         'CMD_REMOTEBROWSER_JS': true,
         'CMD_REMOTEBROWSER_JS_GOTO': true,
         'CMD_REMOTEBROWSER_JS_RELOAD': true,
+        'CMD_REMOTEBROWSER_JS_KEY': true,
         'browser': true,
         'chrome': true,
         'importScripts': true
