@@ -156,16 +156,16 @@ class BrowserInfoMessage(RemoteInfoMessage):
                 if self.current_tab:
                     self.add_button(u'\U0001F7E9', self.activate)
                 self.add_button(u'\U0001F310', self.prepare_for_overwrite_tab)
-                self.add_button(u'\U0001F310\U00002795', self.prepare_for_new_tab, new_row=True)
-                if self.pi.tab:
-                    self.add_button('s', self.key, args=('s', 'KeyS', 83))
-                    self.add_button('d', self.key, args=('d', 'KeyD', 68))
-                    self.add_button('r', self.key, args=('r', 'KeyR', 82))
-                    self.add_button('k', self.key, args=('k', 'KeyK', 75))
-                    self.add_button(u'\U00002190', self.key, args=('ArrowLeft', 'ArrowLeft', 37))
-                    self.add_button(u'\U00002192', self.key, args=('ArrowRight', 'ArrowRight', 39))
-                    self.add_button(u'\U00002193', self.key, args=('ArrowDown', 'ArrowDown', 40))
-                    self.add_button(u'\U00002191', self.key, args=('ArrowUp', 'ArrowUp', 38))
+            self.add_button(u'\U0001F310\U00002795', self.prepare_for_new_tab)
+            if self.pi.tab:
+                self.add_button('s', self.key, args=('s', 'KeyS', 83), new_row=True)
+                self.add_button('d', self.key, args=('d', 'KeyD', 68))
+                self.add_button('r', self.key, args=('r', 'KeyR', 82))
+                self.add_button('k', self.key, args=('k', 'KeyK', 75))
+                self.add_button(u'\U00002190', self.key, args=('ArrowLeft', 'ArrowLeft', 37))
+                self.add_button(u'\U00002192', self.key, args=('ArrowRight', 'ArrowRight', 39))
+                self.add_button(u'\U00002193', self.key, args=('ArrowDown', 'ArrowDown', 40))
+                self.add_button(u'\U00002191', self.key, args=('ArrowUp', 'ArrowUp', 38))
             self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back, new_row=True)
             self.picture = None
             if self.current_tab:
