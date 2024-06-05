@@ -166,13 +166,11 @@ function on_play_finished(event) {
         playlist_start_playing(dir);
         return;
     }
-    let lnk = '';
     let title = '';
     console.log('Index found is ' + index);
     set_next_button_enabled(index < playlist_arr.length - 1);
     set_prev_button_enabled(index > 0);
     vid = playlist_item_current.uid;
-    lnk = playlist_item_current.link;
     title = playlist_item_current.title;
     set_video_title(title);
     set_video_enabled(playlist_item_current.rowid);
@@ -291,6 +289,7 @@ function go_to_prev_video() {
         on_play_finished({dir: -1});
 }
 
+// eslint-disable-next-line no-unused-vars
 function go_to_video(mydir) {
     if (video_manager_obj)
         on_play_finished({dir: mydir});
@@ -479,13 +478,17 @@ function remotejs_enqueue() {
 
 function get_remoteplay_link() {
     if (!main_ws_qel_exists('remoteplay')) {
+        const playerid = docCookies.getItem(COOKIE_PLAYERID + playlist_current_userid);                    
         let el = new MainWSQueueElement(
-            {cmd: CMD_REMOTEPLAY, host: window.location.protocol + '//' + window.location.host + MAIN_PATH},
+            {cmd: CMD_REMOTEPLAY, host: window.location.protocol + '//' + window.location.host + MAIN_PATH, sh: playerid},
             function(msg) {
                 return msg.cmd === CMD_REMOTEPLAY? msg:null;
             }, 5000, 3, 'remoteplay');
         el.enqueue().then(function(msg) {
             if (!manage_errors(msg)) {
+                if (!playerid) {
+                    docCookies.setItem(COOKIE_PLAYERID + playlist_current_userid, msg.hex, Infinity);
+                }
                 playlist_remoteplay = msg.url;
                 let lnk = playlist_remoteplay + '?red='+encodeURIComponent(window.location.protocol + '//' + window.location.host + MAIN_PATH_S + 'play/player_remote_commands.htm');
                 for (let it of playlists_arr) {
@@ -513,6 +516,7 @@ function get_remoteplay_link() {
     }
 }
 
+// eslint-disable-next-line no-unused-vars
 function get_startup_settings() {
     let orig_up = new URLSearchParams(URL_PARAMS);
     let plname;
@@ -579,6 +583,7 @@ function playlist_start_playing(idx) {
     }
 }
 
+// eslint-disable-next-line no-unused-vars
 function playlist_del_current_video() {
     if (playlist_item_current) {
         let cel = playlist_item_current;
@@ -594,6 +599,7 @@ function playlist_del_current_video() {
     }
 }
 
+// eslint-disable-next-line no-unused-vars
 function playlist_reload_settings(reset) {
     //vedi nome da gui se reset falso: se nome vuoto non fare niente. Se pieno procedi
     get_conf_name(reset).then(([cname, oldv]) => {

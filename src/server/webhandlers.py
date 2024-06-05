@@ -650,7 +650,8 @@ async def telegram_command(request):
 
 async def remote_command(request):
     hextoken = request.match_info.get('sfx', '') + request.match_info['hex']
-    if hextoken in request.app.p.ws:
+    dws = request.app.p.ws
+    if hextoken in dws:
         typem = 1 if 'red' in request.query else 2 if 'get' in request.query or 'get[]' in request.query else 0
         redirect_pars = f'?hex={hextoken}'
         outdict = {'hex': hextoken}
@@ -664,8 +665,8 @@ async def remote_command(request):
                         d[k] = v
                         redirect_pars = f'{redirect_pars}&{urlencode(d)}'
                 elif typem == 2:
-                    if k in ('get', 'get[]') and v in request.app.p.ws[hextoken]:
-                        outdict[v] = request.app.p.ws[hextoken][v]
+                    if k in ('get', 'get[]') and v in dws[hextoken]:
+                        outdict[v] = dws[hextoken][v]
                 elif k in outdict:
                     if isinstance(outdict[k], list):
                         outdict[k].append(v)
@@ -674,7 +675,11 @@ async def remote_command(request):
                 else:
                     outdict[k] = v
         except Exception:
-            del request.app.p.ws[hextoken]
+            if 'sh' in dws[hextoken]:
+                for sh in dws[hextoken]['sh']:
+                    del dws[sh]
+            else:
+                del dws[hextoken]
             _LOGGER.debug(f"Exception detected {traceback.format_exc()}: Deleting ws")
             return web.HTTPUnauthorized(body='Invalid hex link')
         if typem == 1:
@@ -682,7 +687,7 @@ async def remote_command(request):
         else:
             _LOGGER.debug(f'Sending this dict: {outdict}')
             if typem == 0:
-                dct = request.app.p.ws[hextoken]
+                dct = dws[hextoken]
                 cmd = json.dumps(outdict)
                 if dct['cmdqueue']:
                     dct['cmdqueue'].append(cmd)
@@ -750,12 +755,17 @@ async def pls_h(request):
                     dd = dws.get(player_hex, dict())
                     if isinstance(dd, dict):
                         dd.update(dict(ws=ws, uid=userid))
+                        if sh := pl.f('sh'):
+                            dd['sh'] = [sh, player_hex]
+                            dws[sh] = dd
+                        else:
+                            sh = player_hex
                         dws[player_hex] = dd
                         if 'telegram' in dd and dd['telegram'] in dws:
                             del dws[dd['telegram']]
                         telegram = dd['telegram'] = hashlib.sha256(str(uuid4()).encode('utf-8')).hexdigest()
                         dws[telegram] = player_hex
-                        host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{player_hex}"
+                        host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{sh}"
                         host2 = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}telegram/{telegram}"
                         await ws.send_str(json.dumps(pl.ok(url=host, telegram=host2, hex=player_hex), cls=MyEncoder))
                         dd['cmdqueue'] = (await process_remoteplay_cmd_queue(ws, dd['cmdqueue'])) if 'cmdqueue' in dd else []

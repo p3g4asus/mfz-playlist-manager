@@ -13,6 +13,7 @@ module.exports = {
     },
     'globals': {
         'COOKIE_USERID': true,
+        'COOKIE_PLAYERID': true,
         'go_to_video': true,
         'CMD_REFRESH': true,
         'main_ws_connect': true,

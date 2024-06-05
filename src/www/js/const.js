@@ -4,6 +4,7 @@ const COOKIE_LOGIN = 'API_SESSION' + TERM;
 const COOKIE_USERID = 'Userid' + TERM;
 const COOKIE_SELECTEDPL = 'SelectedPl' + TERM;
 const COOKIE_PLAYSETT = 'playsett' + TERM;
+const COOKIE_PLAYERID = 'playerid' + TERM;
 const MAIN_PATH_S = location.protocol == 'https:'?(PTHREG?'/' + PTHREG[1] + '-s/':'/pm-s/'):'/static/';
 const MAIN_PATH = location.protocol == 'https:'?(PTHREG?'/' + PTHREG[1] + '/':'/pm/'):'/';
 const CMD_DEL = 'del';
