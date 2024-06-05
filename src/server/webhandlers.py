@@ -755,7 +755,7 @@ async def pls_h(request):
                     dd = dws.get(player_hex, dict())
                     if isinstance(dd, dict):
                         dd.update(dict(ws=ws, uid=userid))
-                        if sh := pl.f('sh'):
+                        if (sh := pl.f('sh')) and sh != player_hex:
                             dd['sh'] = [sh, player_hex]
                             dws[sh] = dd
                         else:
