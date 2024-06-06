@@ -12,16 +12,44 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/madmurphy/cookies.js@master/cookies.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" integrity="sha512-iBBXm8fW90+nuLcSKlbmrPcLa0OT92xO1BIsZ+ywDWZCvqsWgccV3gFoRBv0z+8dLJgyAHIhR35VZc2oM/gI1w==" crossorigin="anonymous" />
     <link rel="stylesheet" type="text/css" href="./css/additional-styles.css">
     <script src="./js/const.js"></script>
     <script src="./js/main_ws_manager.js"></script>
     <script src="./js/login.js?v=2"></script>
+    <style>
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 400px;
+        }
+        .btn-google {
+            background-color: #DB4437;
+            color: white;
+        }
+        .btn-google:hover {
+            background-color: #c23321;
+        }
+        .error-message {
+            color: red;
+            font-size: 0.875em;
+        }
+    </style>
 </head>
 
 <body>
-    <div class="container-fluid">
+    <div class="container">
         <div class="row loading">
             <div class="text-center">
                 <div class="spinner-border text-primary" role="status">
@@ -52,7 +80,7 @@
         </div>
         <div class="row logout" style="display: none;">
             <div class="alert alert-success" id="logged-in" role="alert">
-                <p class="h3" id="logged-in-p"></p>
+                <p class="h4" id="logged-in-p"></p>
             </div>
         </div>
         <div class="row row-buffer logout" style="display: none;">
@@ -93,34 +121,34 @@
             </div>
         </div>
         <div class="row login" style="display: none;">
-            <div class="col-12">
-                <form autocomplete="on">
-                    <div class="form-group">
-                        <label for="input-user-name">User Name</label>
-                        <input type="text" class="form-control input-lg" name="username" id="input-user-name" aria-describedby="input-user-name-help" required>
-                        <small id="input-user-name-help" class="form-text text-muted">Please insert username.</small>
+            <h2 class="text-center" id="form-title">Login</h2>
+            <form id="auth-form" method="post">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                    <div class="error-message" id="username-error" style="display:none;">L'username deve essere di almeno 5 caratteri</div>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                    <div class="error-message" id="password-error" style="display:none;">La password deve essere di almeno 5 caratteri</div>
+                </div>
+                <div class="mb-3 form-check" id="remember-me-group">
+                    <input type="checkbox" name="remember" class="form-check-input" id="remember-me">
+                    <label class="form-check-label" for="remember-me">Ricordami</label>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Login</button>
+                <div class="row-buffer">
+                    <!-- deprecated <button id="login-g-submit" class="btn btn-primary btn-block" type="button"><p class="h3"><i class="fab fa-google"></i>&nbsp;&nbsp;Login</p></button>-->
+                    <div id="g_id_onload" data-client_id="60860343069-fg6qgf1fogpjrb6femd2p7n0l9nsq4vt.apps.googleusercontent.com" data-context="signin" data-ux_mode="popup" data-callback="login_google_new" data-auto_prompt="false">
                     </div>
-                    <div class="form-group">
-                        <label for="input-password">Password</label>
-                        <input type="password" class="form-control input-lg" name="password" id="input-password" aria-describedby="input-password-help" required>
-                        <small id="input-password-help" class="form-text text-muted">Please insert password.</small>
+        
+                    <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_blue" data-text="signin_with" data-size="large" data-logo_alignment="left">
                     </div>
-                    <div class="form-group form-check">
-                        <input type="checkbox" name="remember" class="form-check-input" id="check-remember">
-                        <label class="form-check-label" for="check-remember">Remember</label>
-                    </div>
-                    <button id="login-submit" class="btn btn-primary btn-block" type="button">
-                        <p class="h3"><i class="fas fa-sign-in-alt"></i>&nbsp;&nbsp;Submit</p>
-                    </button>
-                </form>
-            </div>
-        </div>
-        <div class="row row-buffer login" style="display: none;">
-            <!-- deprecated <button id="login-g-submit" class="btn btn-primary btn-block" type="button"><p class="h3"><i class="fab fa-google"></i>&nbsp;&nbsp;Login</p></button>-->
-            <div id="g_id_onload" data-client_id="60860343069-fg6qgf1fogpjrb6femd2p7n0l9nsq4vt.apps.googleusercontent.com" data-context="signin" data-ux_mode="popup" data-callback="login_google_new" data-auto_prompt="false">
-            </div>
-
-            <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_blue" data-text="signin_with" data-size="large" data-logo_alignment="left">
+                </div>
+            </form>
+            <div class="text-center mt-3">
+                <a href="#" id="toggle-link">Non hai un account? Registrati</a>
             </div>
         </div>
         <div class="row row-buffer" id="alert-row">

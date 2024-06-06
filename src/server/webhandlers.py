@@ -817,7 +817,7 @@ async def register(request):
         db = request.app.p.db
         user = User(username=username, password=password)
         if await user.toDB(db):
-            return web.HTTPFound('/')
+            return web.HTTPNoContent()
         else:
             return web.HTTPUnauthorized(body='Username already taken')
     else:

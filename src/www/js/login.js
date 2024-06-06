@@ -27,7 +27,7 @@ function login_send_id_token(id_token, name) {
     $.ajax({
         url: window.location.origin + MAIN_PATH + 'login_g',
         type: 'post',
-        data: $('#check-remember').is(':checked')? {idtoken: id_token, remember: 1}: {idtoken: id_token},
+        data: $('#remember-me').is(':checked')? {idtoken: id_token, remember: 1}: {idtoken: id_token},
         success: function(data, textStatus, request) {
             console.log(listCookies());
             let orig_up = new URLSearchParams(URL_PARAMS);
@@ -51,26 +51,99 @@ function login_google_attach_signin(element) {
 }
 
 function login_init() {
-    $('#login-submit').click(function() {
-        let form = $('form');
-        if (form[0].checkValidity()) {
-            $.ajax({
-                url: window.location.origin + MAIN_PATH + 'login',
-                type: 'post',
-                data: form.serialize(),
-                success: function(data, textStatus, request) {
-                    console.log(listCookies());
-                    let orig_up = new URLSearchParams(URL_PARAMS);
-                    window.location.assign(orig_up.has('urlp')?orig_up.get('urlp'):(MAIN_PATH_S + 'index.htm' + URL_PARAMS_APPEND));
-                },
-                error: function (request, status, error) {
-                    toast_msg('Cannot login: please check username and password', 'danger');
-                }
-            });
+    $('#toggle-link').click(function() {
+        var formTitle = $('#form-title');
+        var authForm = $('#auth-form');
+        var toggleLink = $('#toggle-link');
+        var rememberMeGroup = $('#remember-me-group');
+        
+        if (formTitle.text() === 'Login') {
+            formTitle.text('Register');
+            toggleLink.text('Already have an account? Login');
+            authForm.find('button[type="submit"]').text('Register');
+            rememberMeGroup.hide();
+        } else {
+            formTitle.text('Login');
+            toggleLink.text('Do not have an account? Register');
+            authForm.find('button[type="submit"]').text('Login');
+            rememberMeGroup.show();
         }
-        form.addClass('was-validated');
     });
-    
+    const form = $('#auth-form');
+
+    form.submit(function(event) {
+        var usernameInput = $('#username');
+        var usernameError = $('#username-error');
+        var passwordInput = $('#password');
+        var passwordError = $('#password-error');
+        var isValid = true;
+        event.preventDefault();
+        if (usernameInput.val().length < 5) {
+            usernameInput.addClass('is-invalid');
+            usernameError.show();
+            isValid = false;
+        } else {
+            usernameInput.removeClass('is-invalid');
+            usernameError.hide();
+        }
+
+        if (passwordInput.val().length < 5) {
+            passwordInput.addClass('is-invalid');
+            passwordError.show();
+            isValid = false;
+        } else {
+            passwordInput.removeClass('is-invalid');
+            passwordError.hide();
+        }
+
+        if (isValid) {
+            var rememberMe = $('#remember-me').is(':checked');
+            if (rememberMe) {
+                localStorage.setItem('rememberMe', 'true');
+                localStorage.setItem('username', usernameInput.val());
+            } else {
+                localStorage.removeItem('rememberMe');
+                localStorage.removeItem('username');
+            }
+            var formTitle = $('#form-title');
+            if (formTitle.text() === 'Login') {
+                $.ajax({
+                    url: window.location.origin + MAIN_PATH + 'login',
+                    type: 'post',
+                    data: form.serialize(),
+                    success: function(data, textStatus, request) {
+                        console.log(listCookies());
+                        let orig_up = new URLSearchParams(URL_PARAMS);
+                        window.location.assign(orig_up.has('urlp')?orig_up.get('urlp'):(MAIN_PATH_S + 'index.htm' + URL_PARAMS_APPEND));
+                    },
+                    error: function (request, status, error) {
+                        toast_msg('Cannot login: please check username and password', 'danger');
+                    }
+                });
+            } else {
+                $.ajax({
+                    url: window.location.origin + MAIN_PATH + 'register',
+                    type: 'post',
+                    data: form.serialize(),
+                    success: function(data, textStatus, request) {
+                        setTimeout(function() {
+                            let orig_up = new URLSearchParams(URL_PARAMS);
+                            const urlp = '?urlp=' + encodeURIComponent(orig_up.has('urlp')?orig_up.get('urlp'):(MAIN_PATH_S + 'index.htm' + URL_PARAMS_APPEND));
+                            window.location.assign(MAIN_PATH_S + 'login.htm' + urlp);
+                        }, 5000);
+                        toast_msg('Register OK: redirecting to login page', 'success');
+                    },
+                    error: function (request, status, error) {
+                        toast_msg('Cannot register: please check username and password (username already taken?)', 'danger');
+                    }
+                });
+            }
+        }
+    });
+    if (localStorage.getItem('rememberMe') === 'true') {
+        $('#username').val(localStorage.getItem('username'));
+        $('#remember-me').prop('checked', true);
+    }
     // deprecated login_google_init_button_old();
 }
 
@@ -132,6 +205,9 @@ function playlist_dump(useri) {
                     return false;
                 });
                 $('#logged-in-p').text('Logged in' + (msg.playlists.length?'  as ' + msg.playlists[0].user:''));
+                if (localStorage.getItem('rememberMe') === 'true' && msg.playlists.length) {
+                    localStorage.setItem('username', msg.playlists[0].user);
+                }
                 for (let it of msg.playlists) {
                     add_playlist_to_button(it.name);
                 }
