@@ -506,11 +506,19 @@ async def logout(request):
 async def send_ping(ws, control_dict):
     if not control_dict['end']:
         try:
-            waiting = control_dict['msg'].cmd
+            msg: PlaylistMessage = control_dict['msg']
+            waiting = msg.cmd
+            kwargs = dict()
+            if sp := msg.f(PlaylistMessage.PING_STATUS):
+                kwargs['status'] = sp
+                sp[PlaylistMessage.PING_STATUS_CONS] = True
+                delay = 3
+            else:
+                delay = 30
             _LOGGER.debug(f"Sending ping for {waiting}")
-            await ws.send_str(json.dumps(PlaylistMessage(CMD_PING, dict(waiting=waiting)), cls=MyEncoder))
+            await ws.send_str(json.dumps(PlaylistMessage(CMD_PING, dict(waiting=waiting, **kwargs)), cls=MyEncoder))
             if not ws.closed and not ws.exception():
-                Timer(30, partial(send_ping, ws, control_dict))
+                Timer(delay, partial(send_ping, ws, control_dict))
             else:
                 control_dict['end'] = True
                 _LOGGER.debug("Websocket is closed: ping not done")
@@ -789,7 +797,7 @@ async def pls_h(request):
                 _LOGGER.debug(f'Checking {k}')
                 if p.interested(pl):
                     control_dict = dict(end=False, msg=pl)
-                    Timer(30, partial(send_ping, ws, control_dict))
+                    Timer(8, partial(send_ping, ws, control_dict))
                     out = await p.process(ws, pl, userid, request.app.p.executor)
                     control_dict["end"] = True
                     if out:

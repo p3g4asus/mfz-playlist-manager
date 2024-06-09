@@ -569,6 +569,13 @@ class PlaylistItem(JSONAble, Fieldable):
 
 
 class PlaylistMessage(JSONAble, Fieldable):
+    PING_STATUS = 'send_status_with_ping'
+    PING_STATUS_CONS = '__c'
+
+    def init_send_status_with_ping(self, **kwargs):
+        d = dict(**kwargs)
+        self[PlaylistMessage.PING_STATUS] = d
+        return d
 
     def set_from_dict(self, dictionary):
         for key in dictionary:

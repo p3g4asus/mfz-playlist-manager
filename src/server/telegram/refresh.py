@@ -19,6 +19,7 @@ class RefreshingTMessage(StatusTMessage):
         self.playlist = playlist
         self.upd_sta = None
         self.upd_sto = None
+        self.refresh_message: PlaylistMessage = None
 
     def set_playlist(self, playlist):
         self.playlist = playlist
@@ -48,7 +49,15 @@ class RefreshingTMessage(StatusTMessage):
                 return f'Review params for {self.playlist.name} and update or abort'
         if self.status == NameDurationStatus.UPDATING_RUNNING:
             self.input_field = u'\U0001F570'
-            return f'{self.playlist.name} updating {"." * (self.sub_status & 0xFF)}'
+            status = None if not self.refresh_message else self.refresh_message.f(PlaylistMessage.PING_STATUS)
+            if status and 'ss' in status:
+                stas = status['ss']
+                status[PlaylistMessage.PING_STATUS_CONS] = True
+                jj = "\n".join(stas)
+                upd = f'<code>{jj}</code>\n'
+            else:
+                upd = ''
+            return f'{upd}{self.playlist.name} updating {"." * (self.sub_status & 0xFF)}'
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status in (NameDurationStatus.UPDATING_START, NameDurationStatus.UPDATING_STOP):
@@ -79,6 +88,7 @@ class RefreshingTMessage(StatusTMessage):
             next_run_time=datetime.utcnow()
         )
         pl = PlaylistMessage(CMD_REFRESH, playlist=self.playlist, datefrom=int(self.upd_sta.timestamp() * 1000), dateto=int(self.upd_sto.timestamp() * 1000))
+        self.refresh_message = pl
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             self.playlist = pl.playlist
@@ -86,6 +96,7 @@ class RefreshingTMessage(StatusTMessage):
             self.return_msg = f'Refresh OK :thumbs_up: ({pl.n_new} new videos)'
         else:
             self.return_msg = f'Error {pl.rv} refreshing {self.playlist.name} :thumbs_down:'
+        self.refresh_message = None
         await self.on_refresh_finish(pl)
 
     @abstractmethod

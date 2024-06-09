@@ -31,7 +31,7 @@ from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DEL, CMD_DOWNLOAD,
                           MSG_PLAYLIST_NOT_FOUND, MSG_PLAYLISTITEM_NOT_FOUND,
                           MSG_TASK_ABORT, MSG_UNAUTHORIZED)
 from common.playlist import (LOAD_ITEMS_ALL, LOAD_ITEMS_NO, LOAD_ITEMS_UNSEEN,
-                             Playlist, PlaylistItem)
+                             Playlist, PlaylistItem, PlaylistMessage)
 from common.user import User
 from common.utils import AbstractMessageProcessor, MyEncoder
 
@@ -474,7 +474,8 @@ class MessageProcessor(AbstractMessageProcessor):
             self.osc_c.send_message('/startjob', (job[0], json.dumps(job[1])))
 
         def job_progress(self, status, _, extstatus):
-            status['dl'] = json.loads(extstatus)
+            newdict = json.loads(extstatus)
+            status['dl'].update(newdict)
 
         def job_done(self, status, _, exits):
             status['dlx'] = json.loads(exits)
@@ -492,7 +493,7 @@ class MessageProcessor(AbstractMessageProcessor):
             self.osc_c = SimpleUDPClient('127.0.0.1', hisport)
             return (str(hisport), str(myport))
 
-    async def processDl(self, msg, userid, executor):
+    async def processDl(self, msg: PlaylistMessage, userid, executor):
         x = msg.playlistItemId()
         if x:
             it = await PlaylistItem.loadbyid(self.db, rowid=x)
@@ -500,6 +501,7 @@ class MessageProcessor(AbstractMessageProcessor):
                 pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
                 if pls:
                     drm = '_drm_k' in it.conf and it.conf['_drm_k'] and '_drm_m' in it.conf and it.conf['_drm_m']
+                    sp = msg.init_send_status_with_ping()
                     downloader = self.DRMDownloader(it, msg, self.db, self.dl_dir) if drm else self.YTDLDownloader(it, msg, self.db, self.dl_dir)
                     if pls[0].useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
@@ -515,12 +517,14 @@ class MessageProcessor(AbstractMessageProcessor):
                             return msg.ok()
                         else:
                             self.dl_q[k] = downloader
+                            sp['que'] = True
                             await downloader.go_to_sleep()
                             del self.dl_q[k]
                     if not downloader.is_deleted():
                         self.downloader = downloader
                         self.status['dlid'] = it.rowid
-                        self.status['dl'] = dict()
+                        sp['que'] = False
+                        self.status['dl'] = sp
                         self.status['dlx'] = dict()
                         msg = await downloader.dl(self.status, executor)
                         self.status['dlid'] = -1

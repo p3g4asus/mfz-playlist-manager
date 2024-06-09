@@ -51,6 +51,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
     def __init__(self, navigation: NavigationHandler, myid: int = None, user: User = None, params: object = None, pid: int = None, **argw) -> None:
         self.pid = pid
         self.current_sort: str = ''
+        self.download_message: PlaylistMessage = None
         super().__init__(navigation, myid, user, params)
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
@@ -112,6 +113,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                              fmt=args[0],
                              host=f'{self.proc.params.link}/{self.proc.params.args["sid"]}',
                              conv=args[1])
+        self.download_message = pl
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             self.obj.dl = pl.playlistitem.dl
@@ -119,6 +121,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
         else:
             self.return_msg = f'Error {pl.rv} downloading {self.name} :thumbs_down:'
         await self.switch_to_idle()
+        self.download_message = None
 
     @staticmethod
     def sizeof_fmt(num, suffix="B"):
@@ -233,31 +236,34 @@ class PlaylistItemTMessage(NameDurationTMessage):
                     self.add_button('worst os', self.download_format, args=('worst', 4))
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
             elif self.status == NameDurationStatus.DOWNLOADING:
-                status = self.proc.processors['common'].status
                 self.add_button(f':cross_mark: Abort {self.id}', self.stop_download, args=(self.id, ))
-                if 'dlid' in status and status['dlid'] == self.id:
-                    self.add_button(':cross_mark::cross_mark: Abort All', self.stop_download, args=(None, ))
-                    upd = f'{escape(self.name)} downloading {"." * (self.sub_status & 0xFF)}'
-                    if 'dl' in status and 'raw' in status['dl']:
-                        dl = status['dl']['raw']
-                        upd2 = ''
-                        if 'status' in dl:
-                            upd2 += dl['status'] + '\n'
-                        fi = self.dictget(dl, 'fragment_index', self.dictget(dl, 'downloaded_bytes'))
-                        fc = self.dictget(dl, 'fragment_count', self.dictget(dl, 'total_bytes', self.dictget(dl, 'total_bytes_estimate')))
-                        if isinstance(fi, (int, float)) and isinstance(fc, (int, float)):
-                            no = int(round(30.0 * fi / fc))
-                            upd2 += '[' + (no * 'o') + ((30 - no) * ' ') + '] '
-                        fc = dl.get('speed')
-                        if isinstance(fc, (int, float)):
-                            upd2 += f'{self.sizeof_fmt(fc, "B/s")} '
-                        fc = dl.get('downloaded_bytes')
-                        if isinstance(fc, (int, float)):
-                            upd2 += f'{self.sizeof_fmt(fc)}'
-                        if upd2:
-                            upd += '\n<code>' + upd2 + '</code>'
+                status = None if not self.download_message else self.download_message.f(PlaylistMessage.PING_STATUS)
+                if status and 'que' in status:
+                    if not status['que']:
+                        self.add_button(':cross_mark::cross_mark: Abort All', self.stop_download, args=(None, ))
+                        upd = f'{escape(self.name)} downloading {"." * (self.sub_status & 0xFF)}'
+                        if 'raw' in status:
+                            dl = status['raw']
+                            upd2 = ''
+                            if 'status' in dl:
+                                upd2 += dl['status'] + '\n'
+                            fi = self.dictget(dl, 'fragment_index', self.dictget(dl, 'downloaded_bytes'))
+                            fc = self.dictget(dl, 'fragment_count', self.dictget(dl, 'total_bytes', self.dictget(dl, 'total_bytes_estimate')))
+                            if isinstance(fi, (int, float)) and isinstance(fc, (int, float)):
+                                no = int(round(30.0 * fi / fc))
+                                upd2 += '[' + (no * 'o') + ((30 - no) * ' ') + '] '
+                            fc = dl.get('speed')
+                            if isinstance(fc, (int, float)):
+                                upd2 += f'{self.sizeof_fmt(fc, "B/s")} '
+                            fc = dl.get('downloaded_bytes')
+                            if isinstance(fc, (int, float)):
+                                upd2 += f'{self.sizeof_fmt(fc)}'
+                            if upd2:
+                                upd += '\n<code>' + upd2 + '</code>'
+                    else:
+                        upd = f'{escape(self.name)} waiting in queue {"." * (self.sub_status & 0xFF)}'
                 else:
-                    upd = f'{escape(self.name)} waiting in queue {"." * (self.sub_status & 0xFF)}'
+                    upd = f'{escape(self.name)} getting download status {"." * (self.sub_status & 0xFF)}'
                 return upd
             elif self.status == NameDurationStatus.SORTING:
                 for i in range(10):

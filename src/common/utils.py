@@ -14,6 +14,12 @@ class Fieldable:
     def __str__(self):
         return str(vars(self))
 
+    def __getitem__(self, key):
+        return getattr(self, key)
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
     def cp(self, **kwargs):
         for key in kwargs:
             if hasattr(self, key):

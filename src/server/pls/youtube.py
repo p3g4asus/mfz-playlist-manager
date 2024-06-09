@@ -6,7 +6,7 @@ from datetime import (datetime, timedelta, timezone)
 
 from common.const import (CMD_YT_PLAYLISTCHECK, MSG_YT_INVALID_PLAYLIST,
                           MSG_BACKEND_ERROR, MSG_NO_VIDEOS, RV_NO_VIDEOS)
-from common.playlist import PlaylistItem
+from common.playlist import PlaylistItem, PlaylistMessage
 from common.user import User
 from common.utils import parse_isoduration
 
@@ -227,9 +227,16 @@ class MessageProcessor(RefreshMessageProcessor):
             return False
         return True
 
+    @staticmethod
+    def record_status(sta, newstr, field):
+        if PlaylistMessage.PING_STATUS_CONS not in sta or sta[PlaylistMessage.PING_STATUS_CONS]:
+            sta[field] = []
+            sta[PlaylistMessage.PING_STATUS_CONS] = False
+        sta[field].append(newstr)
+
     async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         try:
-            sets = [(s['id'], s['ordered'] if 'ordered' in s else True, s['params'] if 'params' in s else dict()) for s in conf['playlists']]
+            sets = [(s['id'], s['ordered'] if 'ordered' in s else True, s['params'] if 'params' in s else dict(), s['title'] if 'title' in s and s['title'] else s['id']) for s in conf['playlists']]
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
@@ -245,7 +252,8 @@ class MessageProcessor(RefreshMessageProcessor):
                 }
                 programs = dict()
                 localtz = datetime.now(timezone.utc).astimezone().tzinfo
-                for set, ordered, filters in sets:
+                sta = msg.init_send_status_with_ping(ss=[])
+                for set, ordered, filters, title in sets:
                     startFrom = 1
                     while startFrom:
                         ydl_opts['playliststart'] = startFrom
@@ -257,6 +265,7 @@ class MessageProcessor(RefreshMessageProcessor):
                         while not cont_ok and cont_n < 3:
                             cont_ok = True
                             cont_n += 1
+                            self.record_status(sta, f'\U0001F194 Set {title} [{startFrom}]..', 'ss')
                             _LOGGER.debug(f"Set = {set} url = {current_url} startFrom = {startFrom} ({cont_n}/3)")
                             try:
                                 await executor(self.youtube_dl_get_dict, current_url, ydl_opts, playlist_dict)
@@ -373,6 +382,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                                              video.get('title'),
                                                                                              video.get('upload_date'),
                                                                                              video.get('duration')))
+                                                self.record_status(sta, f'\U0001F50D Found {video.get("title")} [{video.get("upload_date")}]', 'ss')
                                                 # datepubi = int(datepubo.timestamp() * 1000)
                                                 datepubi_conf = int(datepubo_conf.timestamp() * 1000)
                                                 if video['id'] not in programs and self.video_is_not_filtered_out(video, filters):
@@ -401,10 +411,12 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             )
                                                             programs[video['id']] = pr
                                                             _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
+                                                            self.record_status(sta, f'\U00002795 Added {video.get("title")} [{datepub}]', 'ss')
                                                     elif ordered:
                                                         startFrom = 0
                                                         break
-                                            except Exception:
+                                            except Exception as ex:
+                                                self.record_status(sta, f'\U000026A0 Error 0: {repr(ex)}', 'ss')
                                                 _LOGGER.error(f'YTDLPM0 {traceback.format_exc()}')
                                         if startFrom:
                                             startFrom += 100
@@ -412,7 +424,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                         startFrom = 0
                                 else:
                                     startFrom = 0
-                            except Exception:
+                            except Exception as ex:
+                                self.record_status(sta, f'\U000026A0 Error 1 [{cont_n}/3]: {repr(ex)}', 'ss')
                                 _LOGGER.error(f'YTDLPM1 {cont_n}/3 {traceback.format_exc()}')
                                 cont_ok = False
                                 if cont_n >= 3:
