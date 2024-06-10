@@ -94,16 +94,17 @@ class MessageProcessor(RefreshMessageProcessor):
             _LOGGER.info(f'ffmpeg error: {traceback.format_exc()}')
             out_dict.update(dict(_err=403))
 
-    async def recursive_check_dir(self, absolute, datefrom, dateto, playlist, executor, programs):
+    async def recursive_check_dir(self, absolute, datefrom, dateto, playlist, executor, programs, sta):
         files = [ff for f in listdir(absolute) if (isfile(ff := join(absolute, f)) and f.endswith('.mp4')) or isdir(ff)]
         relative = re.sub(r'[\\/]', '/', relpath(absolute, self.absolute))
         for f in files:
             if isdir(f):
-                await self.recursive_check_dir(f, datefrom, dateto, playlist, executor, programs)
+                await self.recursive_check_dir(f, datefrom, dateto, playlist, executor, programs, sta)
             else:
                 video = dict()
                 tm = getmtime(f)
                 tmms = tm * 1000
+                self.record_status(sta, f'\U0001F50D Found {f}', 'ss')
                 if tmms >= datefrom and tmms <= dateto:
                     video['timestamp'] = tm
                     datepubo = datetime.fromtimestamp(int(video['timestamp']))
@@ -141,29 +142,35 @@ class MessageProcessor(RefreshMessageProcessor):
                         img=video['thumbnail'],
                         playlist=playlist
                     )
+                    self.record_status(sta, f'\U00002795 Added {pr.title} [{pr.datepub}]', 'ss')
                     programs[video['id']] = pr
 
     async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         try:
-            sets = [(s['id'], s['relative']) for _, s in conf['playlists'].items()]
+            sets = [(s['id'], s['relative'], s['description']) for _, s in conf['playlists'].items()]
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
         if sets:
+            sta = msg.init_send_status_with_ping(ss=[])
             try:
                 programs = dict()
-                for absolute, relative in sets:
+                for absolute, relative, title in sets:
                     if not exists(absolute) or not isdir(absolute):
+                        self.record_status(sta, f'\U000026A0 Folder {absolute} does not exist: ignoring', 'ss')
                         _LOGGER.warning(f'Folder {absolute} does not exist: ignoring')
                         continue
-                    await self.recursive_check_dir(absolute, datefrom, dateto, playlist, executor, programs)
+                    self.record_status(sta, f'\U0001F194 Scanning {title}...', 'ss')
+                    await self.recursive_check_dir(absolute, datefrom, dateto, playlist, executor, programs, sta)
                 if not len(programs):
+                    self.record_status(sta, f'\U000026A0 {MSG_NO_VIDEOS}', 'ss')
                     return msg.err(RV_NO_VIDEOS, MSG_NO_VIDEOS)
                 else:
                     programs = list(programs.values())
                     programs.sort(key=lambda item: item.title)
                     return msg.ok(items=programs)
-            except Exception:
+            except Exception as ex:
+                self.record_status(sta, f'\U000026A0 Error 11: {repr(ex)}', 'ss')
                 _LOGGER.error(traceback.format_exc())
                 return msg.err(11, MSG_BACKEND_ERROR)
         else:

@@ -460,18 +460,21 @@ if (login_needed == 5000) {
     async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         try:
             brand = conf['brand']['id']
-            subbrands = [s['id'] for s in conf['subbrands']]
+            brandt = conf['brand']['title'] if 'title' in conf['brand'] else brand
+            subbrands = [(s['id'], s['desc'] if 'desc' in s and s['desc'] else s['title']) for s in conf['subbrands']]
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
         if brand and subbrands:
+            sta = msg.init_send_status_with_ping(ss=[])
             try:
                 async with aiohttp.ClientSession() as session:
                     programs = dict()
-                    for subbrand in subbrands:
+                    for subbrand, title in subbrands:
                         startFrom = 1
                         while True:
                             url = MessageProcessor.programsUrl(brand, subbrand, startFrom)
+                            self.record_status(sta, f'\U0001F194 Set {brandt} - {title}', 'ss')
                             async with session.get(url) as resp:
                                 if resp.status == 200:
                                     js = await resp.json()
@@ -479,26 +482,32 @@ if (login_needed == 5000) {
                                         try:
                                             (pr, datepubi) = self.entry2Program(e, brand, subbrand, playlist)
                                             _LOGGER.debug("Found [%s] = %s" % (pr.uid, str(pr)))
+                                            self.record_status(sta, f'\U0001F50D Found {pr.title} [{pr.datepub}]', 'ss')
                                             if pr.uid not in programs and datepubi >= datefrom and\
                                                (datepubi <= dateto or dateto < datefrom):
                                                 programs[pr.uid] = pr
+                                                self.record_status(sta, f'\U00002795 Added {pr.title} [{pr.datepub}]', 'ss')
                                                 _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
-                                        except Exception:
+                                        except Exception as ex:
+                                            self.record_status(sta, f'\U000026A0 Error 0: {repr(ex)}', 'ss')
                                             _LOGGER.error(traceback.format_exc())
                                     if self.isLastPage(js):
                                         break
                                     else:
                                         startFrom += js['itemsPerPage']
                                 else:
+                                    self.record_status(sta, '\U000026A0 Error 12', 'ss')
                                     return msg.err(12, MSG_BACKEND_ERROR)
                     if not len(programs):
+                        self.record_status(sta, f'\U000026A0 {MSG_NO_VIDEOS}', 'ss')
                         return msg.err(RV_NO_VIDEOS, MSG_NO_VIDEOS)
                     else:
                         programs = list(programs.values())
                         programs.sort(key=lambda item: item.datepub)
                         return msg.ok(items=programs)
-            except Exception:
+            except Exception as ex:
                 _LOGGER.error(traceback.format_exc())
+                self.record_status(sta, f'\U000026A0 Error 11: {repr(ex)}', 'ss')
                 return msg.err(11, MSG_BACKEND_ERROR)
         else:
             return msg.err(16, MSG_MEDIASET_INVALID_BRAND)

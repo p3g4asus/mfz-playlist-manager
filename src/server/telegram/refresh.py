@@ -20,6 +20,7 @@ class RefreshingTMessage(StatusTMessage):
         self.upd_sta = None
         self.upd_sto = None
         self.refresh_message: PlaylistMessage = None
+        self.refresh_status: list[str] = []
 
     def set_playlist(self, playlist):
         self.playlist = playlist
@@ -50,14 +51,17 @@ class RefreshingTMessage(StatusTMessage):
         if self.status == NameDurationStatus.UPDATING_RUNNING:
             self.input_field = u'\U0001F570'
             status = None if not self.refresh_message else self.refresh_message.f(PlaylistMessage.PING_STATUS)
+            upd = f'{self.playlist.name} updating {"." * (self.sub_status & 0xFF)}'
             if status and 'ss' in status:
                 stas = status['ss']
-                status[PlaylistMessage.PING_STATUS_CONS] = True
-                jj = "\n".join(stas)
-                upd = f'<code>{jj}</code>\n'
-            else:
-                upd = ''
-            return f'{upd}{self.playlist.name} updating {"." * (self.sub_status & 0xFF)}'
+                if PlaylistMessage.PING_STATUS_CONS not in status or not status[PlaylistMessage.PING_STATUS_CONS]:
+                    self.refresh_status.extend(stas)
+                    status[PlaylistMessage.PING_STATUS_CONS] = True
+                jj = "\n".join(self.refresh_status)
+                if len(jj) + len(upd) > 1000:
+                    jj = f'[...] {jj[-1000 + len(upd):]}'
+                upd = f'<code>{jj}</code>\n{upd}'
+            return upd
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status in (NameDurationStatus.UPDATING_START, NameDurationStatus.UPDATING_STOP):
@@ -97,6 +101,7 @@ class RefreshingTMessage(StatusTMessage):
         else:
             self.return_msg = f'Error {pl.rv} refreshing {self.playlist.name} :thumbs_down:'
         self.refresh_message = None
+        self.refresh_status = []
         await self.on_refresh_finish(pl)
 
     @abstractmethod

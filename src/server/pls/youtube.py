@@ -6,7 +6,7 @@ from datetime import (datetime, timedelta, timezone)
 
 from common.const import (CMD_YT_PLAYLISTCHECK, MSG_YT_INVALID_PLAYLIST,
                           MSG_BACKEND_ERROR, MSG_NO_VIDEOS, RV_NO_VIDEOS)
-from common.playlist import PlaylistItem, PlaylistMessage
+from common.playlist import PlaylistItem
 from common.user import User
 from common.utils import parse_isoduration
 
@@ -227,13 +227,6 @@ class MessageProcessor(RefreshMessageProcessor):
             return False
         return True
 
-    @staticmethod
-    def record_status(sta, newstr, field):
-        if PlaylistMessage.PING_STATUS_CONS not in sta or sta[PlaylistMessage.PING_STATUS_CONS]:
-            sta[field] = []
-            sta[PlaylistMessage.PING_STATUS_CONS] = False
-        sta[field].append(newstr)
-
     async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         try:
             sets = [(s['id'], s['ordered'] if 'ordered' in s else True, s['params'] if 'params' in s else dict(), s['title'] if 'title' in s and s['title'] else s['id']) for s in conf['playlists']]
@@ -265,7 +258,7 @@ class MessageProcessor(RefreshMessageProcessor):
                         while not cont_ok and cont_n < 3:
                             cont_ok = True
                             cont_n += 1
-                            self.record_status(sta, f'\U0001F194 Set {title} [{startFrom}]..', 'ss')
+                            self.record_status(sta, f'\U0001F194 Set {title} [{startFrom}]...', 'ss')
                             _LOGGER.debug(f"Set = {set} url = {current_url} startFrom = {startFrom} ({cont_n}/3)")
                             try:
                                 await executor(self.youtube_dl_get_dict, current_url, ydl_opts, playlist_dict)
@@ -431,6 +424,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                 if cont_n >= 3:
                                     startFrom = 0
                 if not len(programs):
+                    self.record_status(sta, f'\U000026A0 {MSG_NO_VIDEOS}', 'ss')
                     return msg.err(RV_NO_VIDEOS, MSG_NO_VIDEOS)
                 else:
                     programs = list(programs.values())

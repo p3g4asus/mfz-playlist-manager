@@ -51,6 +51,13 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
     def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         pass
 
+    @staticmethod
+    def record_status(sta, newstr, field):
+        if PlaylistMessage.PING_STATUS_CONS not in sta or sta[PlaylistMessage.PING_STATUS_CONS]:
+            sta[field] = []
+            sta[PlaylistMessage.PING_STATUS_CONS] = False
+        sta[field].append(newstr)
+
     async def processSync(self, msg, userid, executor):
         x = msg.playlistObj()
         if x:
