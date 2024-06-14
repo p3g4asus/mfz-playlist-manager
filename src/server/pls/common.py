@@ -58,7 +58,7 @@ class MessageProcessor(AbstractMessageProcessor):
         pdst = msg.playlistId()
         itx = msg.playlistItemId()
         if pdst and itx:
-            pdst = await Playlist.loadbyid(self.db, rowid=pdst)
+            pdst = await Playlist.loadbyid(self.db, rowid=pdst, loaditems=LOAD_ITEMS_NO)
             if not pdst:
                 return msg.err(10, MSG_PLAYLIST_NOT_FOUND, playlist=None)
             else:
@@ -81,8 +81,8 @@ class MessageProcessor(AbstractMessageProcessor):
                     return msg.err(2, MSG_NAME_TAKEN, playlist=None)
             rv = await it.move_to(pdst.rowid, self.db)
             if rv:
-                pdst.items.append(it)
-                return msg.ok(playlist=pdst)
+                pdst = await Playlist.loadbyid(self.db, rowid=pdst.rowid)
+                return msg.ok(playlist=pdst[0])
             else:
                 return msg.err(4, MSG_BACKEND_ERROR, playlist=None)
         else:
