@@ -282,9 +282,13 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             mo = re.search(r'twitch.tv/([^/]+)', set)
                                                             if mo:
                                                                 video['uploader_id'] = video['uploader'] = mo.group(1)
-                                                        if 'extractor' in video and video['extractor'] == 'twitch:stream':
+                                                        vex = None
+                                                        if 'extractor' in video and (vex := video['extractor']) == 'twitch:stream':
                                                             current_url = video['url'] = set[1:]
                                                             video['id'] = video['uploader_id']
+                                                        elif vex == 'twitch:vod':
+                                                            current_url = video['url'] = set[1:]
+                                                            video['id'] = video['id'][1:]
                                                         elif video['id'][0] == 'v':
                                                             video['id'] = video['id'][1:]
                                                         if 'timestamp' not in video:
