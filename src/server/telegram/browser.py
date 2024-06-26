@@ -212,7 +212,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     for i, t in self.pi.tabs.items():
                         if t.active:
                             out += '<b><u>'
-                        out += f'/ST{i:07} ' + ('\U0001F6A6' if t.active else '') + f'{t.title[0:200]}{"</u></b>" if t.active else ""}\n'
+                        out += f'/ST{i:07} ' + ('\U0001F6A6' if t.active else '<code>') + f'{t.title[0:200]}{"</u></b>" if t.active else "</code>"}\n'
                         if len(out) > 3900:
                             break
                 else:
