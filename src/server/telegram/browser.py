@@ -63,12 +63,13 @@ class BrowserInfo(RemoteInfo):
 
 
 class BrowserInfoMessage(RemoteInfoMessage):
+    PIN_TIME = 31536000 * 300
     def __init__(self, navigation: NavigationHandler, remote_info: BrowserInfo, redis: Redis = None, user: User = None, params: object = None, **argw) -> None:
         super().__init__(navigation, remote_info, user, params, **argw)
         self.time_status: int = 0
         self.info_changed: bool = False
         self.redis = redis
-        self.lst_sel: List[str] = []
+        self.lst_sel: List[Tuple[str, float]] = []
         self.activate_tab: bool = True
         self.current_tab: BrowserTab = None
 
@@ -94,16 +95,24 @@ class BrowserInfoMessage(RemoteInfoMessage):
         await self.info()
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
-        if self.status == NameDurationStatus.DOWNLOADING_WAITING:
+        if self.lst_sel and (mo := re.search('/(u|p)p([0-9]+)', text)) and (g := int(mo.group(2))) < len(self.lst_sel):
+            score = int(time() + (0 if mo.group(1) == 'u' else BrowserInfoMessage.PIN_TIME))
+            await self.redis.zadd(f'urls_{self.proc.user.rowid}', {self.lst_sel[g][0]: score})
+            if self.status == NameDurationStatus.DOWNLOADING_WAITING:
+                await self.edit_or_select()
+        elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
             text = text.strip()
             try:
+                score = time()
                 if (mo := re.search('/ur([0-9]+)', text)):
                     g = int(mo.group(1))
-                    url = self.lst_sel[g] if g < len(self.lst_sel) else ''
+                    url = self.lst_sel[g][0] if g < len(self.lst_sel) else ''
+                    if self.lst_sel[g][1] > score:
+                        score += BrowserInfoMessage.PIN_TIME
                 else:
                     url = text
                 if url:
-                    await self.redis.zadd(f'urls_{self.proc.user.rowid}', {url: int(time())})
+                    await self.redis.zadd(f'urls_{self.proc.user.rowid}', {url: int(score)})
                     await self.goto(url)
                     await self.switch_to_idle()
             except Exception:
@@ -215,13 +224,15 @@ class BrowserInfoMessage(RemoteInfoMessage):
             try:
                 urls = f'urls_{self.proc.user.rowid}'
                 await self.redis.zremrangebyscore(urls, '-inf', int(time() - 864000))
-                self.lst_sel = await self.redis.zrange(urls, 0, -1, desc=True)
+                self.lst_sel = await self.redis.zrange(urls, 0, -1, desc=True, withscores=True)
                 out = ''
-                for i, url in enumerate(self.lst_sel):
+                for i, scurl in enumerate(self.lst_sel):
                     if not i:
                         out = 'Enter or select url:\n'
-                    out += f'/ur{i:07} {url[0:150].decode("utf-8")}\n'
-                    if len(out) > 3900:
+                    url, score = scurl
+                    pinned = score > time()
+                    out += f'/ur{i:07} <code>{url[0:150].decode("utf-8")}</code> ' + (f'\U0001F4CD (/up{i:07})' if pinned else f'\U0001F4CC (/pp{i:07})') + '\n'
+                    if len(out) > 3700:
                         break
                 if not out:
                     out = 'Enter url:'
