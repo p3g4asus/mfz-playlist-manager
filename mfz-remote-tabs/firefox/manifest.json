@@ -1,7 +1,7 @@
 {
   "browser_specific_settings": {
     "gecko": {
-      "strict_min_version": "58.0a1"
+      "strict_min_version": "60.0"
     }
   },
   "background": {
@@ -26,5 +26,5 @@
     "scripting",
     "<all_urls>"
   ],
-  "version": "1.15"
+  "version": "1.16"
 }

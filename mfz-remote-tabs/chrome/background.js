@@ -68,11 +68,19 @@ function updateCount(tabId, isOnRemoved) {
     browser.tabs.query({currentWindow: true})
         .then((tabs) => {
             let length = tabs.length;
+            let wid;
 
             // onRemoved fires too early and the count is one too many.
             // see https://bugzilla.mozilla.org/show_bug.cgi?id=1396758
             if (isOnRemoved && tabId && tabs.map((t) => { return t.id; }).includes(tabId)) {
                 length--;
+            } else if (length && tabId === null && !tab_history[wid = tabs[0].windowId]) {
+                for (let tab of tabs) {
+                    if (tab.active) {
+                        tab_history[wid] = [tab.id];
+                        break;
+                    }
+                }
             }
 
             browser.browserAction.setBadgeText({text: length.toString()});
@@ -171,7 +179,7 @@ function logStorageChange(changes) {
 }
 
 function reconnect_ws_onopen2() {
-    updateCount();
+    updateCount(null, false);
     remotejs_enqueue();
     if (ping_interval < 0)
         ping_interval = setInterval(() => {
@@ -276,4 +284,4 @@ browser.storage.local.get().then((restoredSettings) => {
 browser.windows.onFocusChanged.addListener(
     (windowId) => { updateCount(null, false); }
 );
-updateCount();
+updateCount(null, false);
