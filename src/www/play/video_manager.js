@@ -418,6 +418,7 @@ function remotejs_recog(msg) {
 }
 
 function remotejs_process(msg) {
+    remotejs_enqueue();
     try {
         if (msg.sub == CMD_REMOTEPLAY_JS_DEL) {
             on_play_finished({dir: 10536});
@@ -468,15 +469,17 @@ function remotejs_process(msg) {
     catch (e) {
         console.error(e.stack);
     }
-    remotejs_enqueue();
 }
 
 function remotejs_enqueue() {
-    let el2 = new MainWSQueueElement(null, remotejs_recog, 0, 1, 'remotejs');
-    el2.enqueue().then(remotejs_process);
+    if (!main_ws_qel_exists('remotejs')) {
+        let el2 = new MainWSQueueElement(null, remotejs_recog, 0, 1, 'remotejs');
+        el2.enqueue().then(remotejs_process);
+    }
 }
 
 function get_remoteplay_link() {
+    remotejs_enqueue();
     if (!main_ws_qel_exists('remoteplay')) {
         const playerid = docCookies.getItem(COOKIE_PLAYERID + playlist_current_userid);                    
         let el = new MainWSQueueElement(
@@ -505,7 +508,6 @@ function get_remoteplay_link() {
                 });
                 $rpc.empty().append($a);
                 set_telegram_link(msg.telegram);
-                remotejs_enqueue();
             }
         })
             .catch(function(err) {
