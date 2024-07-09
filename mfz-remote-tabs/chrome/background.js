@@ -46,7 +46,7 @@ function getTabId(msgid) {
                 out.push(parseInt(i));
             }
             msgid = out;
-        } else msgid = parseInt(msgid);
+        } else msgid = [parseInt(msgid)];
         return Promise.resolve(msgid);
     }
     let ok,ko;
@@ -103,8 +103,12 @@ function remotejs_process(msg) {
             });
         }
         else if (msg.sub == CMD_REMOTEBROWSER_JS_RELOAD) {
-            browser.tabs.reload(parseInt(msg.id)).then(() => {
-                console.log(msg.id + ' Tab reload ok');
+            getTabId(msg.id).then((ids) => {
+                for (let tabId of ids) {
+                    browser.tabs.reload(tabId).then(() => {
+                        console.log(tabId + ' Tab reload ok');
+                    });
+                }
             }).catch(() => {
                 console.warn(msg.id + ' Tab reload fail');
             });

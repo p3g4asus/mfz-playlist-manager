@@ -1,7 +1,8 @@
 {
   "browser_specific_settings": {
     "gecko": {
-      "strict_min_version": "60.0"
+      "strict_min_version": "60.0",
+      "id": "{5d69d9eb-6128-424f-aa2f-0fc30c6e84db}"
     }
   },
   "background": {
@@ -26,5 +27,5 @@
     "scripting",
     "<all_urls>"
   ],
-  "version": "1.16"
+  "version": "1.20"
 }
