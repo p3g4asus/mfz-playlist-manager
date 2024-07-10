@@ -372,9 +372,9 @@ def main():
         with open(args['pid'], "w") as f:
             f.write(str(os.getpid()))
     try:
+        loop2 = None
         loop.run_until_complete(init_db(app))
         loop.run_until_complete(start_app(app))
-        loop2 = None
         if app.p.args['telegram']:
             loop2 = asyncio.new_event_loop()
             loop2.set_exception_handler(handle_loop_exceptions)
@@ -392,7 +392,7 @@ def main():
             # loop.run_forever()
             _LOGGER.debug("I am in finally branch")
             loop.run_until_complete(asyncio_graceful_shutdown(loop, _LOGGER, False))
-            if app.p.args['telegram']:
+            if loop2 and app.p.args['telegram']:
                 loop2.create_task(stop_telegram_bot())
                 app.p.telegram_executor.halt()
             for r in app.p.myrunners:

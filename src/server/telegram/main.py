@@ -1,5 +1,6 @@
 import asyncio
 from datetime import timedelta
+from time import sleep
 import logging
 from typing import List, Optional
 from urllib.parse import urlencode, urlparse
@@ -22,6 +23,8 @@ from server.telegram.user import UserSettingsMessage
 
 
 _LOGGER = logging.getLogger(__name__)
+
+__bot_stopped = True
 
 
 class SignUpTMessage(BaseMessage):
@@ -204,12 +207,23 @@ class StartTMessage(BaseMessage):
 
 
 async def stop_telegram_bot():
+    global __bot_stopped
+    __bot_stopped = True
     raise SystemExit
 
 
 def start_telegram_bot(params, loop):
+    global __bot_stopped
+    __bot_stopped = False
     logging.getLogger('hpack.hpack').setLevel(logging.INFO)
     loop = asyncio.set_event_loop(loop)
     api_key = params.args['telegram']
-    _LOGGER.info(f'Starting bot with {params} in loop {id(loop)}')
-    TelegramMenuSession(api_key, persistence_path=params.args['pickle']).start(start_message_class=StartTMessage, start_message_args=[params], navigation_handler_class=MyNavigationHandler, stop_signals=())
+    while True:
+        _LOGGER.info(f'Starting bot with {params} in loop {id(loop)}')
+        TelegramMenuSession(api_key, persistence_path=params.args['pickle']).start(start_message_class=StartTMessage, start_message_args=[params], navigation_handler_class=MyNavigationHandler, stop_signals=())
+        if __bot_stopped:
+            _LOGGER.info('Exiting telegram session...')
+            break
+        else:
+            _LOGGER.warning('Bot crashed: restarting in 7 seconds')
+            sleep(7)
