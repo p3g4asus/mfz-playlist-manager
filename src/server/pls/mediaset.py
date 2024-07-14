@@ -297,20 +297,21 @@ if (login_needed == 5000) {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36',
                         }
                         json_data_clone = {
-                            'password': 'password',
-                            'license': lic_url,
-                            'headers': 'Connection: keep-alive\n',
-                            'pssh': pssh,
-                            'buildInfo': '',
-                            'cache': True,
+                            'License URL': lic_url,
+                            'Headers': "{'Connection': 'keep-alive'}",
+                            'PSSH': pssh,
+                            'JSON': '{}',
+                            'Cookies': '{}',
+                            'Data': '{}',
+                            'Proxy': ''
                         }
                         async with aiohttp.ClientSession(headers=headers_clone) as session:
-                            url = 'https://cdrm-project.com/api'
+                            url = 'https://cdrm-project.com/'
                             _LOGGER.debug("Mediaset: Getting key data from " + url)
                             async with session.post(url, json=json_data_clone) as resp:
                                 if resp.status == 200:
                                     clone_resp = await resp.json(content_type=None)
-                                    keys = [a['key'] for a in clone_resp['keys']]
+                                    keys = clone_resp['Message'].strip().split('\n')
                                     if keys:
                                         it.conf['_drm_k'] = keys
                     except Exception:
