@@ -277,6 +277,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                             try:
                                                 if set[0] == '%':
                                                     current_url = video['url']
+                                                    if 'thumbnail' not in video:
+                                                        video['thumbnail'] = 'https://i3.ytimg.com/vi/AqN4nJk_dJk/maxresdefault.jpg'
                                                     if set.find('twitch.tv') >= 0:
                                                         if 'uploader' not in video:
                                                             mo = re.search(r'twitch.tv/([^/]+)', set)
@@ -306,6 +308,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             video = dict()
                                                             await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
                                                             video_priv = video
+                                                            if 'thumbnail' not in video:
+                                                                video['thumbnail'] = 'https://i3.ytimg.com/vi/AqN4nJk_dJk/maxresdefault.jpg'
                                                         if 'duration' not in video:
                                                             video['duration'] = 0
                                                         if 'timestamp' in video:
