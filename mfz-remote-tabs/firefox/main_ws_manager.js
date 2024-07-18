@@ -1,4 +1,5 @@
 let main_ws = null;
+let main_ws_timer = null;
 let main_ws_url = null;
 let main_ws_onopen2 = null;
 let main_ws_queue = [];
@@ -155,10 +156,13 @@ function main_ws_connect(onopen2, url) {
     };
     socket.onclose = function(e) {
         main_ws = null;
-        console.log('Socket is closed. Reconnect will be attempted in 10 second.');
-        setTimeout(() => {
-            main_ws_connect(main_ws_onopen2, main_ws_url);
-        }, 10000);
+        if (main_ws_timer === null) {
+            console.log('Socket is closed. Reconnect will be attempted in 10 second.');
+            main_ws_timer = setTimeout(() => {
+                main_ws_connect(main_ws_onopen2, main_ws_url);
+                main_ws_timer = null;
+            }, 10000);
+        }
     };
 
     socket.onerror = function(err) {
