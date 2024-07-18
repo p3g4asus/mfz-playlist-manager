@@ -305,8 +305,14 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                         pass
                                                         if 'timestamp' not in video:
                                                             _LOGGER.debug("Twitch thumb does not match " + video["thumbnail"])
+                                                            oldvideo = video
                                                             video = dict()
                                                             await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                                            if '_err' in video:
+                                                                video = oldvideo
+                                                            else:
+                                                                video['url'] = oldvideo['url']
+                                                                video['id'] = oldvideo['id']
                                                             video_priv = video
                                                             if 'thumbnail' not in video:
                                                                 video['thumbnail'] = 'https://i3.ytimg.com/vi/AqN4nJk_dJk/maxresdefault.jpg'
@@ -315,7 +321,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                         if 'timestamp' in video:
                                                             datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
                                                         else:
-                                                            datepubo = datepubo_conf = datetime.now()
+                                                            datepubo = datepubo_conf = datetime.now() - timedelta(seconds=min(video['duration'], 300))
                                                         video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                                         video['thumbnail'] = re.sub(r'[0-9]+x[0-9]+\.jpg', '0x0.jpg', video['thumbnail'])
                                                     else:
