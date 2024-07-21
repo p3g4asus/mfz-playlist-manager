@@ -109,19 +109,25 @@ class MessageProcessor(RefreshMessageProcessor):
     async def get_datepub(self, it, session):
         datepubs = '01-01-1980 00:01'
         try:
-            url = MessageProcessor.relativeUrl(it["path_id"])
-            async with session.get(url) as resp2:
-                it2 = dict()
-                if resp2.status == 200:
-                    it2 = await resp2.json()
-                    if ((updd := it2.get('track_info', dict()).get('update_date', '')) and (fmt := '%Y-%m-%d %H:%M')) or\
-                       ((updd := it2.get('date_published', '')) and (fmt := '%d-%m-%Y %H:%M')):
-                        if 'time_published' in it2:
-                            datepubs = it2['time_published']
-                        else:
-                            datepubs = '00:01'
-                        datepubs = updd + ' ' + datepubs
-                _LOGGER.debug("Date trying %s rv=%d: %s" % (url, resp2.status, str(it2)))
+            title = it['name'] if 'name' in it else it['episode_title']
+            if mo := re.search(r"del(?:l'|\s)(\d{1,2})/(\d{1,2})/(\d{2,4})", title):
+                dt = datetime(int(mo.group(3)), int(mo.group(2)), int(mo.group(1)), 21, 30)
+                fmt = '%d-%m-%Y %H:%M'
+                datepubs = dt.strftime(fmt)
+            else:
+                url = MessageProcessor.relativeUrl(it["path_id"])
+                async with session.get(url) as resp2:
+                    it2 = dict()
+                    if resp2.status == 200:
+                        it2 = await resp2.json()
+                        if ((updd := it2.get('track_info', dict()).get('update_date', '')) and (fmt := '%Y-%m-%d %H:%M')) or\
+                           ((updd := it2.get('date_published', '')) and (fmt := '%d-%m-%Y %H:%M')):
+                            if 'time_published' in it2:
+                                datepubs = it2['time_published']
+                            else:
+                                datepubs = '00:01'
+                            datepubs = updd + ' ' + datepubs
+                    _LOGGER.debug("Date trying %s rv=%d: %s" % (url, resp2.status, str(it2)))
         except Exception:
             _LOGGER.error(traceback.format_exc())
         _LOGGER.debug("Processing date: %s" % datepubs)
