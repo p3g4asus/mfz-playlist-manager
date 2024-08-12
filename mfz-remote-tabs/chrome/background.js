@@ -31,7 +31,7 @@ function sendListTabs(tabs) {
     let imgs = {};
 
     for (let tab of tabs) {
-        lstTabs.push({id: tab.id, title: tab.title, url:tab.url, active: tab.active, ico: null});
+        lstTabs.push({id: tab.id, title: tab.title, url:tab.url, active: tab.active, muted: tab.mutedInfo.muted, ico: null});
         imgs['ic' + tab.id] = tab.favIconUrl;
     }
     send_video_info_for_remote_play('tabs', lstTabs);
@@ -107,6 +107,17 @@ function remotejs_process(msg) {
                 for (let tabId of ids) {
                     browser.tabs.reload(tabId).then(() => {
                         console.log(tabId + ' Tab reload ok');
+                    });
+                }
+            }).catch(() => {
+                console.warn(msg.id + ' Tab reload fail');
+            });
+        }
+        else if (msg.sub == CMD_REMOTEBROWSER_JS_MUTE) {
+            getTabId(msg.id).then((ids) => {
+                for (let tabId of ids) {
+                    browser.tabs.update(tabId, {muted: parseInt(msg.yes) != 0}).then(() => {
+                        console.log(tabId + ' Tab mute '+ msg.yes +' ok');
                     });
                 }
             }).catch(() => {

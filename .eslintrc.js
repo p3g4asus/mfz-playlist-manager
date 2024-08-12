@@ -141,6 +141,7 @@ module.exports = {
         'CMD_REMOTEBROWSER_JS': true,
         'CMD_REMOTEBROWSER_JS_GOTO': true,
         'CMD_REMOTEBROWSER_JS_RELOAD': true,
+        'CMD_REMOTEBROWSER_JS_MUTE': true,
         'CMD_REMOTEBROWSER_JS_KEY': true,
         'browser': true,
         'chrome': true,

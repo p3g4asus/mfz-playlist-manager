@@ -11,7 +11,7 @@ from telegram_menu import MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
-from common.const import CMD_REMOTEBROWSER_JS, CMD_REMOTEBROWSER_JS_ACTIVATE, CMD_REMOTEBROWSER_JS_CLOSE, CMD_REMOTEBROWSER_JS_GOTO, CMD_REMOTEBROWSER_JS_KEY, CMD_REMOTEBROWSER_JS_RELOAD
+from common.const import CMD_REMOTEBROWSER_JS, CMD_REMOTEBROWSER_JS_ACTIVATE, CMD_REMOTEBROWSER_JS_CLOSE, CMD_REMOTEBROWSER_JS_GOTO, CMD_REMOTEBROWSER_JS_KEY, CMD_REMOTEBROWSER_JS_MUTE, CMD_REMOTEBROWSER_JS_RELOAD
 from common.user import User
 from common.utils import Fieldable
 from server.telegram.message import NameDurationStatus, ProcessorMessage
@@ -24,12 +24,13 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class BrowserTab(Fieldable):
-    def __init__(self, id: int = None, title: str = None, url: str = None, active: bool = False, ico: str = None, **kwargs):
+    def __init__(self, id: int = None, title: str = None, url: str = None, active: bool = False, ico: str = None, muted: bool = False, **kwargs):
         self.id = id
         self.title = title
         self.url = url
         self.active = active
         self.ico = ico
+        self.muted = muted
         for key, val in kwargs.items():
             setattr(self, key, val)
 
@@ -64,11 +65,13 @@ class BrowserInfo(RemoteInfo):
 
 class BrowserInfoMessage(RemoteInfoMessage):
     PIN_TIME = 31536000 * 300
+
     def __init__(self, navigation: NavigationHandler, remote_info: BrowserInfo, redis: Redis = None, user: User = None, params: object = None, **argw) -> None:
         super().__init__(navigation, remote_info, user, params, **argw)
         self.time_status: int = 0
         self.info_changed: bool = False
         self.redis = redis
+        self.pi: BrowserInfo
         self.lst_sel: List[Tuple[str, float]] = []
         self.activate_tab: bool = True
         self.current_tab: BrowserTab = None
@@ -80,6 +83,11 @@ class BrowserInfoMessage(RemoteInfoMessage):
 
     async def reload(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_RELOAD, id=self.current_tab.id if self.current_tab else self.pi.tab.id)
+
+    async def toggle_mute(self, args: tuple):
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_MUTE, id=self.current_tab.id if self.current_tab else self.pi.tab.id, yes=1 if args[0] == u'\U0001F507' else 0)
+        await asyncio.sleep(2.5)
+        await self.info()
 
     async def key(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_KEY, k=args[0], c=args[1], kc=ord(args[0]) if len(args) == 2 else args[2])
@@ -162,6 +170,8 @@ class BrowserInfoMessage(RemoteInfoMessage):
             if self.current_tab or self.pi.tab:
                 self.add_button(u'\U0001F501', self.reload)
                 self.add_button(u'\U0000274C', self.close)
+                btn = u'\U0001F507' if (self.current_tab and not self.current_tab.muted) or (not self.current_tab and not self.pi.tab.muted) else u'\U0001F50A'
+                self.add_button(btn, self.toggle_mute, args=(btn, ))
                 if self.current_tab:
                     self.add_button(u'\U0001F7E9', self.activate)
                 self.add_button(u'\U0001F310', self.prepare_for_overwrite_tab)
@@ -212,7 +222,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     for i, t in self.pi.tabs.items():
                         if t.active:
                             out += '<b><u>'
-                        out += f'/ST{i:07} ' + ('\U0001F6A6' if t.active else '<code>') + f'{t.title[0:200]}{"</u></b>" if t.active else "</code>"}\n'
+                        out += f'/ST{i:07} ' + ('\U0001F6A6' if t.active else '<code>') + f'{t.title[0:200]}' + (u'\U0001F507' if t.muted else '') + f'{"</u></b>" if t.active else "</code>"}\n'
                         if len(out) > 3900:
                             break
                 else:
