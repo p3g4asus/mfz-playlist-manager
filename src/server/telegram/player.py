@@ -98,6 +98,11 @@ class PlayerInfoMessage(RemoteInfoMessage):
                 sect = None
                 if text.startswith('/TT'):
                     text = text[3:]
+                elif (mo := re.search(r'^\s*([\-\+])', text)):
+                    rel = 1 if mo.group(1) == '+' else -1
+                    text = text[mo.end():]
+                else:
+                    rel = 0
                 while True:
                     if (mo := re.search(r'^\s*([0-9]+)\s*([msh]?)', text)):
                         sec = int(mo.group(1))
@@ -111,7 +116,10 @@ class PlayerInfoMessage(RemoteInfoMessage):
                     else:
                         break
                 if sect is not None:
-                    await self.move_abs((sect, ))
+                    if rel:
+                        await self.move((sect * rel, ))
+                    else:
+                        await self.move_abs((sect, ))
             except Exception:
                 pass
 
