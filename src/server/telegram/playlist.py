@@ -1171,7 +1171,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
                     self.download_subbrand()
                 elif (mo := re.search(r'^/brandid ([0-9a-zA-Z_\-]+)$', text)):
                     self.playlist.conf['brand'] = dict(
-                        id=mo.group(1),
+                        id=int(mo.group(1)),
                         title=mo.group(1),
                         starttime=int(datetime.now().timestamp() * 1000)
                     )
