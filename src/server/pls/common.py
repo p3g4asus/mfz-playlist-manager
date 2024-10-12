@@ -684,11 +684,19 @@ class MessageProcessor(AbstractMessageProcessor):
                 # await pl.cleanItems(self.db, commit=False)
                 play = pl.conf.get('play', dict())
                 pl.conf['play'] = play
-                newid = msg.f('playid')
-                if not newid and 'id' in play:
-                    del play['id']
-                elif newid:
-                    play['id'] = newid
+
+                def manage_play_dict(play_dict, message, source_field, dest_field):
+                    try:
+                        newid = getattr(message, source_field)
+                        if not newid and dest_field in play_dict:
+                            del play_dict[dest_field]
+                        elif newid:
+                            play_dict[dest_field] = newid
+                    except Exception:
+                        pass
+                manage_play_dict(play, msg, 'playid', 'id')
+                manage_play_dict(play, msg, 'playrate', 'rate')
+
                 rv = await pl.toDB(self.db)
                 if not rv:
                     return msg.err(20, MSG_INVALID_PARAM, playlist=None)

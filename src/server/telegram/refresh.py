@@ -35,18 +35,26 @@ class RefreshingTMessage(StatusTMessage):
                 self.upd_sta = datetime.fromtimestamp(int(0 if not self.playlist.dateupdate else self.playlist.dateupdate / 1000))
                 self.upd_sto = datetime.now()
                 self.status = NameDurationStatus.UPDATING_WAITING
-            self.add_button(self.upd_sta.strftime('%Y-%m-%d'), self.switch_to_status, args=(NameDurationStatus.UPDATING_START, ))
-            self.add_button(self.upd_sto.strftime('%Y-%m-%d'), self.switch_to_status, args=(NameDurationStatus.UPDATING_STOP, ))
-            self.add_button(':cross_mark: Abort Refresh', self.on_refresh_abort_cond, new_row=True)
-            self.add_button(u'\U0001F501', self.update_playlist)
             if self.status == NameDurationStatus.UPDATING_START:
                 self.input_field = 'Start date (YYMMDD)'
-                return '<u>Start date</u> (YYMMDD)'
+                self.add_button(t := self.upd_sta.strftime('%y%m%d'), self.text_input, args=(t, ))
+                self.add_button(t := (self.upd_sta + timedelta(days=1)).strftime('%y%m%d'), self.text_input, args=(t, ))
+                self.add_button(t := (self.upd_sto - timedelta(days=1)).strftime('%y%m%d'), self.text_input, args=(t, ))
+                self.add_button(t := self.upd_sto.strftime('%y%m%d'), self.text_input, args=(t, ))
+                return '<u>Start date type or select</u> (YYMMDD)'
             elif self.status == NameDurationStatus.UPDATING_STOP:
                 self.input_field = 'Stop date (YYMMDD)'
-                return '<u>Stop date</u> (YYMMDD)'
+                self.add_button(t := self.upd_sta.strftime('%y%m%d'), self.text_input, args=(t, ))
+                self.add_button(t := (self.upd_sta + timedelta(days=1)).strftime('%y%m%d'), self.text_input, args=(t, ))
+                self.add_button(t := (self.upd_sto - timedelta(days=1)).strftime('%y%m%d'), self.text_input, args=(t, ))
+                self.add_button(t := self.upd_sto.strftime('%y%m%d'), self.text_input, args=(t, ))
+                return '<u>Stop date type or select</u> (YYMMDD)'
             elif self.status == NameDurationStatus.UPDATING_WAITING:
                 self.input_field = u'\U0001F449'
+                self.add_button(self.upd_sta.strftime('%Y-%m-%d'), self.switch_to_status, args=(NameDurationStatus.UPDATING_START, ))
+                self.add_button(self.upd_sto.strftime('%Y-%m-%d'), self.switch_to_status, args=(NameDurationStatus.UPDATING_STOP, ))
+                self.add_button(':cross_mark: Abort Refresh', self.on_refresh_abort_cond, new_row=True)
+                self.add_button(u'\U0001F501', self.update_playlist)
                 return f'Review params for {self.playlist.name} and update or abort'
         if self.status == NameDurationStatus.UPDATING_RUNNING:
             self.input_field = u'\U0001F570'
@@ -64,6 +72,8 @@ class RefreshingTMessage(StatusTMessage):
             return upd
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
+        if isinstance(text, tuple):
+            text = text[0]
         if self.status in (NameDurationStatus.UPDATING_START, NameDurationStatus.UPDATING_STOP):
             text = text.strip()
             try:

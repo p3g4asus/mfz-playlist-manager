@@ -591,7 +591,8 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         uprefix: str = f'{lnk}/m3u/{self.proc.user.token}?{par}&'
         upd += f'<a href="{uprefix}fmt=m3u">M3U8</a>, <a href="{uprefix}fmt=ely">ELY</a>, <a href="{uprefix}fmt=json">JSON</a>\n'
         upd += f'<a href="{uprefix}fmt=m3u&conv=4">M3U8c4</a>, <a href="{uprefix}fmt=ely&conv=4">ELYc4</a>, <a href="{uprefix}fmt=json&conv=4">JSONc4</a>\n'
-        upd += f'<a href="{uprefix}fmt=m3u&conv=2">M3U8c2</a>, <a href="{uprefix}fmt=ely&conv=2">ELYc2</a>, <a href="{uprefix}fmt=json&conv=2">JSONc2</a>'
+        upd += f'<a href="{uprefix}fmt=m3u&conv=2">M3U8c2</a>, <a href="{uprefix}fmt=ely&conv=2">ELYc2</a>, <a href="{uprefix}fmt=json&conv=2">JSONc2</a>\n'
+        upd += f'Play Rate {self.obj.conf["play"]["rate"] if "play" in self.obj.conf and "rate" in self.obj.conf["play"] else 1}\U0000274E'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'
         if self.return_msg:
             upd += f'\n<b>{self.return_msg}</b>'

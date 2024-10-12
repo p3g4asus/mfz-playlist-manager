@@ -17,12 +17,16 @@ let playlist_item_current_wasplaying = 0;
 let playlist_item_current_time_timer = null;
 let playlist_item_current_idx = -1;
 let playlist_current_userid = -1;
+let playlist_rate = 1;
 
 function get_video_params_from_item(idx) {
     playlist_item_current = null;
     playlist_item_play_settings = {};
     let pos;
     if (idx === null) {
+        playlist_rate = playlist_current.conf?.play?.rate;
+        if (!playlist_rate)
+            playlist_rate = 1;
         let vid = playlist_current.conf?.play?.id;
         if (!vid || !vid.length) {
             if (!playlist_arr.length)
@@ -123,6 +127,7 @@ function playlist_play_current_video() {
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)
         video_manager_obj.play_video(MAIN_PATH + 'red?link=' + encodeURIComponent(lnk), Object.assign({}, playlist_item_current.conf, {mime: playlist_item_play_settings?.mime}));
+    setTimeout(()=> video_manager_obj.rate(playlist_rate), 1500);
 }
 
 
@@ -295,12 +300,15 @@ function go_to_video(mydir) {
         on_play_finished({dir: mydir});
 }
 
-function save_playlist_settings(vid) {
-    let el = new MainWSQueueElement({
+function save_playlist_settings(vid, key) {
+    if (!key)
+        key = 'playid';
+    let objsource = {
         cmd: CMD_PLAYID,
-        playlist: playlist_current.rowid,
-        playid: vid
-    }, function(msg) {
+        playlist: playlist_current.rowid   
+    };
+    objsource[key] = vid;
+    let el = new MainWSQueueElement(objsource, function(msg) {
         return msg.cmd === CMD_PLAYID? msg:null;
     }, 3000, 1, 'playid');
     el.enqueue().then(function(msg) {
@@ -433,7 +441,8 @@ function remotejs_process(msg) {
             on_play_finished({dir: null});
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_RATE) {
-            video_manager_obj.rate(parseFloat(msg.n));
+            video_manager_obj.rate(playlist_rate = parseFloat(msg.n));
+            save_playlist_settings(playlist_rate, 'playrate');
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_SEC) {
             video_manager_obj.currenttime(parseInt(msg.n));
