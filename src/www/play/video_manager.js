@@ -441,8 +441,8 @@ function remotejs_process(msg) {
             on_play_finished({dir: null});
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_RATE) {
-            save_playlist_settings(playlist_rate, 'playrate');
-            video_manager_obj.rate(playlist_rate = parseFloat(msg.n));
+            save_playlist_settings(playlist_rate = parseFloat(msg.n), 'playrate');
+            video_manager_obj.rate(playlist_rate);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_SEC) {
             video_manager_obj.currenttime(parseInt(msg.n));
