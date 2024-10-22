@@ -74,8 +74,10 @@ class TwitchPlayer {
             else if (event.type == Twitch.Player.PLAYING || event.type == Twitch.Embed.PLAY) {
                 this.state = VIDEO_STATUS_PLAYING;
                 if (this.queued_rate) {
-                    this.rate(this.queued_rate);
-                    this.queued_rate = 0;
+                    setTimeout(() => {
+                        this.rate(this.queued_rate);
+                        this.queued_rate = 0;
+                    }, 3000);
                 }
             }
             if (this.on_state_changed) {
