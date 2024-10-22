@@ -14,6 +14,7 @@ class TwitchPlayer {
             parent: [window.location.host]
         };
         $('#player').append($vid);
+        this.queued_rate = 0;
         this.on_play_finished = null;
         this.on_state_changed = null;
         this.next_channel = null;
@@ -64,32 +65,39 @@ class TwitchPlayer {
             if (((event.type == Twitch.Player.OFFLINE && !this.vid.startsWith(TWITCH_VIDEO_ID_PRE)) ||  event.type == Twitch.Player.ENDED) && this.on_play_finished) { // ended
                 this.on_play_finished(this);
             }
+            if (event.type == Twitch.Player.OFFLINE ||  event.type == Twitch.Player.ENDED)
+                this.state = VIDEO_STATUS_ENDED;
+            else if (event.type == Twitch.Player.PLAYBACK_BLOCKED || event.type == Twitch.Player.PAUSE)
+                this.state = VIDEO_STATUS_PAUSED;
+            else if (event.type == Twitch.Player.PLAY)
+                this.state = VIDEO_STATUS_BUFFERING;
+            else if (event.type == Twitch.Player.PLAYING || event.type == Twitch.Embed.PLAY) {
+                this.state = VIDEO_STATUS_PLAYING;
+                if (this.queued_rate) {
+                    this.rate(this.queued_rate);
+                    this.queued_rate = 0;
+                }
+            }
             if (this.on_state_changed) {
-                if (event.type == Twitch.Player.OFFLINE ||  event.type == Twitch.Player.ENDED)
-                    this.state = VIDEO_STATUS_ENDED;
-                else if (event.type == Twitch.Player.PLAYBACK_BLOCKED || event.type == Twitch.Player.PAUSE)
-                    this.state = VIDEO_STATUS_PAUSED;
-                else if (event.type == Twitch.Player.PLAY)
-                    this.state = VIDEO_STATUS_BUFFERING;
-                else if (event.type == Twitch.Player.PLAYING || event.type == Twitch.Embed.PLAY)
-                    this.state = VIDEO_STATUS_PLAYING;
                 this.on_state_changed(this, this.state);
             }
         }
     }
 
     rate(v) {
-        try {
-            const num = parseInt((v - 1) / 0.1 + 0.5);
-            let s_all = '?id=' + encodeURIComponent('"' + document.title + '"') + '&cmd=' + CMD_REMOTEBROWSER_JS + '&sub=' + CMD_REMOTEBROWSER_JS_KEY + '&k=r&c=KeyR&kc=82';
-            for (let i = 0; i < num; i++) s_all += '&k=d&c=KeyD&kc=68';
-            const lnk = MAIN_PATH + 'rcmd/g' + playlist_playerid + s_all;
-            console.log('Getting ' + lnk);
-            $.get(lnk, function( data ) {});
-        }
-        catch (e) {
-            console.log(e);
-        }
+        if (this.state == VIDEO_STATUS_PLAYING) {
+            try {
+                const num = parseInt((v - 1) / 0.1 + 0.5);
+                let s_all = '?id=' + encodeURIComponent('"' + document.title + '"') + '&cmd=' + CMD_REMOTEBROWSER_JS + '&sub=' + CMD_REMOTEBROWSER_JS_KEY + '&k=r&c=KeyR&kc=82';
+                for (let i = 0; i < num; i++) s_all += '&k=d&c=KeyD&kc=68';
+                const lnk = MAIN_PATH + 'rcmd/g' + playlist_playerid + s_all;
+                console.log('Getting ' + lnk);
+                $.get(lnk, function( data ) {});
+            }
+            catch (e) {
+                console.log(e);
+            }
+        } else this.queued_rate = v;
     }
 
     play_video_id(vid) {
