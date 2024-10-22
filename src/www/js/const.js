@@ -35,6 +35,7 @@ const CMD_REMOTEPLAY_JS_SEC = 'sec';
 const CMD_REMOTEPLAY_JS_RATE = 'rate';
 const CMD_REMOTEPLAY_JS_TELEGRAM = 'telegram';
 const CMD_REMOTEBROWSER_JS_KEY = 'key';
+const CMD_REMOTEBROWSER_JS = 'remb';
 const CMD_REMOTEPLAY_PUSH = 'remotepush';
 const CMD_LS = 'ls';
 const CMD_TOKEN = 'token';
