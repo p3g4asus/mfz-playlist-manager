@@ -77,7 +77,7 @@ class TwitchPlayer {
                     setTimeout(() => {
                         this.rate(this.queued_rate);
                         this.queued_rate = 0;
-                    }, 3000);
+                    }, 10000);
                 }
             }
             if (this.on_state_changed) {
