@@ -46,7 +46,20 @@ function getTabId(msgid) {
                 out.push(parseInt(i));
             }
             msgid = out;
-        } else msgid = [parseInt(msgid)];
+        } else {
+            try {
+                msgid = [parseInt(msgid)];
+            } catch(e) { 
+                browser.tabs.query({currentWindow: true}).then((tabs) => {
+                    const ids = [];
+                    for (let tab of tabs) {
+                        if (tab.title == msgid || '"' + tab.title + '"' == msgid)
+                            ids.push(tab.id);
+                    }
+                    ok(ids);
+                }).catch(ko);
+            }
+        }
         return Promise.resolve(msgid);
     }
     let ok,ko;
@@ -135,22 +148,39 @@ function remotejs_process(msg) {
             });
         }
         else if (msg.sub == CMD_REMOTEBROWSER_JS_KEY) {
-            getTabId('None').then((ids) => {
-                for (let tabId of ids) {
+            getTabId(msg.id).then((ids) => {
+                let fn2 = (k, c, kc, tid) => {
+                    if (Array.isArray(kc)) {
+                        if (kc.length > 1) {
+                            const kk = k.slice(1);
+                            const cc = c.slice(1);
+                            const kkc = kc.slice(1);
+                            setTimeout(() => {
+                                fn2(kk, cc, kkc, tid);
+                            }, 300);
+                        }
+                        k = k[0];
+                        c = c[0];
+                        kc = kc[0];
+                    }
+                    kc = parseInt(kc);
                     browser.scripting.executeScript(
                         {
-                            args: [msg.k, msg.c, parseInt(msg.kc)],
-                            func: (key, code, kc) => {
-                                document.dispatchEvent(new KeyboardEvent('keydown',{'bubbles': true, 'key':key,'code':code, 'keyCode': kc, 'which': kc}));
+                            args: [k, c, kc],
+                            func: (key, code, keycode) => {
+                                document.dispatchEvent(new KeyboardEvent('keydown',{'bubbles': true, 'key':key,'code':code, 'keyCode': keycode, 'which': keycode}));
                             },
                             target: {
                                 allFrames: true,
-                                tabId: tabId
+                                tabId: tid
                             }
                         }
                     ).then(() => {
-                        console.log('Send ' + msg.c + ' to ' + tabId + ' OK');
+                        console.log('Send ' + c + ' to ' + tid + ' OK');
                     });
+                };
+                for (let tabId of ids) {
+                    fn2(msg.k, msg.c, msg.kc, tabId);
                 }
             }).catch((err) => {
                 console.warn('Send ' + msg.c + ' to active tab FAIL');

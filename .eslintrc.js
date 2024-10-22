@@ -143,6 +143,7 @@ module.exports = {
         'CMD_REMOTEBROWSER_JS_RELOAD': true,
         'CMD_REMOTEBROWSER_JS_MUTE': true,
         'CMD_REMOTEBROWSER_JS_KEY': true,
+        'playlist_playerid': true,
         'browser': true,
         'chrome': true,
         'importScripts': true

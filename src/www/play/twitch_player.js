@@ -79,7 +79,17 @@ class TwitchPlayer {
     }
 
     rate(v) {
-        //not supported
+        try {
+            const num = parseInt((v - 1) / 0.1 + 0.5);
+            let s_all = '?id=' + encodeURIComponent('"' + document.title + '"') + '&cmd=' + CMD_REMOTEPLAY_JS + '&sub=' + CMD_REMOTEBROWSER_JS_KEY + '&k=r&c=KeyR&kc=82';
+            for (let i = 0; i < num; i++) s_all += '&k=d&c=KeyD&kc=68';
+            const lnk = MAIN_PATH + 'rcmd/g' + playlist_playerid + s_all;
+            console.log('Getting ' + lnk);
+            $.get(lnk, function( data ) {});
+        }
+        catch (e) {
+            console.log(e);
+        }
     }
 
     play_video_id(vid) {

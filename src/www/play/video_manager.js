@@ -1,4 +1,5 @@
 let playlist_player = null;
+let playlist_playerid = null;
 let video_manager_obj = null;
 let playlist_map = {};
 let playlist_arr = [];
@@ -490,16 +491,16 @@ function remotejs_enqueue() {
 function get_remoteplay_link() {
     remotejs_enqueue();
     if (!main_ws_qel_exists('remoteplay')) {
-        const playerid = docCookies.getItem(COOKIE_PLAYERID + playlist_current_userid);                    
+        playlist_playerid = docCookies.getItem(COOKIE_PLAYERID + playlist_current_userid);
         let el = new MainWSQueueElement(
-            {cmd: CMD_REMOTEPLAY, host: window.location.protocol + '//' + window.location.host + MAIN_PATH, sh: playerid},
+            {cmd: CMD_REMOTEPLAY, host: window.location.protocol + '//' + window.location.host + MAIN_PATH, sh: playlist_playerid},
             function(msg) {
                 return msg.cmd === CMD_REMOTEPLAY? msg:null;
             }, 5000, 3, 'remoteplay');
         el.enqueue().then(function(msg) {
             if (!manage_errors(msg)) {
-                if (!playerid) {
-                    docCookies.setItem(COOKIE_PLAYERID + playlist_current_userid, msg.hex, Infinity);
+                if (!playlist_playerid) {
+                    docCookies.setItem(COOKIE_PLAYERID + playlist_current_userid, playlist_playerid = msg.hex, Infinity);
                 }
                 playlist_remoteplay = msg.url;
                 let lnk = playlist_remoteplay + '?red='+encodeURIComponent(window.location.protocol + '//' + window.location.host + MAIN_PATH_S + 'play/player_remote_commands.htm');

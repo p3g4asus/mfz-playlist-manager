@@ -665,6 +665,8 @@ async def remote_command(request):
         outdict = {'hex': hextoken}
         try:
             for k, v in request.query.items():
+                if k.endswith('[]'):
+                    k = k[:-2]
                 if typem == 1:
                     if k == 'red':
                         redirect_pars = v + redirect_pars
