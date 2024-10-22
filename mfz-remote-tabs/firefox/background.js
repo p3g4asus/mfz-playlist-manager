@@ -39,6 +39,11 @@ function sendListTabs(tabs) {
 }
 
 function getTabId(msgid) {
+    let ok,ko;
+    const p = new Promise((resolve, reject) => {
+        ok = resolve;
+        ko = reject;
+    });
     if (msgid && msgid !== 'None') {
         if (Array.isArray(msgid)) {
             const out = [];
@@ -47,9 +52,8 @@ function getTabId(msgid) {
             }
             msgid = out;
         } else {
-            try {
-                msgid = [parseInt(msgid)];
-            } catch(e) { 
+            const iid = parseInt(msgid);
+            if (isNaN(iid)) {
                 browser.tabs.query({currentWindow: true}).then((tabs) => {
                     const ids = [];
                     for (let tab of tabs) {
@@ -58,15 +62,13 @@ function getTabId(msgid) {
                     }
                     ok(ids);
                 }).catch(ko);
+                return p;
             }
+            else
+                msgid = [iid];
         }
         return Promise.resolve(msgid);
     }
-    let ok,ko;
-    const p = new Promise((resolve, reject) => {
-        ok = resolve;
-        ko = reject;
-    });
     browser.tabs.query({currentWindow: true, active: true}).then((tabs) => {
         const ids = [];
         for (let tab of tabs) {
