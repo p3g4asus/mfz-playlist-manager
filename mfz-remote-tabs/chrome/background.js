@@ -151,38 +151,39 @@ function remotejs_process(msg) {
         }
         else if (msg.sub == CMD_REMOTEBROWSER_JS_KEY) {
             getTabId(msg.id).then((ids) => {
-                let fn2 = (k, c, kc, tid) => {
-                    if (Array.isArray(kc)) {
-                        if (kc.length > 1) {
-                            const kk = k.slice(1);
-                            const cc = c.slice(1);
-                            const kkc = kc.slice(1);
-                            setTimeout(() => {
-                                fn2(kk, cc, kkc, tid);
-                            }, 300);
-                        }
-                        k = k[0];
-                        c = c[0];
-                        kc = kc[0];
-                    }
-                    kc = parseInt(kc);
-                    browser.scripting.executeScript(
-                        {
-                            args: [k, c, kc],
-                            func: (key, code, keycode) => {
-                                document.dispatchEvent(new KeyboardEvent('keydown',{'bubbles': true, 'key':key,'code':code, 'keyCode': keycode, 'which': keycode}));
-                            },
-                            target: {
-                                allFrames: true,
-                                tabId: tid
+                const exScript = {
+                    args: [msg.k, msg.c, msg.kc],
+                    func: (key, code, keycode) => {
+                        const fn2 = (k, c, kc) => {
+                            if (Array.isArray(kc)) {
+                                if (kc.length > 1) {
+                                    const kk = k.slice(1);
+                                    const cc = c.slice(1);
+                                    const kkc = kc.slice(1);
+                                    setTimeout(() => {
+                                        fn2(kk, cc, kkc);
+                                    }, 300);
+                                }
+                                k = k[0];
+                                c = c[0];
+                                kc = kc[0];
                             }
-                        }
-                    ).then(() => {
-                        console.log('Send ' + c + ' to ' + tid + ' OK');
-                    });
+                            kc = parseInt(kc);
+                            document.dispatchEvent(new KeyboardEvent('keydown',{'bubbles': true, 'key':k,'code':c, 'keyCode': kc, 'which': kc}));
+                        };
+                        fn2(key, code, keycode);
+                    }
                 };
                 for (let tabId of ids) {
-                    fn2(msg.k, msg.c, msg.kc, tabId);
+                    browser.scripting.executeScript(
+                        Object.assign({}, exScript, {
+                            target: {
+                                allFrames: true,
+                                tabId: tabId
+                            }})
+                    ).then(() => {
+                        console.log('Send ' + msg.c + ' to ' + tabId + ' OK');
+                    });
                 }
             }).catch((err) => {
                 console.warn('Send ' + msg.c + ' to active tab FAIL');
