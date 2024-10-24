@@ -128,7 +128,6 @@ function playlist_play_current_video() {
         video_manager_obj.play_video_id(vid);
     else if (lnk.length && video_manager_obj.play_video)
         video_manager_obj.play_video(MAIN_PATH + 'red?link=' + encodeURIComponent(lnk), Object.assign({}, playlist_item_current.conf, {mime: playlist_item_play_settings?.mime}));
-    setTimeout(()=> video_manager_obj.rate(playlist_rate), 1500);
 }
 
 
@@ -231,6 +230,7 @@ function on_player_state_changed(player, event) {
                 video_manager_obj.currenttime(playlist_item_current.conf.sec);
                 send_video_info_for_remote_play('pinfo', {sec: playlist_item_current.conf.sec});
             }
+            video_manager_obj.rate(playlist_rate);
         }
         if (playlist_item_current_time_timer == null) {
             playlist_item_current_time_timer = setInterval(function() {

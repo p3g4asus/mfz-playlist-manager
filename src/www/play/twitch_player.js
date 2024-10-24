@@ -14,7 +14,6 @@ class TwitchPlayer {
             parent: [window.location.host]
         };
         $('#player').append($vid);
-        this.queued_rate = 0;
         this.on_play_finished = null;
         this.on_state_changed = null;
         this.next_channel = null;
@@ -71,13 +70,8 @@ class TwitchPlayer {
                 this.state = VIDEO_STATUS_PAUSED;
             else if (event.type == Twitch.Player.PLAY)
                 this.state = VIDEO_STATUS_BUFFERING;
-            else if (event.type == Twitch.Player.PLAYING || event.type == Twitch.Embed.PLAY) {
+            else if (event.type == Twitch.Player.PLAYING || event.type == Twitch.Embed.PLAY)
                 this.state = VIDEO_STATUS_PLAYING;
-                if (this.queued_rate) {
-                    this.rate(this.queued_rate);
-                    this.queued_rate = 0;
-                }
-            }
             if (this.on_state_changed) {
                 this.on_state_changed(this, this.state);
             }
@@ -85,19 +79,17 @@ class TwitchPlayer {
     }
 
     rate(v) {
-        if (this.state == VIDEO_STATUS_PLAYING) {
-            try {
-                const num = parseInt((v - 1) / 0.1 + 0.5);
-                let s_all = '?id=' + encodeURIComponent('"' + document.title + '"') + '&cmd=' + CMD_REMOTEBROWSER_JS + '&sub=' + CMD_REMOTEBROWSER_JS_KEY + '&k=g&c=KeyG&kc=71';
-                for (let i = 0; i < num; i++) s_all += '&k=d&c=KeyD&kc=68';
-                const lnk = MAIN_PATH + 'rcmd/g' + playlist_playerid + s_all;
-                console.log('Getting ' + lnk);
-                $.get(lnk, function( data ) {});
-            }
-            catch (e) {
-                console.log(e);
-            }
-        } else this.queued_rate = v;
+        try {
+            const num = parseInt((v - 1) / 0.1 + 0.5);
+            let s_all = '?id=' + encodeURIComponent('"' + document.title + '"') + '&cmd=' + CMD_REMOTEBROWSER_JS + '&sub=' + CMD_REMOTEBROWSER_JS_KEY + '&k=g&c=KeyG&kc=71';
+            for (let i = 0; i < num; i++) s_all += '&k=d&c=KeyD&kc=68';
+            const lnk = MAIN_PATH + 'rcmd/g' + playlist_playerid + s_all;
+            console.log('Getting ' + lnk);
+            $.get(lnk, function( data ) {});
+        }
+        catch (e) {
+            console.log(e);
+        }
     }
 
     play_video_id(vid) {
