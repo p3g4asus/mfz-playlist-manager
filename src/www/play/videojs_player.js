@@ -56,7 +56,7 @@ class VideojsPlayer {
     }
 
     rate(v) {
-        this.player.playbackRate(v);
+        setTimeout((() => this.player.playbackRate(v)).bind(this), 1000);
     }
 
     play_video(url, typeV) {
