@@ -96,13 +96,12 @@ class PlayerInfoMessage(RemoteInfoMessage):
             text = text.strip()
             try:
                 sect = None
+                rel = 0
                 if text.startswith('/TT'):
                     text = text[3:]
                 elif (mo := re.search(r'^\s*([\-\+])', text)):
                     rel = 1 if mo.group(1) == '+' else -1
                     text = text[mo.end():]
-                else:
-                    rel = 0
                 while True:
                     if (mo := re.search(r'^\s*([0-9]+)\s*([msh]?)', text)):
                         sec = int(mo.group(1))
