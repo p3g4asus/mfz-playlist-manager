@@ -276,6 +276,10 @@ function conf_button_enable(selval) {
 $(window).on('load', function() {
     $('#video-width').inputSpinner();
     $('#video-height').inputSpinner();
+    const $mime = $('#mime-type');
+    for (const [key, value] of Object.entries(MIME_TYPES)) {
+        $mime.append($('<option>').val(key).text(value));
+    }
     let $bc = $('#telegram-button-copy');
     $bc.click(() => {
         let lnk = $('#telegram-input-link').val();

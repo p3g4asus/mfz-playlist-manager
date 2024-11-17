@@ -51,6 +51,24 @@ const GOOGLE_CLIENT_ID = '60860343069-fg6qgf1fogpjrb6femd2p7n0l9nsq4vt.apps.goog
 const DOWNLOADED_SUFFIX = '_d';
 const WS_URL = location.protocol == 'https:'?'wss://' + location.host + (PTHREG?'/' + PTHREG[1] + '-ws/':'/pm-ws/'):'ws://' + location.host + '/ws';
 
+const MIME_TYPES = {
+    'video/ogg': 'opus,ogv',
+    'video/mp4': 'mp4,mov,m4v,m4a',
+    'video/x-matroska': 'mkv',
+    'audio/mpeg': 'mp3',
+    'audio/aac': 'aac',
+    'audio/x-caf': 'caf',
+    'audio/flac': 'flac',
+    'audio/ogg': 'oga',
+    'audio/wav': 'wav',
+    'application/x-mpegURL': 'm3u8',
+    'application/dash+xml': 'mpd',
+    'image/jpeg': 'jpg,jpeg',
+    'image/gif': 'gif',
+    'image/png': 'png',
+    'image/svg+xml': 'svg'
+};
+
 function pad(num, size) {
     num = num.toString();
     while (num.length < size) num = '0' + num;

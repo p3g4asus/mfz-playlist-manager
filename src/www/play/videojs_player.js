@@ -60,7 +60,17 @@ class VideojsPlayer {
     }
 
     play_video(url, typeV) {
-        this.player.src({type: typeV && typeV.mime? typeV.mime:'application/x-mpegURL', src: url});
+        let mime = typeV?.mime;
+        if (!mime && typeV?.playhint) {
+            for (const [key, value] of Object.entries(MIME_TYPES)) {
+                if (value.indexOf(typeV.playhint) >= 0) {
+                    mime = key;
+                    break;
+                }
+            }
+        }
+        if (!mime) mime = 'application/x-mpegURL';
+        this.player.src({type: mime, src: url});
         this.player.play();
     }
 

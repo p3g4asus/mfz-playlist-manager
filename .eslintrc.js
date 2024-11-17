@@ -146,7 +146,8 @@ module.exports = {
         'playlist_playerid': true,
         'browser': true,
         'chrome': true,
-        'importScripts': true
+        'importScripts': true,
+        'MIME_TYPES': true
     },
     'rules': {
         'indent': [
