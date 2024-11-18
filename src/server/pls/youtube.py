@@ -301,7 +301,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                         try:
                                             aut = playlist_dict['format']['tags']['artist']
                                         except Exception:
-                                            aut = 'N/A'
+                                            aut = None
                                         try:
                                             pih = playlist_dict['format']['format_name']
                                         except Exception:
@@ -433,6 +433,11 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                     video['duration'] = int(round(video['duration']))
                                                                 except Exception:
                                                                     pass
+                                                                if 'uploader' not in video:
+                                                                    try:
+                                                                        video['uploader'] = vinf['format']['tags']['artist']
+                                                                    except Exception:
+                                                                        pass
                                                                 try:
                                                                     video['playhint'] = vinf['format']['format_name']
                                                                 except Exception:
