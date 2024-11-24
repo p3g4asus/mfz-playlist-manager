@@ -18,7 +18,7 @@ from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
                           CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER,
                           CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
                           CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_PLAYID, CMD_RAI_CONTENTSET,
-                          CMD_RAI_LISTINGS, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK)
+                          CMD_RAI_LISTINGS, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK, IMG_NO_VIDEO)
 from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
 from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_store
@@ -373,7 +373,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                     if not img:
                         img = pli.img
             self.secs = self.obj.get_duration()
-            self.thumb = img
+            self.thumb = img if img else IMG_NO_VIDEO
             self.deleted = False
             return True
         else:

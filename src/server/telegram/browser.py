@@ -90,7 +90,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
         await self.info()
 
     async def key(self, args: tuple):
-        await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_KEY, k=args[0], c=args[1], kc=ord(args[0]) if len(args) == 2 else args[2])
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_KEY, comp=args[0], id=self.current_tab.id if self.current_tab else self.pi.tab.id)
 
     async def activate(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_ACTIVATE, id=self.current_tab.id if self.current_tab else self.pi.tab.id)
@@ -133,6 +133,8 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     self.current_tab = self.pi.tabs[g] if g in self.pi.tabs else None
                     if self.current_tab:
                         await self.info((f'ic{g}',))
+                elif (mo := re.search('^/k(.+)$', text)):
+                    await self.key((mo.group(1), ))
             except Exception:
                 pass
 
@@ -177,18 +179,18 @@ class BrowserInfoMessage(RemoteInfoMessage):
                 self.add_button(u'\U0001F310', self.prepare_for_overwrite_tab)
             self.add_button(u'\U0001F310\U00002795', self.prepare_for_new_tab)
             if self.pi.tab:
-                self.add_button('s', self.key, args=('s', 'KeyS', 83), new_row=True)
-                self.add_button('d', self.key, args=('d', 'KeyD', 68))
-                self.add_button('g', self.key, args=('g', 'KeyG', 71))
-                self.add_button('k', self.key, args=('k', 'KeyK', 75))
-                self.add_button('1.0x', self.key, args=(['g', * ['d'] * 0], ['KeyG', * ['KeyD'] * 0], [71, * [68] * 0]))
-                self.add_button('1.5x', self.key, args=(['g', * ['d'] * 5], ['KeyG', * ['KeyD'] * 5], [71, * [68] * 5]))
-                self.add_button('1.7x', self.key, args=(['g', * ['d'] * 7], ['KeyG', * ['KeyD'] * 7], [71, * [68] * 7]))
-                self.add_button('2.0x', self.key, args=(['g', * ['d'] * 10], ['KeyG', * ['KeyD'] * 10], [71, * [68] * 10]))
-                self.add_button(u'\U00002190', self.key, args=('ArrowLeft', 'ArrowLeft', 37))
-                self.add_button(u'\U00002192', self.key, args=('ArrowRight', 'ArrowRight', 39))
-                self.add_button(u'\U00002193', self.key, args=('ArrowDown', 'ArrowDown', 40))
-                self.add_button(u'\U00002191', self.key, args=('ArrowUp', 'ArrowUp', 38))
+                self.add_button('s', self.key, args=('s', ), new_row=True)
+                self.add_button('d', self.key, args=('d', ))
+                self.add_button('g', self.key, args=('g', ))
+                self.add_button('k', self.key, args=('k', ))
+                self.add_button('1.0x', self.key, args=('g', ))
+                self.add_button('1.5x', self.key, args=('g' + ('d' * 5), ))
+                self.add_button('1.7x', self.key, args=('g' + ('d' * 7), ))
+                self.add_button('2.0x', self.key, args=('g' + ('d' * 10), ))
+                self.add_button(u'\U00002190', self.key, args=('[ArrowLeft]', ))
+                self.add_button(u'\U00002192', self.key, args=('[ArrowRight]', ))
+                self.add_button(u'\U00002193', self.key, args=('[ArrowDown]', ))
+                self.add_button(u'\U00002191', self.key, args=('[ArrowUp]', ))
             self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back, new_row=True)
             self.picture = None
             if self.current_tab:

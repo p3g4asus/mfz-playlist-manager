@@ -147,7 +147,8 @@ module.exports = {
         'browser': true,
         'chrome': true,
         'importScripts': true,
-        'MIME_TYPES': true
+        'MIME_TYPES': true,
+        'kvm_process_string': true
     },
     'rules': {
         'indent': [

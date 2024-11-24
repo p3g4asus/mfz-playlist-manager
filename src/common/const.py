@@ -81,3 +81,5 @@ CONV_LINK_MASK = 0xFF
 CONV_LINK_ASYNCH_SHIFT = 8
 CONV_LINK_ASYNCH_TWITCH = 1
 CMD_USER_SETTINGS = 'setusettings'
+IMG_NO_VIDEO = 'https://i3.ytimg.com/vi/Di-qI09MdB8/maxresdefault.jpg'
+IMG_NO_THUMB = 'https://i3.ytimg.com/vi/AqN4nJk_dJk/maxresdefault.jpg'

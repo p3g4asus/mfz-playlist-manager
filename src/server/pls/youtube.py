@@ -5,7 +5,7 @@ import ffmpeg
 import yt_dlp as youtube_dl
 from datetime import (datetime, timedelta, timezone)
 
-from common.const import (CMD_YT_PLAYLISTCHECK, MSG_YT_INVALID_PLAYLIST,
+from common.const import (CMD_YT_PLAYLISTCHECK, IMG_NO_THUMB, MSG_YT_INVALID_PLAYLIST,
                           MSG_BACKEND_ERROR, MSG_NO_VIDEOS, RV_NO_VIDEOS)
 from common.playlist import PlaylistItem
 from common.user import User
@@ -319,7 +319,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                             dur=0,
                                             conf=conf,
                                             uid=current_url,
-                                            img='https://i3.ytimg.com/vi/AqN4nJk_dJk/maxresdefault.jpg',
+                                            img=IMG_NO_THUMB,
                                             playlist=playlist
                                         )
                                         try:
@@ -360,7 +360,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                     if set[0] == '%':
                                                         current_url = video['url']
                                                         if 'thumbnail' not in video:
-                                                            video['thumbnail'] = 'https://i3.ytimg.com/vi/AqN4nJk_dJk/maxresdefault.jpg'
+                                                            video['thumbnail'] = IMG_NO_THUMB
                                                         if set.find('twitch.tv') >= 0:
                                                             if 'uploader' not in video:
                                                                 mo = re.search(r'twitch.tv/([^/]+)', set)
@@ -397,7 +397,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                     video['id'] = oldvideo['id']
                                                                 video_priv = video
                                                                 if 'thumbnail' not in video:
-                                                                    video['thumbnail'] = 'https://i3.ytimg.com/vi/AqN4nJk_dJk/maxresdefault.jpg'
+                                                                    video['thumbnail'] = IMG_NO_THUMB
                                                             if 'duration' not in video:
                                                                 video['duration'] = 0
                                                             if 'timestamp' in video:
@@ -419,7 +419,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             else:
                                                                 datepubo = datepubo_conf = datetime.now()
                                                             if 'thumbnail' not in video or not video['thumbnail']:
-                                                                video['thumbnail'] = 'https://i3.ytimg.com/vi/AqN4nJk_dJk/maxresdefault.jpg'
+                                                                video['thumbnail'] = IMG_NO_THUMB
                                                             if 'id' not in video or not video['id']:
                                                                 video['id'] = video['url']
                                                             if 'duration' not in video or not video['duration']:
