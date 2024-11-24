@@ -5,6 +5,7 @@ const KEY_EVENT_MAP = {
     '[Enter]': {'keyCode': 13, 'code': 'Enter', 'charCode': '↵'},
     '[Pause]': {'keyCode': 19, 'code': 'Pause', 'charCode': ''},
     '[Escape]': {'keyCode': 27, 'code': 'Escape', 'charCode': '⎋'},
+    '[ ]': {'keyCode': 32, 'code': 'Space', 'charCode': ' '},
     '[PageUp]': {'keyCode': 33, 'code': 'Numpad9', 'charCode': '⇞'},
     '[PageDown]': {'keyCode': 34, 'code': 'Numpad3', 'charCode': '⇟'},
     '[End]': {'keyCode': 35, 'code': 'Numpad1', 'charCode': ''},
