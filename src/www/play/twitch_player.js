@@ -81,8 +81,8 @@ class TwitchPlayer {
     rate(v) {
         try {
             const num = parseInt((v - 1) / 0.1 + 0.5);
-            let s_all = '?id=' + encodeURIComponent('"' + document.title + '"') + '&cmd=' + CMD_REMOTEBROWSER_JS + '&sub=' + CMD_REMOTEBROWSER_JS_KEY + '&k=g&c=KeyG&kc=71';
-            for (let i = 0; i < num; i++) s_all += '&k=d&c=KeyD&kc=68';
+            let s_all = '?id=' + encodeURIComponent('"' + document.title + '"') + '&cmd=' + CMD_REMOTEBROWSER_JS + '&sub=' + CMD_REMOTEBROWSER_JS_KEY + '&comp=g';
+            for (let i = 0; i < num; i++) s_all += 'd';
             const lnk = MAIN_PATH + 'rcmd/g' + playlist_playerid + s_all;
             console.log('Getting ' + lnk);
             $.get(lnk, function( data ) {});
