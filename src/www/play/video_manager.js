@@ -421,6 +421,58 @@ function playlist_dump(useri, plid) {
         });
 }
 
+function playlist_prrocess_key(ke) {
+    let dgt;
+    if (ke.key == 'k' || ke.key == ' ') {
+        on_play_finished({dir: null});
+        ke.preventDefault();
+    } else if (ke.key == 'N' && ke.shiftKey) {
+        go_to_next_video();
+        ke.preventDefault();
+    } else if (ke.key == 'P' && ke.shiftKey) {
+        go_to_prev_video();
+        ke.preventDefault();
+    } else if (ke.key == 'X' && ke.shiftKey) {
+        on_play_finished({dir: 10536});
+        ke.preventDefault();
+    } else if ((dgt = /^Digit([2-9])$/.exec(ke.code)) && ke.shiftKey) {
+        playlist_process_rate(1 + parseInt(dgt[1]) * 0.1);
+        ke.preventDefault();
+    } else if (ke.code == 'Digit0' && ke.shiftKey) {
+        playlist_process_rate(2.0);
+        ke.preventDefault();
+    } else if (ke.code == 'Digit1' && ke.shiftKey) {
+        playlist_process_rate(1.0);
+        ke.preventDefault();
+    } else if (ke.key == 'ArrowLeft') {
+        playlist_process_rew(ke.shiftKey?30:15);
+        ke.preventDefault();
+    } else if (ke.key == 'ArrowDown') {
+        playlist_process_rew(ke.shiftKey?90:60);
+        ke.preventDefault();
+    } else if (ke.key == 'ArrowRight') {
+        playlist_process_ffw(ke.shiftKey?30:15);
+        ke.preventDefault();
+    } else if (ke.key == 'ArrowUp') {
+        playlist_process_ffw(ke.shiftKey?90:60);
+        ke.preventDefault();
+    }
+}
+
+function playlist_process_rate(v) {
+    save_playlist_settings(playlist_rate = parseFloat(v), 'playrate');
+    video_manager_obj.rate(playlist_rate);
+}
+
+function playlist_process_rew(v) {
+    video_manager_obj.rew(parseInt(v));
+    save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
+}
+
+function playlist_process_ffw(v) {
+    video_manager_obj.ffw(parseInt(v));
+    save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
+}
 
 function remotejs_recog(msg) {
     return msg.cmd === CMD_REMOTEPLAY_JS? msg:null;
@@ -442,20 +494,17 @@ function remotejs_process(msg) {
             on_play_finished({dir: null});
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_RATE) {
-            save_playlist_settings(playlist_rate = parseFloat(msg.n), 'playrate');
-            video_manager_obj.rate(playlist_rate);
+            playlist_process_rate(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_SEC) {
             video_manager_obj.currenttime(parseInt(msg.n));
             save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_FFW) {
-            video_manager_obj.ffw(parseInt(msg.n));
-            save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
+            playlist_process_ffw(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_REW) {
-            video_manager_obj.rew(parseInt(msg.n));
-            save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
+            playlist_process_rew(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_TELEGRAM) {
             let modvisible = is_telegram_token_visible();
@@ -674,6 +723,7 @@ function restart_playing() {
 }
 
 function init_video_manager() {
+    $(document).on('keydown', playlist_prrocess_key);
     fill_conf_name(playlists_conf_map);
     playlist_play_settings_key = docCookies.getItem(COOKIE_PLAYSETT + playlist_current_userid);
     if (!playlist_play_settings_key) {
