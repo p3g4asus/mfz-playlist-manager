@@ -153,8 +153,13 @@ function remotejs_process(msg) {
             getTabId(msg.id).then((ids) => {
                 let cn = msg.comp, ko, card;
                 const keys = [];
+                let obj = null, win = false;
                 while (cn.length) {
                     [cn, ko, card] = kvm_process_string(cn);
+                    ko.obj = ko.obj || obj;
+                    obj = ko.obj;
+                    ko.win = ko.win || win;
+                    win = ko.win;
                     console.log('c = '+cn+' k='+JSON.stringify(ko) + ' ca=' + card);
                     if (!ko.code) break;
                     for (let i = 0; i < card; i++) keys.push(ko);
@@ -169,7 +174,11 @@ function remotejs_process(msg) {
                                         fn2(kA.splice(1));
                                     }, 300);
                                 }
-                                document.dispatchEvent(new KeyboardEvent('keydown',kA[0]));
+                                const ee = kA[0];
+                                let tgt;
+                                if (ee.obj && (tgt = document.querySelector(ee.obj)) && tgt.dispatchEvent);
+                                else tgt = ee.win?window:document;
+                                tgt.dispatchEvent(new KeyboardEvent('keydown',ee));
                             };
                             fn2(keyA);
                         }

@@ -158,7 +158,8 @@ const KEY_EVENT_MAP = {
     '[F30]': {'keyCode': 141, 'code': 'F30', 'charCode': ''},
     '[F31]': {'keyCode': 142, 'code': 'F31', 'charCode': ''},
     '[F32]': {'keyCode': 143, 'code': 'F32', 'charCode': ''},
-    '$': {'keyCode': 164, 'code': 'Backslash', 'charCode': ''},
+    '$': {'win': true},
+    '[$]': {'keyCode': 164, 'code': 'Backslash', 'charCode': ''},
     ')': {'keyCode': 169, 'code': 'Minus', 'charCode': ''},
     '|': {'keyCode': 172, 'code': '', 'charCode': ''},
     '¶': {'keyCode': 186, 'code': 'Semicolon', 'charCode': '¶'},
@@ -189,7 +190,7 @@ const KEY_EVENT_MAP = {
     '}': {'keyCode': 221, 'code': 'BracketRight', 'charCode': '}'},
     '»': {'keyCode': 221, 'code': 'BracketRight', 'charCode': '»'},
     '\'': {'keyCode': 222, 'code': 'Quote', 'charCode': ''},
-    '"': {'keyCode': 222, 'code': 'Quote', 'charCode': '"'},
+    '["]': {'keyCode': 222, 'code': 'Quote', 'charCode': '"'},
     '´': {'keyCode': 222, 'code': 'Quote', 'charCode': '´'}
 };
 
@@ -203,18 +204,23 @@ function kvm_init() {
     return oo.substring(0, oo.length - 1) + ')';
 }
 const SPECIAL_KEYS_REGEXP = new RegExp(kvm_init(), 'i');
-const ADD_KEY_REGEXP = new RegExp('^([_<>\\^])');
+const ADD_KEY_REGEXP = new RegExp('^([_<>\\^\\$])');
 const CARD_REGEXP = new RegExp('^@([0-9]+)');
 
 function kvm_process_string(s) {
     let keyOut = {};
-    let rexp, quit;
+    let rexp, quit, remove;
     let card = 1;
     for (;;) {
         quit = true;
         rexp = null;
+        remove = '5';
         if ((rexp = ADD_KEY_REGEXP.exec(s))) {
             quit = false;
+        } else if ((rexp = /^"([^"]+)"/.exec(s))) {
+            keyOut = Object.assign(keyOut, {'obj': rexp[1]});
+            remove = rexp[1] + '55';
+            rexp = null;
         } else if ((rexp = SPECIAL_KEYS_REGEXP.exec(s)));
         else if (KEY_EVENT_MAP[s.charAt(0)]) {
             rexp = [0, s.charAt(0)];
@@ -224,6 +230,7 @@ function kvm_process_string(s) {
             if (mix.code) {
                 mix.key = mix.rk || rexp[1];
                 mix.which = mix.keyCode;
+                mix.bubbles = true;
             }
             const cards = CARD_REGEXP.exec(s.substring(rexp[1].length));
             if (cards) {
@@ -232,7 +239,7 @@ function kvm_process_string(s) {
             }
             keyOut = Object.assign(keyOut, mix);
         } else {
-            rexp = [0, '5'];
+            rexp = [0, remove];
             quit = false;
         }
         s = s.substring(rexp[1].length);
