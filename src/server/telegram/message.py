@@ -60,7 +60,7 @@ class MyNavigationHandler(NavigationHandler):
                     await p
                 except Exception:
                     _LOGGER.warning(f'send command failed {traceback.format_exc()}')
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.1)
                 if i == len(queue) - 1:
                     self.sending_queue.clear()
                     self.sending_task = None
