@@ -511,9 +511,13 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         if self.navigation._menu_queue and isinstance(self.navigation._menu_queue[-1], PlaylistItemsPagesTMessage):
             await self.navigation.goto_back()
         await self.navigation.goto_menu(p, context)
-        if p.first_page.groups:
-            grp = p.first_page.groups[0]
-            await p.goto_group((grp,), context)
+
+        async def fp_list(p):
+            if p.first_page.groups:
+                grp = p.first_page.groups[0]
+                await p.goto_group((grp,), context)
+
+        self.navigation.send_operation_wrapper(fp_list(p))
 
     async def edit_me(self, context=None):
         cls = None

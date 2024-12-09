@@ -1,4 +1,6 @@
 from abc import abstractmethod
+from asyncio import Task
+import asyncio
 from datetime import datetime, timedelta
 from enum import Enum, auto
 import logging
@@ -37,9 +39,44 @@ def duration2string(secs):
 class MyNavigationHandler(NavigationHandler):
     """Example of navigation handler, extended with a custom "Back" command."""
 
+    def __init__(self, bot, chat, scheduler) -> None:
+        super().__init__(bot, chat, scheduler)
+        self.sending_queue: list[Coroutine] = []
+        self.sending_task: Task = None
+
+    def send_operation_wrapper(self, p: Coroutine):
+        if p:
+            self.sending_queue.append(p)
+        if not self.sending_task or not self.sending_queue:
+            self.sending_task = asyncio.get_event_loop().create_task(self.sending_queue_process())
+
+    async def sending_queue_process(self):
+        queue = self.sending_queue
+        if queue:
+            i = 0
+            while True:
+                p = queue[i]
+                try:
+                    await p
+                except Exception:
+                    _LOGGER.warning(f'send command failed {traceback.format_exc()}')
+                await asyncio.sleep(0.2)
+                if i == len(queue) - 1:
+                    self.sending_queue.clear()
+                    self.sending_task = None
+                    break
+                else:
+                    i += 1
+
     async def goto_back(self) -> int:
         """Do Go Back logic."""
-        return await self.select_menu_button("Back")
+        self.send_operation_wrapper(self.select_menu_button("Back"))
+
+    async def goto_home(self):
+        self.send_operation_wrapper(super().goto_home())
+
+    async def goto_menu(self, menu_message: BaseMessage, context: Optional[CallbackContext[BT, UD, CD, BD]] = None, add_if_present: bool = True):
+        self.send_operation_wrapper(super().goto_menu(menu_message, context, add_if_present=add_if_present))
 
 
 class ProcessorMessage(object):
@@ -82,12 +119,13 @@ class StatusTMessage(BaseMessage):
     def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", user: User = None, params: object = None, **argw) -> None:
         super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, **argw)
         self.status = NameDurationStatus.IDLE
+        self.navigation: MyNavigationHandler
         self.sub_status = 0
         self.return_msg = ''
         self.scheduler_job = None
         self.proc = ProcessorMessage(user, params)
 
-    async def edit_or_select(self, context: Optional[CallbackContext] = None):
+    async def edit_or_select_wrap(self, context: Optional[CallbackContext] = None):
         try:
             if self.inlined:
                 await self.edit_message()
@@ -95,6 +133,9 @@ class StatusTMessage(BaseMessage):
                 await self.navigation.goto_menu(self, context, add_if_present=False)
         except Exception:
             _LOGGER.warning(f'edit error {traceback.format_exc()}')
+
+    async def edit_or_select(self, context: Optional[CallbackContext] = None):
+        self.navigation.send_operation_wrapper(self.edit_or_select_wrap(context))
 
     async def switch_to_status(self, args, context=None):
         self.status = args[0]
@@ -196,12 +237,15 @@ class DeletingTMessage(StatusTMessage):
 
 class NameDurationTMessage(DeletingTMessage):
 
-    async def send(self, context: Optional[CallbackContext] = None):
+    async def send_wrap(self, context: Optional[CallbackContext] = None):
         if self.inlined:
             await self.prepare_for_sending()
             await self.navigation._send_app_message(self, self.label)
         else:
             await self.navigation.goto_menu(self, context, add_if_present=False)
+
+    async def send(self, context: Optional[CallbackContext] = None):
+        self.navigation.send_operation_wrapper(self.send_wrap(context))
 
     async def edit_or_select(self, context: Optional[CallbackContext] = None):
         if self.inlined and self._old_thumb != self.thumb:
