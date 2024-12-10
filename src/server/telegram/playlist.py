@@ -226,14 +226,14 @@ class PlaylistItemTMessage(NameDurationTMessage):
             elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
                 self.input_field = u'\U0001F449'
                 self.add_button('bestaudio', self.download_format, args=('bestaudio/best', 0))
-                self.add_button('best', self.download_format, args=('best', 0))
+                self.add_button('best', self.download_format, args=('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 0))
                 self.add_button('worstaudio', self.download_format, args=('worstaudio/worst', 0))
-                self.add_button('worst', self.download_format, args=('worst', 0))
+                self.add_button('worst', self.download_format, args=('worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst', 0))
                 if 'twitch.tv' in self.obj.link:
                     self.add_button('bestaudio os', self.download_format, args=('bestaudio/best', 4))
-                    self.add_button('best os', self.download_format, args=('best', 4))
+                    self.add_button('best os', self.download_format, args=('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 4))
                     self.add_button('worstaudio os', self.download_format, args=('worstaudio/worst', 4))
-                    self.add_button('worst os', self.download_format, args=('worst', 4))
+                    self.add_button('worst os', self.download_format, args=('worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst', 4))
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
             elif self.status == NameDurationStatus.DOWNLOADING:
                 self.add_button(f':cross_mark: Abort {self.id}', self.stop_download, args=(self.id, ))
