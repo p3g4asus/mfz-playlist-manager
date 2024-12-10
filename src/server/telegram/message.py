@@ -5,11 +5,11 @@ from datetime import datetime, timedelta
 from enum import Enum, auto
 import logging
 import traceback
-from typing import Any, Coroutine, Optional, Union
+from typing import Any, Coroutine, List, Optional, Union
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
-from telegram_menu import BaseMessage, NavigationHandler
+from telegram_menu import BaseMessage, MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 import validators
@@ -366,6 +366,8 @@ class YesNoTMessage(BaseMessage):
         pass
 
     def update(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
+        self.keyboard_previous: List[List["MenuButton"]] = [[]]
+        self.keyboard: List[List["MenuButton"]] = [[]]
         self.add_button(self.yes_btn, self.on_yes, args=self.yes_args)
         self.add_button(self.no_btn, self.on_no, args=self.no_args)
         return self.input_field
