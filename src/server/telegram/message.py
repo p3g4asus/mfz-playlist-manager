@@ -102,7 +102,7 @@ class MyNavigationHandler(NavigationHandler):
 
     async def goto_menu(self, menu_message: BaseMessage, context: Optional[CallbackContext[BT, UD, CD, BD]] = None, add_if_present: bool = True, sync: bool = False, going_home: bool = False):
         coro = super().goto_menu(menu_message, context, add_if_present=add_if_present)
-        if sync and going_home:
+        if going_home:
             return await coro
         else:
             return await self.navigation_schedule_wrapper(coro, sync)
