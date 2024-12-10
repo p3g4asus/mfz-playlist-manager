@@ -510,14 +510,10 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         p = PlaylistItemsPagesTMessage(self.navigation, deleted=args[0], user=self.proc.user, params=self.proc.params, playlist_obj=self)
         if self.navigation._menu_queue and isinstance(self.navigation._menu_queue[-1], PlaylistItemsPagesTMessage):
             await self.navigation.goto_back()
-        await self.navigation.goto_menu(p, context)
-
-        async def fp_list(p):
-            if p.first_page.groups:
-                grp = p.first_page.groups[0]
-                await p.goto_group((grp,), context)
-
-        self.navigation.send_operation_wrapper(fp_list(p))
+        await self.navigation.goto_menu(p, context, sync=True)
+        if p.first_page.groups:
+            grp = p.first_page.groups[0]
+            await p.goto_group((grp,), context)
 
     async def edit_me(self, context=None):
         cls = None

@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from asyncio import Task
+from asyncio import Event, Task
 import asyncio
 from datetime import datetime, timedelta
 from enum import Enum, auto
@@ -36,6 +36,21 @@ def duration2string(secs):
         return f'{ss}s'
 
 
+class NavigationSyncSchedule(object):
+    def __init__(self, co: Coroutine):
+        self.ev: Event = Event()
+        self.rv = None
+        self.co: Coroutine = co
+
+    async def wait(self):
+        await self.ev.wait()
+        return self.rv
+
+    async def perform(self):
+        self.rv = await self.co
+        self.ev.set()
+
+
 class MyNavigationHandler(NavigationHandler):
     """Example of navigation handler, extended with a custom "Back" command."""
 
@@ -57,7 +72,10 @@ class MyNavigationHandler(NavigationHandler):
             while True:
                 p = queue[i]
                 try:
-                    await p
+                    if isinstance(p, NavigationSyncSchedule):
+                        await p.perform()
+                    else:
+                        await p
                 except Exception:
                     _LOGGER.warning(f'send command failed {traceback.format_exc()}')
                 await asyncio.sleep(0.1)
@@ -68,15 +86,26 @@ class MyNavigationHandler(NavigationHandler):
                 else:
                     i += 1
 
-    async def goto_back(self) -> int:
+    async def navigation_schedule_wrapper(self, sched, sync):
+        if sync:
+            sched = NavigationSyncSchedule(sched)
+        self.send_operation_wrapper(sched)
+        if sync:
+            return await sched.wait()
+
+    async def goto_back(self, sync: bool = False) -> int:
         """Do Go Back logic."""
-        self.send_operation_wrapper(self.select_menu_button("Back"))
+        return await self.navigation_schedule_wrapper(self.select_menu_button("Back"), sync)
 
-    async def goto_home(self):
-        self.send_operation_wrapper(super().goto_home())
+    async def goto_home(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None, sync: bool = False):
+        return await self.navigation_schedule_wrapper(super().goto_home(context, sync=sync, going_home=True), sync)
 
-    async def goto_menu(self, menu_message: BaseMessage, context: Optional[CallbackContext[BT, UD, CD, BD]] = None, add_if_present: bool = True):
-        self.send_operation_wrapper(super().goto_menu(menu_message, context, add_if_present=add_if_present))
+    async def goto_menu(self, menu_message: BaseMessage, context: Optional[CallbackContext[BT, UD, CD, BD]] = None, add_if_present: bool = True, sync: bool = False, going_home: bool = False):
+        coro = super().goto_menu(menu_message, context, add_if_present=add_if_present)
+        if sync and going_home:
+            return await coro
+        else:
+            return await self.navigation_schedule_wrapper(coro, sync)
 
 
 class ProcessorMessage(object):
