@@ -358,7 +358,7 @@ class MessageProcessor(AbstractMessageProcessor):
             # conv = msg.f('conv')
             # host = msg.f('host')
             kw = ['N_m3u8DL-RE.exe' if os.name == 'nt' else 'N_m3u8DL-RE']
-            if 'audio' in format:
+            if 'video' not in format:
                 kw.extend(['-sa', 'id=0'])
             else:
                 kw.append('--auto-select')
@@ -403,7 +403,7 @@ class MessageProcessor(AbstractMessageProcessor):
             format = msg.f('fmt')
             conv = msg.f('conv')
             host = msg.f('host')
-            if 'audio' in format:
+            if 'video' not in format:
                 kw = dict(extractaudio=True,
                           addmetadata=True,
                           embedthumbnail=True,
