@@ -60,9 +60,8 @@ class MyNavigationHandler(NavigationHandler):
         self.sending_task: Task = None
 
     def send_operation_wrapper(self, p: Coroutine):
-        if p:
-            self.sending_queue.append(p)
-        if not self.sending_task or not self.sending_queue:
+        self.sending_queue.append(p)
+        if not self.sending_task:
             self.sending_task = asyncio.get_event_loop().create_task(self.sending_queue_process())
 
     async def sending_queue_process(self):
