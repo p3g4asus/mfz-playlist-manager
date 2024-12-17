@@ -357,7 +357,7 @@ function send_video_info_for_remote_play(w, video_info) {
     o[w] = video_info;
     let el = new MainWSQueueElement(o, function(msg) {
         return msg.cmd === CMD_REMOTEPLAY_PUSH? msg:null;
-    }, 3000, 1, 'remoteplay_vinfo');
+    }, 3000, 1, w);
     return el.enqueue().then(function(msg) {
         if (!manage_errors(msg)) {
             console.log('Remoteplay push ok ' + JSON.stringify(msg.what));
@@ -553,9 +553,12 @@ function get_remoteplay_link() {
                 }
                 playlist_remoteplay = msg.url;
                 let lnk = playlist_remoteplay + '?red='+encodeURIComponent(window.location.protocol + '//' + window.location.host + MAIN_PATH_S + 'play/player_remote_commands.htm');
+                const namelst = [];
                 for (let it of playlists_arr) {
                     lnk += '&name='+encodeURIComponent(it.name);
+                    namelst.push(it.name);
                 }
+                send_video_info_for_remote_play('plst', namelst);
                 let $rpc = $('#qr-remote-play-content');
                 let $a = $('<a>').prop('href', lnk).prop('target', '_blank');
                 let $rp = $('<canvas>');

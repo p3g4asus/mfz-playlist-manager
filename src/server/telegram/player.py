@@ -24,6 +24,7 @@ class PlayerInfo(RemoteInfo):
         super().__init__(name, url, sel)
         pr = self.parsed_url
         self.plnames: List[str] = list(pr[1]['name'])
+        self.default_plnames: bool = True
         self.pinfo: Dict[str, str] = PlayerInfo.DEFAULT_PINFO
         self.vinfo: Dict[str, str] = PlayerInfo.DEFAULT_VINFO
         self.play_url = urlunparse(pr[0]._replace(path=pr[0].path[1:-len(PlayerInfo.END_URL_PATH)] + '-s/play/workout.htm')._replace(query=''))
@@ -43,6 +44,11 @@ class PlayerInfo(RemoteInfo):
                 self.vinfo = data['vinfo']
             else:
                 self.vinfo = PlayerInfo.DEFAULT_VINFO
+        if 'plst' in data:
+            rv = data
+            if isinstance(data['plst'], list):
+                self.plnames = data['plst']
+                self.default_plnames = False
         return rv
 
 
@@ -51,7 +57,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
         self.time_btn: datetime = None
         self.btn_type: int = 0
         self.time_status: int = 0
-        self.info_changed: bool = False
+        self.info_changed: int = -1
         super().__init__(navigation, player_info, user, params, **argw)
 
     def calc_dyn_sec(self):
@@ -123,8 +129,8 @@ class PlayerInfoMessage(RemoteInfoMessage):
                 pass
 
     async def info(self, args: tuple):
-        await self.pi.sendGenericCommand(get=['vinfo', 'pinfo'])
-        self.info_changed = True
+        await self.pi.sendGenericCommand(get=['vinfo', 'pinfo', 'plst'])
+        self.info_changed = 1
         await self.edit_or_select()
 
     async def manage_state_change(self, args: tuple, context: Optional[CallbackContext] = None):
@@ -171,6 +177,9 @@ class PlayerInfoMessage(RemoteInfoMessage):
         self.input_field = u'\U000023F2 Timestamp'
         addtxt = ''
         if self.status == NameDurationStatus.IDLE or self.status == NameDurationStatus.RENAMING:
+            if self.info_changed < 0 or (not self.info_changed and self.pi.default_plnames):
+                self.info_changed = 0
+                await self.pi.sendGenericCommand(get='plst')
             self.add_button(u'\U000023EF', self.manage_state_change, args=(self.play,))
             self.add_button(u'\U00002139', self.manage_state_change, args=(self.info, ))
             self.add_button(u'\U000023EE', self.manage_state_change, args=(self.move_pl, -1), new_row=True)
@@ -205,14 +214,14 @@ class PlayerInfoMessage(RemoteInfoMessage):
             for x in addtxt:
                 rv += x + u'\U0000FE0F\U000020E3'
             return rv
-        elif not self.info_changed:
+        elif self.info_changed <= 0:
             idx = self.time_status
             self.time_status += 1
             if self.time_status >= len(self.TIMES):
                 self.time_status = 0
             return self.TIMES[idx]
         else:
-            self.info_changed = False
+            self.info_changed = 0
             rv = f'{self.pi.vinfo["title"]}\n'
             rv += u'\U000023F3 ' + f'{self.pi.vinfo["durs"]}\n'
             rv += u'\U0001F4B0 ' + f'{self.pi.vinfo["tot_n"]} ({self.pi.vinfo["tot_durs"]})\n'
