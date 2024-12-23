@@ -146,6 +146,7 @@ if (login_needed == 5000) {
 
     def processGetSMIL(self, url, resp, userid, loop):
         resp['sta'] = 'N/A'
+        driver = None
         try:
             from selenium import webdriver
             from selenium.webdriver.chrome.options import Options
@@ -220,6 +221,11 @@ if (login_needed == 5000) {
                             waitdone = 0
         except ImportError:
             resp['err'] = 31
+        try:
+            if driver:
+                driver.quit()
+        except Exception:
+            pass
 
     async def processKeyGet(self, msg, userid, executor):
         x = msg.playlistItemId()
