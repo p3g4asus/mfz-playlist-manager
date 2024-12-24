@@ -137,6 +137,17 @@ function on_play_finished(event) {
     let vid = '';
     if (typeof(dir) == 'string') {
         if (dir != playlist_item_current.uid) {
+            if (typeof(playlist_map[dir]) == 'undefined') {
+                const newItem = {
+                    rowid: -1,
+                    title: dir,
+                    uid: dir,
+                    link: dir,
+                    datepub: '1999-01-01 19:00:00',
+                    conf: {sec: 0}
+                };
+                playlist_arr.splice(playlist_map[dir] = playlist_item_current_idx + 1, 0, newItem);
+            }
             playlist_start_playing(playlist_map[dir] - playlist_item_current_idx);
             return;
         }
@@ -469,6 +480,11 @@ function playlist_process_rew(v) {
     save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
 }
 
+function playlist_process_sched(v) {
+    if (video_manager_obj)
+        on_play_finished({dir: v});
+}
+
 function playlist_process_ffw(v) {
     video_manager_obj.ffw(parseInt(v));
     save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
@@ -505,6 +521,9 @@ function remotejs_process(msg) {
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_REW) {
             playlist_process_rew(msg.n);
+        }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_SCHED) {
+            playlist_process_sched(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_TELEGRAM) {
             let modvisible = is_telegram_token_visible();

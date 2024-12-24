@@ -113,6 +113,7 @@ module.exports = {
         'CMD_REMOTEPLAY_JS_REW': true,
         'CMD_REMOTEPLAY_JS_GOTO': true,
         'CMD_REMOTEPLAY_JS_SEC': true,
+        'CMD_REMOTEPLAY_JS_SCHED': true,
         'CMD_REMOTEPLAY_JS_TELEGRAM': true,
         'CMD_REMOTEPLAY_PUSH': true,
         'CMD_REMOTEPLAY_JS_RATE': true,

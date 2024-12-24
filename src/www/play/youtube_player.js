@@ -37,6 +37,11 @@ class YoutubePlayer {
     }
 
     play_video_id(vid) {
+        if (vid.startsWith('https:')) {
+            const rx = /^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|shorts\/|live\/)|(?:(?:watch)?\?v(?:i)?=|&v(?:i)?=))([^#&?]*).*/;
+            vid = vid.match(rx);
+            if (!vid || !(vid = vid[1])) return;
+        }
         this.player.loadVideoById({videoId:vid});
     }
 
