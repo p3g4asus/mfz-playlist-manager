@@ -139,7 +139,7 @@ function on_play_finished(event) {
         if (dir != playlist_item_current.uid) {
             if (typeof(playlist_map[dir]) == 'undefined') {
                 const newItem = {
-                    rowid: -1,
+                    rowid: -Math.floor(Math.random() * 1000000),
                     title: dir,
                     uid: dir,
                     link: dir,
@@ -161,7 +161,7 @@ function on_play_finished(event) {
     }
     else {
         if (dir == 10535 || dir == 10536) {
-            if ((playlist_item_play_settings?.remove_end && Date.parse(playlist_item_current.datepub) <= new Date()) || dir == 10536) {
+            if (playlist_item_current.rowid >= 0 && ((playlist_item_play_settings?.remove_end && Date.parse(playlist_item_current.datepub) <= new Date()) || dir == 10536)) {
                 let title = playlist_item_current.title;
                 let cel = playlist_item_current;
                 let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:cel.rowid, seen:1}, function(msg) {
@@ -313,6 +313,7 @@ function go_to_video(mydir) {
 }
 
 function save_playlist_settings(vid, key) {
+    if (playlist_item_current.rowid < 0) return;
     if (!key)
         key = 'playid';
     let objsource = {
@@ -337,6 +338,7 @@ function save_playlist_settings(vid, key) {
 }
 
 function save_playlist_item_settings(sett, push_for_remote_play) {
+    if (playlist_item_current.rowid < 0) return;
     if (!playlist_item_current.conf)
         playlist_item_current.conf = {};
     Object.assign(playlist_item_current.conf, sett);
@@ -686,7 +688,7 @@ function playlist_del_current_video() {
 function playlist_reload_settings(reset) {
     //vedi nome da gui se reset falso: se nome vuoto non fare niente. Se pieno procedi
     get_conf_name(reset).then(([cname, oldv]) => {
-        if (playlist_item_current) {
+        if (playlist_item_current && playlist_item_current.rowid >= 0) {
             oldv = !oldv?'':oldv;
             let el = new MainWSQueueElement({
                 cmd: CMD_PLAYSETT,
