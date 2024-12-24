@@ -139,7 +139,7 @@ function on_play_finished(event) {
         if (dir != playlist_item_current.uid) {
             if (typeof(playlist_map[dir]) == 'undefined') {
                 const newItem = {
-                    rowid: -Math.floor(Math.random() * 1000000),
+                    rowid: -Math.floor(Math.random() * 1000000) - 1,
                     title: dir,
                     uid: dir,
                     link: dir,
