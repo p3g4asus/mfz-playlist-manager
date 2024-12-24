@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 import logging
 import re
@@ -8,7 +9,8 @@ from telegram_menu import MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
-from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SCHED, CMD_REMOTEPLAY_JS_SEC
+from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_ITEM, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SCHED, CMD_REMOTEPLAY_JS_SEC
+from common.playlist import PlaylistItem
 from common.user import User
 from server.telegram.message import NameDurationStatus, duration2string
 from server.telegram.remote import RemoteInfo, RemoteInfoMessage, RemoteListMessage
@@ -23,6 +25,7 @@ class PlayerInfo(RemoteInfo):
     def __init__(self, name: str, url: str, sel: bool) -> None:
         super().__init__(name, url, sel)
         pr = self.parsed_url
+        self.plitems: List[PlaylistItem] = []
         self.plnames: List[str] = list(pr[1]['name'])
         self.default_plnames: bool = True
         self.pinfo: Dict[str, str] = PlayerInfo.DEFAULT_PINFO
@@ -49,6 +52,12 @@ class PlayerInfo(RemoteInfo):
             if isinstance(data['plst'], list):
                 self.plnames = data['plst']
                 self.default_plnames = False
+        if 'ilst' in data:
+            rv = data
+            if isinstance(data['ilst'], list):
+                self.plitems.clear()
+                for kk in data['ilst']:
+                    self.plitems.append(PlaylistItem(kk))
         return rv
 
 
@@ -105,6 +114,11 @@ class PlayerInfoMessage(RemoteInfoMessage):
     async def schedule(self, url: str):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_SCHED, n=url)
 
+    async def goto_item(self, idx: int):
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_ITEM, n=idx)
+        await asyncio.sleep(3.5)
+        await self.info(tuple())
+
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status == NameDurationStatus.IDLE:
             text = text.strip()
@@ -113,6 +127,9 @@ class PlayerInfoMessage(RemoteInfoMessage):
                 rel = 0
                 if ((mo := re.search(r'^/s\s*(.+)', text)) and (mo := PlayerInfoMessage.is_url(mo.group(1)))):
                     await self.schedule(mo.group(1))
+                    return
+                elif ((mo := re.search(r'^/I(\d+)', text))):
+                    await self.goto_item(int(mo.group(1)))
                     return
                 elif text.startswith('/TT'):
                     text = text[3:]
@@ -140,7 +157,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
                 pass
 
     async def info(self, args: tuple):
-        await self.pi.sendGenericCommand(get=['vinfo', 'pinfo', 'plst'])
+        await self.pi.sendGenericCommand(get=['vinfo', 'pinfo', 'plst', 'ilst'])
         self.info_changed = 1
         await self.edit_or_select()
 
@@ -240,7 +257,32 @@ class PlayerInfoMessage(RemoteInfoMessage):
             rv += f'<code>{duration2string(round(self.pi.pinfo["sec"]))} ({self.pi.vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}%</code>'
             for ch in self.pi.vinfo["chapters"]:
                 rv += f'\n/TT{int(ch["start_time"])}s {ch["title"]}'
-            return rv
+            updown_s = 1
+            idx = self.pi.vinfo['idx']
+            updown_i = 1
+            self.pi: PlayerInfo
+            dirs = 2
+            plitems = self.pi.plitems
+            add = u'\n<b>\U0001F6A6' + f'{idx}) {self.pi.vinfo["title"]} ({duration2string(round(self.pi.vinfo["duri"]))}</b>'
+            while len(rv) + len(add) < 3700:
+                ci = idx + updown_i * updown_s
+                if ci < 0 or ci >= len(plitems):
+                    dirs -= 1
+                    updown_s = -updown_s
+                    if not dirs:
+                        break
+                else:
+                    it = self.pi.plitems[ci]
+                    a2 = f'\n/I{ci} {it.title} ({duration2string(round(it.dur))})'
+                    if updown_s == 1:
+                        add += a2
+                    else:
+                        add = a2 + add
+                    if dirs > 1:
+                        updown_s = -updown_s
+                if updown_s == 1 or dirs == 1:
+                    updown_i += 1
+            return rv + add
 
 
 class PlayerListMessage(RemoteListMessage):

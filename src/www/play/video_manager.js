@@ -274,6 +274,7 @@ function print_duration(idx) {
             duration1 = format_duration(durationi);
             video_info.duri = durationi;
             video_info.durs = duration1;
+            video_info.idx = idx;
             video_info.title = video?.title || 'N/A';
             video_info.chapters = video?.conf?.chapters || [];
         }
@@ -401,6 +402,7 @@ function playlist_dump(useri, plid) {
                 if (plid) {
                     playlist_current = msg.playlists[0];
                     playlist_arr = playlist_current.items;
+                    send_video_info_for_remote_play('ilst', playlist_arr);
                     parse_list(playlist_arr);
                     page_set_title(playlist_current.name);
                     init_video_manager();
@@ -487,6 +489,11 @@ function playlist_process_sched(v) {
         on_play_finished({dir: v});
 }
 
+function playlist_process_item(v) {
+    if (video_manager_obj)
+        playlist_start_playing(v - playlist_item_current_idx);
+}
+
 function playlist_process_ffw(v) {
     video_manager_obj.ffw(parseInt(v));
     save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
@@ -526,6 +533,9 @@ function remotejs_process(msg) {
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_SCHED) {
             playlist_process_sched(msg.n);
+        }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_ITEM) {
+            playlist_process_item(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_TELEGRAM) {
             let modvisible = is_telegram_token_visible();
