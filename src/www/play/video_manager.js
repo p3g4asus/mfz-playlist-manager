@@ -287,7 +287,7 @@ function on_video_info_change(idx, isat) {
     let video_info =  get_video_info(idx);
     if (video_info.title) {
         isat = (isat || 0) / playlist_rate;
-        toast_msg('Video duration is ' + video_info.durs + '(' + format_duration(video_info.duri - isat) +'). Remaining videos are ' + (playlist_arr.length - idx) + ' [' + video_info.tot_durs +  ' (' + format_duration(video_info.tot_dur - isat) +')] @ ' + playlist_rate.toFixed(2) + 'x.', 'info');
+        toast_msg('Video duration is ' + video_info.durs + ' (' + format_duration(video_info.duri - isat) +'). Remaining videos are ' + (playlist_arr.length - idx) + ' [' + video_info.tot_durs +  ' (' + format_duration(video_info.tot_dur - isat) +')] @ ' + playlist_rate.toFixed(2) + 'x.', 'info');
     }
     send_video_info_for_remote_play('vinfo', video_info);
 }
