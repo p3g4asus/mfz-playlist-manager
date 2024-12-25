@@ -257,7 +257,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
             else:
                 sec = self.pi.pinfo["sec"] / self.pi.vinfo["rate"]
                 rv = f'{self.pi.vinfo["title"]}\n'
-                rv += u'\U000023F3 ' + f'{self.pi.vinfo["durs"]}\n'
+                rv += u'\U000023F3 ' + f'{self.pi.vinfo["durs"]} ' + u'\U0000231B ' + duration2string(0 if (idx := round(self.pi.vinfo["duri"] - sec)) < 0 else idx) + '\n'
                 rv += u'\U0001F4B0 ' + f'{self.pi.vinfo["tot_n"]} ({self.pi.vinfo["tot_durs"]})\n'
                 no = int(round(30.0 * (perc := sec / self.pi.vinfo["duri"]))) if self.pi.vinfo["duri"] else (perc := 0)
                 rv += f'<code>{duration2string(round(sec))} ({self.pi.vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}% ({self.pi.vinfo["rate"]:.2f}\U0000274E)</code>'
