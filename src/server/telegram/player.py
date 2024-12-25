@@ -278,6 +278,8 @@ class PlayerInfoMessage(RemoteInfoMessage):
                     updown_s = -updown_s
                     if not dirs:
                         break
+                    elif updown_s == 1:
+                        updown_i += 1
                 else:
                     it = self.pi.plitems[ci]
                     a2 = f'\n/I{ci} {it.title} ({duration2string(round(it.dur / rate))})'
@@ -287,8 +289,8 @@ class PlayerInfoMessage(RemoteInfoMessage):
                         add = a2 + add
                     if dirs > 1:
                         updown_s = -updown_s
-                if updown_s == 1 or dirs == 1:
-                    updown_i += 1
+                    if updown_s == 1 or dirs == 1:
+                        updown_i += 1
             return rv + add
 
 
