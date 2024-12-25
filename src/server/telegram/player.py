@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class PlayerInfo(RemoteInfo):
-    DEFAULT_VINFO = dict(title='N/A', durs='0s', tot_n=0, tot_durs='0s', duri=0, chapters=[])
+    DEFAULT_VINFO = dict(tot_n=0, tot_durs='0s')
     DEFAULT_PINFO = dict(sec=0)
 
     def __init__(self, name: str, url: str, sel: bool) -> None:
@@ -250,20 +250,26 @@ class PlayerInfoMessage(RemoteInfoMessage):
             return self.TIMES[idx]
         else:
             self.info_changed = 0
-            rv = f'{self.pi.vinfo["title"]}\n'
-            rv += u'\U000023F3 ' + f'{self.pi.vinfo["durs"]}\n'
-            rv += u'\U0001F4B0 ' + f'{self.pi.vinfo["tot_n"]} ({self.pi.vinfo["tot_durs"]})\n'
-            no = int(round(30.0 * (perc := self.pi.pinfo["sec"] / self.pi.vinfo["duri"]))) if self.pi.vinfo["duri"] else (perc := 0)
-            rv += f'<code>{duration2string(round(self.pi.pinfo["sec"]))} ({self.pi.vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}%</code>'
-            for ch in self.pi.vinfo["chapters"]:
-                rv += f'\n/TT{int(ch["start_time"])}s {ch["title"]}'
+            if 'title' not in self.pi.vinfo:
+                rv = '<b>No more video in playlist</b>'
+                idx = -1
+                add = ''
+            else:
+                sec = self.pi.pinfo["sec"] / self.pi.vinfo["rate"]
+                rv = f'{self.pi.vinfo["title"]}\n'
+                rv += u'\U000023F3 ' + f'{self.pi.vinfo["durs"]}\n'
+                rv += u'\U0001F4B0 ' + f'{self.pi.vinfo["tot_n"]} ({self.pi.vinfo["tot_durs"]})\n'
+                no = int(round(30.0 * (perc := sec / self.pi.vinfo["duri"]))) if self.pi.vinfo["duri"] else (perc := 0)
+                rv += f'<code>{duration2string(round(sec))} ({self.pi.vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}% ({self.pi.vinfo["rate"]:.2f}\U0000274E)</code>'
+                for ch in self.pi.vinfo["chapters"]:
+                    rv += f'\n/TT{int(ch["start_time"])}s {ch["title"]}'
+                idx = self.pi.vinfo['idx']
+                add = u'\n<b>\U0001F6A6' + f'{idx}) {self.pi.vinfo["title"]} ({duration2string(round(self.pi.vinfo["duri"]))}</b>'
             updown_s = 1
-            idx = self.pi.vinfo['idx']
             updown_i = 1
             self.pi: PlayerInfo
             dirs = 2
             plitems = self.pi.plitems
-            add = u'\n<b>\U0001F6A6' + f'{idx}) {self.pi.vinfo["title"]} ({duration2string(round(self.pi.vinfo["duri"]))}</b>'
             while len(rv) + len(add) < 3700:
                 ci = idx + updown_i * updown_s
                 if ci < 0 or ci >= len(plitems):

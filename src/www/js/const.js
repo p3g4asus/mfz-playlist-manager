@@ -150,6 +150,7 @@ function find_user_cookie() {
 }
 
 function format_duration(secs) {
+    secs = parseInt(secs);
     let hh = Math.floor(secs / 3600);
     let rem = secs % 3600;
     let mm = Math.floor(rem / 60);

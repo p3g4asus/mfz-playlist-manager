@@ -190,8 +190,7 @@ function on_play_finished(event) {
     title = playlist_item_current.title;
     set_video_title(title);
     set_video_enabled(playlist_item_current.rowid);
-    let video_info =  print_duration(index);
-    send_video_info_for_remote_play('vinfo', video_info);
+    on_video_info_change(index);
     send_video_info_for_remote_play('pinfo', {sec: 0});
     playlist_play_current_video();
     save_playlist_settings(vid);
@@ -263,30 +262,33 @@ function on_player_state_changed(player, event) {
     }
 }
 
-function print_duration(idx) {
+function get_video_info(idx) {
     let tot_dur = 0;
-    let duration1 = '';
     let video_info = {tot_n: playlist_arr.length - idx};
     for (let i = idx; i<playlist_arr.length; i++) {
         let video = playlist_arr[i];
-        let durationi = video?.length || video?.dur || 0;
-        if (i == idx) {
-            duration1 = format_duration(durationi);
+        let durationi = (video?.length || video?.dur || 0) / playlist_rate;
+        if (i == idx && playlist_item_current) {
             video_info.duri = durationi;
-            video_info.durs = duration1;
+            video_info.durs = format_duration(durationi);
+            video_info.rate = playlist_rate;
             video_info.idx = idx;
             video_info.title = video?.title || 'N/A';
             video_info.chapters = video?.conf?.chapters || [];
         }
         tot_dur += durationi;
     }
-    if (duration1.length) {
-        let tot_dur_s = format_duration(tot_dur);
-        video_info.tot_dur = tot_dur;
-        video_info.tot_durs = tot_dur_s;
-        toast_msg('Video duration is ' + duration1 + '. Remaining videos are ' + (playlist_arr.length - idx) + ' [' + tot_dur_s + '].', 'info');
-    }
+    video_info.tot_dur = tot_dur;
+    video_info.tot_durs = format_duration(tot_dur);
     return video_info;
+}
+
+function on_video_info_change(idx) {
+    let video_info =  get_video_info(idx);
+    if (video_info.title) {
+        toast_msg('Video duration is ' + video_info.durs + '. Remaining videos are ' + (playlist_arr.length - idx) + ' [' + video_info.tot_durs + '] @ ' + playlist_rate.toFixed(2) + 'x.', 'info');
+    }
+    send_video_info_for_remote_play('vinfo', video_info);
 }
 
 function on_player_load(name, manager_obj) {
@@ -477,6 +479,7 @@ function playlist_prrocess_key(ke) {
 function playlist_process_rate(v) {
     save_playlist_settings(playlist_rate = parseFloat(v), 'playrate');
     video_manager_obj.rate(playlist_rate);
+    on_video_info_change(playlist_item_current_idx);
 }
 
 function playlist_process_rew(v) {
@@ -675,6 +678,7 @@ function playlist_start_playing(idx) {
     else {
         playlist_rebuild_reconstruct_player();
         toast_msg('No more video in playlist', 'warning');
+        on_video_info_change(playlist_item_current_idx);
     }
 }
 
