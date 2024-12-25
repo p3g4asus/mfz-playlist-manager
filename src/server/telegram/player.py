@@ -264,7 +264,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
                 for ch in self.pi.vinfo["chapters"]:
                     rv += f'\n/TT{int(ch["start_time"])}s {ch["title"]}'
                 idx = self.pi.vinfo['idx']
-                add = u'\n<b>\U0001F6A6' + f'{idx}) {self.pi.vinfo["title"]} ({duration2string(round(self.pi.vinfo["duri"]))}</b>'
+                add = u'\n<b>\U0001F6A6' + f'{idx}) {self.pi.vinfo["title"]} ({duration2string(round(self.pi.vinfo["duri"]))})</b>'
             updown_s = 1
             updown_i = 1
             self.pi: PlayerInfo
