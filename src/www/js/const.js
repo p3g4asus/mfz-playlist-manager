@@ -34,6 +34,7 @@ const CMD_REMOTEPLAY_JS_GOTO = 'goto';
 const CMD_REMOTEPLAY_JS_SEC = 'sec';
 const CMD_REMOTEPLAY_JS_SCHED = 'sched';
 const CMD_REMOTEPLAY_JS_ITEM = 'itidx';
+const CMD_REMOTEPLAY_JS_INFO = 'info';
 const CMD_REMOTEPLAY_JS_RATE = 'rate';
 const CMD_REMOTEPLAY_JS_TELEGRAM = 'telegram';
 const CMD_REMOTEBROWSER_JS_KEY = 'key';

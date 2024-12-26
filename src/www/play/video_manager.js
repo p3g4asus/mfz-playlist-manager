@@ -525,6 +525,11 @@ function remotejs_process(msg) {
         else if (msg.sub == CMD_REMOTEPLAY_JS_RATE) {
             playlist_process_rate(msg.n);
         }
+        else if (msg.sub == CMD_REMOTEPLAY_JS_INFO) {
+            let ss;
+            save_playlist_item_settings({sec: ss = video_manager_obj.currenttime()}, 'pinfo');
+            on_video_info_change(playlist_item_current_idx, ss);
+        }
         else if (msg.sub == CMD_REMOTEPLAY_JS_SEC) {
             video_manager_obj.currenttime(parseInt(msg.n));
             save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
