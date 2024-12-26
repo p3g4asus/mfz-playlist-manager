@@ -450,6 +450,8 @@ function playlist_prrocess_key(ke) {
     } else if (ke.key == 'P' && ke.shiftKey) {
         go_to_prev_video();
         ke.preventDefault();
+    } else if (ke.key == 'I' && ke.shiftKey) {
+        playlist_process_info();
     } else if (ke.key == 'X' && ke.shiftKey) {
         on_play_finished({dir: 10536});
         ke.preventDefault();
@@ -481,6 +483,12 @@ function playlist_process_rate(v) {
     save_playlist_settings(playlist_rate = parseFloat(v), 'playrate');
     video_manager_obj.rate(playlist_rate);
     on_video_info_change(playlist_item_current_idx, video_manager_obj.currenttime());
+}
+
+function playlist_process_info() {
+    let ss;
+    save_playlist_item_settings({sec: ss = video_manager_obj.currenttime()}, 'pinfo');
+    on_video_info_change(playlist_item_current_idx, ss);
 }
 
 function playlist_process_rew(v) {
@@ -526,9 +534,7 @@ function remotejs_process(msg) {
             playlist_process_rate(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_INFO) {
-            let ss;
-            save_playlist_item_settings({sec: ss = video_manager_obj.currenttime()}, 'pinfo');
-            on_video_info_change(playlist_item_current_idx, ss);
+            playlist_process_info();
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_SEC) {
             video_manager_obj.currenttime(parseInt(msg.n));
