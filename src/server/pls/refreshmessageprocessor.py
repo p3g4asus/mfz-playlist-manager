@@ -144,6 +144,8 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                     return msg.err(5, MSG_PLAYLIST_NOT_FOUND, playlist=None)
                 if x.useri != userid:
                     return msg.err(502, MSG_UNAUTHORIZED, playlist=None)
+                if 'play' in x.conf:
+                    c['play'] = x.conf['play']
                 x.conf = c
                 x.name = n
                 x.autoupdate = u

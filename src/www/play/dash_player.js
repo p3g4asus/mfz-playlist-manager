@@ -120,6 +120,10 @@ class DashPlayer {
             return this.player.time();
     }
 
+    duration() {
+        return this.player.duration();
+    }
+
     ffw(secs) {
         this.player.seek(this.player.time() + secs);
     }

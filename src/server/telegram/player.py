@@ -9,7 +9,7 @@ from telegram_menu import MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
-from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_INFO, CMD_REMOTEPLAY_JS_ITEM, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SCHED, CMD_REMOTEPLAY_JS_SEC
+from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_F5PL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_INFO, CMD_REMOTEPLAY_JS_ITEM, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SCHED, CMD_REMOTEPLAY_JS_SEC
 from common.playlist import PlaylistItem
 from common.user import User
 from server.telegram.message import NameDurationStatus, duration2string
@@ -90,6 +90,9 @@ class PlayerInfoMessage(RemoteInfoMessage):
 
     async def play(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_PAUSE)
+
+    async def sync_changes(self, args: tuple):
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_F5PL)
 
     async def rate(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_RATE, n=args[0])
@@ -216,7 +219,8 @@ class PlayerInfoMessage(RemoteInfoMessage):
             self.add_button(u'\U000023ED', self.manage_state_change, args=(self.move_pl, +1))
             self.add_button(u'\U000023ED \U0001F5D1', self.manage_state_change, args=(self.move_pl, 0), new_row=True)
             self.add_button(u'\U0001F51C', self.manage_state_change, args=(self.switch_to_status, NameDurationStatus.DOWNLOADING_WAITING, context))
-            self.add_button(u'\U000025B61x', self.manage_state_change, args=(self.rate, 1.0))
+            self.add_button(u'\U000021C5', self.manage_state_change, args=(self.sync_changes,))
+            self.add_button(u'\U000025B61x', self.manage_state_change, args=(self.rate, 1.0), new_row=True)
             self.add_button(u'\U000025B61.5x', self.manage_state_change, args=(self.rate, 1.5))
             self.add_button(u'\U000025B61.8x', self.manage_state_change, args=(self.rate, 1.8))
             self.add_button(u'\U000025B62x', self.manage_state_change, args=(self.rate, 2))
@@ -227,8 +231,6 @@ class PlayerInfoMessage(RemoteInfoMessage):
                     addtxt = f'{-self.calc_dyn_sec()}'
             self.add_button(u'...\U000023EA', self.manage_state_change, args=(-1, self.move, -1), new_row=True)
             self.add_button(u'\U000023E9...', self.manage_state_change, args=(+1, self.move, +1))
-            self.add_button(u'10s\U000023EA', self.manage_state_change, args=(self.move, -10), new_row=True)
-            self.add_button(u'\U000023E910s', self.manage_state_change, args=(self.move, +10))
             self.add_button(u'30s\U000023EA', self.manage_state_change, args=(self.move, -30), new_row=True)
             self.add_button(u'\U000023E930s', self.manage_state_change, args=(self.move, +30))
             self.add_button(u'60s\U000023EA', self.manage_state_change, args=(self.move, -60), new_row=True)

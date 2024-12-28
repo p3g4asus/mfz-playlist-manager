@@ -66,6 +66,10 @@ class YoutubePlayer {
         this.ffw_rew(-secs);
     }
 
+    duration() {
+        return this.player.getDuration();
+    }
+
     togglePause() {
         if (this.player.getPlayerState() == VIDEO_STATUS_PLAYING)
             this.player.pauseVideo();

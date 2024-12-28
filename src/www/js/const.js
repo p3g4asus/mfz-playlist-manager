@@ -36,6 +36,7 @@ const CMD_REMOTEPLAY_JS_SCHED = 'sched';
 const CMD_REMOTEPLAY_JS_ITEM = 'itidx';
 const CMD_REMOTEPLAY_JS_INFO = 'info';
 const CMD_REMOTEPLAY_JS_RATE = 'rate';
+const CMD_REMOTEPLAY_JS_F5PL = 'f5pl';
 const CMD_REMOTEPLAY_JS_TELEGRAM = 'telegram';
 const CMD_REMOTEBROWSER_JS_KEY = 'key';
 const CMD_REMOTEBROWSER_JS = 'remb';
@@ -94,6 +95,10 @@ function manage_errors(msg) {
     else
         return null;
     
+}
+
+function clear_playlist_from_button(selector) {
+    $((selector?selector:'#playlist_cont') + ' > .dropdown-menu').empty();
 }
 
 function add_playlist_to_button(item, selector, onclick) {

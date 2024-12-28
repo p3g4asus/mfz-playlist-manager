@@ -95,6 +95,10 @@ class VideojsPlayer {
     rew(secs) {
         this.player.currentTime(this.player.currentTime() - secs);
     }
+
+    duration() {
+        return this.player.duration();
+    }
 }
 
 // dyn_module_load('./dash_sost.js', function() {

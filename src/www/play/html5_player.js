@@ -82,6 +82,10 @@ class Html5Player {
     rew(secs) {
         this.player.currentTime = this.player.currentTime - secs;
     }
+
+    duration() {
+        return this.player.duration;
+    }
 }
 
 new Html5Player(video_width, video_height);
