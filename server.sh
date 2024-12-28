@@ -1,5 +1,8 @@
 #!/bin/bash
-
+if [ "$( whoami )" = "root" ]; then
+    echo -e "\e[31mCannot start as root!\e[0m"
+    exit 2
+fi
 PTH=$( cd "$( dirname "${BASH_SOURCE:-$0}" )" && pwd )
 source $PTH/venv/bin/activate
 echo $PTH
