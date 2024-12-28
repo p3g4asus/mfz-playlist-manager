@@ -418,7 +418,7 @@ function playlist_dump(useri, plid) {
                         init_video_manager();
                         playlist_item_current_oldrowid = -1;
                     }
-                    else if (playlist_item_current_oldrowid >= 0) {
+                    else {
                         let pos;
                         if (playlist_item_current && playlist_item_current.uid == playlist_current.conf?.play?.id && (pos = playlist_arr.map(function(e) { return e.rowid; }).indexOf(playlist_item_current.rowid)) >= 0) {
                             playlist_item_current = playlist_arr[pos];
