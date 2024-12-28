@@ -13,7 +13,7 @@ let playlist_play_settings = {};
 let playlist_item_play_settings = {};
 let playlist_current = null;
 let playlist_item_current = null;
-let playlist_item_current_oldrowid = -1;
+let playlist_item_current_oldrowid = -2;
 let playlist_item_current_wasplaying = 0;
 let playlist_item_current_time_timer = null;
 let playlist_item_current_idx = -1;
@@ -414,9 +414,11 @@ function playlist_dump(useri, plid) {
                     send_video_info_for_remote_play('ilst', playlist_arr);
                     parse_list(playlist_arr);
                     page_set_title(playlist_current.name);
-                    if (playlist_item_current_oldrowid == -1)
+                    if (playlist_item_current_oldrowid == -2) {
                         init_video_manager();
-                    else {
+                        playlist_item_current_oldrowid = -1;
+                    }
+                    else if (playlist_item_current_oldrowid >= 0) {
                         let pos;
                         if (playlist_item_current && playlist_item_current.uid == playlist_current.conf?.play?.id && (pos = playlist_arr.map(function(e) { return e.rowid; }).indexOf(playlist_item_current.rowid)) >= 0) {
                             playlist_item_current = playlist_arr[pos];
