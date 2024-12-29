@@ -427,4 +427,9 @@ td.bs-checkbox input {
       background: rgba(0, 0, 0, 0.25);
     }
   }
+
+.dropdown-menu {
+  max-height: 100px;
+  overflow-y: auto;
+}
   

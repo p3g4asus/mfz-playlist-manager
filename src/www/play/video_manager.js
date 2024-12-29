@@ -457,8 +457,11 @@ function playlist_dump(useri, plid) {
                     clear_playlist_from_button();
                     add_playlist_to_button();
                     playlists_conf_map = {};
+                    const gotopl = (e) => {
+                        playlist_process_f5pl($(e.target).data('pls'));
+                    };
                     for (let it of msg.playlists) {
-                        add_playlist_to_button(it.name);
+                        add_playlist_to_button(it.name, null, gotopl);
                         let obj = it?.conf?.play;
                         if (obj) {
                             for (const conf of Object.keys(obj)) {
@@ -554,6 +557,15 @@ function playlist_process_ffw(v) {
     save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
 }
 
+function playlist_process_f5pl(pls) {
+    if (playlist_current) {
+        playlist_dump(playlist_current_userid);
+        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name);
+        if (pls.length)
+            window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm?name=' + pls);
+    }
+}
+
 function remotejs_recog(msg) {
     return msg.cmd === CMD_REMOTEPLAY_JS? msg:null;
 }
@@ -577,12 +589,7 @@ function remotejs_process(msg) {
             playlist_process_rate(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_F5PL) {
-            if (playlist_current) {
-                playlist_dump(playlist_current_userid);
-                playlist_dump(playlist_current_userid, msg.n.length?msg.n:playlist_current.name);
-                if (msg.n.length)
-                    window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm?name=' + msg.n);
-            }
+            playlist_process_f5pl(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_INFO) {
             playlist_process_info();
@@ -740,6 +747,7 @@ function playlist_start_playing(idx) {
     }
     else {
         playlist_rebuild_reconstruct_player();
+        set_video_title('No video loaded');
         toast_msg('No more video in playlist', 'warning');
         on_video_info_change(playlist_item_current_idx);
     }
