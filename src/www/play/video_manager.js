@@ -409,6 +409,9 @@ function playlist_dump(useri, plid) {
                 msg.playlists = [];
             if (msg.playlists.length) {
                 if (plid) {
+                    if (playlist_current && playlist_current.name != plid) {
+                        playlist_item_current_oldrowid = -1;
+                    }
                     playlist_current = msg.playlists[0];
                     playlist_arr = playlist_current.items;
                     send_video_info_for_remote_play('ilst', playlist_arr);
