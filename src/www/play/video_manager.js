@@ -576,7 +576,9 @@ function remotejs_process(msg) {
         else if (msg.sub == CMD_REMOTEPLAY_JS_F5PL) {
             if (playlist_current) {
                 playlist_dump(playlist_current_userid);
-                playlist_dump(playlist_current_userid, playlist_current.name);
+                playlist_dump(playlist_current_userid, msg.n.length?msg.n:playlist_current.name);
+                if (msg.n.length)
+                    window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm?name=' + msg.n);
             }
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_INFO) {

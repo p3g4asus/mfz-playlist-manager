@@ -92,7 +92,9 @@ class PlayerInfoMessage(RemoteInfoMessage):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_PAUSE)
 
     async def sync_changes(self, args: tuple):
-        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_F5PL)
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_F5PL, n=args[0] if args else '')
+        if args:
+            await self.switch_to_idle()
 
     async def rate(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_RATE, n=args[0])
@@ -239,7 +241,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
         elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
             self.input_field = u'\U0001F449'
             for plname in self.pi.plnames:
-                self.add_button(plname, self.switch_pl, args=(plname, ))
+                self.add_button(plname, self.sync_changes, args=(plname, ))
             self.add_button(u'\U00002934', self.switch_to_idle)
         if addtxt:
             rv = ''
