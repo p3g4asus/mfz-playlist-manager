@@ -15,7 +15,7 @@ function add_video_to_button(item) {
     a.attr('data-uid', '' + item.rowid);
     a.text(item.title);
     a.click(function (e) {
-        go_to_video(item.uid);
+        go_to_video(item.playlist + '_' + item.uid);
     });
     li.append(a);
     $('#playlist_items_cont > .dropdown-menu').append(li);

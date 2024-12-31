@@ -20,6 +20,7 @@ let playlist_item_current_idx = -1;
 let playlist_item_current_duration = -1;
 let playlist_current_userid = -1;
 let playlist_rate = 1;
+let playlist_sched = [];
 
 function get_video_params_from_item(idx) {
     playlist_item_current = null;
@@ -51,8 +52,18 @@ function get_video_params_from_item(idx) {
     else if (playlist_arr.length && (pos = playlist_item_current_idx + idx) < playlist_arr.length) {
         if (pos < 0)
             pos = 0;
-        playlist_item_current = playlist_arr[pos];
-        playlist_item_current_idx = pos;
+        if (playlist_arr[pos].playlist == playlist_current.rowid) {
+            playlist_item_current = playlist_arr[pos];
+            playlist_item_current_idx = pos;
+        } else {
+            const nextpls = playlist_sched.shift();
+            const plssched = [... playlist_sched];
+            playlist_dump(playlist_current_userid, nextpls.name, false, playlist_arr[pos].uid);
+            for (const pls of plssched) {
+                playlist_dump(playlist_current_userid, pls.name, true);
+            }
+            return -1;
+        }
     }
     let plk = false;
     const default_key = playlist_key_get_suffix(playlist_item_current, 'default');
@@ -102,7 +113,7 @@ function parse_list(json_list) {
         clear_playlist();
         if (json_list) {
             json_list.forEach(function(item, index) {
-                playlist_map[item.uid] = index;
+                playlist_map[item.playlist + '_' + item.uid] = index;
                 add_video_to_button(item);
             });
             set_playlist_button_enabled(true);
@@ -137,16 +148,18 @@ function on_play_finished(event) {
     let index;
     let vid = '';
     if (typeof(dir) == 'string') {
-        if (dir != playlist_item_current.uid) {
+        if (dir != playlist_item_current.playlist + '_' + playlist_item_current.uid) {
             if (typeof(playlist_map[dir]) == 'undefined') {
                 const newItem = {
                     rowid: -Math.floor(Math.random() * 1000000) - 1,
                     title: dir,
+                    playlist: playlist_current.rowid,
                     uid: dir,
                     link: dir,
                     datepub: '1999-01-01 19:00:00',
                     conf: {sec: 0}
                 };
+                dir = (playlist_item_current_idx + 1) + '_' + dir;
                 playlist_arr.splice(playlist_map[dir] = playlist_item_current_idx + 1, 0, newItem);
             }
             playlist_start_playing(playlist_map[dir] - playlist_item_current_idx);
@@ -269,21 +282,55 @@ function on_player_state_changed(player, event) {
 
 function get_video_info(idx) {
     let tot_dur = 0;
-    let video_info = {tot_n: playlist_arr.length - idx};
+    let tot_played = 0;
+    let tot_n = 0;
+    let video_info = {tot_n: 0};
     for (let i = idx; i<playlist_arr.length; i++) {
         let video = playlist_arr[i];
-        let durationi = video?.length || video?.dur || 0;
+        if (video.playlist != playlist_current.rowid) break;
+        let sdur = video?.length || video?.dur || 0;
         if (i == idx && playlist_item_current) {
-            durationi = Math.max(durationi, playlist_item_current_duration) / playlist_rate;
-            video_info.duri = durationi;
-            video_info.durs = format_duration(durationi);
+            sdur = Math.max(sdur, playlist_item_current_duration) / playlist_rate;
+            video_info.duri = sdur;
+            video_info.durs = format_duration(sdur);
             video_info.rate = playlist_rate;
             video_info.idx = idx;
             video_info.title = video?.title || 'N/A';
             video_info.chapters = video?.conf?.chapters || [];
-        } else durationi = durationi / playlist_rate;
-        tot_dur += durationi;
+        } else {
+            sdur = sdur / playlist_rate;
+            let splayed = (video?.conf?.sec || 0) / playlist_rate;
+            if (splayed > sdur) splayed = sdur;
+            tot_played += splayed;
+        }
+        tot_dur += sdur;
     }
+    tot_n = playlist_arr.length - idx;
+    for (const pls of playlist_sched) {
+        const rate = pls.conf?.play?.rate || 1;
+        const first = pls.conf?.play?.id;
+        let tdur = 0;
+        let tplay = 0;
+        let nvid = 0;
+        for (const it of pls.items) {
+            if (it.uid == first) {
+                tdur = 0;
+                tplay = 0;
+                nvid = 0;
+            }
+            const sdur = it?.length || it?.dur || 0;
+            tdur += sdur;
+            let splayed = it?.conf?.sec || 0;
+            if (splayed > sdur) splayed = sdur;
+            tplay += splayed;
+            nvid++;
+        }
+        tot_n += nvid;
+        tot_dur += tdur / rate;
+        tot_played += tplay / rate;
+    }
+    video_info.tot_n = tot_n;
+    video_info.tot_played = tot_played;
     video_info.tot_dur = tot_dur;
     video_info.tot_durs = format_duration(tot_dur);
     return video_info;
@@ -293,7 +340,7 @@ function on_video_info_change(idx, isat) {
     let video_info =  get_video_info(idx);
     if (video_info.title) {
         isat = (isat || 0) / playlist_rate;
-        toast_msg('Video duration is ' + video_info.durs + ' (' + format_duration(video_info.duri - isat) +'). Remaining videos are ' + (playlist_arr.length - idx) + ' [' + video_info.tot_durs +  ' (' + format_duration(video_info.tot_dur - isat) +')] @ ' + playlist_rate.toFixed(2) + 'x.', 'info');
+        toast_msg('Video duration is ' + video_info.durs + ' (' + format_duration(video_info.duri - isat) +'). Remaining videos are ' + video_info.tot_n + ' [' + video_info.tot_durs +  ' (' + format_duration(video_info.tot_dur - isat - video_info.tot_played) +')] @ ' + playlist_rate.toFixed(2) + 'x.', 'info');
     }
     send_video_info_for_remote_play('vinfo', video_info);
 }
@@ -303,7 +350,7 @@ function on_player_load(name, manager_obj) {
     video_manager_obj = manager_obj;
     video_manager_obj.on_play_finished = on_play_finished;
     video_manager_obj.on_state_changed = on_player_state_changed;
-    let event = {dir: playlist_item_current.uid};
+    let event = {dir: playlist_item_current.playlist + '_' + playlist_item_current.uid};
     on_play_finished(event);
 }
 
@@ -397,7 +444,7 @@ function send_video_info_for_remote_play(w, video_info) {
 }
 
 
-function playlist_dump(useri, plid) {
+function playlist_dump(useri, plid, sched, overwrite_play_id) {
     let el = new MainWSQueueElement(
         plid?{cmd: CMD_DUMP, useri:useri, name: plid}: {cmd: CMD_DUMP, useri:useri, load_all: -1},
         function(msg) {
@@ -409,10 +456,54 @@ function playlist_dump(useri, plid) {
                 msg.playlists = [];
             if (msg.playlists.length) {
                 if (plid) {
-                    if (playlist_current && playlist_current.name != plid) {
-                        playlist_item_current_oldrowid = -1;
+                    const pls = msg.playlists[0];
+                    if (sched && playlist_item_current && playlist_current.name !== plid) {
+                        if (playlist_sched.map(function(e) { return e.name; }).indexOf(plid) < 0) {
+                            playlist_sched.push(pls);
+                            const first = pls.conf?.play?.id;
+                            let itemstoadd;
+                            if (!first)
+                                itemstoadd = pls.items;
+                            else {
+                                itemstoadd = [];
+                                for (const it of pls.items) {
+                                    if (it.uid == first)
+                                        itemstoadd.length = 0;
+                                    itemstoadd.push(it);
+                                }
+                            }
+                            playlist_arr.push(...itemstoadd);
+                            send_video_info_for_remote_play('ilst', playlist_arr);
+                            parse_list(playlist_arr);
+                            playlist_adjust_gui(playlist_item_current_idx);
+                            on_video_info_change(playlist_item_current_idx, video_manager_obj?.currenttime() || playlist_item_current?.conf?.sec || 0);
+                        }
+                        return;
+                    } else if (!sched && (!playlist_current || playlist_current.name != plid)) {
+                        playlist_sched.length = 0;
                     }
-                    playlist_current = msg.playlists[0];
+                    let playlist_has_changed = false;
+                    if (playlist_current?.name != plid) {
+                        if (playlist_current) {
+                            playlist_item_current_oldrowid = -1;
+                            playlist_has_changed = true;
+                        }
+                        window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm?name=' + plid);
+                    } else if (playlist_sched.length) {
+                        for (const ppp of playlist_sched) {
+                            playlist_dump(useri, ppp.name, true);
+                        }
+                        playlist_sched.length = 0;
+                    }
+                    playlist_current = pls;
+                    if (overwrite_play_id) {
+                        if (playlist_current.conf && !playlist_current.conf.play)
+                            playlist_current.conf.play = {id: overwrite_play_id};
+                        else if (playlist_current.conf)
+                            playlist_current.conf.play.id = overwrite_play_id;
+                        else
+                            playlist_current.conf = {play: {id: overwrite_play_id}};
+                    }
                     playlist_arr = playlist_current.items;
                     send_video_info_for_remote_play('ilst', playlist_arr);
                     parse_list(playlist_arr);
@@ -423,6 +514,8 @@ function playlist_dump(useri, plid) {
                     }
                     else {
                         let pos;
+                        if (playlist_has_changed)
+                            init_playlist_play_settings();
                         if (playlist_item_current && playlist_item_current.uid == playlist_current.conf?.play?.id && (pos = playlist_arr.map(function(e) { return e.rowid; }).indexOf(playlist_item_current.rowid)) >= 0) {
                             playlist_item_current = playlist_arr[pos];
                             playlist_item_current_idx = pos;
@@ -557,12 +650,10 @@ function playlist_process_ffw(v) {
     save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
 }
 
-function playlist_process_f5pl(pls) {
+function playlist_process_f5pl(pls, sched) {
     if (playlist_current) {
         playlist_dump(playlist_current_userid);
-        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name);
-        if (pls.length)
-            window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm?name=' + pls);
+        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name, sched.toLowerCase() == 'true');
     }
 }
 
@@ -589,7 +680,7 @@ function remotejs_process(msg) {
             playlist_process_rate(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_F5PL) {
-            playlist_process_f5pl(msg.n);
+            playlist_process_f5pl(msg.n, msg.sched);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_INFO) {
             playlist_process_info();
@@ -687,13 +778,16 @@ function get_remoteplay_link() {
 // eslint-disable-next-line no-unused-vars
 function get_startup_settings() {
     let orig_up = new URLSearchParams(URL_PARAMS);
-    let plname;
-    if (orig_up.has('name') && (plname = orig_up.get('name')).length) {
+    let plnames;
+    if (orig_up.has('name') && (plnames = orig_up.getAll('name')).length) {
         find_user_cookie().then(function (useri) {
             main_ws_reconnect(get_remoteplay_link, WS_URL);
             playlist_current_userid = useri;
             playlist_dump(useri);
-            playlist_dump(useri, plname);
+            playlist_dump(useri, plnames[0]);
+            for (let i = 1; i < plnames.length; i++) {
+                playlist_dump(useri, plnames[i], true);
+            }
         }).catch(function() {
             manage_errors({rv: 501, err: 'Cannot find user cookie!'});
         });
@@ -735,6 +829,7 @@ function playlist_rebuild_reconstruct_player() {
 
 function playlist_start_playing(idx) {
     let rebuild = get_video_params_from_item(idx);
+    if (rebuild === -1) return;
     set_save_conf_button_enabled(playlist_item_current != null);
     set_remove_button_enabled(playlist_item_current != null);
     if (playlist_item_current) {
@@ -832,6 +927,14 @@ function restart_playing() {
     setTimeout(() => {playlist_start_playing(0); }, 800);
 }
 
+function init_playlist_play_settings() {
+    if (playlist_current.conf.play && playlist_current.conf.play[playlist_play_settings_key]) {
+        playlist_play_settings = playlist_current.conf.play[playlist_play_settings_key];
+    } else {
+        playlist_play_settings = {};
+    }
+}
+
 function init_video_manager() {
     $(document).on('keydown', playlist_prrocess_key);
     fill_conf_name(playlists_conf_map);
@@ -840,9 +943,7 @@ function init_video_manager() {
         playlist_play_settings_key = '';
     }
     else {
-        if (playlist_current.conf.play && playlist_current.conf.play[playlist_play_settings_key]) {
-            playlist_play_settings = playlist_current.conf.play[playlist_play_settings_key];
-        }
+        init_playlist_play_settings();
     }
     set_selected_conf_name(playlist_play_settings_key);
     playlist_start_playing(null);

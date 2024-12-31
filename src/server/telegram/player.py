@@ -92,7 +92,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_PAUSE)
 
     async def sync_changes(self, args: tuple):
-        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_F5PL, n=args[0] if args else '')
+        await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_F5PL, n=args[0] if args else '', sched=args[1] if len(args) > 1 else False)
         if args:
             await self.switch_to_idle()
 
@@ -220,8 +220,9 @@ class PlayerInfoMessage(RemoteInfoMessage):
             self.add_button(u'\U000023EE', self.manage_state_change, args=(self.move_pl, -1), new_row=True)
             self.add_button(u'\U000023ED', self.manage_state_change, args=(self.move_pl, +1))
             self.add_button(u'\U000023ED \U0001F5D1', self.manage_state_change, args=(self.move_pl, 0), new_row=True)
-            self.add_button(u'\U0001F51C', self.manage_state_change, args=(self.switch_to_status, NameDurationStatus.DOWNLOADING_WAITING, context))
             self.add_button(u'\U000021C5', self.manage_state_change, args=(self.sync_changes,))
+            self.add_button(u'\U0001F4C5', self.manage_state_change, args=(self.switch_to_status, NameDurationStatus.UPDATING_WAITING, context))
+            self.add_button(u'\U0001F51C', self.manage_state_change, args=(self.switch_to_status, NameDurationStatus.DOWNLOADING_WAITING, context))
             self.add_button(u'\U000025B61x', self.manage_state_change, args=(self.rate, 1.0), new_row=True)
             self.add_button(u'\U000025B61.5x', self.manage_state_change, args=(self.rate, 1.5))
             self.add_button(u'\U000025B61.8x', self.manage_state_change, args=(self.rate, 1.8))
@@ -238,10 +239,10 @@ class PlayerInfoMessage(RemoteInfoMessage):
             self.add_button(u'60s\U000023EA', self.manage_state_change, args=(self.move, -60), new_row=True)
             self.add_button(u'\U000023E960s', self.manage_state_change, args=(self.move, +60))
             self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back, new_row=True)
-        elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
+        elif self.status == NameDurationStatus.DOWNLOADING_WAITING or self.status == NameDurationStatus.UPDATING_WAITING:
             self.input_field = u'\U0001F449'
             for plname in self.pi.plnames:
-                self.add_button(plname, self.sync_changes, args=(plname, ))
+                self.add_button(plname, self.sync_changes, args=(plname, self.status == NameDurationStatus.UPDATING_WAITING))
             self.add_button(u'\U00002934', self.switch_to_idle)
         if addtxt:
             rv = ''
@@ -265,7 +266,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
                 sec = self.pi.pinfo["sec"] / rate
                 rv = f'{self.pi.vinfo["title"]}\n'
                 rv += u'\U000023F3 ' + f'{self.pi.vinfo["durs"]} ' + u'\U0000231B ' + duration2string(0 if (idx := round(self.pi.vinfo["duri"] - sec)) < 0 else idx) + '\n'
-                rv += u'\U0001F4B0 ' + f'{self.pi.vinfo["tot_n"]} (\U000023F3 {self.pi.vinfo["tot_durs"]} \U0000231B {duration2string(round(self.pi.vinfo["tot_dur"] - sec))})\n'
+                rv += u'\U0001F4B0 ' + f'{self.pi.vinfo["tot_n"]} (\U000023F3 {self.pi.vinfo["tot_durs"]} \U0000231B {duration2string(round(self.pi.vinfo["tot_dur"] - self.pi.vinfo["tot_played"] - sec))})\n'
                 no = int(round(30.0 * (perc := sec / self.pi.vinfo["duri"]))) if self.pi.vinfo["duri"] else (perc := 0)
                 rv += f'<code>{duration2string(round(sec))} ({self.pi.vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}% ({rate:.2f}\U0000274E)</code>'
                 for ch in self.pi.vinfo["chapters"]:
