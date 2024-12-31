@@ -653,7 +653,7 @@ function playlist_process_ffw(v) {
 function playlist_process_f5pl(pls, sched) {
     if (playlist_current) {
         playlist_dump(playlist_current_userid);
-        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name, sched.toLowerCase() == 'true');
+        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name, sched && sched.toLowerCase() == 'true');
     }
 }
 
