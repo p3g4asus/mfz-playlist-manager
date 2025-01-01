@@ -874,11 +874,15 @@ function playlist_rebuild_reconstruct_player() {
 function playlist_start_playing(idx, forceuid_if_reload) {
     let rebuild = get_video_params_from_item(idx);
     if (typeof(rebuild) === 'number') {
-        const nextpls = playlist_sched.shift();
-        const plssched = [... playlist_sched];
-        playlist_dump(playlist_current_userid, nextpls.name, false, forceuid_if_reload?playlist_arr[rebuild].uid:null);
-        for (const pls of plssched) {
-            playlist_dump(playlist_current_userid, pls.name, true);
+        const mypls = playlist_arr[rebuild].playlist;
+        let nextpls;
+        while ((nextpls = playlist_sched.shift()) && nextpls.rowid != mypls);
+        if (nextpls) {
+            const plssched = [... playlist_sched];
+            playlist_dump(playlist_current_userid, nextpls.name, false, forceuid_if_reload?playlist_arr[rebuild].uid:null);
+            for (const pls of plssched) {
+                playlist_dump(playlist_current_userid, pls.name, true);
+            }
         }
     } else {
         set_save_conf_button_enabled(playlist_item_current != null);
