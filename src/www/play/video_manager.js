@@ -287,8 +287,7 @@ function get_video_info(idx) {
     let video_info = {tot_n: 0};
     for (let i = idx; i<playlist_arr.length; i++) {
         let video = playlist_arr[i];
-        if (!video) break;
-        if (video.playlist != playlist_current.rowid) break;
+        if (!video || video.playlist != playlist_current.rowid) break;
         let sdur = video?.length || video?.dur || 0;
         if (i == idx && playlist_item_current) {
             sdur = Math.max(sdur, playlist_item_current_duration) / playlist_rate;
