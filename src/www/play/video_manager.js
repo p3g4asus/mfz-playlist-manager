@@ -55,15 +55,8 @@ function get_video_params_from_item(idx) {
         if (playlist_arr[pos].playlist == playlist_current.rowid) {
             playlist_item_current = playlist_arr[pos];
             playlist_item_current_idx = pos;
-        } else {
-            const nextpls = playlist_sched.shift();
-            const plssched = [... playlist_sched];
-            playlist_dump(playlist_current_userid, nextpls.name, false, playlist_arr[pos].uid);
-            for (const pls of plssched) {
-                playlist_dump(playlist_current_userid, pls.name, true);
-            }
-            return -1;
-        }
+        } else
+            return pos;
     }
     let plk = false;
     const default_key = playlist_key_get_suffix(playlist_item_current, 'default');
@@ -162,7 +155,7 @@ function on_play_finished(event) {
                 dir = (playlist_item_current_idx + 1) + '_' + dir;
                 playlist_arr.splice(playlist_map[dir] = playlist_item_current_idx + 1, 0, newItem);
             }
-            playlist_start_playing(playlist_map[dir] - playlist_item_current_idx);
+            playlist_start_playing(playlist_map[dir] - playlist_item_current_idx, true);
             return;
         }
         else {
@@ -830,24 +823,32 @@ function playlist_rebuild_reconstruct_player() {
         return false;
 }
 
-function playlist_start_playing(idx) {
+function playlist_start_playing(idx, forceuid_if_reload) {
     let rebuild = get_video_params_from_item(idx);
-    if (rebuild === -1) return;
-    set_save_conf_button_enabled(playlist_item_current != null);
-    set_remove_button_enabled(playlist_item_current != null);
-    if (playlist_item_current) {
-        if (rebuild || !players_map[playlist_player]) {
-            if (!playlist_rebuild_reconstruct_player())
-                dyn_module_load('./' + playlist_player + '_player.js?reload=' + (new Date().getTime()));
+    if (typeof(rebuild) === 'number') {
+        const nextpls = playlist_sched.shift();
+        const plssched = [... playlist_sched];
+        playlist_dump(playlist_current_userid, nextpls.name, false, forceuid_if_reload?playlist_arr[rebuild].uid:null);
+        for (const pls of plssched) {
+            playlist_dump(playlist_current_userid, pls.name, true);
         }
-        else
-            on_player_load(playlist_player, video_manager_obj);
-    }
-    else {
-        playlist_rebuild_reconstruct_player();
-        set_video_title('No video loaded');
-        toast_msg('No more video in playlist', 'warning');
-        on_video_info_change(playlist_item_current_idx);
+    } else {
+        set_save_conf_button_enabled(playlist_item_current != null);
+        set_remove_button_enabled(playlist_item_current != null);
+        if (playlist_item_current) {
+            if (rebuild || !players_map[playlist_player]) {
+                if (!playlist_rebuild_reconstruct_player())
+                    dyn_module_load('./' + playlist_player + '_player.js?reload=' + (new Date().getTime()));
+            }
+            else
+                on_player_load(playlist_player, video_manager_obj);
+        }
+        else {
+            playlist_rebuild_reconstruct_player();
+            set_video_title('No video loaded');
+            toast_msg('No more video in playlist', 'warning');
+            on_video_info_change(playlist_item_current_idx);
+        }
     }
 }
 
