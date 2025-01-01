@@ -460,12 +460,11 @@ class DumpJob {
         el.enqueue().then(this.resolve.bind(this)) 
             .catch(this.reject.bind(this));
     }
-
     run() {
         if (!playlist_dump_jobs.cur) {
             playlist_dump_jobs.cur = this;
             this._run();
-        } else if (playlist_dump_jobs.indexOf(this) < 0) {
+        } else if (playlist_dump_jobs.cur != this && playlist_dump_jobs.indexOf(this) < 0) {
             playlist_dump_jobs.push(this);
         }
     }
@@ -488,7 +487,6 @@ class DumpJob {
             }
         }
     }
-
     resolve(msg) {
         this._resolve(msg);
         this.finalize();
