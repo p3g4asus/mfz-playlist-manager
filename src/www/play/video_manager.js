@@ -443,6 +443,12 @@ function send_video_info_for_remote_play(w, video_info) {
         });
 }
 
+function playlist_dump_refresh_sched() {
+    for (const ppp of playlist_sched) {
+        playlist_dump(playlist_current_userid, ppp.name, true);
+    }
+    playlist_sched.length = 0;
+}
 
 function playlist_dump(useri, plid, sched, overwrite_play_id) {
     let el = new MainWSQueueElement(
@@ -476,10 +482,10 @@ function playlist_dump(useri, plid, sched, overwrite_play_id) {
                             send_video_info_for_remote_play('ilst', playlist_arr);
                             parse_list(playlist_arr);
                             playlist_adjust_gui(playlist_item_current_idx);
-                            on_video_info_change(playlist_item_current_idx, video_manager_obj?.currenttime() || playlist_item_current?.conf?.sec || 0);
-                        }
+                        } else playlist_dump_refresh_sched();
+                        on_video_info_change(playlist_item_current_idx, video_manager_obj?.currenttime() || playlist_item_current?.conf?.sec || 0);
                         return;
-                    } else if (!sched && (!playlist_current || playlist_current.name != plid)) {
+                    } else if (!playlist_current || playlist_current.name != plid) {
                         playlist_sched.length = 0;
                     }
                     let playlist_has_changed = false;
@@ -490,10 +496,7 @@ function playlist_dump(useri, plid, sched, overwrite_play_id) {
                         }
                         window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm?name=' + plid);
                     } else if (playlist_sched.length) {
-                        for (const ppp of playlist_sched) {
-                            playlist_dump(useri, ppp.name, true);
-                        }
-                        playlist_sched.length = 0;
+                        playlist_dump_refresh_sched();
                     }
                     playlist_current = pls;
                     if (overwrite_play_id) {
