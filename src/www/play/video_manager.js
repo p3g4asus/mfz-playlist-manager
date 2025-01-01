@@ -717,7 +717,14 @@ function remotejs_process(msg) {
             playlist_process_rate(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_F5PL) {
-            playlist_process_f5pl(msg.n, msg.sched);
+            if (typeof(msg.n) == 'string')
+                playlist_process_f5pl(msg.n, msg.sched);
+            else {
+                let idx = 0;
+                for (const pl of msg.n) {
+                    playlist_process_f5pl(pl, msg.sched[idx++]);
+                }
+            }
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_INFO) {
             playlist_process_info();
