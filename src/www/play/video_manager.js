@@ -21,6 +21,7 @@ let playlist_item_current_duration = -1;
 let playlist_current_userid = -1;
 let playlist_rate = 1;
 let playlist_sched = [];
+const playlist_dump_jobs = [];
 
 function get_video_params_from_item(idx) {
     playlist_item_current = null;
@@ -443,21 +444,64 @@ function playlist_dump_refresh_sched() {
     playlist_sched.length = 0;
 }
 
-function playlist_dump(useri, plid, sched, overwrite_play_id) {
-    let el = new MainWSQueueElement(
-        plid?{cmd: CMD_DUMP, useri:useri, name: plid}: {cmd: CMD_DUMP, useri:useri, load_all: -1},
-        function(msg) {
-            return msg.cmd === CMD_DUMP? msg:null;
-        }, 30000, 1, 'dump ' + plid);
-    el.enqueue().then(function(msg) {
+class DumpJob {
+    constructor(useri, plid, sched, overwrite_play_id) {
+        this.useri = useri;
+        this.plid = plid;
+        this.sched = sched;
+        this.overwrite_play_id = overwrite_play_id;
+    }
+    _run() {
+        const el = new MainWSQueueElement(
+            this.plid?{cmd: CMD_DUMP, useri:this.useri, name: this.plid}: {cmd: CMD_DUMP, useri:this.useri, load_all: -1},
+            function(msg) {
+                return msg.cmd === CMD_DUMP? msg:null;
+            }, 30000, 1, 'dump ' + this.plid);
+        el.enqueue().then(this.resolve.bind(this)) 
+            .catch(this.reject.bind(this));
+    }
+
+    run() {
+        if (!playlist_dump_jobs.cur) {
+            playlist_dump_jobs.cur = this;
+            this._run();
+        } else if (playlist_dump_jobs.indexOf(this) < 0) {
+            playlist_dump_jobs.push(this);
+        }
+    }
+    _reject(err) {
+        console.log(err);
+        let errmsg = 'Exception detected: '+err;
+        toast_msg(errmsg, 'danger');
+    }
+    reject(err) {
+        this._reject(err);
+        this.finalize();
+    }
+    finalize() {
+        if (playlist_dump_jobs.cur == this) {
+            playlist_dump_jobs.cur = null;
+            let newcur;
+            if ((newcur = playlist_dump_jobs.shift())) {
+                playlist_dump_jobs.cur = newcur;
+                newcur._run();
+            }
+        }
+    }
+
+    resolve(msg) {
+        this._resolve(msg);
+        this.finalize();
+    }
+    _resolve(msg) {
         if (!manage_errors(msg)) {
             if (!msg.playlists)
                 msg.playlists = [];
             if (msg.playlists.length) {
-                if (plid) {
+                if (this.plid) {
                     const pls = msg.playlists[0];
-                    if (sched && playlist_item_current && playlist_current.name !== plid) {
-                        if (playlist_sched.map(function(e) { return e.name; }).indexOf(plid) < 0) {
+                    if (this.sched && playlist_item_current && playlist_current.name !== this.plid) {
+                        if (playlist_sched.map(function(e) { return e.name; }).indexOf(this.plid) < 0) {
                             playlist_sched.push(pls);
                             const first = pls.conf?.play?.id;
                             let itemstoadd;
@@ -478,27 +522,27 @@ function playlist_dump(useri, plid, sched, overwrite_play_id) {
                         } else playlist_dump_refresh_sched();
                         on_video_info_change(playlist_item_current_idx, video_manager_obj?.currenttime() || playlist_item_current?.conf?.sec || 0);
                         return;
-                    } else if (!playlist_current || playlist_current.name != plid) {
+                    } else if (!playlist_current || playlist_current.name != this.plid) {
                         playlist_sched.length = 0;
                     }
                     let playlist_has_changed = false;
-                    if (playlist_current?.name != plid) {
+                    if (playlist_current?.name != this.plid) {
                         if (playlist_current) {
                             playlist_item_current_oldrowid = -1;
                             playlist_has_changed = true;
                         }
-                        window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm?name=' + plid);
+                        window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm?name=' + this.plid);
                     } else if (playlist_sched.length) {
                         playlist_dump_refresh_sched();
                     }
                     playlist_current = pls;
-                    if (overwrite_play_id) {
+                    if (this.overwrite_play_id) {
                         if (playlist_current.conf && !playlist_current.conf.play)
-                            playlist_current.conf.play = {id: overwrite_play_id};
+                            playlist_current.conf.play = {id: this.overwrite_play_id};
                         else if (playlist_current.conf)
-                            playlist_current.conf.play.id = overwrite_play_id;
+                            playlist_current.conf.play.id = this.overwrite_play_id;
                         else
-                            playlist_current.conf = {play: {id: overwrite_play_id}};
+                            playlist_current.conf = {play: {id: this.overwrite_play_id}};
                     }
                     playlist_arr = playlist_current.items;
                     send_video_info_for_remote_play('ilst', playlist_arr);
@@ -540,7 +584,7 @@ function playlist_dump(useri, plid, sched, overwrite_play_id) {
                             if (i >= 0) playlist_start_playing(null);
                         }
                     }
-                    set_playlist_enabled(plid);
+                    set_playlist_enabled(this.plid);
                 }
                 else {
                     clear_playlist_from_button();
@@ -563,15 +607,14 @@ function playlist_dump(useri, plid, sched, overwrite_play_id) {
                 }
             }
             else {
-                manage_errors({rv: 102, err: 'Playlist '+ plid +' not found!'});
+                manage_errors({rv: 102, err: 'Playlist '+ this.plid +' not found!'});
             }
         }
-    })
-        .catch(function(err) {
-            console.log(err);
-            let errmsg = 'Exception detected: '+err;
-            toast_msg(errmsg, 'danger');
-        });
+    }
+}
+
+function playlist_dump(useri, plid, sched, overwrite_play_id) {
+    new DumpJob(useri, plid, sched, overwrite_play_id).run();
 }
 
 function playlist_prrocess_key(ke) {
