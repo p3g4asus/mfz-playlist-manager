@@ -872,11 +872,8 @@ function playlist_key_from_item(ci) {
 function playlist_rebuild_reconstruct_player() {
     playlist_rebuild_player();
     let pthis;
-    if (playlist_old_player) {
-        pthis = players_map[playlist_old_player];
-        if (pthis.destroy)
-            pthis.destroy();
-    }
+    if (playlist_old_player && (pthis = players_map[playlist_old_player]) && pthis.destroy)
+        pthis.destroy();
     if ((pthis = players_map[playlist_player])) {
         new pthis.constructor(video_width, video_height);
         return true;
