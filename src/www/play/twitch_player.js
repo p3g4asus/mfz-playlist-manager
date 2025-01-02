@@ -100,7 +100,7 @@ class TwitchPlayer {
             }).bind(this), 700);
         } else {
             this.vid = vid;
-            this.onPlayerStateChange({type: VIDEO_STATUS_PAUSED});
+            this.onPlayerStateChange({type: Twitch.Player.PAUSE});
             if (vid.startsWith(TWITCH_VIDEO_ID_PRE)) {
                 this.player.setChannel(null);
                 this.player.setVideo(vid.substring(TWITCH_VIDEO_ID_PRE.length),5);

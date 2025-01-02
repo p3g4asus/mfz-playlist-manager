@@ -1,4 +1,5 @@
 let playlist_player = null;
+let playlist_old_player = null;
 let playlist_playerid = null;
 let video_manager_obj = null;
 let playlist_map = {};
@@ -70,7 +71,7 @@ function get_video_params_from_item(idx) {
         console.log('Using settings from default struct');
         plk = true;
     }
-    let old_player = playlist_player;
+    playlist_old_player = playlist_player;
     let old_width = video_width;
     let old_height = video_height;
     playlist_player = 'youtube';
@@ -98,7 +99,7 @@ function get_video_params_from_item(idx) {
     set_selected_mime(playlist_item_play_settings?.mime);
     set_remove_check(playlist_item_play_settings?.remove_end?true:false);
     set_default_check(plk === true);
-    return old_height != video_height || old_width != video_width || old_player != playlist_player;
+    return old_height != video_height || old_width != video_width || playlist_old_player != playlist_player;
 }
 
 function parse_list(json_list) {
@@ -142,7 +143,7 @@ function on_play_finished(event) {
     let index;
     let vid = '';
     if (typeof(dir) == 'string') {
-        if (dir != playlist_item_current.playlist + '_' + playlist_item_current.uid) {
+        if (playlist_item_current && dir != playlist_item_current.playlist + '_' + playlist_item_current.uid) {
             if (typeof(playlist_map[dir]) == 'undefined') {
                 const newItem = {
                     rowid: -Math.floor(Math.random() * 1000000) - 1,
@@ -169,23 +170,32 @@ function on_play_finished(event) {
     }
     else {
         if (dir == 10535 || dir == 10536) {
-            if (playlist_item_current.rowid >= 0 && ((playlist_item_play_settings?.remove_end && Date.parse(playlist_item_current.datepub) <= new Date()) || dir == 10536)) {
-                let title = playlist_item_current.title;
-                let cel = playlist_item_current;
-                let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:cel.rowid, seen:1}, function(msg) {
-                    return msg.cmd === CMD_SEEN? msg:null;
-                }, 5000, 1, 'seen');
-                qel.enqueue().then(function(msg) {
-                    if (!manage_errors(msg)) {
-                        cel.conf = {};
-                        console.log('Item deleted ' + title + '!');
-                    }
-                    else {
-                        console.log('Cannot delete item ' + title + '!');
-                    }
-                });
+            if (dir == 10535 && playlist_item_current && playlist_item_current.conf.extractor == 'twitch:vod' && playlist_item_current_duration > playlist_item_current.dur + 60) {
+                dir = 0;
+                playlist_item_current_oldrowid = -1;
+                playlist_player = 'twitchold';
+                players_map[playlist_player] = players_map['twitch'];
+                playlist_item_current.conf.sec = playlist_item_current_duration - 10;
+                playlist_item_current.dur = playlist_item_current_duration;
+            } else {
+                if (playlist_item_current.rowid >= 0 && ((playlist_item_play_settings?.remove_end && Date.parse(playlist_item_current.datepub) <= new Date()) || dir == 10536)) {
+                    let title = playlist_item_current.title;
+                    let cel = playlist_item_current;
+                    let qel = new MainWSQueueElement({cmd: CMD_SEEN, playlistitem:cel.rowid, seen:1}, function(msg) {
+                        return msg.cmd === CMD_SEEN? msg:null;
+                    }, 5000, 1, 'seen');
+                    qel.enqueue().then(function(msg) {
+                        if (!manage_errors(msg)) {
+                            cel.conf = {};
+                            console.log('Item deleted ' + title + '!');
+                        }
+                        else {
+                            console.log('Cannot delete item ' + title + '!');
+                        }
+                    });
+                }
+                dir = 1;
             }
-            dir = 1;
         }
         playlist_start_playing(dir);
         return;
@@ -259,6 +269,7 @@ function on_player_state_changed(player, event) {
                 let tm = video_manager_obj.currenttime();
                 if (tm >= 5)
                     save_playlist_item_settings({sec: playlist_item_current.conf.sec = tm}, 'pinfo');
+                playlist_item_current_duration = video_manager_obj.duration();
             }, 30000);
         }
         return;
@@ -861,9 +872,12 @@ function playlist_key_from_item(ci) {
 function playlist_rebuild_reconstruct_player() {
     playlist_rebuild_player();
     let pthis;
-    if ((pthis = players_map[playlist_player])) {
+    if (playlist_old_player) {
+        pthis = players_map[playlist_old_player];
         if (pthis.destroy)
             pthis.destroy();
+    }
+    if ((pthis = players_map[playlist_player])) {
         new pthis.constructor(video_width, video_height);
         return true;
     }
