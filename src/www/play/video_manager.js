@@ -228,6 +228,11 @@ function get_item_playlist_identity(pl, it)  {
     } else return '';
 }
 
+function get_duration_from_video_manager() {
+    const dur = video_manager_obj.duration();
+    return !isNaN(dur) && dur > 0?dur:0;
+}
+
 function on_player_state_changed(player, event) {
     console.log('Player state changed: new ' + event);
     if (event == VIDEO_STATUS_UNSTARTED || event == VIDEO_STATUS_PAUSED || event === VIDEO_STATUS_CUED)
@@ -254,7 +259,7 @@ function on_player_state_changed(player, event) {
         set_pause_button_enabled(true, '<i class="fas fa-pause"></i>&nbsp;&nbsp;Pause');
         if (playlist_item_current_oldrowid !== playlist_item_current.rowid) {
             playlist_item_current_oldrowid = playlist_item_current.rowid;
-            playlist_item_current_duration = video_manager_obj.duration();
+            playlist_item_current_duration = get_duration_from_video_manager();
             playlist_item_current_wasplaying = new Date().getTime();
             if (playlist_item_current.conf.sec) {
                 video_manager_obj.currenttime(playlist_item_current.conf.sec);
@@ -269,7 +274,7 @@ function on_player_state_changed(player, event) {
                 let tm = video_manager_obj.currenttime();
                 if (tm >= 5)
                     save_playlist_item_settings({sec: playlist_item_current.conf.sec = tm}, 'pinfo');
-                playlist_item_current_duration = video_manager_obj.duration();
+                playlist_item_current_duration = get_duration_from_video_manager();
             }, 30000);
         }
         return;
