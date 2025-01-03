@@ -456,11 +456,21 @@ function playlist_dump_refresh_sched() {
 }
 
 class DumpJob {
-    constructor(useri, plid, sched, overwrite_play_id) {
+    constructor(useri, plid, sched, overwrite_play_id, replace_url) {
         this.useri = useri;
         this.plid = plid;
         this.sched = sched;
         this.overwrite_play_id = overwrite_play_id;
+        this.replace_url = replace_url;
+    }
+    static urlfix() {
+        if (playlist_current) {
+            let arg = '?name=' + playlist_current.name;
+            for (const pls of playlist_sched) {
+                arg += '&name=' + pls.name;
+            }
+            window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm' + arg);
+        }
     }
     _run() {
         const el = new MainWSQueueElement(
@@ -489,12 +499,13 @@ class DumpJob {
         this.finalize();
     }
     finalize() {
+        if (this.replace_url)
+            DumpJob.urlfix();
         if (playlist_dump_jobs.cur == this) {
             playlist_dump_jobs.cur = null;
             let newcur;
             if ((newcur = playlist_dump_jobs.shift())) {
-                playlist_dump_jobs.cur = newcur;
-                newcur._run();
+                newcur.run();
             }
         }
     }
@@ -540,7 +551,6 @@ class DumpJob {
                             playlist_item_current_oldrowid = -1;
                             playlist_has_changed = true;
                         }
-                        window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm?name=' + this.plid);
                     } else if (playlist_sched.length) {
                         playlist_dump_refresh_sched();
                     }
@@ -622,8 +632,8 @@ class DumpJob {
     }
 }
 
-function playlist_dump(useri, plid, sched, overwrite_play_id) {
-    new DumpJob(useri, plid, sched, overwrite_play_id).run();
+function playlist_dump(useri, plid, sched, overwrite_play_id, replace_url) {
+    new DumpJob(useri, plid, sched, overwrite_play_id, replace_url).run();
 }
 
 function playlist_prrocess_key(ke) {
@@ -701,7 +711,7 @@ function playlist_process_ffw(v) {
 function playlist_process_f5pl(pls, sched) {
     if (playlist_current) {
         playlist_dump(playlist_current_userid);
-        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name, sched && sched.toLowerCase() == 'true');
+        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name, sched && sched.toLowerCase() == 'true', false, true);
     }
 }
 
