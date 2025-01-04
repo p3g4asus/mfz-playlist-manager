@@ -461,6 +461,15 @@ function playlist_dump_refresh_sched() {
 }
 
 class DumpJob {
+    static link_arg = '';
+    static init_link_arg() {
+        const orig_up = new URLSearchParams(URL_PARAMS);
+        const plnames = orig_up.getAll('name');
+        DumpJob.link_arg = '';
+        for (const pls of plnames) {
+            DumpJob.link_arg += (DumpJob.link_arg.length?'&':'?') + 'name=' + encodeURIComponent(pls);
+        }
+    }
     constructor(useri, plid, sched, overwrite_play_id, replace_url) {
         this.useri = useri;
         this.plid = plid;
@@ -469,12 +478,8 @@ class DumpJob {
         this.replace_url = replace_url;
     }
     static urlfix() {
-        if (playlist_current) {
-            let arg = '?name=' + playlist_current.name;
-            for (const pls of playlist_sched) {
-                arg += '&name=' + pls.name;
-            }
-            window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm' + arg);
+        if (DumpJob.link_arg.length) {
+            window.history.replaceState(null, '', MAIN_PATH_S + 'play/workout.htm' + DumpJob.link_arg);
         }
     }
     _run() {
@@ -504,8 +509,6 @@ class DumpJob {
         this.finalize();
     }
     finalize() {
-        if (this.replace_url)
-            DumpJob.urlfix();
         if (playlist_dump_jobs.cur == this) {
             playlist_dump_jobs.cur = null;
             let newcur;
@@ -525,6 +528,11 @@ class DumpJob {
             if (msg.playlists.length) {
                 if (this.plid) {
                     const pls = msg.playlists[0];
+                    if (this.replace_url) {
+                        let argvalue = this.sched?DumpJob.link_arg + '&':'?';
+                        DumpJob.link_arg = argvalue + 'name=' + encodeURIComponent(this.plid);
+                        DumpJob.urlfix();
+                    }
                     if (this.sched && playlist_item_current && playlist_current.name !== this.plid) {
                         if (playlist_sched.map(function(e) { return e.name; }).indexOf(this.plid) < 0) {
                             playlist_sched.push(pls);
@@ -847,9 +855,10 @@ function get_remoteplay_link() {
 
 // eslint-disable-next-line no-unused-vars
 function get_startup_settings() {
-    let orig_up = new URLSearchParams(URL_PARAMS);
+    const orig_up = new URLSearchParams(URL_PARAMS);
     let plnames;
     if (orig_up.has('name') && (plnames = orig_up.getAll('name')).length) {
+        DumpJob.init_link_arg();
         find_user_cookie().then(function (useri) {
             main_ws_reconnect(get_remoteplay_link, WS_URL);
             playlist_current_userid = useri;
