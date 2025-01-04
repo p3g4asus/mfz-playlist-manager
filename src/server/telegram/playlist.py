@@ -312,6 +312,15 @@ class PlaylistItemTMessage(NameDurationTMessage):
             sta = stat(self.obj.dl)
             upd += f'\n<a href="{mainlnk}/dl/{self.proc.user.token}/{self.id}">DL {self.sizeof_fmt(sta.st_size) if sta else ""}</a>'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'
+        chapters = self.dictget(self.obj.conf, 'chapters', [])
+        if chapters:
+            upd += '\n<b>Chapters:</b><tg-spoiler>'
+            i = 0
+            while len(upd) <= 970 and i < len(chapters):
+                ch = chapters[i]
+                upd += f'\n<b>{duration2string(int(ch["start_time"]))}</b>\t<u>{ch["title"]}</u>'
+                i += 1
+            upd += '</tg-spoiler>'
         if self.return_msg:
             upd += f'\n<b>{self.return_msg}</b>'
         elif self.deleted:
