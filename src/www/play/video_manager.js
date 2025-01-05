@@ -722,9 +722,10 @@ function playlist_process_ffw(v) {
 }
 
 function playlist_process_f5pl(pls, sched) {
-    if (playlist_current) {
+    if (playlist_current || pls.length) {
+        if (!playlist_current) sched = false;
         playlist_dump(playlist_current_userid);
-        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name, sched && sched.toLowerCase() == 'true', false, true);
+        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name, sched && sched.toLowerCase() == 'true', false, pls.length);
     }
 }
 
@@ -751,6 +752,7 @@ function remotejs_process(msg) {
             playlist_process_rate(msg.n);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_F5PL) {
+            if (!msg.n) msg.n = '';
             if (typeof(msg.n) == 'string')
                 playlist_process_f5pl(msg.n, msg.sched);
             else {
