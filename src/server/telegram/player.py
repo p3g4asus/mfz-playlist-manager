@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from html import escape
 import logging
 import re
 from typing import Any, Coroutine, Dict, List, Optional
@@ -264,15 +265,15 @@ class PlayerInfoMessage(RemoteInfoMessage):
             else:
                 rate = self.pi.vinfo["rate"]
                 sec = self.pi.pinfo["sec"] / rate
-                rv = f'{self.pi.vinfo["title"]}\n'
+                rv = f'{escape(self.pi.vinfo["title"])}\n'
                 rv += u'\U000023F3 ' + f'{self.pi.vinfo["durs"]} ' + u'\U0000231B ' + duration2string(0 if (idx := round(self.pi.vinfo["duri"] - sec)) < 0 else idx) + '\n'
                 rv += u'\U0001F4B0 ' + f'{self.pi.vinfo["tot_n"]} (\U000023F3 {self.pi.vinfo["tot_durs"]} \U0000231B {duration2string(round(self.pi.vinfo["tot_dur"] - self.pi.vinfo["tot_played"] - sec))})\n'
                 no = int(round(30.0 * (perc := sec / self.pi.vinfo["duri"]))) if self.pi.vinfo["duri"] else (perc := 0)
                 rv += f'<code>{duration2string(round(sec))} ({self.pi.vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}% ({rate:.2f}\U0000274E)</code>'
                 for ch in self.pi.vinfo["chapters"]:
-                    rv += f'\n/TT{int(ch["start_time"])}s {ch["title"]}'
+                    rv += f'\n/TT{int(ch["start_time"])}s {escape(ch["title"])}'
                 idx = self.pi.vinfo['idx']
-                add = u'\n<b>\U0001F6A6' + f'{idx}) {self.pi.vinfo["title"]} ({duration2string(round(self.pi.vinfo["duri"]))})</b>'
+                add = u'\n<b>\U0001F6A6' + f'{idx}) {escape(self.pi.vinfo["title"])} ({duration2string(round(self.pi.vinfo["duri"]))})</b>'
             updown_s = 1
             updown_i = 1
             self.pi: PlayerInfo
@@ -289,7 +290,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
                         updown_i += 1
                 else:
                     it = self.pi.plitems[ci]
-                    a2 = f'\n/I{ci} {it.title} ({duration2string(round(it.dur / rate))})'
+                    a2 = f'\n/I{ci} {escape(it.title)} ({duration2string(round(it.dur / rate))})'
                     if updown_s == 1:
                         add += a2
                     else:

@@ -318,7 +318,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
             i = 0
             while len(upd) <= 970 and i < len(chapters):
                 ch = chapters[i]
-                upd += f'<b>{duration2string(int(ch["start_time"]))}</b>\t<u>{ch["title"]}</u>\n'
+                upd += f'<b>{duration2string(int(ch["start_time"]))}</b>\t<u>{escape(ch["title"])}</u>\n'
                 i += 1
             if i:
                 upd = upd[:-1]
