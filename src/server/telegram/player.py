@@ -258,27 +258,29 @@ class PlayerInfoMessage(RemoteInfoMessage):
             return self.TIMES[idx]
         else:
             self.info_changed = 0
+            plitems = self.pi.plitems
             if 'title' not in self.pi.vinfo:
                 rv = '<b>No more video in playlist</b>'
                 idx = -1
                 add = ''
             else:
-                rate = self.pi.vinfo["rate"]
+                vinfo = self.pi.vinfo
+                rate = vinfo["rate"]
                 sec = self.pi.pinfo["sec"] / rate
-                rv = f'{escape(self.pi.vinfo["title"])}\n'
-                rv += u'\U000023F3 ' + f'{self.pi.vinfo["durs"]} ' + u'\U0000231B ' + duration2string(0 if (idx := round(self.pi.vinfo["duri"] - sec)) < 0 else idx) + '\n'
-                rv += u'\U0001F4B0 ' + f'{self.pi.vinfo["tot_n"]} (\U000023F3 {self.pi.vinfo["tot_durs"]} \U0000231B {duration2string(round(self.pi.vinfo["tot_dur"] - self.pi.vinfo["tot_played"] - sec))})\n'
-                no = int(round(30.0 * (perc := sec / self.pi.vinfo["duri"]))) if self.pi.vinfo["duri"] else (perc := 0)
-                rv += f'<code>{duration2string(round(sec))} ({self.pi.vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}% ({rate:.2f}\U0000274E)</code>'
-                for ch in self.pi.vinfo["chapters"]:
+                rv = f'{escape(vinfo["title"])}\n'
+                rv += u'\U000023F3 ' + f'{vinfo["durs"]} ' + u'\U0000231B ' + duration2string(0 if (idx := round(vinfo["duri"] - sec)) < 0 else idx) + '\n'
+                rv += u'\U0001F4B0 ' + f'{vinfo["tot_n"]} (\U000023F3 {vinfo["tot_durs"]} \U0000231B {duration2string(round(vinfo["tot_dur"] - vinfo["tot_played"] - sec))})\n'
+                no = int(round(30.0 * (perc := sec / vinfo["duri"]))) if vinfo["duri"] else (perc := 0)
+                rv += f'<code>{duration2string(round(sec))} ({vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}% ({rate:.2f}\U0000274E)</code>'
+                for ch in vinfo["chapters"]:
                     rv += f'\n/TT{int(ch["start_time"])}s {escape(ch["title"])}'
-                idx = self.pi.vinfo['idx']
-                add = u'\n<b>\U0001F6A6' + f'{idx}) {escape(self.pi.vinfo["title"])} ({duration2string(round(self.pi.vinfo["duri"]))})</b>'
+                idx = vinfo['idx']
+                it = plitems[idx]
+                add = u'\n<b>\U0001F6A6' + f'{idx:06d}) <a href="{it.link}">{escape(vinfo["title"])}</a> ({duration2string(round(vinfo["duri"]))})</b>'
             updown_s = 1
             updown_i = 1
             self.pi: PlayerInfo
             dirs = 2
-            plitems = self.pi.plitems
             while len(rv) + len(add) < 3700:
                 ci = idx + updown_i * updown_s
                 if ci < 0 or ci >= len(plitems):
@@ -290,7 +292,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
                         updown_i += 1
                 else:
                     it = self.pi.plitems[ci]
-                    a2 = f'\n/I{ci} {escape(it.title)} ({duration2string(round(it.dur / rate))})'
+                    a2 = f'\n/I{ci:06d} <a href="{it.link}">{escape(it.title)}</a> ({duration2string(round(it.dur / rate))})'
                     if updown_s == 1:
                         add += a2
                     else:
