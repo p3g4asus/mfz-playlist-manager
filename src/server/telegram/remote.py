@@ -64,7 +64,8 @@ class RemoteInfoMessage(StatusTMessage):
             expiry_period=timedelta(hours=3),
             input_field='Timestamp',
             user=user,
-            params=params)
+            params=params,
+            **argw)
 
     TIMES = [
         u'\U0001F55B',

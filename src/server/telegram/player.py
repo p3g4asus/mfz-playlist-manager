@@ -6,6 +6,7 @@ import re
 from typing import Any, Coroutine, Dict, List, Optional
 from urllib.parse import ParseResult, urlencode, urlunparse
 
+from telegram import LinkPreviewOptions
 from telegram_menu import MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
@@ -73,7 +74,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
         self.btn_type: int = 0
         self.time_status: int = 0
         self.info_changed: int = -1
-        super().__init__(navigation, player_info, user, params, **argw)
+        super().__init__(navigation, player_info, user, params, link_preview=LinkPreviewOptions(is_disabled=True), **argw)
 
     def calc_dyn_sec(self):
         if not self.time_btn:

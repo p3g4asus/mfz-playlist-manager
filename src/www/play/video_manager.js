@@ -541,7 +541,7 @@ class DumpJob {
                             const rate = pls.conf?.play?.rate || 1;
                             for (const it of pls.items) {
                                 if (it.uid == first)
-                                    itemstoadd.length = 0
+                                    itemstoadd.length = 0;
                                 it.conf.rate = rate;
                                 itemstoadd.push(it);
                             }
