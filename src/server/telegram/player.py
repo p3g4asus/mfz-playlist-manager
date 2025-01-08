@@ -259,13 +259,13 @@ class PlayerInfoMessage(RemoteInfoMessage):
         else:
             self.info_changed = 0
             plitems = self.pi.plitems
-            if 'title' not in self.pi.vinfo:
+            vinfo = self.pi.vinfo
+            rate = vinfo["rate"]
+            if 'title' not in vinfo:
                 rv = '<b>No more video in playlist</b>'
                 idx = -1
                 add = ''
             else:
-                vinfo = self.pi.vinfo
-                rate = vinfo["rate"]
                 sec = self.pi.pinfo["sec"] / rate
                 rv = f'{escape(vinfo["title"])}\n'
                 rv += u'\U000023F3 ' + f'{vinfo["durs"]} ' + u'\U0000231B ' + duration2string(0 if (idx := round(vinfo["duri"] - sec)) < 0 else idx) + '\n'
@@ -292,6 +292,8 @@ class PlayerInfoMessage(RemoteInfoMessage):
                         updown_i += 1
                 else:
                     it = self.pi.plitems[ci]
+                    if 'rate' in it.conf:
+                        rate = it.conf['rate']
                     a2 = f'\n/I{ci:06d} <a href="{it.link}">{escape(it.title)}</a> ({duration2string(round(it.dur / rate))})'
                     if updown_s == 1:
                         add += a2

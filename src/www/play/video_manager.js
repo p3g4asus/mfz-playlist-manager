@@ -303,7 +303,6 @@ function get_video_info(idx) {
             sdur = Math.max(sdur, playlist_item_current_duration) / playlist_rate;
             video_info.duri = sdur;
             video_info.durs = format_duration(sdur);
-            video_info.rate = playlist_rate;
             video_info.idx = idx;
             video_info.title = video?.title || 'N/A';
             video_info.chapters = video?.conf?.chapters || [];
@@ -340,6 +339,7 @@ function get_video_info(idx) {
         tot_played += tplay / rate;
     }
     video_info.tot_n = tot_n;
+    video_info.rate = playlist_rate;
     video_info.tot_played = tot_played;
     video_info.tot_dur = tot_dur;
     video_info.tot_durs = format_duration(tot_dur);
@@ -537,16 +537,13 @@ class DumpJob {
                         if (playlist_sched.map(function(e) { return e.name; }).indexOf(this.plid) < 0) {
                             playlist_sched.push(pls);
                             const first = pls.conf?.play?.id;
-                            let itemstoadd;
-                            if (!first)
-                                itemstoadd = pls.items;
-                            else {
-                                itemstoadd = [];
-                                for (const it of pls.items) {
-                                    if (it.uid == first)
-                                        itemstoadd.length = 0;
-                                    itemstoadd.push(it);
-                                }
+                            const itemstoadd = [];
+                            const rate = pls.conf?.play?.rate || 1;
+                            for (const it of pls.items) {
+                                if (it.uid == first)
+                                    itemstoadd.length = 0
+                                it.conf.rate = rate;
+                                itemstoadd.push(it);
                             }
                             playlist_arr.push(...itemstoadd);
                             send_video_info_for_remote_play('ilst', playlist_arr);
@@ -713,7 +710,7 @@ function playlist_process_sched(v) {
 
 function playlist_process_item(v) {
     if (video_manager_obj)
-        playlist_start_playing(v - playlist_item_current_idx);
+        playlist_start_playing(v - playlist_item_current_idx, true);
 }
 
 function playlist_process_ffw(v) {
