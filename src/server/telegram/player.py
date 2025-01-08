@@ -295,7 +295,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
                     it = self.pi.plitems[ci]
                     if 'rate' in it.conf:
                         rate = it.conf['rate']
-                    a2 = f'\n/I{ci:06d} <a href="{it.link}">{escape(it.title)}</a> ({duration2string(round(it.dur / rate))})'
+                    a2 = f'\n<b>/I{ci:06d}</b> <a href="{it.link}">{escape(it.title)}</a> ({duration2string(round(it.dur / rate))})'
                     if updown_s == 1:
                         add += a2
                     else:
