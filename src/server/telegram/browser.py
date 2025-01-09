@@ -76,31 +76,36 @@ class BrowserInfoMessage(RemoteInfoMessage):
         self.activate_tab: bool = True
         self.current_tab: BrowserTab = None
 
+    def delayed_info_get(self, **argv):
+        self.navigation.scheduler.add_job(
+            self.info,
+            "date",
+            id='browser_info_get',
+            next_run_time=RemoteInfoMessage.datenow(**argv),
+            replace_existing=True,
+        )
+
     async def close(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_CLOSE, id=self.current_tab.id if self.current_tab else self.pi.tab.id)
-        await asyncio.sleep(2.5)
-        await self.info()
+        self.delayed_info_get(seconds=2.5)
 
     async def reload(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_RELOAD, id=self.current_tab.id if self.current_tab else self.pi.tab.id)
 
     async def toggle_mute(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_MUTE, id=self.current_tab.id if self.current_tab else self.pi.tab.id, yes=1 if args[0] == u'\U0001F507' else 0)
-        await asyncio.sleep(2.5)
-        await self.info()
+        self.delayed_info_get(seconds=2.5)
 
     async def key(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_KEY, comp=args[0], id=self.current_tab.id if self.current_tab else self.pi.tab.id)
 
     async def activate(self, args: tuple):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_ACTIVATE, id=self.current_tab.id if self.current_tab else self.pi.tab.id)
-        await asyncio.sleep(2.5)
-        await self.info()
+        self.delayed_info_get(seconds=2.5)
 
     async def goto(self, url: str):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_GOTO, id=self.current_tab.id if self.current_tab else 'New', url=url, act=self.activate_tab)
-        await asyncio.sleep(2.5)
-        await self.info()
+        self.delayed_info_get(seconds=2.5)
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.lst_sel and (mo := re.search('/(u|p)p([0-9]+)', text)) and (g := int(mo.group(2))) < len(self.lst_sel):

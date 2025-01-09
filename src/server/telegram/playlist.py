@@ -76,7 +76,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
             id=f"long_operation_do{self.label}",
             seconds=3,
             replace_existing=True,
-            next_run_time=datetime.utcnow()
+            next_run_time=StatusTMessage.datenow()
         )
         pl = PlaylistMessage(CMD_MEDIASET_KEYS,
                              playlistitem=self.id,
@@ -106,7 +106,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
             id=f"long_operation_do{self.label}",
             seconds=3,
             replace_existing=True,
-            next_run_time=datetime.utcnow()
+            next_run_time=StatusTMessage.datenow()
         )
         pl = PlaylistMessage(CMD_DOWNLOAD,
                              playlistitem=self.id,
@@ -483,7 +483,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             id=f"long_operation_do{self.label}",
             seconds=3,
             replace_existing=True,
-            next_run_time=datetime.utcnow()
+            next_run_time=StatusTMessage.datenow()
         )
         pl = PlaylistMessage(CMD_SORT, playlist=self.id)
         pl = await self.proc.process(pl)
@@ -805,7 +805,7 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
             id="check_playlist",
             seconds=3,
             replace_existing=True,
-            next_run_time=datetime.utcnow()
+            next_run_time=StatusTMessage.datenow()
         )
         pl = PlaylistMessage(CMD_YT_PLAYLISTCHECK, text=text)
         pl = await self.proc.process(pl)
@@ -887,7 +887,7 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
             id="listing_refresh",
             seconds=3,
             replace_existing=True,
-            next_run_time=datetime.utcnow()
+            next_run_time=StatusTMessage.datenow()
         )
         pl = await self.proc.process(cmd)
         if pl.rv == 0:
@@ -1098,7 +1098,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
             id="listing_refresh",
             seconds=3,
             replace_existing=True,
-            next_run_time=datetime.utcnow()
+            next_run_time=StatusTMessage.datenow()
         )
         pl = await self.proc.process(cmd)
         if pl.rv == 0:
@@ -1160,7 +1160,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
             id="listing_refresh",
             seconds=3,
             replace_existing=True,
-            next_run_time=datetime.utcnow()
+            next_run_time=StatusTMessage.datenow()
         )
         pl = await self.proc.process(self.get_subbrand_command())
         if pl.rv == 0:

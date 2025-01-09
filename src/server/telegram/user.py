@@ -107,7 +107,7 @@ class UserSettingsMessage(StatusTMessage):
             id=f"long_operation_do{self.label}",
             seconds=3,
             replace_existing=True,
-            next_run_time=datetime.utcnow()
+            next_run_time=StatusTMessage.datenow()
         )
         pl = PlaylistMessage(CMD_USER_SETTINGS, settings=self.cnf)
         opt = time()

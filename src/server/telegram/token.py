@@ -24,7 +24,7 @@ class TokenMessage(StatusTMessage):
             id=f"long_operation_do{self.label}",
             seconds=3,
             replace_existing=True,
-            next_run_time=datetime.utcnow()
+            next_run_time=StatusTMessage.datenow()
         )
         pl = PlaylistMessage(CMD_TOKEN, refresh=1)
         opt = time()

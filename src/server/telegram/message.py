@@ -12,6 +12,7 @@ from aiohttp import ClientSession
 from telegram_menu import BaseMessage, MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
+import tzlocal
 import validators
 
 from common.user import User
@@ -152,6 +153,11 @@ class StatusTMessage(BaseMessage):
         self.return_msg = ''
         self.scheduler_job = None
         self.proc = ProcessorMessage(user, params)
+
+    @staticmethod
+    def datenow(**argv) -> datetime:
+        dt = datetime.now(tz=tzlocal.get_localzone())
+        return dt if not argv else dt + timedelta(**argv)
 
     async def edit_or_select_wrap(self, context: Optional[CallbackContext] = None):
         try:

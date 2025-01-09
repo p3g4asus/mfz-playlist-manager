@@ -99,7 +99,7 @@ class RefreshingTMessage(StatusTMessage):
             id=f"long_operation_do{self.label}",
             seconds=3,
             replace_existing=True,
-            next_run_time=datetime.utcnow()
+            next_run_time=StatusTMessage.datenow()
         )
         pl = PlaylistMessage(CMD_REFRESH, playlist=self.playlist, datefrom=int(self.upd_sta.timestamp() * 1000), dateto=int(self.upd_sto.timestamp() * 1000))
         self.refresh_message = pl

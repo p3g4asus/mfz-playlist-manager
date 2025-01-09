@@ -123,8 +123,13 @@ class PlayerInfoMessage(RemoteInfoMessage):
 
     async def goto_item(self, idx: int):
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_ITEM, n=idx)
-        await asyncio.sleep(3.5)
-        await self.info(tuple())
+        self.navigation.scheduler.add_job(
+            self.info,
+            "date",
+            id='player_goto_item_info_get',
+            next_run_time=RemoteInfoMessage.datenow(seconds=2),
+            replace_existing=True,
+        )
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status == NameDurationStatus.IDLE:
@@ -163,12 +168,20 @@ class PlayerInfoMessage(RemoteInfoMessage):
             except Exception:
                 pass
 
-    async def info(self, args: tuple):
+    async def info(self, args: tuple = ()) -> None:
         await self.pi.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_INFO)
-        await asyncio.sleep(2)
-        await self.pi.sendGenericCommand(get=['vinfo', 'pinfo', 'plst', 'ilst'])
-        self.info_changed = 1
-        await self.edit_or_select()
+
+        async def info_get():
+            await self.pi.sendGenericCommand(get=['vinfo', 'pinfo', 'plst', 'ilst'])
+            self.info_changed = 1
+            await self.edit_or_select()
+        self.navigation.scheduler.add_job(
+            info_get,
+            "date",
+            id='player_info_get',
+            next_run_time=RemoteInfoMessage.datenow(seconds=2),
+            replace_existing=True,
+        )
 
     async def manage_state_change(self, args: tuple, context: Optional[CallbackContext] = None):
         btn_id: int = 0
