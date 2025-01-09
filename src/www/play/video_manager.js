@@ -8,6 +8,7 @@ let playlists_arr = [];
 let playlist_remoteplay = '';
 let players_map = {};
 let playlists_conf_map = {};
+const playlist_names_lst = [];
 
 let playlist_play_settings_key = '';
 let playlist_play_settings = {};
@@ -295,7 +296,7 @@ function get_video_info(idx) {
     let tot_played = 0;
     let tot_n = 0;
     let video_info = {tot_n: 0};
-    for (let i = idx; i<playlist_arr.length; i++) {
+    for (let i = idx < 0 ? 0: idx; i<playlist_arr.length; i++) {
         let video = playlist_arr[i];
         if (!video || video.playlist != playlist_current.rowid) break;
         let sdur = video?.length || video?.dur || 0;
@@ -346,13 +347,19 @@ function get_video_info(idx) {
     return video_info;
 }
 
-function on_video_info_change(idx, isat) {
+function on_video_info_change(idx, isat, objstart) {
     let video_info =  get_video_info(idx);
     if (video_info.title) {
         isat = (isat || 0) / playlist_rate;
         toast_msg('Video duration is ' + video_info.durs + ' (' + format_duration(video_info.duri - isat) +'). Remaining videos are ' + video_info.tot_n + ' [' + video_info.tot_durs +  ' (' + format_duration(video_info.tot_dur - isat - video_info.tot_played) +')] @ ' + playlist_rate.toFixed(2) + 'x.', 'info');
     }
-    send_video_info_for_remote_play('vinfo', video_info);
+    const exp = objstart?1:0;
+    if (objstart)
+        objstart.vinfo = video_info;
+    else
+        objstart = video_info;
+
+    send_video_info_for_remote_play('vinfo', objstart, exp);
 }
 
 function on_player_load(name, manager_obj) {
@@ -432,9 +439,10 @@ function save_playlist_item_settings(sett, push_for_remote_play) {
         });
 }
 
-function send_video_info_for_remote_play(w, video_info) {
+function send_video_info_for_remote_play(w, video_info, exp) {
     let o = {cmd: CMD_REMOTEPLAY_PUSH, what: w};
     o[w] = video_info;
+    o['exp'] = exp || 0;
     let el = new MainWSQueueElement(o, function(msg) {
         return msg.cmd === CMD_REMOTEPLAY_PUSH? msg:null;
     }, 3000, 1, w);
@@ -694,8 +702,8 @@ function playlist_process_rate(v) {
 
 function playlist_process_info() {
     let ss;
-    save_playlist_item_settings({sec: ss = video_manager_obj.currenttime()}, 'pinfo');
-    on_video_info_change(playlist_item_current_idx, ss);
+    save_playlist_item_settings({sec: ss = video_manager_obj?.currenttime() || 0}, 'pinfo');
+    on_video_info_change(playlist_item_current_idx, ss, {'pinfo': {sec: ss}, 'ilst': playlist_arr, 'plst': playlist_names_lst});
 }
 
 function playlist_process_rew(v) {
@@ -825,12 +833,12 @@ function get_remoteplay_link() {
                 }
                 playlist_remoteplay = msg.url;
                 let lnk = playlist_remoteplay + '?red='+encodeURIComponent(window.location.protocol + '//' + window.location.host + MAIN_PATH_S + 'play/player_remote_commands.htm');
-                const namelst = [];
+                playlist_names_lst.length = 0;
                 for (let it of playlists_arr) {
                     lnk += '&name='+encodeURIComponent(it.name);
-                    namelst.push(it.name);
+                    playlist_names_lst.push(it.name);
                 }
-                send_video_info_for_remote_play('plst', namelst);
+                send_video_info_for_remote_play('plst', playlist_names_lst);
                 let $rpc = $('#qr-remote-play-content');
                 let $a = $('<a>').prop('href', lnk).prop('target', '_blank');
                 let $rp = $('<canvas>');

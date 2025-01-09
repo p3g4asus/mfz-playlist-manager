@@ -788,8 +788,10 @@ async def pls_h(request):
                 else:
                     try:
                         w = pl.f(pl.what)
+                        ud = {pl.what: w} if not pl.f('exp') else w.copy()
+                        ud.update({'ws': ws, 'uid': userid})
                         dd = request.app.p.ws.get(player_hex, dict())
-                        dd.update({'ws': ws, pl.what: w, 'uid': userid})
+                        dd.update(ud)
                         request.app.p.ws[player_hex] = dd
                         _LOGGER.info(f'New dict el for {player_hex} [{pl.what}] -> {json.dumps(w)}')
                         await ws.send_str(json.dumps(pl.ok(), cls=MyEncoder))
