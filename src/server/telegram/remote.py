@@ -219,7 +219,6 @@ class RemoteListMessage(StatusTMessage):
         return strid.lower()
 
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, strid: str = None, **argw) -> None:
-        self.__class__.remotes_cache = None
         self.current_url = ''
         if not strid:
             strid = self.get_string_id_from_class()
@@ -259,9 +258,11 @@ class RemoteListMessage(StatusTMessage):
 
     @classmethod
     def user_conf_field_to_remotes_dict(cls, navigation: NavigationHandler, proc: ProcessorMessage, sel_only: bool = False, field_id: str = None) -> Dict[str, RemoteInfoMessage]:
-        if cls.remotes_cache is None:
-            cls.remotes_cache: Dict[str, RemoteInfoMessage] = dict()
-            remotes_cache = cls.remotes_cache
+        rid = proc.user.rowid
+        if not hasattr(cls, 'remotes_cache_u'):
+            cls.remotes_cache_u: Dict[int, Dict[str, RemoteInfoMessage]] = dict()
+        if rid not in cls.remotes_cache_u:
+            remotes_cache = cls.remotes_cache_u[rid] = dict()
             if not field_id:
                 field_id = cls.get_string_id_from_class()
             usrconf = proc.user.conf
@@ -279,27 +280,31 @@ class RemoteListMessage(StatusTMessage):
                     if sel:
                         pi.start()
         else:
-            remotes_cache = cls.remotes_cache
+            remotes_cache = cls.remotes_cache_u[rid]
         if sel_only:
             remotes_cache = {pin: pi for pin, pi in remotes_cache.items() if pi.sel}
         return remotes_cache
 
     async def add_remote(self, pi: RemoteInfoMessage):
-        self.remotes_cache[pi.name] = pi
+        rid = self.proc.user.rowid
+        remotes_cache = self.remotes_cache_u[rid]
+        remotes_cache[pi.name] = pi
         if pi.sel:
             pi.start()
-        await self.set_user_conf_field(self.remotes_cache, self.proc)
+        await self.set_user_conf_field(remotes_cache, self.proc)
         await self.edit_or_select()
 
     async def remote_clicked(self, args: tuple):
         self.current_url = ''
         idx = args[0]
-        pi = self.remotes_cache[idx]
+        rid = self.proc.user.rowid
+        remotes_cache: Dict[str, RemoteInfoMessage] = self.remotes_cache_u[rid]
+        pi = remotes_cache[idx]
         if self.status == NameDurationStatus.DELETING:
             pi.stop()
-            pi.navigation._delete_queued_message(pi)
-            del self.remotes_cache[idx]
-            await self.set_user_conf_field(self.remotes_cache, self.proc)
+            await pi.navigation._delete_queued_message(pi)
+            del remotes_cache[idx]
+            await self.set_user_conf_field(remotes_cache, self.proc)
             await self.switch_to_idle()
         elif self.status == NameDurationStatus.SORTING:
             pi.sel = not pi.sel
@@ -307,10 +312,10 @@ class RemoteListMessage(StatusTMessage):
                 pi.start()
             else:
                 pi.stop()
-            await self.set_user_conf_field(self.remotes_cache, self.proc)
+            await self.set_user_conf_field(remotes_cache, self.proc)
             await self.switch_to_idle()
         else:
-            await self.remotes_cache[idx].remote_send()
+            await remotes_cache[idx].remote_send()
 
     async def prepare_for_mod(self, args: tuple, context: Union[CallbackContext, None] = None):
         self.current_url = ''
@@ -318,13 +323,16 @@ class RemoteListMessage(StatusTMessage):
 
     async def update(self, _: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         self.input_field = (f'{self.S} Url' if not self.current_url else f'{self.S} alias') + u' or \U0001F559'
-        if self.remotes_cache is None:
-            self.remotes_cache = self.user_conf_field_to_remotes_dict(self.navigation, self.proc)
+        rid = self.proc.user.rowid
+        if not hasattr(self, 'remotes_cache_u') or rid not in self.remotes_cache_u:
+            remotes_cache = self.user_conf_field_to_remotes_dict(self.navigation, self.proc)
+        else:
+            remotes_cache = self.remotes_cache_u[rid]
         self.keyboard: List[List["MenuButton"]] = [[]]
-        for pin in sorted(self.remotes_cache.keys(), key=str.casefold):
-            self.add_button(pin + (u' \U0001F4CD' if self.remotes_cache[pin].sel else ''), self.remote_clicked, args=(pin,), new_row=True)
+        for pin in sorted(remotes_cache.keys(), key=str.casefold):
+            self.add_button(pin + (u' \U0001F4CD' if remotes_cache[pin].sel else ''), self.remote_clicked, args=(pin,), new_row=True)
         if self.status == NameDurationStatus.IDLE:
-            if self.remotes_cache:
+            if remotes_cache:
                 self.add_button(u'\U0001F5D1', self.prepare_for_mod, args=(NameDurationStatus.DELETING, ), new_row=True)
                 self.add_button(u'\U0001F4CC', self.prepare_for_mod, args=(NameDurationStatus.SORTING, ))
             self.add_button(label=u"\U0001F3E0 Home", callback=self.navigation.goto_back, new_row=True)
