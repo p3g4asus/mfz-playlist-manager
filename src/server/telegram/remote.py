@@ -159,7 +159,7 @@ class RemoteInfoMessage(StatusTMessage):
         while not self.stopped:
             try:
                 _LOGGER.debug(f'{self.label} Connecting to {urls} for {self.my_hex}')
-                async with session.ws_connect(urls) as ws:
+                async with session.ws_connect(urls, heartbeat=5) as ws:
                     _LOGGER.debug(f'{self.label} Opened connection for {self.my_hex}')
                     remplay = json.dumps(PlaylistMessage(CMD_REMOTEPLAY), cls=MyEncoder)
                     rempush = json.dumps(PlaylistMessage(CMD_REMOTEPLAY_PUSH_NOTIFY, fr=self.dest_hex), cls=MyEncoder)
