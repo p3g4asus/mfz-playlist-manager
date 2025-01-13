@@ -225,13 +225,13 @@ class PlayerInfoMessage(RemoteInfoMessage):
             self.add_button(u'\U00002139', self.manage_state_change, args=(self.info, ))
             self.add_button(u'\U000023EE', self.manage_state_change, args=(self.move_pl, -1), new_row=True)
             self.add_button(u'\U000023ED', self.manage_state_change, args=(self.move_pl, +1))
-            self.add_button(u'\U000023ED \U0001F5D1', self.manage_state_change, args=(self.move_pl, 0), new_row=True)
-            self.add_button(u'\U000021C5', self.manage_state_change, args=(self.sync_changes,))
+            self.add_button(u'\U000023ED \U0001F5D1', self.manage_state_change, args=(self.move_pl, 0))
+            self.add_button(u'\U000021C5', self.manage_state_change, args=(self.sync_changes,), new_row=True)
             self.add_button(u'\U0001F4C5', self.manage_state_change, args=(self.switch_to_status, NameDurationStatus.UPDATING_WAITING, context))
             self.add_button(u'\U0001F51C', self.manage_state_change, args=(self.switch_to_status, NameDurationStatus.DOWNLOADING_WAITING, context))
             self.add_button(u'\U000025B61x', self.manage_state_change, args=(self.rate, 1.0), new_row=True)
             self.add_button(u'\U000025B61.5x', self.manage_state_change, args=(self.rate, 1.5))
-            self.add_button(u'\U000025B61.8x', self.manage_state_change, args=(self.rate, 1.8))
+            self.add_button(u'\U000025B61.8x', self.manage_state_change, args=(self.rate, 1.8), new_row=True)
             self.add_button(u'\U000025B62x', self.manage_state_change, args=(self.rate, 2))
             if self.status == NameDurationStatus.RENAMING:
                 if self.btn_type == 1:

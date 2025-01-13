@@ -265,7 +265,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
             self.add_button(u'\U00002139', self.info, args=tuple())
             if self.current_tab or self.tab:
                 self.add_button(u'\U0001F501', self.reload)
-                self.add_button(u'\U0000274C', self.close)
+                self.add_button(u'\U0000274C', self.close, new_row=True)
                 btn = u'\U0001F507' if (self.current_tab and not self.current_tab.muted) or (not self.current_tab and not self.tab.muted) else u'\U0001F50A'
                 self.add_button(btn, self.toggle_mute, args=(btn, ))
                 if self.current_tab:
