@@ -152,24 +152,36 @@ class StatusTMessage(BaseMessage):
         self.sub_status = 0
         self.return_msg = ''
         self.scheduler_job = None
-        self.proc = ProcessorMessage(user, params)
+        self.proc = ProcessorMessage(user, params) if user and params else None
 
     @staticmethod
     def datenow(**argv) -> datetime:
         dt = datetime.now(tz=tzlocal.get_localzone())
         return dt if not argv else dt + timedelta(**argv)
 
+    async def send_wrap(self, context: Optional[CallbackContext] = None):
+        try:
+            if self.inlined:
+                await self.navigation._send_app_message(self, self.label)
+            else:
+                await self.navigation.goto_menu(self, context, add_if_present=False, sync=False, going_home=True)
+        except Exception:
+            _LOGGER.warning(f'send error {traceback.format_exc()}')
+
+    async def send(self, context: Optional[CallbackContext] = None, sync: bool = False):
+        await self.navigation.navigation_schedule_wrapper(self.send_wrap(context), sync)
+
     async def edit_or_select_wrap(self, context: Optional[CallbackContext] = None):
         try:
             if self.inlined:
                 await self.edit_message()
             else:
-                await self.navigation.goto_menu(self, context, add_if_present=False)
+                await self.navigation.goto_menu(self, context, add_if_present=False, sync=False, going_home=True)
         except Exception:
             _LOGGER.warning(f'edit error {traceback.format_exc()}')
 
-    async def edit_or_select(self, context: Optional[CallbackContext] = None):
-        self.navigation.send_operation_wrapper(self.edit_or_select_wrap(context))
+    async def edit_or_select(self, context: Optional[CallbackContext] = None, sync: bool = False):
+        await self.navigation.navigation_schedule_wrapper(self.edit_or_select_wrap(context), sync)
 
     async def switch_to_status(self, args, context=None):
         self.status = args[0]
@@ -274,12 +286,7 @@ class NameDurationTMessage(DeletingTMessage):
     async def send_wrap(self, context: Optional[CallbackContext] = None):
         if self.inlined:
             await self.prepare_for_sending()
-            await self.navigation._send_app_message(self, self.label)
-        else:
-            await self.navigation.goto_menu(self, context, add_if_present=False)
-
-    async def send(self, context: Optional[CallbackContext] = None):
-        self.navigation.send_operation_wrapper(self.send_wrap(context))
+        await super().send_wrap(context)
 
     async def edit_or_select(self, context: Optional[CallbackContext] = None):
         if self.inlined and self._old_thumb != self.thumb:

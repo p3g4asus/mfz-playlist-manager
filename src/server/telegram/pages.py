@@ -231,12 +231,12 @@ class ListPagesTMessage(BaseMessage):
         else:
             self.input_field = u'\U00002205'
         if self.sel_players is None:
-            _, self.sel_players = PlayerListMessage.user_conf_field_to_remotes_dict(
+            self.sel_players = PlayerListMessage.user_conf_field_to_remotes_dict(
                 self.navigation,
                 self.pagegen.proc,
                 True)
         if self.sel_browsers is None:
-            _, self.sel_browsers = BrowserListMessage.user_conf_field_to_remotes_dict(
+            self.sel_browsers = BrowserListMessage.user_conf_field_to_remotes_dict(
                 self.navigation,
                 self.pagegen.proc,
                 True)

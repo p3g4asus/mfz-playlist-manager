@@ -37,6 +37,7 @@ CMD_REMOTEPLAY_JS_ITEM = 'itidx'
 CMD_REMOTEPLAY_JS_INFO = 'info'
 CMD_REMOTEPLAY_JS_F5PL = 'f5pl'
 CMD_REMOTEPLAY_PUSH = 'remotepush'
+CMD_REMOTEPLAY_PUSH_NOTIFY = 'remotenotify'
 CMD_PING = "ping"
 CMD_REFRESH = "refresh"
 CMD_LS = "ls"

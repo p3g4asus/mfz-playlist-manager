@@ -20,7 +20,7 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 
 from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_JS,
-                          CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH,
+                          CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY,
                           CONV_LINK_ASYNCH_SHIFT, CONV_LINK_ASYNCH_TWITCH,
                           CONV_LINK_MASK, INVALID_SID, MSG_INVALID_PARAM,
                           MSG_UNAUTHORIZED)
@@ -33,6 +33,7 @@ from server.dict_auth_policy import check_credentials, identity2username
 from server.twitch_vod_id import vod_get_id
 
 _LOGGER = logging.getLogger(__name__)
+_DWS_PRIVATE_KEYS = ('redto', 'redfr', 'uid', 'cmdqueue', 'ws', 'sh', 'telegram')
 
 
 index_template = dedent("""
@@ -647,13 +648,17 @@ async def telegram_command(request):
             return web.HTTPNotAcceptable(body='Invalid params')
         if cmd:
             cmd = json.dumps(cmd)
-            if dct['cmdqueue']:
-                dct['cmdqueue'].append(cmd)
-            else:
-                dct['cmdqueue'] = await process_remoteplay_cmd_queue(dct['ws'], [cmd])
+            await remote_command_queue_append(dct, cmd)
             return web.HTTPNoContent()
     else:
         return web.HTTPNotFound(body='Invalid hex token')
+
+
+async def remote_command_queue_append(dct, cmd):
+    if dct['cmdqueue']:
+        dct['cmdqueue'].append(cmd)
+    else:
+        dct['cmdqueue'] = await process_remoteplay_cmd_queue(dct['ws'], [cmd])
 
 
 async def remote_command(request):
@@ -685,11 +690,21 @@ async def remote_command(request):
                 else:
                     outdict[k] = v
         except Exception:
+            def del_elem(dws, sh):
+                if 'redto' in dws[sh]:
+                    if 'ws' in dws[sh]:
+                        del dws[sh]['ws']
+                else:
+                    if 'redfr' in dws[sh]:
+                        for x in dws[sh]['redfr']:
+                            if x in dws and 'redto' in dws[x]:
+                                dws[x].remove(sh)
+                    del dws[sh]
             if 'sh' in dws[hextoken]:
                 for sh in dws[hextoken]['sh']:
-                    del dws[sh]
+                    del_elem(dws, sh)
             else:
-                del dws[hextoken]
+                del_elem(dws, hextoken)
             _LOGGER.debug(f"Exception detected {traceback.format_exc()}: Deleting ws")
             return web.HTTPUnauthorized(body='Invalid hex link')
         if typem == 1:
@@ -699,14 +714,25 @@ async def remote_command(request):
             if typem == 0:
                 dct = dws[hextoken]
                 cmd = json.dumps(outdict)
-                if dct['cmdqueue']:
-                    dct['cmdqueue'].append(cmd)
-                else:
-                    dct['cmdqueue'] = await process_remoteplay_cmd_queue(dct['ws'], [cmd])
+                await remote_command_queue_append(dct, cmd)
                 outdict['queue'] = len(dct['cmdqueue'])
             return web.json_response(outdict)
     else:
         return web.HTTPUnauthorized(body='Invalid hex link')
+
+
+async def notify_push(to_: list[str], what: PlaylistMessage | str | dict, dws: dict):
+    if not what or not to_:
+        return
+    if isinstance(what, dict):
+        if not what[what['what']]:
+            return
+        what = PlaylistMessage(CMD_REMOTEPLAY_PUSH, **what)
+    cmd = what if isinstance(what, str) else json.dumps(what, cls=MyEncoder)
+    for hex in to_:
+        if hex in dws and (ddr := dws[hex]) and 'ws' in ddr:
+            _LOGGER.debug(f'Push redir to {hex} -> {cmd}')
+            await remote_command_queue_append(ddr, cmd)
 
 
 async def pls_h_2(request):
@@ -732,9 +758,26 @@ async def pls_h_2(request):
                         dd.update(ud)
                         dws[player_hex] = dd
                         _LOGGER.info(f'New dict el for {player_hex} [{pl.what}] -> {json.dumps(w)}')
+                        cmd = json.dumps(pl.ok(fr=player_hex), cls=MyEncoder)
+                        await notify_push(dd.get('redto', []), cmd, dws)
+                        await ws.send_str(cmd)
+                    elif pl.c(CMD_REMOTEPLAY_PUSH_NOTIFY):
+                        dd['ws'] = ws
+                        dd['redfr'] = dd.get('redfr', [])
+                        if pl.fr not in dd['redfr']:
+                            dd['redfr'].append(pl.fr)
+                        dws[player_hex] = dd
+                        dd = dws.get(pl.fr, dict())
+                        dd['redto'] = dd.get('redto', [])
+                        if player_hex not in dd['redto']:
+                            dd['redto'].append(player_hex)
+                        dws[pl.fr] = dd
                         await ws.send_str(json.dumps(pl.ok(), cls=MyEncoder))
+                        sendt = {'exp': 1, 'what': 'stat', 'stat': {kk: ii for kk, ii in dd.items() if kk not in _DWS_PRIVATE_KEYS}}
+                        await notify_push([player_hex], sendt, dws)
+                        _LOGGER.info(f'Redir activated {pl.fr} -> {player_hex}')
                 except Exception:
-                    _LOGGER.warning(f'Cannot parse msg: ${traceback.format_exc()}')
+                    _LOGGER.warning(f'Cannot parse msg [{msg.data}]: {traceback.format_exc()}')
         return ws
     else:
         return await pls_h(request)
@@ -767,6 +810,8 @@ async def pls_h(request):
                         dd.update(dict(ws=ws, uid=userid))
                         if (sh := pl.f('sh')) and sh != player_hex:
                             dd['sh'] = [sh, player_hex]
+                            if sh in dws and 'redto' in dws[sh]:
+                                dd['redto'] = dws[sh]['redto']
                             dws[sh] = dd
                         else:
                             sh = player_hex
@@ -778,6 +823,8 @@ async def pls_h(request):
                         host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{sh}"
                         host2 = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}telegram/{telegram}"
                         await ws.send_str(json.dumps(pl.ok(url=host, telegram=host2, hex=player_hex), cls=MyEncoder))
+                        sendt = {'exp': 1, 'what': 'stat', 'stat': {kk: ii for kk, ii in dd.items() if kk not in _DWS_PRIVATE_KEYS}}
+                        await notify_push(dd.get('redto', []), sendt, dws)
                         dd['cmdqueue'] = (await process_remoteplay_cmd_queue(ws, dd['cmdqueue'])) if 'cmdqueue' in dd else []
                     else:
                         await ws.send_str(json.dumps(pl.err(20, MSG_INVALID_PARAM)))
@@ -794,6 +841,8 @@ async def pls_h(request):
                         dd.update(ud)
                         request.app.p.ws[player_hex] = dd
                         _LOGGER.info(f'New dict el for {player_hex} [{pl.what}] -> {json.dumps(w)}')
+                        cmd = json.dumps(pl.ok(fr=player_hex), cls=MyEncoder)
+                        await notify_push(dd.get('redto', []), cmd, dws)
                         await ws.send_str(json.dumps(pl.ok(), cls=MyEncoder))
                     except Exception:
                         await ws.send_str(json.dumps(pl.err(509, traceback.format_exc()), cls=MyEncoder))
