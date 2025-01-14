@@ -223,7 +223,7 @@ class RemoteItem(object):
             ritto = _REMOTE_ITEM_DB[player_hex]
             ritto.refresh(ws=ws, hex_for_redfr=pl.fr)
             _REMOTE_ITEM_DB[pl.fr] = ritfr = _REMOTE_ITEM_DB.get(pl.fr, RemoteItem(pl.fr))
-            ritfr.refresh(ws=ws, hex_for_redto=player_hex)
+            ritfr.refresh(hex_for_redto=player_hex)
             await ritfr.notify_push()
             _LOGGER.info(f'Redir activated {ritfr} -> {ritto}')
             return pl.ok()
