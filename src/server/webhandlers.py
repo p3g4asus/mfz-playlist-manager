@@ -691,15 +691,16 @@ async def remote_command(request):
                     outdict[k] = v
         except Exception:
             def del_elem(dws, sh):
-                if 'redto' in dws[sh]:
-                    if 'ws' in dws[sh]:
-                        del dws[sh]['ws']
+                if 'redto' in (aa := dws[sh]):
+                    if 'ws' in aa:
+                        del aa['ws']
                 else:
-                    if 'redfr' in dws[sh]:
-                        for x in dws[sh]['redfr']:
-                            if x in dws and 'redto' in dws[x]:
-                                dws[x].remove(sh)
                     del dws[sh]
+                if 'redfr' in aa:
+                    for x in aa['redfr']:
+                        if x in dws and 'redto' in (bb := dws[x]) and sh in (bb := bb['redto']):
+                            bb.remove(sh)
+                    del aa['redfr']
             if 'sh' in dws[hextoken]:
                 for sh in dws[hextoken]['sh']:
                     del_elem(dws, sh)
