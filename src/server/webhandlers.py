@@ -61,7 +61,7 @@ class RemoteItem(object):
             self.redfr.append(hex_for_redfr)
         if hex_for_redto and hex_for_redto not in self.redto:
             self.redto.append(hex_for_redto)
-        if hex_for_sh != self.hex:
+        if hex_for_sh and hex_for_sh != self.hex:
             self.sh = hex_for_sh
             if hex_for_sh in _REMOTE_ITEM_DB:
                 ritsh: RemoteItem = _REMOTE_ITEM_DB[hex_for_sh]
@@ -118,7 +118,7 @@ class RemoteItem(object):
                     return queue[i:]
 
     def __str__(self):
-        return f'{self.hex}/[{self.sh}]'
+        return f'{self.hex}/{self.sh}'
 
     def __getitem__(self, item: str):
         return self.d.get(item)
@@ -146,7 +146,7 @@ class RemoteItem(object):
         rit: RemoteItem
         for hex in self.redto:
             if hex in _REMOTE_ITEM_DB and (rit := _REMOTE_ITEM_DB[hex]):
-                _LOGGER.debug(f'Push redir to {rit} -> {cmd}')
+                _LOGGER.debug(f'Push redir to {self} -> {rit} : {cmd}')
                 await rit.queue_append(cmd)
 
     @staticmethod
@@ -165,6 +165,7 @@ class RemoteItem(object):
                 dct = dict(url=host, telegram=host2, hex=player_hex)
             else:
                 dct = dict()
+            _LOGGER.info(f'New remote {rit} [{"main" if dct else "sec"}]')
             await rit.notify_push()
             await rit.queue_append()
             return pl.ok(**dct)
