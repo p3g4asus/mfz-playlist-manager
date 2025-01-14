@@ -333,7 +333,6 @@ def handle_loop_exceptions(loop, context):
 def main():
     app = web.Application()
     app.p = Object()
-    app.p.ws = dict()
     app.p.myrunners = []
     # Here's all the magic !
     os.environ['SSL_CERT_FILE'] = certifi.where()
