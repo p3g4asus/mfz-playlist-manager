@@ -148,6 +148,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     self.picture = ''
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
+        await super().text_input(text, context)
         if self.lst_sel and (mo := re.search('/(u|p)p([0-9]+)', text)) and (g := int(mo.group(2))) < len(self.lst_sel):
             score = int(time() + (0 if mo.group(1) == 'u' else BrowserInfoMessage.PIN_TIME))
             await self.redis.zadd(f'urls_{self.user.rowid}', {self.lst_sel[g][0]: score})
@@ -253,11 +254,10 @@ class BrowserInfoMessage(RemoteInfoMessage):
         return out
 
     async def update(self, context: CallbackContext | None = None) -> str:
-        self.keyboard: List[List["MenuButton"]] = [[]]
+        out = await super().update(context)
         self.input_field = u'Select button'
         if not self.current_tab:
             self.picture = None
-        out = f'<b>Browser {self.name}</b>\n'
         if self.status == NameDurationStatus.UPDATING_INIT:
             out += self.list_tabs(True)
             self.add_button(u'\U0001F519', self.switch_to_idle)

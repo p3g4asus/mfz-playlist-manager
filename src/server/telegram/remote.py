@@ -41,6 +41,12 @@ class RemoteInfoMessage(StatusTMessage):
         dictspar = parse_qs(parsed_url.query)
         return (parsed_url, dictspar) if parsed_url.scheme and 'name' in dictspar and 'hex' in dictspar and parsed_url.path.endswith(RemoteInfoMessage.END_URL_PATH) else None
 
+    @staticmethod
+    def get_string_id_from_class(cls: type[object]):
+        if mo := re.search(r'^(.+)(List|Info)Message$', strid := cls.__name__):
+            strid = mo.group(1)
+        return strid.lower()
+
     def __init__(self, name: str, url: str, sel: bool, navigation: Optional[NavigationHandler] = None, **argw) -> None:
         super().__init__(
             navigation,
@@ -54,6 +60,8 @@ class RemoteInfoMessage(StatusTMessage):
         self.name: str = name
         self.navigation: MyNavigationHandler
         self.task: Optional[Task] = None
+        self.paused: bool = False
+        self.S = RemoteInfoMessage.get_string_id_from_class(self.__class__).capitalize()
         self.sentinel: Optional[Task] = None
         self.url: str = url
         self.navigation: Optional[NavigationHandler] = navigation
@@ -133,7 +141,7 @@ class RemoteInfoMessage(StatusTMessage):
 
     async def noify(self, arg: Dict[str, Any]):
         _LOGGER.debug(f'{self.label} cheking notication for {arg.keys()}')
-        if self.notification_has_to_be_sent(arg):
+        if not self.paused and self.notification_has_to_be_sent(arg):
             _LOGGER.debug(f'{self.label} notifying for {arg.keys()}')
             await self.remote_send()
 
@@ -150,6 +158,18 @@ class RemoteInfoMessage(StatusTMessage):
             except Exception:
                 pass
             self.sentinel = None
+
+    async def update(self, context: CallbackContext | None = None) -> str:
+        self.keyboard: List[List["MenuButton"]] = [[]]
+        return f'<b>{self.S} {self.name}{" (paused)" if self.paused else ""}</b> /' + ('restart' if self.paused else 'pause') + '\n'
+
+    async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
+        if text == '/pause' or text == '/restart':
+            if text == '/restart':
+                self.paused = False
+            elif text == '/pause':
+                self.paused = True
+            await self.remote_send()
 
     async def ws_connect(self):
         pr = self.parsed_url
@@ -212,16 +232,11 @@ class RemoteInfoMessage(StatusTMessage):
 
 
 class RemoteListMessage(StatusTMessage):
-    @classmethod
-    def get_string_id_from_class(cls: type[object]):
-        if mo := re.search(r'^(.+)ListMessage$', strid := cls.__name__):
-            strid = mo.group(1)
-        return strid.lower()
 
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, strid: str = None, **argw) -> None:
         self.current_url = ''
         if not strid:
-            strid = self.get_string_id_from_class()
+            strid = RemoteInfoMessage.get_string_id_from_class(self.__class__)
         self.s: str = strid.lower()
         self.S: str = strid.capitalize()
         super().__init__(navigation, label=self.__class__.__name__, input_field=f'{self.S} Url', user=user, params=params, **argw)
@@ -250,7 +265,7 @@ class RemoteListMessage(StatusTMessage):
         res = proc.user.conf
         plrs = dict()
         if not field_id:
-            field_id = cls.get_string_id_from_class()
+            field_id = RemoteInfoMessage.get_string_id_from_class(cls)
         for pin, pi in remotes_cache.items():
             plrs[pin] = dict(url=pi.url, sel=pi.sel)
         res[field_id + 's'] = plrs
@@ -264,7 +279,7 @@ class RemoteListMessage(StatusTMessage):
         if rid not in cls.remotes_cache_u:
             remotes_cache = cls.remotes_cache_u[rid] = dict()
             if not field_id:
-                field_id = cls.get_string_id_from_class()
+                field_id = RemoteInfoMessage.get_string_id_from_class(cls)
             usrconf = proc.user.conf
             for pin, pid in usrconf.get(field_id + 's', dict()).items():
                 if isinstance(pid, str):

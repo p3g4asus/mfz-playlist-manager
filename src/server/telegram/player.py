@@ -135,6 +135,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_ITEM, n=idx)
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
+        await super().text_input(text, context)
         if self.status == NameDurationStatus.IDLE:
             text = text.strip()
             try:
@@ -214,10 +215,9 @@ class PlayerInfoMessage(RemoteInfoMessage):
         await args[0](args[1:])
 
     async def update(self, context: CallbackContext | None = None) -> str:
-        self.keyboard: List[List["MenuButton"]] = [[]]
+        rv = await super().update(context)
         self.input_field = u'\U000023F2 Timestamp'
         addtxt = ''
-        rv = f'<b>Player {self.name}</b>\n'
         if self.status == NameDurationStatus.IDLE or self.status == NameDurationStatus.RENAMING:
             if self.default_vinfo > 1:
                 await self.info()
