@@ -269,6 +269,8 @@ class PlayerInfoMessage(RemoteInfoMessage):
                 for ch in vinfo["chapters"]:
                     rv += f'\n/TT{int(ch["start_time"])}s {escape(ch["title"])}'
                 idx = vinfo['idx']
+                if idx >= len(plitems):
+                    return rv
                 it = plitems[idx]
                 add = u'\n<b>\U0001F6A6' + f'{idx:06d}) <a href="{it.link}">{escape(vinfo["title"])}</a> ({duration2string(round(vinfo["duri"]))})</b>'
             updown_s = 1
