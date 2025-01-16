@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from asyncio import Task, create_task, sleep
+from asyncio import AbstractEventLoop, Task, TimerHandle, create_task, get_event_loop, sleep
 from datetime import timedelta
 import json
 import logging
@@ -47,7 +47,7 @@ class RemoteInfoMessage(StatusTMessage):
             strid = mo.group(1)
         return strid.lower()
 
-    def __init__(self, name: str, url: str, sel: bool, navigation: Optional[NavigationHandler] = None, **argw) -> None:
+    def __init__(self, name: str, url: str, sel: bool, navigation: Optional[NavigationHandler] = None, notify_cache_time: float = 0.7, **argw) -> None:
         super().__init__(
             navigation,
             label=self.__class__.__name__ + name,
@@ -65,7 +65,11 @@ class RemoteInfoMessage(StatusTMessage):
         self.sentinel: Optional[Task] = None
         self.url: str = url
         self.navigation: Optional[NavigationHandler] = navigation
+        self.show_message: StatusTMessage = None
+        self.notification_cache_time: float = notify_cache_time
+        self.notification_cache_handle: TimerHandle = None
         self.stopped: bool = False
+        self.loop: AbstractEventLoop = get_event_loop()
         self.old_picture = None
         self.killed: bool = False
         self.sel = sel
@@ -83,6 +87,9 @@ class RemoteInfoMessage(StatusTMessage):
     @abstractmethod
     def notification_has_to_be_sent(self, arg: Dict[str, Any]) -> bool:
         pass
+
+    def set_show_message(self, sm: StatusTMessage):
+        self.show_message = sm
 
     def stop_sentinel(self):
         if self.sentinel:
@@ -139,11 +146,21 @@ class RemoteInfoMessage(StatusTMessage):
                 self.navigation: MyNavigationHandler
                 self.navigation.send_operation_wrapper(self.navigation.delete_message(mid))
 
-    async def noify(self, arg: Dict[str, Any]):
-        _LOGGER.debug(f'{self.label} cheking notication for {arg.keys()}')
-        if not self.paused and self.notification_has_to_be_sent(arg):
+    async def notify_do(self, arg: Dict[str, Any]):
+        self.notification_cache_handle = None
+        if self.notification_has_to_be_sent(arg):
             _LOGGER.debug(f'{self.label} notifying for {arg.keys()}')
             await self.remote_send()
+
+    async def notify(self, arg: Dict[str, Any]):
+        _LOGGER.debug(f'{self.label} cheking notication for {arg.keys()}')
+        if not self.paused:
+            if self.notification_cache_time > 0:
+                if self.notification_cache_handle:
+                    self.notification_cache_handle.cancel()
+                self.notification_cache_handle = self.loop.call_at(self.loop.time() + self.notification_cache_time, self.notify_do(arg))
+            else:
+                await self.notify_do(arg)
 
     async def ws_send(self, ws, cmd):
         _LOGGER.debug(f'{self.label} Sending to {self.my_hex} -> {cmd}')
@@ -170,6 +187,8 @@ class RemoteInfoMessage(StatusTMessage):
             elif text == '/pause':
                 self.paused = True
             await self.remote_send()
+            if self.show_message and self.navigation._menu_queue and self.navigation._menu_queue[-1] is self.show_message:
+                self.show_message.edit_or_select()
 
     async def ws_connect(self):
         pr = self.parsed_url
@@ -205,7 +224,7 @@ class RemoteInfoMessage(StatusTMessage):
                                     self.process_incoming_data(arg := pl.f(pl.what))
                                 else:
                                     self.process_incoming_data(arg := {pl.what: pl.f(pl.what)})
-                                await self.noify(arg)
+                                await self.notify(arg)
                         elif msg.type in (WSMsgType.CLOSE, WSMsgType.ERROR):
                             _LOGGER.debug(f'{self.label} Closing connection for {self.my_hex} -> msg')
                             break

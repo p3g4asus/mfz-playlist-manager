@@ -12,7 +12,7 @@ from redis.asyncio.client import Redis
 from telegram import LinkPreviewOptions
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
-from telegram_menu import MenuButton, NavigationHandler
+from telegram_menu import NavigationHandler
 
 from common.const import (CMD_REMOTEBROWSER_JS, CMD_REMOTEBROWSER_JS_ACTIVATE,
                           CMD_REMOTEBROWSER_JS_CLOSE,

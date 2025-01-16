@@ -242,10 +242,12 @@ class ListPagesTMessage(BaseMessage):
                 True)
         new_row = True
         for pi, pim in self.sel_players.items():
-            self.add_button(label=u"\U0001F3A6 " + pi, callback=pim, new_row=new_row)
+            pim.set_show_message(self)
+            self.add_button(label=u"\U0001F3A6 " + pi + ("\U000023F8" if pim.paused else ""), callback=pim, new_row=new_row)
             new_row = False
         new_row = True
         for pi, pim in self.sel_browsers.items():
-            self.add_button(label=u"\U0001F4D9 " + pi, callback=pim, new_row=new_row)
+            pim.set_show_message(self)
+            self.add_button(label=u"\U0001F4D9 " + pi + ("\U000023F8" if pim.paused else ""), callback=pim, new_row=new_row)
             new_row = False
         return self.update_str

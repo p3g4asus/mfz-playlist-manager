@@ -6,7 +6,7 @@ from typing import Any, Coroutine, Dict, List, Optional
 from urllib.parse import urlencode, urlunparse
 
 from telegram import LinkPreviewOptions
-from telegram_menu import MenuButton, NavigationHandler
+from telegram_menu import NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
