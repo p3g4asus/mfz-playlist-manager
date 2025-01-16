@@ -1,7 +1,6 @@
 from abc import abstractmethod
 from asyncio import AbstractEventLoop, Task, TimerHandle, create_task, get_event_loop, sleep
 from datetime import timedelta
-from functools import partial
 import json
 import logging
 import re
@@ -159,7 +158,7 @@ class RemoteInfoMessage(StatusTMessage):
             if self.notification_cache_time > 0:
                 if self.notification_cache_handle:
                     self.notification_cache_handle.cancel()
-                self.notification_cache_handle = self.loop.call_at(self.loop.time() + self.notification_cache_time, partial(self.notify_do, arg))
+                self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, self.notify_do, arg)
             else:
                 await self.notify_do(arg)
 
