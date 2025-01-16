@@ -160,7 +160,7 @@ class RemoteInfoMessage(StatusTMessage):
                     _LOGGER.debug(f'{self.label} cancelling notication task')
                     self.notification_cache_handle.cancel()
                 _LOGGER.debug(f'{self.label} delaying notication of {self.notification_cache_time}')
-                self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, self.notify_do, arg)
+                self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, create_task, self.notify_do(arg))
             else:
                 await self.notify_do(arg)
 
@@ -190,7 +190,7 @@ class RemoteInfoMessage(StatusTMessage):
                 self.paused = True
             await self.remote_send()
             if self.show_message and self.navigation._menu_queue and self.navigation._menu_queue[-1] is self.show_message:
-                self.show_message.edit_or_select()
+                await self.show_message.edit_or_select()
 
     async def ws_connect(self):
         pr = self.parsed_url
