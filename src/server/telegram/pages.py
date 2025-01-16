@@ -4,13 +4,13 @@ import logging
 import traceback
 from typing import Any, Coroutine, Dict, List, Optional, Union
 
-from telegram_menu import BaseMessage, MenuButton
+from telegram_menu import MenuButton
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 from common.playlist import Playlist, PlaylistItem
 from common.user import User
 from server.telegram.browser import BrowserInfoMessage, BrowserListMessage
-from server.telegram.message import MyNavigationHandler, NameDurationTMessage, ProcessorMessage, duration2string
+from server.telegram.message import MyNavigationHandler, NameDurationTMessage, ProcessorMessage, StatusTMessage, duration2string
 from server.telegram.player import PlayerInfoMessage, PlayerListMessage
 
 
@@ -97,7 +97,7 @@ class MultipleGroupsOfItems(object):
             return f'{self.start_item + 1} - {self.stop_item + 1}'
 
 
-class ListPagesTMessage(BaseMessage):
+class ListPagesTMessage(StatusTMessage):
 
     def __init__(self, update_str: str, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen: PageGenerator = None, firstpage: Optional[MultipleGroupsOfItems] = None, deleted=False, input_field=None) -> None:
         super().__init__(

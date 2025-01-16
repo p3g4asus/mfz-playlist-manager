@@ -153,11 +153,13 @@ class RemoteInfoMessage(StatusTMessage):
             await self.remote_send()
 
     async def notify(self, arg: Dict[str, Any]):
-        _LOGGER.debug(f'{self.label} cheking notication for {arg.keys()}')
+        _LOGGER.debug(f'{self.label} checking notication for {arg.keys()}')
         if not self.paused:
             if self.notification_cache_time > 0:
                 if self.notification_cache_handle:
+                    _LOGGER.debug(f'{self.label} cancelling notication task')
                     self.notification_cache_handle.cancel()
+                _LOGGER.debug(f'{self.label} delaying notication of {self.notification_cache_time}')
                 self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, self.notify_do, arg)
             else:
                 await self.notify_do(arg)
