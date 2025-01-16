@@ -195,7 +195,7 @@ class RemoteInfoMessage(StatusTMessage):
                 self.paused = True
             await self.remote_send()
             if self.show_message and self.navigation._menu_queue and self.navigation._menu_queue[-1] is self.show_message:
-                await self.show_message.edit_or_select()
+                await self.show_message.edit_or_select(sync=True)
                 self.is_alive()
 
     async def ws_connect(self):
