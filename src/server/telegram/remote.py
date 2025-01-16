@@ -196,6 +196,7 @@ class RemoteInfoMessage(StatusTMessage):
             await self.remote_send()
             if self.show_message and self.navigation._menu_queue and self.navigation._menu_queue[-1] is self.show_message:
                 await self.show_message.edit_or_select()
+                self.is_alive()
 
     async def ws_connect(self):
         pr = self.parsed_url
