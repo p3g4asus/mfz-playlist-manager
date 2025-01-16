@@ -165,7 +165,7 @@ class RemoteInfoMessage(StatusTMessage):
                     self.notification_cache_handle.cancel()
                 self.notification_cache_dict.update(arg)
                 _LOGGER.debug(f'{self.label} delaying notication of {self.notification_cache_time}')
-                self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, create_task, self.notify_do(self.notification_cache_dicts))
+                self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, create_task, self.notify_do(self.notification_cache_dict))
             else:
                 await self.notify_do(arg)
 
