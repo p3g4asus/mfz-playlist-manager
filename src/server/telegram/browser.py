@@ -69,7 +69,6 @@ class BrowserInfoMessage(RemoteInfoMessage):
 
     def process_incoming_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         rv = None
-        self.modification_made = False
         oldtabs = None
         if 'tabs' in data:
             oldtabs = self.tabs.copy()
@@ -193,18 +192,20 @@ class BrowserInfoMessage(RemoteInfoMessage):
                 pass
 
     def notification_has_to_be_sent(self, arg):
+        rv = False
         if self.current_tab:
             if ('tabs' in arg or f'ic{self.current_tab.id}' in arg) and self.current_tab.id in self.tabs and (t := self.tabs[self.current_tab.id]) != self.current_tab:
                 self.current_tab = t
                 self.set_picture_for_current_tab()
-                return True
+                rv = True
             elif 'tabs' in arg and self.current_tab.id not in self.tabs:
                 self.current_tab = None
                 self.picture = None
-                return True
+                rv = True
         else:
-            return 'tabs' in arg and self.modification_made
-        return False
+            rv = 'tabs' in arg and self.modification_made
+            self.modification_made = False
+        return rv
 
     async def info(self, args: tuple = None, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         self.current_tab = None
