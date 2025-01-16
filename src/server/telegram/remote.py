@@ -68,6 +68,7 @@ class RemoteInfoMessage(StatusTMessage):
         self.show_message: StatusTMessage = None
         self.notification_cache_time: float = notify_cache_time
         self.notification_cache_handle: TimerHandle = None
+        self.notification_cache_dict: Dict[str, Any] = dict()
         self.stopped: bool = False
         self.loop: AbstractEventLoop = get_event_loop()
         self.old_picture = None
@@ -147,7 +148,9 @@ class RemoteInfoMessage(StatusTMessage):
                 self.navigation.send_operation_wrapper(self.navigation.delete_message(mid))
 
     async def notify_do(self, arg: Dict[str, Any]):
-        self.notification_cache_handle = None
+        if self.notification_cache_handle:
+            self.notification_cache_handle = None
+            self.notification_cache_dict = dict()
         _LOGGER.debug(f'{self.label} notification_has_to_be_sent for {arg.keys()}?')
         if self.notification_has_to_be_sent(arg):
             _LOGGER.debug(f'{self.label} notifying for {arg.keys()}')
@@ -160,8 +163,9 @@ class RemoteInfoMessage(StatusTMessage):
                 if self.notification_cache_handle:
                     _LOGGER.debug(f'{self.label} cancelling notication task')
                     self.notification_cache_handle.cancel()
+                self.notification_cache_dict.update(arg)
                 _LOGGER.debug(f'{self.label} delaying notication of {self.notification_cache_time}')
-                self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, create_task, self.notify_do(arg))
+                self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, create_task, self.notify_do(self.notification_cache_dicts))
             else:
                 await self.notify_do(arg)
 
