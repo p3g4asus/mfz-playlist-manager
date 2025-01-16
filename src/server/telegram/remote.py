@@ -148,6 +148,7 @@ class RemoteInfoMessage(StatusTMessage):
 
     async def notify_do(self, arg: Dict[str, Any]):
         self.notification_cache_handle = None
+        _LOGGER.debug(f'{self.label} notification_has_to_be_sent for {arg.keys()}?')
         if self.notification_has_to_be_sent(arg):
             _LOGGER.debug(f'{self.label} notifying for {arg.keys()}')
             await self.remote_send()
