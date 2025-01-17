@@ -123,6 +123,12 @@ class UserSettingsMessage(StatusTMessage):
             self.return_msg = f'Error {pl.rv} saving settings :thumbs_down:'
         await self.switch_to_idle()
 
+    def slash_message_processed(self, text: str) -> bool:
+        for k, s in self.setts.items():
+            if text == '/' + k:
+                return True
+        return super().slash_message_processed(text)
+
     async def text_input(self, text: str, context: Optional[CallbackContext] = None) -> None:
         if self.current_setting:
             s = self.setts[self.current_setting]

@@ -190,6 +190,9 @@ class StatusTMessage(BaseMessage):
     async def switch_to_idle_end(self):
         await self.edit_or_select()
 
+    def slash_message_processed(self, text: str) -> bool:
+        return False
+
     def scheduler_job_remove(self, name: str = None):
         if self.scheduler_job and not name:
             try:
@@ -220,7 +223,7 @@ class StatusTMessage(BaseMessage):
                 "date",
                 id=f"switch_to_idle{id(self)}",
                 replace_existing=True,
-                run_date=datetime.utcnow() + timedelta(seconds=8 if self.inlined else 0.5)
+                run_date=self.datenow(seconds=8 if self.inlined else 0.5)
             )
         await self.switch_to_idle_end()
 
@@ -304,7 +307,7 @@ class NameDurationTMessage(DeletingTMessage):
                     id=name,
                     name=name,
                     replace_existing=True,
-                    run_date=datetime.utcnow() + timedelta(seconds=delay)
+                    run_date=self.datenow(seconds=delay)
                 )
             else:
                 await self.edit_or_select()

@@ -47,8 +47,8 @@ class BrowserTab(Fieldable):
 
 class BrowserInfoMessage(RemoteInfoMessage):
 
-    def __init__(self, name: str, url: str, sel: bool, navigation: Optional[NavigationHandler], redis: Redis = None, user: User = None) -> None:
-        super().__init__(name, url, sel, navigation, link_preview=LinkPreviewOptions(is_disabled=True))
+    def __init__(self, name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int, redis: Redis = None, user: User = None) -> None:
+        super().__init__(name, url, sel, navigation, remoteid, link_preview=LinkPreviewOptions(is_disabled=True))
         self.tabs: Dict[int, BrowserTab] = dict()
         self.tab: BrowserTab = None
         self.current_tab: BrowserTab = None
@@ -146,9 +146,20 @@ class BrowserInfoMessage(RemoteInfoMessage):
                 except (Exception, HTTPError, URLError):
                     self.picture = ''
 
+    def slash_message_processed(self, text):
+        if self.lst_sel and re.search(f'/(u|p)p{self.ns}_([0-9]+)', text):
+            return True
+        elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
+            if re.search(f'/ur{self.ns}_([0-9]+)', text):
+                return True
+        elif self.status == NameDurationStatus.IDLE:
+            if re.search(f'^/k{self.ns}_(.+)$', text) or re.search(f'/ST{self.ns}_([0-9]+)', text):
+                return True
+        return super().slash_message_processed(text)
+
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         await super().text_input(text, context)
-        if self.lst_sel and (mo := re.search('/(u|p)p([0-9]+)', text)) and (g := int(mo.group(2))) < len(self.lst_sel):
+        if self.lst_sel and (mo := re.search(f'/(u|p)p{self.ns}_([0-9]+)', text)) and (g := int(mo.group(2))) < len(self.lst_sel):
             score = int(time() + (0 if mo.group(1) == 'u' else BrowserInfoMessage.PIN_TIME))
             await self.redis.zadd(f'urls_{self.user.rowid}', {self.lst_sel[g][0]: score})
             if self.status == NameDurationStatus.DOWNLOADING_WAITING:
@@ -157,7 +168,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
             text = text.strip()
             try:
                 score = time()
-                if (mo := re.search('/ur([0-9]+)', text)):
+                if (mo := re.search(f'/ur{self.ns}_([0-9]+)', text)):
                     g = int(mo.group(1))
                     url = self.lst_sel[g][0] if g < len(self.lst_sel) else ''
                     if self.lst_sel[g][1] > score:
@@ -170,10 +181,12 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     await self.switch_to_idle()
             except Exception:
                 pass
-        elif self.status == NameDurationStatus.UPDATING_INIT:
-            self.picture = None
+        elif self.status == NameDurationStatus.IDLE:
+            text = text.strip()
             try:
-                if (mo := re.search('/ST([0-9]+)', text)):
+                if (mo := re.search(f'^/k{self.ns}_(.+)$', text)):
+                    await self.key((mo.group(1), ))
+                elif (mo := re.search(f'/ST{self.ns}_([0-9]+)', text)):
                     g = int(mo.group(1))
                     tab = self.tabs[g] if g in self.tabs else None
                     if tab:
@@ -181,13 +194,6 @@ class BrowserInfoMessage(RemoteInfoMessage):
                         self.set_picture_for_current_tab()
                         self.status = NameDurationStatus.IDLE
                         await self.remote_send()
-            except Exception:
-                pass
-        elif self.status == NameDurationStatus.IDLE:
-            text = text.strip()
-            try:
-                if (mo := re.search('^/k(.+)$', text)):
-                    await self.key((mo.group(1), ))
             except Exception:
                 pass
 
@@ -204,7 +210,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
                 rv = True
         else:
             rv = 'tabs' in arg and self.modification_made
-            self.modification_made = False
+        self.modification_made = False
         return rv
 
     async def info(self, args: tuple = None, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
@@ -227,27 +233,27 @@ class BrowserInfoMessage(RemoteInfoMessage):
         self.status = NameDurationStatus.DOWNLOADING_WAITING
         await self.remote_send()
 
-    async def prepare_for_current_tab(self, args: tuple, context: Optional[CallbackContext] = None):
-        self.picture = None
-        self.status = NameDurationStatus.UPDATING_INIT
-        await self.remote_send()
+    # async def prepare_for_current_tab(self, args: tuple, context: Optional[CallbackContext] = None):
+    #     self.picture = None
+    #     self.status = NameDurationStatus.UPDATING_INIT
+    #     await self.remote_send()
 
     async def toggle_activate(self, args: tuple):
         self.activate_tab = not self.activate_tab
         await self.remote_send()
 
-    def list_tabs(self, links: bool = False) -> str:
+    def list_tabs(self, links: int = 0) -> str:
         out = ''
         if self.tabs:
             linklen = 0
             for i, t in self.tabs.items():
                 if t.active:
                     out += '<b><u>'
-                if not links:
+                if links & 2:
                     linklen += len(urladd := f'<a href="{t.url}">') + 4
                 else:
                     urladd = ''
-                out += (f'/ST{i:07} ' if links else f'{i:07}) ') + ('\U0001F6A6' if t.active else ('<code>' if links else '')) + (urladd if not links else '') + f'{escape(t.title[0:200])}' + (u'\U0001F507' if t.muted else '') + f'{"</a>" if not links else ""}{"</u></b>" if t.active else ("</code>" if links else "")}\n'
+                out += (f'/ST{self.ns}_{i:07} ' if links & 1 else f'{i:07}) ') + ('\U0001F6A6' if t.active else ('<code>' if not (links & 2) else '')) + (urladd if links & 2 else '') + f'{escape(t.title[0:150])}' + (u'\U0001F507' if t.muted else '') + f'{"</a>" if links & 2 else ""}{"</u></b>" if t.active else ("</code>" if not (links & 2) else "")}\n'
                 if len(out) - linklen > 3900:
                     break
         else:
@@ -259,10 +265,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
         self.input_field = u'Select button'
         if not self.current_tab:
             self.picture = None
-        if self.status == NameDurationStatus.UPDATING_INIT:
-            out += self.list_tabs(True)
-            self.add_button(u'\U0001F519', self.switch_to_idle)
-        elif self.status == NameDurationStatus.IDLE:
+        if self.status == NameDurationStatus.IDLE:
             self.add_button(u'\U00002139', self.info, args=tuple())
             if self.current_tab or self.tab:
                 self.add_button(u'\U0001F501', self.reload)
@@ -273,7 +276,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     self.add_button(u'\U0001F7E9', self.activate)
                 self.add_button(u'\U0001F310', self.prepare_for_overwrite_tab, new_row=True)
             self.add_button(u'\U0001F310\U00002795', self.prepare_for_new_tab)
-            self.add_button(u'\U0000270E', self.prepare_for_current_tab)
+            # self.add_button(u'\U0000270E', self.prepare_for_current_tab)
             if self.tab:
                 self.add_button('s', self.key, args=('s', ), new_row=True)
                 self.add_button('d', self.key, args=('d', ))
@@ -290,7 +293,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
             if (t := self.current_tab):
                 out += f'<a href="{t.url}">' + (escape(t.title) if t.title else f'ID = {t.id}') + '</a> ' + (u'\U0001F507' if t.muted else '') + ' ' + (u'\U0001F7E9' if t.active else u'\U00002B1B')
             else:
-                out += self.list_tabs()
+                out += self.list_tabs(3)
         elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
             self.input_field = 'url'
             try:
@@ -302,7 +305,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
                         out += 'Enter or select url:\n'
                     url, score = scurl
                     pinned = score > time()
-                    out += f'/ur{i:07} <code>{url[0:150].decode("utf-8")}</code> ' + (f'\U0001F4CD (/up{i:07})' if pinned else f'\U0001F4CC (/pp{i:07})') + '\n'
+                    out += f'/ur{self.ns}_{i:07} <code>{url[0:150].decode("utf-8")}</code> ' + (f'\U0001F4CD (/up{self.ns}_{i:07})' if pinned else f'\U0001F4CC (/pp{self.ns}_{i:07})') + '\n'
                     if len(out) > (3700 if not self.picture else 920):
                         break
                 if not out:
@@ -318,8 +321,8 @@ class BrowserListMessage(RemoteListMessage):
     redis: Redis = None
 
     @staticmethod
-    def build_remote_info_message(name: str, url: str, sel: bool, navigation: NavigationHandler, user: User) -> RemoteInfoMessage:
-        return BrowserInfoMessage(name, url, sel, navigation, redis=BrowserListMessage.redis, user=user)
+    def build_remote_info_message_inner(name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int, user: User) -> RemoteInfoMessage:
+        return BrowserInfoMessage(name, url, sel, navigation, remoteid, redis=BrowserListMessage.redis, user=user)
 
     @classmethod
     def user_conf_field_to_remotes_dict(cls, navigation: NavigationHandler, proc: ProcessorMessage, sel_only: bool = False, field_id: str = None) -> Dict[str, RemoteInfoMessage]:

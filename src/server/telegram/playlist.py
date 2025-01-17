@@ -54,6 +54,9 @@ class PlaylistItemTMessage(NameDurationTMessage):
         self.download_message: PlaylistMessage = None
         super().__init__(navigation, myid, user, params)
 
+    def slash_message_processed(self, text: str) -> bool:
+        return super().slash_message_processed(text) or (self.status == NameDurationStatus.UPDATING_WAITING and text == '/autodetect')
+
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status == NameDurationStatus.SORTING:
             text = text.strip()
@@ -1174,6 +1177,10 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         else:
             self.return_msg = f'Error {pl.rv} downloading subbrands :tumbs_down:'
         await self.switch_to_idle()
+
+    def slash_message_processed(self, text: str) -> bool:
+        return super().slash_message_processed(text) or (
+            self.status == NameDurationStatus.IDLE and self.listings_cache and (re.search(r'^/brand_([0-9]+)$', text) or re.search(r'^/brandid ([0-9a-zA-Z_\-]+)$', text)))
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, Coroutine[Any, Any, None]]:
         if self.status == NameDurationStatus.IDLE:

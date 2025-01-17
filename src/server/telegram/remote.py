@@ -1,8 +1,9 @@
 from abc import abstractmethod
-from asyncio import AbstractEventLoop, Task, TimerHandle, create_task, get_event_loop, sleep
+from asyncio import AbstractEventLoop, Task, TimerHandle, create_task, get_event_loop
 from datetime import timedelta
 import json
 import logging
+from os import urandom
 import re
 import traceback
 from typing import Any, Coroutine, Dict, List, Optional, Tuple, Union
@@ -47,7 +48,7 @@ class RemoteInfoMessage(StatusTMessage):
             strid = mo.group(1)
         return strid.lower()
 
-    def __init__(self, name: str, url: str, sel: bool, navigation: Optional[NavigationHandler] = None, notify_cache_time: float = 0.7, **argw) -> None:
+    def __init__(self, name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int, notify_cache_time: float = 0.7, **argw) -> None:
         super().__init__(
             navigation,
             label=self.__class__.__name__ + name,
@@ -58,14 +59,15 @@ class RemoteInfoMessage(StatusTMessage):
         if not (pr := self.is_url_ok(url)):
             raise Exception(f'Invalid remote url {url}')
         self.name: str = name
+        self.n: int = remoteid
+        self.ns: str = f'{remoteid:02d}'
         self.navigation: MyNavigationHandler
         self.task: Optional[Task] = None
         self.paused: bool = False
-        self.S = RemoteInfoMessage.get_string_id_from_class(self.__class__).capitalize()
-        self.sentinel: Optional[Task] = None
+        self.s = RemoteInfoMessage.get_string_id_from_class(self.__class__)
+        self.S = self.s.capitalize()
+        self.sentinel: TimerHandle = None
         self.url: str = url
-        self.navigation: Optional[NavigationHandler] = navigation
-        self.show_message: StatusTMessage = None
         self.notification_cache_time: float = notify_cache_time
         self.notification_cache_handle: TimerHandle = None
         self.notification_cache_dict: Dict[str, Any] = dict()
@@ -78,7 +80,7 @@ class RemoteInfoMessage(StatusTMessage):
         self.parsed_url: Tuple[ParseResult, Dict[str, List[str]]] = pr
         base_hex = pr[1]['hex'][0]
         self.dest_hex = self.get_dest_hex_prefix() + base_hex
-        self.my_hex = self.get_my_hex_prefix() + base_hex
+        self.my_hex = self.get_my_hex_prefix() + base_hex + urandom(15).hex()
         self.base_cmd: ParseResult = pr[0]._replace(path=pr[0].path[1:-len(RemoteInfoMessage.END_URL_PATH)] + f'/rcmd/{self.dest_hex}')
 
     @abstractmethod
@@ -88,9 +90,6 @@ class RemoteInfoMessage(StatusTMessage):
     @abstractmethod
     def notification_has_to_be_sent(self, arg: Dict[str, Any]) -> bool:
         pass
-
-    def set_show_message(self, sm: StatusTMessage):
-        self.show_message = sm
 
     def stop_sentinel(self):
         if self.sentinel:
@@ -173,10 +172,9 @@ class RemoteInfoMessage(StatusTMessage):
         _LOGGER.debug(f'{self.label} Sending to {self.my_hex} -> {cmd}')
         await ws.send_str(cmd)
 
-    async def ws_sentinel(self, ws, timeout):
-        await sleep(timeout)
+    async def ws_sentinel(self, ws):
         if self.task and self.sentinel:
-            _LOGGER.debug(f'{self.label} Sentinel Stopping connection {self.my_hex}')
+            _LOGGER.debug(f'{self.label} Sentinel Closing connection {self.my_hex}')
             try:
                 await ws.close()
             except Exception:
@@ -185,18 +183,19 @@ class RemoteInfoMessage(StatusTMessage):
 
     async def update(self, context: CallbackContext | None = None) -> str:
         self.keyboard: List[List["MenuButton"]] = [[]]
-        return f'<b>{self.S} {self.name}{" (paused)" if self.paused else ""}</b> /' + ('restart' if self.paused else 'pause') + '\n'
+        return f'<b>{self.S} {self.name} [{self.ns}]{" (paused)" if self.paused else ""}</b> /' + ('restart' if self.paused else 'pause') + self.ns + '\n'
+
+    def slash_message_processed(self, text):
+        return text == f'/pause{self.ns}' or text == f'/restart{self.ns}'
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
-        if text == '/pause' or text == '/restart':
-            if text == '/restart':
+        sfx = self.ns
+        if text == f'/pause{sfx}' or text == f'/restart{sfx}':
+            if text == f'/restart{sfx}':
                 self.paused = False
-            elif text == '/pause':
+            else:
                 self.paused = True
             await self.remote_send()
-            if self.show_message and self.navigation._menu_queue and self.navigation._menu_queue[-1] is self.show_message:
-                await self.show_message.edit_or_select(sync=True)
-                self.is_alive()
 
     async def ws_connect(self):
         pr = self.parsed_url
@@ -210,7 +209,7 @@ class RemoteInfoMessage(StatusTMessage):
                     _LOGGER.debug(f'{self.label} Opened connection for {self.my_hex}')
                     remplay = json.dumps(PlaylistMessage(CMD_REMOTEPLAY), cls=MyEncoder)
                     rempush = json.dumps(PlaylistMessage(CMD_REMOTEPLAY_PUSH_NOTIFY, fr=self.dest_hex), cls=MyEncoder)
-                    self.sentinel = create_task(self.ws_sentinel(ws, 7))
+                    self.sentinel = self.loop.call_later(7, create_task, self.ws_sentinel(ws))
                     await self.ws_send(ws, remplay)
                     async for msg in ws:
                         if msg.type == WSMsgType.TEXT:
@@ -259,6 +258,7 @@ class RemoteInfoMessage(StatusTMessage):
 
 
 class RemoteListMessage(StatusTMessage):
+    _REMOTE_N: Dict[int, int] = dict()
 
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, strid: str = None, **argw) -> None:
         self.current_url = ''
@@ -268,9 +268,14 @@ class RemoteListMessage(StatusTMessage):
         self.S: str = strid.capitalize()
         super().__init__(navigation, label=self.__class__.__name__, input_field=f'{self.S} Url', user=user, params=params, **argw)
 
+    @classmethod
+    def build_remote_info_message(cls, name: str, url: str, sel: bool, navigation: NavigationHandler, user: User) -> RemoteInfoMessage:
+        RemoteListMessage._REMOTE_N[user.rowid] = remoteid = RemoteListMessage._REMOTE_N.get(user.rowid, 0) + 1
+        return cls.build_remote_info_message_inner(name, url, sel, navigation, remoteid, user)
+
     @staticmethod
     @abstractmethod
-    def build_remote_info_message(name: str, url: str, sel: bool, navigation: NavigationHandler, user: User) -> RemoteInfoMessage:
+    def build_remote_info_message_inner(name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int, user: User) -> RemoteInfoMessage:
         pass
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:

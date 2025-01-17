@@ -23,8 +23,8 @@ class PlayerInfoMessage(RemoteInfoMessage):
     DEFAULT_VINFO = dict(tot_n=0, tot_durs='0s', rate=1)
     DEFAULT_PINFO = dict(sec=0)
 
-    def __init__(self, name: str, url: str, sel: bool, navigation: Optional[NavigationHandler]) -> None:
-        super().__init__(name, url, sel, navigation, link_preview=LinkPreviewOptions(is_disabled=True))
+    def __init__(self, name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int) -> None:
+        super().__init__(name, url, sel, navigation, remoteid, link_preview=LinkPreviewOptions(is_disabled=True))
         pr = self.parsed_url
         self.plitems: List[PlaylistItem] = []
         self.plnames: List[str] = list(pr[1]['name'])
@@ -134,6 +134,9 @@ class PlayerInfoMessage(RemoteInfoMessage):
     async def goto_item(self, idx: int):
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_ITEM, n=idx)
 
+    def slash_message_processed(self, text):
+        return super().slash_message_processed(text) or (self.status == NameDurationStatus.IDLE and (re.search(r'^/s' + self.ns + r'\s*(.+)', text) or re.search(r'^/I' + self.ns + r'_(\d+)', text) or text.startswith(f'/TT{self.ns}_')))
+
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         await super().text_input(text, context)
         if self.status == NameDurationStatus.IDLE:
@@ -141,14 +144,14 @@ class PlayerInfoMessage(RemoteInfoMessage):
             try:
                 sect = None
                 rel = 0
-                if ((mo := re.search(r'^/s\s*(.+)', text)) and (mo := PlayerInfoMessage.is_url(mo.group(1)))):
+                if ((mo := re.search(r'^/s' + self.ns + r'\s*(.+)', text)) and (mo := PlayerInfoMessage.is_url(mo.group(1)))):
                     await self.schedule(mo.group(1))
                     return
-                elif ((mo := re.search(r'^/I(\d+)', text))):
+                elif ((mo := re.search(r'^/I' + self.ns + r'_(\d+)', text))):
                     await self.goto_item(int(mo.group(1)))
                     return
-                elif text.startswith('/TT'):
-                    text = text[3:]
+                elif text.startswith(ss := f'/TT{self.ns}_'):
+                    text = text[len(ss):]
                 elif (mo := re.search(r'^\s*([\-\+])', text)):
                     rel = 1 if mo.group(1) == '+' else -1
                     text = text[mo.end():]
@@ -267,7 +270,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
                 no = int(round(30.0 * (perc := sec / vinfo["duri"]))) if vinfo["duri"] else (perc := 0)
                 rv += f'<code>{duration2string(round(sec))} ({vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}% ({rate:.2f}\U0000274E)</code>'
                 for ch in vinfo["chapters"]:
-                    rv += f'\n/TT{int(ch["start_time"])}s {escape(ch["title"])}'
+                    rv += f'\n/TT{self.ns}_{int(ch["start_time"])}s {escape(ch["title"])}'
                 idx = vinfo['idx']
                 if idx >= len(plitems):
                     return rv
@@ -289,7 +292,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
                     it = self.plitems[ci]
                     if 'rate' in it.conf:
                         rate = it.conf['rate']
-                    a2 = f'\n<b>/I{ci:06d}</b> <a href="{it.link}">{escape(it.title)}</a> ({duration2string(round(it.dur / rate))})'
+                    a2 = f'\n<b>/I{self.ns}_{ci:06d}</b> <a href="{it.link}">{escape(it.title)}</a> ({duration2string(round(it.dur / rate))})'
                     if updown_s == 1:
                         add += a2
                     else:
@@ -303,5 +306,5 @@ class PlayerInfoMessage(RemoteInfoMessage):
 
 class PlayerListMessage(RemoteListMessage):
     @staticmethod
-    def build_remote_info_message(name: str, url: str, sel: bool, navigation: NavigationHandler, user: User) -> RemoteInfoMessage:
-        return PlayerInfoMessage(name, url, sel, navigation)
+    def build_remote_info_message_inner(name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int, user: User) -> RemoteInfoMessage:
+        return PlayerInfoMessage(name, url, sel, navigation, remoteid)

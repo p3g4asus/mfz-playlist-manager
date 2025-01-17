@@ -201,6 +201,9 @@ class StartTMessage(BaseMessage):
         """Update message content."""
         return "This is a notification"
 
+    def slash_message_processed(self, text: str) -> bool:
+        return False
+
     async def text_input(self, text: str, context: Optional[CallbackContext] = None) -> None:
         """Receive text from console. If used, this function must be instantiated in the child class."""
         _LOGGER.info(f"Handle for {text}")

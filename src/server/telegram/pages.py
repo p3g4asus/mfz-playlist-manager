@@ -4,13 +4,13 @@ import logging
 import traceback
 from typing import Any, Coroutine, Dict, List, Optional, Union
 
-from telegram_menu import MenuButton
+from telegram_menu import BaseMessage, MenuButton
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 from common.playlist import Playlist, PlaylistItem
 from common.user import User
 from server.telegram.browser import BrowserInfoMessage, BrowserListMessage
-from server.telegram.message import MyNavigationHandler, NameDurationTMessage, ProcessorMessage, StatusTMessage, duration2string
+from server.telegram.message import MyNavigationHandler, NameDurationTMessage, ProcessorMessage, duration2string
 from server.telegram.player import PlayerInfoMessage, PlayerListMessage
 
 
@@ -97,7 +97,7 @@ class MultipleGroupsOfItems(object):
             return f'{self.start_item + 1} - {self.stop_item + 1}'
 
 
-class ListPagesTMessage(StatusTMessage):
+class ListPagesTMessage(BaseMessage):
 
     def __init__(self, update_str: str, navigation: MyNavigationHandler, max_items_per_group=6, max_group_per_page=6, pagegen: PageGenerator = None, firstpage: Optional[MultipleGroupsOfItems] = None, deleted=False, input_field=None) -> None:
         super().__init__(
@@ -183,6 +183,9 @@ class ListPagesTMessage(StatusTMessage):
         if val > 0:
             await self.goto_index(val - 1, context)
 
+    def slash_message_processed(self, text: str) -> bool:
+        return False
+
     async def goto_page(self, args, context=None):
         page, = args
         self.first_page = page
@@ -242,12 +245,10 @@ class ListPagesTMessage(StatusTMessage):
                 True)
         new_row = True
         for pi, pim in self.sel_players.items():
-            pim.set_show_message(self)
-            self.add_button(label=u"\U0001F3A6 " + pi + ("\U000023F8" if pim.paused else ""), callback=pim, new_row=new_row)
+            self.add_button(label=u"\U0001F3A6 " + pi, callback=pim, new_row=new_row)
             new_row = False
         new_row = True
         for pi, pim in self.sel_browsers.items():
-            pim.set_show_message(self)
-            self.add_button(label=u"\U0001F4D9 " + pi + ("\U000023F8" if pim.paused else ""), callback=pim, new_row=new_row)
+            self.add_button(label=u"\U0001F4D9 " + pi, callback=pim, new_row=new_row)
             new_row = False
         return self.update_str
