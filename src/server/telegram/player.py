@@ -175,7 +175,9 @@ class PlayerInfoMessage(RemoteInfoMessage):
             except Exception:
                 pass
 
-    async def info(self, args: tuple = ()) -> None:
+    async def info(self, args: tuple = (), auto: bool = False) -> None:
+        if not auto and not self.killed and not (self.navigation._message_queue and self.navigation._message_queue[-1] is self):
+            self.killed = True
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_INFO)
 
     async def manage_state_change(self, args: tuple, context: Optional[CallbackContext] = None):
@@ -223,7 +225,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
         addtxt = ''
         if self.status == NameDurationStatus.IDLE or self.status == NameDurationStatus.RENAMING:
             if self.default_vinfo > 1:
-                await self.info()
+                await self.info(auto=True)
             self.add_button(u'\U000023EF', self.manage_state_change, args=(self.play,))
             self.add_button(u'\U00002139', self.manage_state_change, args=(self.info, ))
             self.add_button(u'\U000023EE', self.manage_state_change, args=(self.move_pl, -1), new_row=True)

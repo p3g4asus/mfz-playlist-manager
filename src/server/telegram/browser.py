@@ -216,6 +216,8 @@ class BrowserInfoMessage(RemoteInfoMessage):
     async def info(self, args: tuple = None, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         self.current_tab = None
         self.picture = None
+        if not self.killed and not (self.navigation._message_queue and self.navigation._message_queue[-1] is self):
+            self.killed = True
         await self.remote_send()
 
     async def prepare_for_new_tab(self, args: tuple):

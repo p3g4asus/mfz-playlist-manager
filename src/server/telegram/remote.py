@@ -122,7 +122,7 @@ class RemoteInfoMessage(StatusTMessage):
             return False
 
     async def remote_send(self):
-        if not self.killed and self.navigation._message_queue and self.navigation._message_queue[-1] is self and not self.picture_changed() and (await self.navigation.navigation_schedule_wrapper(self.edit_message(), True)):
+        if not self.killed and not self.picture_changed() and (await self.navigation.navigation_schedule_wrapper(self.edit_message(), True)):
             _LOGGER.debug(f'{self.label} remote_send edit_or_select')
         else:
             _LOGGER.debug(f'{self.label} remote_send send')
