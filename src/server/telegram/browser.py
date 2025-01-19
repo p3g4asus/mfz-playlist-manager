@@ -1,4 +1,6 @@
+from copy import deepcopy
 from html import escape
+from io import BytesIO
 from urllib.error import HTTPError, URLError
 import imghdr
 import logging
@@ -68,27 +70,45 @@ class BrowserInfoMessage(RemoteInfoMessage):
         return 'g'
 
     def process_incoming_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        rv = None
+        rv = data
+        oldtabs = None
         if 'tabs' in data:
             oldtabs = self.tabs.copy()
             self.tabs.clear()
             self.tab = None
             for t in data['tabs']:
-                if (tbi := t['id']) not in oldtabs:
+                if (tbi := t['id']) in oldtabs:
+                    oldico = oldtabs[tbi].ico
+                else:
+                    oldico = None
                     self.modification_made = True
                 self.tabs[tbi] = ct = BrowserTab(**t)
+                if not ct.ico and oldico:
+                    ct.ico = oldico
                 if ct.active:
                     self.tab = ct
-            if not self.modification_made and oldtabs is not None:
-                self.modification_made = oldtabs != self.tabs
-            rv = data
+        else:
+            for k, v in data.items():
+                if (mo := re.search('ic([0-9]+)', k)):
+                    tbi = int(mo.group(1))
+                    if tbi in self.tabs and (t := self.tabs[tbi]).ico != v:
+                        t = deepcopy(t)
+                        t.ico = v
+                        self.tabs[tbi] = t
+                        self.modification_made = True
+        if not self.modification_made and oldtabs is not None:
+            self.modification_made = oldtabs != self.tabs
         return rv
 
     PIN_TIME = 31536000 * 300
 
+    def set_current_tab(self, t: BrowserTab = None):
+        self.current_tab = t
+        self.picture = None if not t else self.get_picture_for_current_tab()
+
     async def close(self, args: tuple):
         t = self.current_tab
-        self.current_tab = None
+        self.set_current_tab(None)
         await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_CLOSE, id=t.id if t else self.tab.id)
 
     async def reload(self, args: tuple):
@@ -106,30 +126,30 @@ class BrowserInfoMessage(RemoteInfoMessage):
     async def goto(self, url: str):
         await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_GOTO, id=self.current_tab.id if self.current_tab else 'New', url=url, act=self.activate_tab)
 
-    def set_picture_for_current_tab(self):
+    def get_picture_for_current_tab(self) -> str | BytesIO:
         # self.picture = None
         # return
-        self.picture = self.current_tab.ico if self.current_tab and self.current_tab.ico else ''
-        if self.picture:
-            if self.picture.startswith('data:') or self.picture.endswith('.svg') or self.picture.endswith('.ico'):
+        picture = self.current_tab.ico if self.current_tab and self.current_tab.ico else ''
+        if picture:
+            if picture.startswith('data:') or picture.endswith('.svg') or picture.endswith('.ico'):
                 try:
                     import urllib
-                    from io import BytesIO
 
                     from PIL import Image
-                    response = urllib.request.urlopen(self.picture, timeout=3)
+                    response = urllib.request.urlopen(picture, timeout=3)
                     try:
-                        self.picture = BytesIO(response.file.read())
+                        picture = BytesIO(response.file.read())
                     except Exception:
-                        self.picture = BytesIO(response.read())
-                    if not imghdr.what(self.picture):
-                        img = Image.open(self.picture)
+                        picture = BytesIO(response.read())
+                    if not imghdr.what(picture):
+                        img = Image.open(picture)
                         membuf = BytesIO()
                         img.save(membuf, format="png")
                         membuf.seek(0)
-                        self.picture = membuf
+                        picture = membuf
                 except (Exception, HTTPError, URLError):
-                    self.picture = ''
+                    picture = ''
+        return picture
 
     def slash_message_processed(self, text):
         if self.lst_sel and re.search(f'/(u|p)p{self.ns}_([0-9]+)', text):
@@ -175,7 +195,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     g = int(mo.group(1))
                     tab = self.tabs[g] if g in self.tabs else None
                     if tab:
-                        self.current_tab = tab
+                        self.set_current_tab(tab)
                         self.status = NameDurationStatus.IDLE
                         await self.remote_send()
             except Exception:
@@ -184,11 +204,11 @@ class BrowserInfoMessage(RemoteInfoMessage):
     def notification_has_to_be_sent(self, arg):
         rv = False
         if self.current_tab:
-            if 'tabs' in arg and self.current_tab.id in self.tabs and (t := self.tabs[self.current_tab.id]) != self.current_tab:
-                self.current_tab = t
+            if ('tabs' in arg or f'ic{self.current_tab.id}' in arg) and self.current_tab.id in self.tabs and (t := self.tabs[self.current_tab.id]) != self.current_tab:
+                self.set_current_tab(t)
                 rv = True
             elif 'tabs' in arg and self.current_tab.id not in self.tabs:
-                self.current_tab = None
+                self.set_current_tab(None)
                 rv = True
         else:
             rv = 'tabs' in arg and self.modification_made
@@ -196,21 +216,21 @@ class BrowserInfoMessage(RemoteInfoMessage):
         return rv
 
     async def info(self, args: tuple = None, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
-        self.current_tab = None
+        self.set_current_tab(None)
         if (not args or not args[0]) and not self.killed and not (self.navigation._message_queue and self.navigation._message_queue[-1] is self):
             self.killed = True
         await self.remote_send()
 
     async def prepare_for_new_tab(self, args: tuple):
         self.activate_tab = True
-        self.current_tab = None
+        self.set_current_tab(None)
         self.status = NameDurationStatus.DOWNLOADING_WAITING
         await self.remote_send()
 
     async def prepare_for_overwrite_tab(self, args: tuple):
         self.activate_tab = True
         if not self.current_tab:
-            self.current_tab = self.tab
+            self.set_current_tab(self.tab)
         self.status = NameDurationStatus.DOWNLOADING_WAITING
         await self.remote_send()
 
@@ -244,7 +264,11 @@ class BrowserInfoMessage(RemoteInfoMessage):
     async def update(self, context: CallbackContext | None = None) -> str:
         out = await super().update(context)
         self.input_field = u'Select button'
-        self.link_preview = None if self.current_tab else BrowserInfoMessage.DISABLE_LP
+        if self.current_tab:
+            self.link_preview = None
+        else:
+            self.link_preview = BrowserInfoMessage.DISABLE_LP
+            self.picture = None
         if self.status == NameDurationStatus.IDLE:
             if not self.current_tab:
                 self.add_button(u'\U00002139', self.info, args=tuple())
