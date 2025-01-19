@@ -121,8 +121,16 @@ class RemoteInfoMessage(StatusTMessage):
         else:
             return False
 
+    def message_is_hidden(self) -> bool:
+        for x in reversed(self.navigation._message_queue):
+            if x is self:
+                return False
+            elif not isinstance(x, RemoteInfoMessage):
+                return True
+        return True
+
     async def remote_send(self):
-        if not self.killed and not self.picture_changed() and (await self.navigation.navigation_schedule_wrapper(self.edit_message(), True)):
+        if not self.killed and not self.message_is_hidden() and not self.picture_changed() and not isinstance(await self.navigation.navigation_schedule_wrapper(self.edit_message(), True), Exception):
             _LOGGER.debug(f'{self.label} remote_send edit_or_select')
         else:
             _LOGGER.debug(f'{self.label} remote_send send')
