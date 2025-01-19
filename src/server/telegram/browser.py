@@ -1,4 +1,3 @@
-from copy import deepcopy
 from html import escape
 from urllib.error import HTTPError, URLError
 import imghdr
@@ -46,9 +45,10 @@ class BrowserTab(Fieldable):
 
 
 class BrowserInfoMessage(RemoteInfoMessage):
+    DISABLE_LP: LinkPreviewOptions = LinkPreviewOptions(is_disabled=True)
 
     def __init__(self, name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int, redis: Redis = None, user: User = None) -> None:
-        super().__init__(name, url, sel, navigation, remoteid, link_preview=LinkPreviewOptions(is_disabled=True))
+        super().__init__(name, url, sel, navigation, remoteid, link_preview=BrowserInfoMessage.DISABLE_LP)
         self.tabs: Dict[int, BrowserTab] = dict()
         self.tab: BrowserTab = None
         self.current_tab: BrowserTab = None
@@ -69,33 +69,19 @@ class BrowserInfoMessage(RemoteInfoMessage):
 
     def process_incoming_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         rv = None
-        oldtabs = None
         if 'tabs' in data:
             oldtabs = self.tabs.copy()
             self.tabs.clear()
             self.tab = None
             for t in data['tabs']:
-                if (tbi := t['id']) in oldtabs:
-                    oldico = oldtabs[tbi].ico
-                else:
-                    oldico = None
+                if (tbi := t['id']) not in oldtabs:
                     self.modification_made = True
                 self.tabs[tbi] = ct = BrowserTab(**t)
-                if not ct.ico and oldico:
-                    ct.ico = oldico
                 if ct.active:
                     self.tab = ct
-        else:
-            for k, v in data.items():
-                if (mo := re.search('ic([0-9]+)', k)):
-                    tbi = int(mo.group(1))
-                    if tbi in self.tabs and (t := self.tabs[tbi]).ico != v:
-                        t = deepcopy(t)
-                        t.ico = v
-                        self.tabs[tbi] = t
-                        self.modification_made = True
-        if not self.modification_made and oldtabs is not None:
-            self.modification_made = oldtabs != self.tabs
+            if not self.modification_made and oldtabs is not None:
+                self.modification_made = oldtabs != self.tabs
+            rv = data
         return rv
 
     PIN_TIME = 31536000 * 300
@@ -103,7 +89,6 @@ class BrowserInfoMessage(RemoteInfoMessage):
     async def close(self, args: tuple):
         t = self.current_tab
         self.current_tab = None
-        self.picture = None
         await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_CLOSE, id=t.id if t else self.tab.id)
 
     async def reload(self, args: tuple):
@@ -191,7 +176,6 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     tab = self.tabs[g] if g in self.tabs else None
                     if tab:
                         self.current_tab = tab
-                        self.set_picture_for_current_tab()
                         self.status = NameDurationStatus.IDLE
                         await self.remote_send()
             except Exception:
@@ -200,13 +184,11 @@ class BrowserInfoMessage(RemoteInfoMessage):
     def notification_has_to_be_sent(self, arg):
         rv = False
         if self.current_tab:
-            if ('tabs' in arg or f'ic{self.current_tab.id}' in arg) and self.current_tab.id in self.tabs and (t := self.tabs[self.current_tab.id]) != self.current_tab:
+            if 'tabs' in arg and self.current_tab.id in self.tabs and (t := self.tabs[self.current_tab.id]) != self.current_tab:
                 self.current_tab = t
-                self.set_picture_for_current_tab()
                 rv = True
             elif 'tabs' in arg and self.current_tab.id not in self.tabs:
                 self.current_tab = None
-                self.picture = None
                 rv = True
         else:
             rv = 'tabs' in arg and self.modification_made
@@ -215,15 +197,13 @@ class BrowserInfoMessage(RemoteInfoMessage):
 
     async def info(self, args: tuple = None, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         self.current_tab = None
-        self.picture = None
-        if not self.killed and not (self.navigation._message_queue and self.navigation._message_queue[-1] is self):
+        if (not args or not args[0]) and not self.killed and not (self.navigation._message_queue and self.navigation._message_queue[-1] is self):
             self.killed = True
         await self.remote_send()
 
     async def prepare_for_new_tab(self, args: tuple):
         self.activate_tab = True
         self.current_tab = None
-        self.picture = None
         self.status = NameDurationStatus.DOWNLOADING_WAITING
         await self.remote_send()
 
@@ -231,7 +211,6 @@ class BrowserInfoMessage(RemoteInfoMessage):
         self.activate_tab = True
         if not self.current_tab:
             self.current_tab = self.tab
-            self.set_picture_for_current_tab()
         self.status = NameDurationStatus.DOWNLOADING_WAITING
         await self.remote_send()
 
@@ -265,21 +244,22 @@ class BrowserInfoMessage(RemoteInfoMessage):
     async def update(self, context: CallbackContext | None = None) -> str:
         out = await super().update(context)
         self.input_field = u'Select button'
-        if not self.current_tab:
-            self.picture = None
+        self.link_preview = None if self.current_tab else BrowserInfoMessage.DISABLE_LP
         if self.status == NameDurationStatus.IDLE:
-            self.add_button(u'\U00002139', self.info, args=tuple())
+            if not self.current_tab:
+                self.add_button(u'\U00002139', self.info, args=tuple())
             if self.current_tab or self.tab:
                 self.add_button(u'\U0001F501', self.reload)
-                self.add_button(u'\U0000274C', self.close, new_row=True)
+                self.add_button(u'\U0000274C', self.close, new_row=not bool(self.current_tab))
                 btn = u'\U0001F507' if (self.current_tab and not self.current_tab.muted) or (not self.current_tab and not self.tab.muted) else u'\U0001F50A'
-                self.add_button(btn, self.toggle_mute, args=(btn, ))
+                self.add_button(btn, self.toggle_mute, args=(btn, ), new_row=bool(self.current_tab))
                 if self.current_tab:
                     self.add_button(u'\U0001F7E9', self.activate)
                 self.add_button(u'\U0001F310', self.prepare_for_overwrite_tab, new_row=True)
-            self.add_button(u'\U0001F310\U00002795', self.prepare_for_new_tab)
+            if not self.current_tab:
+                self.add_button(u'\U0001F310\U00002795', self.prepare_for_new_tab)
             # self.add_button(u'\U0000270E', self.prepare_for_current_tab)
-            if self.tab:
+            if self.tab or self.current_tab:
                 self.add_button('s', self.key, args=('s', ), new_row=True)
                 self.add_button('d', self.key, args=('d', ))
                 self.add_button('g', self.key, args=('g', ))
@@ -292,6 +272,8 @@ class BrowserInfoMessage(RemoteInfoMessage):
                 self.add_button(u'\U00002192', self.key, args=('[ArrowRight]', ))
                 self.add_button(u'\U00002193', self.key, args=('[ArrowDown]', ))
                 self.add_button(u'\U00002191', self.key, args=('[ArrowUp]', ))
+                if self.current_tab:
+                    self.add_button(u'\U00002934', self.info, args=(True, ), new_row=True)
             if (t := self.current_tab):
                 out += f'<a href="{t.url}">' + (escape(t.title) if t.title else f'ID = {t.id}') + '</a> ' + (u'\U0001F507' if t.muted else '') + ' ' + (u'\U0001F7E9' if t.active else u'\U00002B1B')
             else:
