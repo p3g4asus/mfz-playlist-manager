@@ -17,7 +17,7 @@ from telegram.ext._utils.types import BD, BT, CD, UD
 from common.const import CMD_REMOTEPLAY, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY
 from common.playlist import PlaylistMessage
 from common.user import User
-from common.utils import MyEncoder
+from common.utils import MyEncoder, coro_could_safely_not_be_awaited
 from server.telegram.message import MyNavigationHandler, NameDurationStatus, ProcessorMessage, StatusTMessage
 
 _LOGGER = logging.getLogger(__name__)
@@ -172,7 +172,7 @@ class RemoteInfoMessage(StatusTMessage):
                     self.notification_cache_handle.cancel()
                 self.notification_cache_dict.update(arg)
                 _LOGGER.debug(f'{self.label} delaying notication of {self.notification_cache_time}')
-                self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, create_task, self.notify_do(self.notification_cache_dict))
+                self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, create_task, coro_could_safely_not_be_awaited(self.notify_do(self.notification_cache_dict)))
             else:
                 await self.notify_do(arg)
 
@@ -217,7 +217,7 @@ class RemoteInfoMessage(StatusTMessage):
                     _LOGGER.debug(f'{self.label} Opened connection for {self.my_hex}')
                     remplay = json.dumps(PlaylistMessage(CMD_REMOTEPLAY), cls=MyEncoder)
                     rempush = json.dumps(PlaylistMessage(CMD_REMOTEPLAY_PUSH_NOTIFY, fr=self.dest_hex), cls=MyEncoder)
-                    self.sentinel = self.loop.call_later(7, create_task, self.ws_sentinel(ws))
+                    self.sentinel = self.loop.call_later(7, create_task, coro_could_safely_not_be_awaited(self.ws_sentinel(ws)))
                     await self.ws_send(ws, remplay)
                     async for msg in ws:
                         if msg.type == WSMsgType.TEXT:

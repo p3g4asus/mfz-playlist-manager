@@ -2,6 +2,8 @@ import abc
 import datetime
 import json
 import asyncio
+from typing import Coroutine
+from weakref import finalize
 
 
 class JSONAble(abc.ABC):
@@ -51,6 +53,11 @@ def get_isosplit(s, split):
     else:
         n = 0
     return n, s
+
+
+def coro_could_safely_not_be_awaited(coro_obj: Coroutine) -> Coroutine:
+    finalize(coro_obj, coro_obj.close)
+    return coro_obj
 
 
 def parse_isoduration(s):
