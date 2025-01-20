@@ -153,6 +153,8 @@ class BrowserInfoMessage(RemoteInfoMessage):
                         img.save(membuf, format="png")
                         membuf.seek(0)
                         picture = membuf
+                    if isinstance(picture, BytesIO) and picture.getbuffer().nbytes <= 0:
+                        picture = ''
                 except (Exception, HTTPError, URLError):
                     picture = ''
         return picture
