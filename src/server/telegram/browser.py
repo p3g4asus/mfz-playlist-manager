@@ -95,6 +95,8 @@ class BrowserInfoMessage(RemoteInfoMessage):
                         t = deepcopy(t)
                         t.ico = v
                         self.tabs[tbi] = t
+                        if t.active:
+                            self.tab = t
                         self.modification_made = True
         if not self.modification_made and oldtabs is not None:
             self.modification_made = oldtabs != self.tabs
@@ -103,8 +105,12 @@ class BrowserInfoMessage(RemoteInfoMessage):
     PIN_TIME = 31536000 * 300
 
     def set_current_tab(self, t: BrowserTab = None):
+        if t and self.current_tab:
+            img = t.ico != self.current_tab.ico
+        else:
+            img = True
         self.current_tab = t
-        self.picture = None if not t else self.get_picture_for_current_tab()
+        self.picture = None if not t else (self.picture if not img else self.get_picture_for_current_tab())
 
     async def close(self, args: tuple):
         t = self.current_tab
