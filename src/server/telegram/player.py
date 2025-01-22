@@ -143,7 +143,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
                     return
                 elif text.startswith(ss := f'/TT{self.ns}_'):
                     text = text[len(ss):]
-                elif (mo := re.search(r'^\s*([\-\+])', text)):
+                if (mo := re.search(r'^\s*([\-\+])', text)):
                     rel = 1 if mo.group(1) == '+' else -1
                     text = text[mo.end():]
                 while True:
