@@ -92,22 +92,22 @@ class PlayerInfoMessage(RemoteInfoMessage):
         rex = r'(?i)\b((?:https?:(?:/{1,3}|[a-z0-9%])|[a-z0-9.\-]+[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)/)(?:[^\s()<>{}\[\]]+|\([^\s()]*?\([^\s()]+\)[^\s()]*?\)|\([^\s]+?\))+(?:\([^\s()]*?\([^\s()]+\)[^\s()]*?\)|\([^\s]+?\)|[^\s`!()\[\]{};:\'".,<>?«»“”‘’])|(?:(?<!@)[a-z0-9]+(?:[.\-][a-z0-9]+)*[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)\b/?(?!@)))'
         return re.search(rex, ss)
 
-    async def play(self, args: tuple):
+    async def play(self, args: tuple = None, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_PAUSE)
 
-    async def sync_changes(self, args: tuple = tuple()):
+    async def sync_changes(self, args: tuple = tuple(), context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_F5PL, n=args[0] if args else '', sched=args[1] if len(args) > 1 else False)
         if args:
             await self.switch_to_idle()
 
-    async def rate(self, args: tuple):
+    async def rate(self, args: tuple, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_RATE, n=args[0])
 
-    async def move(self, args: tuple):
+    async def move(self, args: tuple, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         val = args[0]
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_FFW if val > 0 else CMD_REMOTEPLAY_JS_REW, n=abs(val))
 
-    async def move_pl(self, args: tuple):
+    async def move_pl(self, args: tuple, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         val = args[0]
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_NEXT if val > 0 else (CMD_REMOTEPLAY_JS_PREV if val < 0 else CMD_REMOTEPLAY_JS_DEL))
 
@@ -167,7 +167,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
             except Exception:
                 pass
 
-    async def info(self, args: tuple = (), auto: bool = False) -> None:
+    async def info(self, args: tuple = None, context: Optional[CallbackContext[BT, UD, CD, BD]] = None, auto: bool = False) -> None:
         if not auto and not self.killed and not (self.navigation._message_queue and self.navigation._message_queue[-1] is self):
             self.killed = True
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_INFO)
@@ -200,7 +200,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
             self.add_button(u'\U000023EE', self.move_pl, args=(-1, ), new_row=True)
             self.add_button(u'\U000023ED', self.move_pl, args=(+1, ))
             self.add_button(u'\U000023ED \U0001F5D1', self.move_pl, args=(0, ))
-            self.add_button(u'\U000021C5', self.sync_changes, new_row=True)
+            self.add_button(u'\U000021C5', self.sync_changes, args=(), new_row=True)
             self.add_button(u'\U0001F4C5', self.switch_to_status, args=(NameDurationStatus.UPDATING_WAITING, context))
             self.add_button(u'\U0001F51C', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, context))
             self.add_button(u'\U000025B61x', self.rate, args=(1.0, ), new_row=True)
