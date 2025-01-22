@@ -54,7 +54,6 @@ class BrowserInfoMessage(RemoteInfoMessage):
         self.tabs: Dict[int, BrowserTab] = dict()
         self.tab: BrowserTab = None
         self.current_tab: BrowserTab = None
-        self.time_status: int = 0
         self.redis = redis
         self.lst_sel: List[Tuple[str, float]] = []
         self.activate_tab: bool = True

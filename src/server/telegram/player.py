@@ -10,7 +10,7 @@ from telegram_menu import NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
-from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_F5PL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_INFO, CMD_REMOTEPLAY_JS_ITEM, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SCHED, CMD_REMOTEPLAY_JS_SEC
+from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_F5PL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_INFO, CMD_REMOTEPLAY_JS_ITEM, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SCHED, CMD_REMOTEPLAY_JS_SEC, PLAYER_VIDEO_STATUS_BUFFERING, PLAYER_VIDEO_STATUS_CANNOT_PLAY, PLAYER_VIDEO_STATUS_CUED, PLAYER_VIDEO_STATUS_ENDED, PLAYER_VIDEO_STATUS_PAUSED, PLAYER_VIDEO_STATUS_PLAYING, PLAYER_VIDEO_STATUS_UNSTARTED
 from common.playlist import PlaylistItem
 from common.user import User
 from server.telegram.message import NameDurationStatus, duration2string
@@ -30,12 +30,11 @@ class PlayerInfoMessage(RemoteInfoMessage):
         self.plnames: List[str] = list(pr[1]['name'])
         self.pinfo: Dict[str, str] = PlayerInfoMessage.DEFAULT_PINFO
         self.vinfo: Dict[str, str] = PlayerInfoMessage.DEFAULT_VINFO
+        self.play_stat = PLAYER_VIDEO_STATUS_UNSTARTED
         self.play_url = urlunparse(pr[0]._replace(path=pr[0].path[1:-len(PlayerInfoMessage.END_URL_PATH)] + '-s/play/workout.htm')._replace(query=''))
-        self.time_btn: datetime = None
-        self.btn_type: int = 0
-        self.time_status: int = 0
         self.last_pinfo: float = 0.0
         self.default_vinfo: int = 1
+        self.default_pstat: int = 1
 
     @staticmethod
     def get_my_hex_prefix() -> str:
@@ -50,7 +49,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
             if abs(arg['pinfo']['sec'] - self.last_pinfo) > 120:
                 self.last_pinfo = self.pinfo['sec']
                 return True
-        return 'vinfo' in arg
+        return 'vinfo' in arg or 'pstat' in arg
 
     def process_incoming_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         rv = None
@@ -67,12 +66,19 @@ class PlayerInfoMessage(RemoteInfoMessage):
                 self.pinfo = data['pinfo']
                 if self.default_vinfo:
                     self.default_vinfo += 1
+                if self.default_pstat:
+                    self.default_pstat += 1
             else:
                 self.pinfo = PlayerInfoMessage.DEFAULT_PINFO
         if 'plst' in data:
             rv = data
             if isinstance(data['plst'], list):
                 self.plnames = data['plst']
+        if 'pstat' in data:
+            rv = data
+            if isinstance(data['pstat'], int):
+                self.default_pstat = 0
+                self.play_stat = data['pstat']
         if 'ilst' in data:
             rv = data
             if isinstance(data['ilst'], list):
@@ -86,24 +92,10 @@ class PlayerInfoMessage(RemoteInfoMessage):
         rex = r'(?i)\b((?:https?:(?:/{1,3}|[a-z0-9%])|[a-z0-9.\-]+[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)/)(?:[^\s()<>{}\[\]]+|\([^\s()]*?\([^\s()]+\)[^\s()]*?\)|\([^\s]+?\))+(?:\([^\s()]*?\([^\s()]+\)[^\s()]*?\)|\([^\s]+?\)|[^\s`!()\[\]{};:\'".,<>?«»“”‘’])|(?:(?<!@)[a-z0-9]+(?:[.\-][a-z0-9]+)*[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)\b/?(?!@)))'
         return re.search(rex, ss)
 
-    def calc_dyn_sec(self):
-        if not self.time_btn:
-            return 0
-        else:
-            return (round((datetime.now() - self.time_btn).seconds * 5) + 10) * self.btn_type
-
-    async def refresh_msg(self):
-        if self.time_btn:
-            passed = (datetime.now() - self.time_btn).seconds
-            if passed > 120:
-                await self.switch_to_idle()
-            else:
-                await self.remote_send()
-
     async def play(self, args: tuple):
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_PAUSE)
 
-    async def sync_changes(self, args: tuple):
+    async def sync_changes(self, args: tuple = tuple()):
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_F5PL, n=args[0] if args else '', sched=args[1] if len(args) > 1 else False)
         if args:
             await self.switch_to_idle()
@@ -180,73 +172,45 @@ class PlayerInfoMessage(RemoteInfoMessage):
             self.killed = True
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_INFO)
 
-    async def manage_state_change(self, args: tuple, context: Optional[CallbackContext] = None):
-        btn_id: int = 0
-        f = args[0]
-        if isinstance(f, int):
-            btn_id = f
-            args = args[1:]
-        _LOGGER.debug(f'btn_id={btn_id} type={self.btn_type}')
-        if btn_id and not self.btn_type:
-            self.btn_type = btn_id
-            self.time_btn = datetime.now()
-            name: str = f"manage_state_change{id(self)}"
-            self.scheduler_job = self.navigation.scheduler.add_job(
-                self.refresh_msg,
-                "interval",
-                name=name,
-                id=name,
-                seconds=1,
-                replace_existing=True,
-            )
-            await self.switch_to_status((NameDurationStatus.RENAMING, ), context)
-            return
-        elif not btn_id and self.btn_type:
-            self.btn_type = 0
-            self.time_btn = None
-            await self.switch_to_idle()
-            if args[0] == self.move:
-                return
-        elif btn_id and self.btn_type and self.btn_type != btn_id:
-            self.btn_type = btn_id
-            self.time_btn = datetime.now()
-            return
-        elif btn_id and self.btn_type:
-            await self.move((self.calc_dyn_sec(),))
-            self.btn_type = 0
-            self.time_btn = None
-            await self.switch_to_idle()
-            return
-        await args[0](args[1:])
+    def get_play_status_symbol(self) -> str:
+        if self.play_stat == PLAYER_VIDEO_STATUS_UNSTARTED:
+            return u'\U0001F7E1'
+        elif self.play_stat == PLAYER_VIDEO_STATUS_ENDED:
+            return u'\U0001F7E4'
+        elif self.play_stat == PLAYER_VIDEO_STATUS_PLAYING:
+            return u'\U000025B6'
+        elif self.play_stat == PLAYER_VIDEO_STATUS_PAUSED:
+            return u'\U000023F8'
+        elif self.play_stat == PLAYER_VIDEO_STATUS_BUFFERING:
+            return u'\U0001F504'
+        elif self.play_stat == PLAYER_VIDEO_STATUS_CUED:
+            return u'\U0001F504'
+        else:  # if self.play_stat == PLAYER_VIDEO_STATUS_CANNOT_PLAY:
+            return u'\U000026A0'
 
     async def update(self, context: CallbackContext | None = None) -> str:
         rv = await super().update(context)
         self.input_field = u'\U000023F2 Timestamp'
         addtxt = ''
-        if self.status == NameDurationStatus.IDLE or self.status == NameDurationStatus.RENAMING:
-            if self.default_vinfo > 1:
+        if self.status == NameDurationStatus.IDLE:
+            if self.default_vinfo > 1 or self.default_pstat > 1:
                 await self.info(auto=True)
-            self.add_button(u'\U000023EF', self.manage_state_change, args=(self.play,))
-            self.add_button(u'\U00002139', self.manage_state_change, args=(self.info, ))
-            self.add_button(u'\U000023EE', self.manage_state_change, args=(self.move_pl, -1), new_row=True)
-            self.add_button(u'\U000023ED', self.manage_state_change, args=(self.move_pl, +1))
-            self.add_button(u'\U000023ED \U0001F5D1', self.manage_state_change, args=(self.move_pl, 0))
-            self.add_button(u'\U000021C5', self.manage_state_change, args=(self.sync_changes,), new_row=True)
-            self.add_button(u'\U0001F4C5', self.manage_state_change, args=(self.switch_to_status, NameDurationStatus.UPDATING_WAITING, context))
-            self.add_button(u'\U0001F51C', self.manage_state_change, args=(self.switch_to_status, NameDurationStatus.DOWNLOADING_WAITING, context))
-            self.add_button(u'\U000025B61x', self.manage_state_change, args=(self.rate, 1.0), new_row=True)
-            self.add_button(u'\U000025B61.5x', self.manage_state_change, args=(self.rate, 1.5))
-            self.add_button(u'\U000025B61.8x', self.manage_state_change, args=(self.rate, 1.8), new_row=True)
-            self.add_button(u'\U000025B62x', self.manage_state_change, args=(self.rate, 2))
-            if self.status == NameDurationStatus.RENAMING:
-                if self.btn_type == 1:
-                    addtxt = f'{self.calc_dyn_sec()}'
-                elif self.btn_type == -1:
-                    addtxt = f'{-self.calc_dyn_sec()}'
-            self.add_button(u'30s\U000023EA', self.manage_state_change, args=(self.move, -30), new_row=True)
-            self.add_button(u'\U000023E930s', self.manage_state_change, args=(self.move, +30))
-            self.add_button(u'60s\U000023EA', self.manage_state_change, args=(self.move, -60), new_row=True)
-            self.add_button(u'\U000023E960s', self.manage_state_change, args=(self.move, +60))
+            self.add_button(u'\U000023EF', self.play)
+            self.add_button(u'\U00002139', self.info)
+            self.add_button(u'\U000023EE', self.move_pl, args=(-1, ), new_row=True)
+            self.add_button(u'\U000023ED', self.move_pl, args=(+1, ))
+            self.add_button(u'\U000023ED \U0001F5D1', self.move_pl, args=(0, ))
+            self.add_button(u'\U000021C5', self.sync_changes, new_row=True)
+            self.add_button(u'\U0001F4C5', self.switch_to_status, args=(NameDurationStatus.UPDATING_WAITING, context))
+            self.add_button(u'\U0001F51C', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, context))
+            self.add_button(u'\U000025B61x', self.rate, args=(1.0, ), new_row=True)
+            self.add_button(u'\U000025B61.5x', self.rate, args=(1.5, ))
+            self.add_button(u'\U000025B61.8x', self.rate, args=(1.8, ), new_row=True)
+            self.add_button(u'\U000025B62x', self.rate, args=(2, ))
+            self.add_button(u'30s\U000023EA', self.move, args=(-30, ), new_row=True)
+            self.add_button(u'\U000023E930s', self.move, args=(+30, ))
+            self.add_button(u'60s\U000023EA', self.move, args=(-60, ), new_row=True)
+            self.add_button(u'\U000023E960s', self.move, args=(+60, ))
         elif self.status == NameDurationStatus.DOWNLOADING_WAITING or self.status == NameDurationStatus.UPDATING_WAITING:
             self.input_field = u'\U0001F449'
             for plname in self.plnames:
@@ -266,7 +230,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
                 add = ''
             else:
                 sec = self.pinfo["sec"] / rate
-                rv += f'{escape(vinfo["title"])}\n'
+                rv += f'{escape(vinfo["title"])} {self.get_play_status_symbol()}\n'
                 rv += u'\U000023F3 ' + f'{vinfo["durs"]} ' + u'\U0000231B ' + duration2string(0 if (idx := round(vinfo["duri"] - sec)) < 0 else idx) + '\n'
                 rv += u'\U0001F4B0 ' + f'{vinfo["tot_n"]} (\U000023F3 {vinfo["tot_durs"]} \U0000231B {duration2string(round(vinfo["tot_dur"] - vinfo["tot_played"] - sec))})\n'
                 no = int(round(30.0 * (perc := sec / vinfo["duri"]))) if vinfo["duri"] else (perc := 0)

@@ -8,6 +8,7 @@ let playlists_arr = [];
 let playlist_remoteplay = '';
 let players_map = {};
 let playlists_conf_map = {};
+let player_current_state = VIDEO_STATUS_UNSTARTED;
 const playlist_names_lst = [];
 
 let playlist_play_settings_key = '';
@@ -235,6 +236,7 @@ function get_duration_from_video_manager() {
 }
 
 function on_player_state_changed(player, event) {
+    send_video_info_for_remote_play('pstat', player_current_state = event);
     console.log('Player state changed: new ' + event);
     if (event == VIDEO_STATUS_UNSTARTED || event == VIDEO_STATUS_PAUSED || event === VIDEO_STATUS_CUED)
         set_pause_button_enabled(true, '<i class="fas fa-play"></i>&nbsp;&nbsp;Play', true);
@@ -703,7 +705,7 @@ function playlist_process_rate(v) {
 function playlist_process_info() {
     let ss;
     save_playlist_item_settings({sec: ss = video_manager_obj?.currenttime() || 0}, 'pinfo');
-    on_video_info_change(playlist_item_current_idx, ss, {'pinfo': {sec: ss}, 'ilst': playlist_arr, 'plst': playlist_names_lst});
+    on_video_info_change(playlist_item_current_idx, ss, {'pinfo': {sec: ss}, 'ilst': playlist_arr, 'plst': playlist_names_lst, 'pstat': player_current_state});
 }
 
 function playlist_process_rew(v) {
