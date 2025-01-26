@@ -339,10 +339,10 @@ if (login_needed == 5000) {
                 async with aiohttp.ClientSession() as session:
                     startFrom = 1
                     brands: List[Brand] = []
+                    bdetails = dict()
                     while True:
                         url = MessageProcessor.brandsUrl(brand, startFrom)
                         _LOGGER.debug("Mediaset: Getting processBrands " + url)
-                        bdetails = dict()
                         async with session.get(url) as resp:
                             if resp.status == 200:
                                 js = await resp.json()
