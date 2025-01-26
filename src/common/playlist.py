@@ -5,7 +5,7 @@ from datetime import datetime
 from os import remove
 from common.const import CONV_LINK_MASK, CONV_LINK_REDIRECT, CONV_LINK_TWITCH, CONV_LINK_UNTOUCH, CONV_LINK_YTDL_DICT, CONV_LINK_YTDL_REDIRECT
 
-from .utils import Fieldable, JSONAble
+from .utils import Fieldable, JSONAble, MyEncoder
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -236,7 +236,7 @@ class Playlist(JSONAble, Fieldable):
         if isinstance(self.conf, str):
             c = self.conf
         else:
-            c = json.dumps(self.conf)
+            c = json.dumps(self.conf, cls=MyEncoder)
         if self.typei is None:
             self.typei = await self.getTypeI(db)
         if self.useri is None:
@@ -528,7 +528,7 @@ class PlaylistItem(JSONAble, Fieldable):
         if isinstance(self.conf, str):
             c = self.conf
         else:
-            c = json.dumps(self.conf)
+            c = json.dumps(self.conf, cls=MyEncoder)
         if self.isOk():
             if self.iorder is None:
                 async with db.execute(

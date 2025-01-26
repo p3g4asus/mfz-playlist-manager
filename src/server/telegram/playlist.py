@@ -14,6 +14,7 @@ from telegram.ext._utils.types import BD, BT, CD, UD
 from telegram_menu import (BaseMessage, ButtonType, NavigationHandler)
 from telegram_menu.models import MenuButton
 
+from common.brand import DEFAULT_TITLE, Brand
 from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
                           CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER,
                           CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
@@ -974,45 +975,32 @@ class SubBrandSelectTMessage(BaseMessage):
         super().__init__(
             navigation,
             label=self.__class__.__name__,
-            input_field=f'Select content for {playlist.conf["brand"]["title"]}')
+            input_field=f'Select content for {playlist.conf["brand"].title}')
         self.compute_id_map()
 
     def compute_id_map(self):
         self.id_map = dict()
         for i, b in enumerate(self.playlist.conf['subbrands_all']):
-            self.id_map[str(b['id'])] = i + 1
+            self.id_map[b.id] = i + 1
 
     def get_brand_index(self, brand):
-        return self.id_map.get(str(brand['id']), 0)
+        return self.id_map.get(brand.id, 0)
 
     async def toggle_selected(self, args, context):
         subid, = args
-        found = False
-        for i in range(len(self.playlist.conf['subbrands'])):
-            b = self.playlist.conf['subbrands'][i]
-            if b['id'] == subid:
-                del self.playlist.conf['subbrands'][i]
-                found = True
-                break
-        if not found:
-            for b in self.playlist.conf['subbrands_all']:
-                if b['id'] == subid:
-                    self.playlist.conf['subbrands'].append(b)
-                    break
+        try:
+            self.playlist.conf['subbrands'].remove(subid)
+        except ValueError:
+            self.playlist.conf['subbrands'].append(self.playlist.conf['subbrands_all'][self.playlist.conf['subbrands_all'].index(subid)])
         await self.navigation.goto_menu(self, context, add_if_present=False)
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
-        self.input_field = f'Select content for {self.playlist.conf["brand"]["title"]}'
+        self.input_field = f'Select content for {self.playlist.conf["brand"].title}'
         for b in self.playlist.conf['subbrands_all']:
-            subid = b["id"]
-            subchk = False
-            for b2 in self.playlist.conf['subbrands']:
-                if b2['id'] == subid:
-                    subchk = True
-                    break
-            self.add_button(f"[{self.get_brand_index(b)}] {b['title']} - {b['desc']}" + (" \U00002611" if subchk else " \U00002610"), self.toggle_selected, args=(b['id'], ), new_row=True)
+            subchk = b in self.playlist.conf['subbrands']
+            self.add_button(f"[{self.get_brand_index(b)}] {b.title} - {b.desc}" + (" \U00002611" if subchk else " \U00002610"), self.toggle_selected, args=(b.id, ), new_row=True)
         self.add_button('OK: \U0001F197', self.navigation.goto_back, new_row=True)
         return self.input_field
 
@@ -1062,15 +1050,19 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
                 useri=user.rowid,
                 autoupdate=False,
                 dateupdate=0,
-                conf=dict(brand=dict(id=None, desc=None, title=None), subbrands=[], subbrands_all=[], listings_command=None, play=dict()))
+                conf=dict(brand=None, subbrands=[], subbrands_all=[], listings_command=None, play=dict()))
         else:
             if 'subbrands_all' not in playlist.conf:
                 playlist.conf['subbrands_all'] = []
             playlist.conf['listings_command'] = None
+        playlist.conf['subbrands_all'] = Brand.get_list_from_json(playlist.conf['subbrands_all'])
+        playlist.conf['subbrands'] = Brand.get_list_from_json(playlist.conf['subbrands'])
         if not playlist.conf['subbrands_all'] and playlist.conf['subbrands']:
             playlist.conf['subbrands_all'] = playlist.conf['subbrands'].copy()
-        if 'title' not in playlist.conf['brand'] and playlist.conf['subbrands']:
-            playlist.conf['brand']['title'] = playlist.conf['subbrands'][0]['title']
+        if isinstance(br := playlist.conf['brand'], dict):
+            playlist.conf['brand'] = br = Brand(**br)
+        if br and br.title == DEFAULT_TITLE and playlist.conf['subbrands']:
+            br.title = playlist.conf['subbrands'][0].title
         super().__init__(
             navigation,
             user=user,
@@ -1105,7 +1097,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         )
         pl = await self.proc.process(cmd)
         if pl.rv == 0:
-            self.listings_cache = pl.brands
+            self.listings_cache = Brand.get_list_from_json(pl.brands)
             self.listings_changed = True
             self.return_msg = ''
         else:
@@ -1117,8 +1109,8 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
 
     async def listings_refresh(self, context: Optional[CallbackContext] = None):
         if self.status == NameDurationStatus.IDLE:
-            self.listings_cache = []
-            self.playlist.conf['brand']['id'] = None
+            self.listings_cache: List[Brand] = []
+            self.playlist.conf['brand'] = None
             self.playlist.conf['subbrands'] = []
             cmd = self.get_listings_command()
             self.playlist.conf['listings_command'] = None
@@ -1145,8 +1137,8 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         txt = ''
         for i, b in enumerate(self.listings_cache):
             if len(txt) < 3900:
-                if self.filter(b['title']):
-                    txt += f'\n/brand_{i} {b["title"]} ({b["id"]})'
+                if self.filter(b.title):
+                    txt += f'\n/brand_{i} {escape(b.title)} ({b.id})'
             else:
                 return txt[1:] + '\n...'
         return txt[1:] if txt else f'No Listing{" for " + self.listings_filter if self.listings_filter else ""}'
@@ -1167,8 +1159,10 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         )
         pl = await self.proc.process(self.get_subbrand_command())
         if pl.rv == 0:
-            self.playlist.conf['subbrands_all'] = pl.brands
+            self.playlist.conf['subbrands_all'] = Brand.get_list_from_json(pl.brands)
             self.playlist.conf['subbrands'] = []
+            if (ttl := pl.f('title')) and (brand := self.playlist.conf['brand']).title == DEFAULT_TITLE:
+                brand.title = ttl
             self.return_msg = ''
             if pl.brands:
                 await self.navigation.goto_menu(SubBrandSelectTMessage(self.navigation, playlist=self.playlist))
@@ -1189,11 +1183,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
                     self.playlist.conf['brand'] = self.listings_cache[int(mo.group(1))]
                     self.download_subbrand()
                 elif (mo := re.search(r'^/brandid ([0-9a-zA-Z_\-]+)$', text)):
-                    self.playlist.conf['brand'] = dict(
-                        id=int(mo.group(1)),
-                        title=mo.group(1),
-                        starttime=int(datetime.now().timestamp() * 1000)
-                    )
+                    self.playlist.conf['brand'] = Brand(mo.group(1))
                     self.download_subbrand()
                 else:
                     self.listings_filter = text.strip()
@@ -1213,15 +1203,15 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
                 self.input_field = f'\U0001F53B {self.listings_filter}' if self.listings_filter else '\U0001F53B Filter Listings'
             else:
                 self.input_field = 'Please Click a Button'
-                if not self.playlist.conf['brand']['id'] and self.get_listings_command():
+                if not self.playlist.conf['brand'] and self.get_listings_command():
                     await self.listings_refresh()
             self.add_button(f'Name: {self.playlist.name}', self.switch_to_status, args=(NameDurationStatus.NAMING, ), new_row=True)
             self.add_button('Refresh Listings', self.listings_refresh)
             new_row = True
-            if self.playlist.conf['brand']['id']:
+            if self.playlist.conf['brand']:
                 self.add_button('AutoUpdate: ' + ("\U00002611" if self.playlist.autoupdate else "\U00002610"), self.toggle_autoupdate)
                 if self.playlist.conf['subbrands_all']:
-                    self.add_button(f'{self.playlist.conf["brand"]["title"]} ({self.playlist.conf["brand"]["id"]})' + ('\U00002757' if not self.playlist.conf["subbrands"] else '\U00002714'),
+                    self.add_button(f'{self.playlist.conf["brand"].title} ({self.playlist.conf["brand"].id})' + ('\U00002757' if not self.playlist.conf["subbrands"] else '\U00002714'),
                                     SubBrandSelectTMessage(self.navigation, playlist=self.playlist))
                     if self.playlist.conf["subbrands"]:
                         self.add_button(u'\U0001F501', RefreshNewPlaylistTMessage(
@@ -1240,7 +1230,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
             return f'Downloading listings {"." * (self.sub_status & 0xFF)}'
         elif self.status == NameDurationStatus.DOWNLOADING:
             self.input_field = u'\U0001F570'
-            return f'Downloading brand content for {self.playlist.conf["brand"]["title"]} {"." * (self.sub_status & 0xFF)}'
+            return f'Downloading brand content for {self.playlist.conf["brand"].title} {"." * (self.sub_status & 0xFF)}'
         if self.return_msg:
             upd = f'\n<b>{self.return_msg}</b>'
         return upd if upd else self.input_field
@@ -1260,7 +1250,7 @@ class MediasetPlaylistTMessage(MedRaiPlaylistTMessage):
         await self.navigation.goto_menu(SelectDayTMessage(self.navigation, playlist=self.playlist))
 
     def get_subbrand_command(self):
-        return PlaylistMessage(CMD_MEDIASET_BRANDS, brand=int(self.playlist.conf['brand']['id']))
+        return PlaylistMessage(CMD_MEDIASET_BRANDS, brand=int(self.playlist.conf['brand'].id))
 
 
 class RaiPlaylistTMessage(MedRaiPlaylistTMessage):
@@ -1271,7 +1261,7 @@ class RaiPlaylistTMessage(MedRaiPlaylistTMessage):
         return PlaylistMessage(CMD_RAI_LISTINGS)
 
     def get_subbrand_command(self):
-        return PlaylistMessage(CMD_RAI_CONTENTSET, brand=self.playlist.conf['brand']['id'])
+        return PlaylistMessage(CMD_RAI_CONTENTSET, brand=self.playlist.conf['brand'].id)
 
 
 class RefreshNewPlaylistTMessage(RefreshingTMessage):
@@ -1286,10 +1276,12 @@ class RefreshNewPlaylistTMessage(RefreshingTMessage):
         self.status = NameDurationStatus.UPDATING_INIT
 
     async def on_refresh_finish(self, pl: PlaylistMessage):
-        await self.switch_to_idle()
         if pl.rv == 0:
+            await self.switch_to_idle()
             await self.navigation.goto_home()
             await self.navigation._menu_queue[0].list_page_of_playlists(None)
+        else:
+            await self.switch_to_idle((NameDurationStatus.UPDATING_WAITING, ))
 
     async def on_refresh_abort(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         await self.navigation.goto_back()

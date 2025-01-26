@@ -208,12 +208,12 @@ class StatusTMessage(BaseMessage):
             except Exception:
                 pass
 
-    async def switch_to_idle(self):
+    async def switch_to_idle(self, args=None):
         if self.return_msg and self.sub_status != -1000:
             self.status = NameDurationStatus.RETURNING_IDLE
             self.sub_status = -1000
         else:
-            self.status = NameDurationStatus.IDLE
+            self.status = NameDurationStatus.IDLE if not isinstance(args, (tuple, list)) or not args else args[0]
             self.sub_status = 0
             self.return_msg = ''
         self.scheduler_job_remove()
@@ -221,6 +221,7 @@ class StatusTMessage(BaseMessage):
             self.navigation.scheduler.add_job(
                 self.switch_to_idle,
                 "date",
+                (args, ),
                 id=f"switch_to_idle{id(self)}",
                 replace_existing=True,
                 run_date=self.datenow(seconds=8 if self.inlined else 0.5)

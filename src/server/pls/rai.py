@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 
 import aiohttp
 
+from common.brand import Brand
 from common.const import (CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS, MSG_BACKEND_ERROR,
                           MSG_RAI_INVALID_CONTENTSET, MSG_RAI_INVALID_PROGID,
                           MSG_NO_VIDEOS, RV_NO_VIDEOS)
@@ -67,10 +68,10 @@ class MessageProcessor(RefreshMessageProcessor):
                                        s['id'].count('-') == 5:
                                         id = s['id']
                                         desc = predesc + s['name']
-                                        sets[id] = dict(
-                                            title=prog['title'],
-                                            id=id,
-                                            desc=desc
+                                        sets[id] = Brand(
+                                            id,
+                                            prog['title'],
+                                            desc
                                         )
                         else:
                             return msg.err(18, MSG_RAI_INVALID_PROGID)
@@ -251,11 +252,9 @@ class MessageProcessor(RefreshMessageProcessor):
             mo = re.search(r"/([^A-Z\-\./]+)\.json$", js['path_id'])
             if mo:
                 idv = mo.group(1)
-                rv[idv] = dict(
-                    id=idv,
-                    title=js['name'],
-                    starttime=int(datetime.now().timestamp() * 1000)
-                )
+                rv[idv] = Brand(
+                    idv,
+                    js['name'])
         return rv
 
     async def processListings(self, msg, userid, executor):

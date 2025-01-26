@@ -5,9 +5,11 @@ import re
 import time
 import traceback
 from datetime import datetime
+from typing import List
 
 import aiohttp
 
+from common.brand import DEFAULT_TITLE, Brand
 from common.const import (CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
                           CMD_MEDIASET_LISTINGS, MSG_BACKEND_ERROR,
                           MSG_INVALID_DATE, MSG_INVALID_PARAM,
@@ -23,6 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class MessageProcessor(RefreshMessageProcessor):
+    GET_CALL_SIGN_URL = 'https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-all-stations-v2?fields=callSign,title,guid&form=cjson&httpError=true'
     INOCULATE_SCR = """
 function dyn_module_load(link, onload, type) {
     let tag;
@@ -109,7 +112,7 @@ if (login_needed == 5000) {
     @staticmethod
     def programsUrl(brand, subbrand, startFrom):
         return ('https://feed.entertainment.tv.theplatform.eu/'
-                'f/PR1GhC/mediaset-prod-all-programs?'
+                'f/PR1GhC/mediaset-prod-all-programs-v2?'
                 'byCustomValue={brandId}{%d},{subBrandId}{%d}'
                 '&sort=mediasetprogram$publishInfo_lastPublished|desc'
                 '&count=true&entries=true&startIndex=%d') %\
@@ -117,19 +120,11 @@ if (login_needed == 5000) {
 
     @staticmethod
     def brandsUrl(brand, startFrom):
-        return ('https://feed.entertainment.tv.theplatform.eu/'
-                'f/PR1GhC/mediaset-prod-all-brands?'
-                'byCustomValue={brandId}{%d}&sort=mediasetprogram$order'
-                '&count=true&entries=true&startIndex=%d') %\
-               (brand, startFrom)
+        return 'https://feed.entertainment.tv.theplatform.eu/f/PR1GhC/mediaset-prod-all-programs-v2?byCustomValue={brandId}{%d}&count=true&entries=true&startIndex=%d' % (brand, startFrom)
 
     @staticmethod
-    def listingsUrl(startmillis, startFrom):
-        return ('https://feed.entertainment.tv.theplatform.eu/'
-                'f/PR1GhC/mediaset-prod-all-listings?'
-                'byListingTime=%d~%d'
-                '&count=true&entries=true&startIndex=%d') %\
-               (startmillis, startmillis + 2000 * 3600000 / 60, startFrom)
+    def listingsUrl(startmillis: int, cs: str, startFrom: int):
+        return f'https://api-ott-prod-fe.mediaset.net/PROD/play/feed/allListingFeedEpg/v2.0?byListingTime={startmillis}~{startmillis + 86400000-60000}&byCallSign={cs}&startIndex={startFrom}'
 
     def interested_plus(self, msg):
         return msg.c(CMD_MEDIASET_BRANDS) or msg.c(CMD_MEDIASET_LISTINGS) or msg.c(CMD_MEDIASET_KEYS)
@@ -343,33 +338,27 @@ if (login_needed == 5000) {
             try:
                 async with aiohttp.ClientSession() as session:
                     startFrom = 1
-                    brands = dict()
+                    brands: List[Brand] = []
                     while True:
                         url = MessageProcessor.brandsUrl(brand, startFrom)
                         _LOGGER.debug("Mediaset: Getting processBrands " + url)
+                        bdetails = dict()
                         async with session.get(url) as resp:
                             if resp.status == 200:
                                 js = await resp.json()
                                 _LOGGER.debug("Mediaset: Rec processBrands " + str(js))
-                                title = ''
                                 for e in js['entries']:
                                     if 'mediasetprogram$subBrandId' in e and\
-                                       e['mediasetprogram$subBrandId'] not in brands:
-                                        id = e['mediasetprogram$subBrandId']
-                                        brands[id] = dict(
-                                            title=title,
-                                            id=int(id),
-                                            desc=e['description']
-                                        )
-                                    else:
-                                        title = e['title']
-
+                                       (brid := int(e['mediasetprogram$subBrandId'])) not in brands:
+                                        brands.append(Brand(brid, e.get('mediasetprogram$subBrandTitle', DEFAULT_TITLE), e.get('mediasetprogram$subBrandDescription', '')))
+                                        if not bdetails and 'mediasetprogram$brandTitle' in e and (ttl := e['mediasetprogram$brandTitle']):
+                                            bdetails['title'] = ttl
                                 if self.isLastPage(js):
                                     if not brands:
                                         return msg.err(18, MSG_MEDIASET_INVALID_BRAND)
                                     else:
                                         _LOGGER.debug("Brands found %s" % str(brands))
-                                        return msg.ok(brands=list(brands.values()))
+                                        return msg.ok(brands=brands, **bdetails)
                                 else:
                                     startFrom += js['itemsPerPage']
                             else:
@@ -386,39 +375,53 @@ if (login_needed == 5000) {
         if datestart:
             try:
                 async with aiohttp.ClientSession() as session:
-                    startFrom = 1
-                    brands = dict()
-                    while True:
-                        url = MessageProcessor.listingsUrl(datestart, startFrom)
-                        _LOGGER.debug("Mediaset: Getting " + url)
-                        async with session.get(url) as resp:
-                            if resp.status == 200:
-                                js = await resp.json()
-                                _LOGGER.debug("Mediaset: Rec " + str(js))
-                                for e in js['entries']:
-                                    if 'listings' in e:
-                                        for lst in e['listings']:
-                                            if 'program' in lst:
-                                                if 'mediasetprogram$brandId' in lst['program'] and\
-                                                   'mediasetprogram$brandTitle' in lst['program'] and\
-                                                   lst['program']['mediasetprogram$brandId'] not in brands:
-                                                    title = lst['program']['mediasetprogram$brandTitle']
-                                                    id = lst['program']['mediasetprogram$brandId']
-                                                    starttime = lst['startTime']
-                                                    brands[id] = dict(
-                                                        title=title,
-                                                        id=int(id),
-                                                        starttime=starttime
-                                                    )
+                    css = []
+                    async with session.get(MessageProcessor.GET_CALL_SIGN_URL) as resp:
+                        if resp.status == 200:
+                            js = await resp.json()
+                            css = js.get('entries', [])
+                        else:
+                            return msg.err(14, MSG_BACKEND_ERROR)
+                    brands: List[Brand] = list()
+                    for cso in css:
+                        try:
+                            cs = cso.get('callSign')
+                            startFrom = 1
+                            while True:
+                                url = MessageProcessor.listingsUrl(datestart, cs, startFrom)
+                                _LOGGER.debug("Mediaset: Getting " + url)
+                                async with session.get(url) as resp:
+                                    if resp.status == 200:
+                                        js = await resp.json()
+                                        _LOGGER.debug("Mediaset: Rec " + str(js))
+                                        if 'response' not in js or (js := js['response'])['startIndex'] != startFrom:
+                                            break
+                                        for e in js['entries']:
+                                            if 'listings' in e:
+                                                for lst in e['listings']:
+                                                    if 'program' in lst:
+                                                        if 'mediasetprogram$brandId' in (lstp := lst['program']) and\
+                                                            'mediasetprogram$brandTitle' in lstp and\
+                                                                (brid := int(lstp['mediasetprogram$brandId'])) not in brands:
+                                                            title = lstp['mediasetprogram$brandTitle']
+                                                            desc = lstp.get('mediasetprogram$brandDescription', '')
+                                                            brands.append(Brand(
+                                                                brid,
+                                                                title,
+                                                                desc
+                                                            ))
 
-                                if self.isLastPage(js):
-                                    brands = list(brands.values())
-                                    brands.sort(key=lambda item: item['title'])
-                                    return msg.ok(brands=brands)
-                                else:
-                                    startFrom += js['itemsPerPage']
-                            else:
-                                return msg.err(12, MSG_BACKEND_ERROR)
+                                        if self.isLastPage(js):
+                                            break
+                                        else:
+                                            startFrom += js['itemsPerPage']
+                                    else:
+                                        return msg.err(12, MSG_BACKEND_ERROR)
+                        except Exception:
+                            _LOGGER.warning(f'Error getting listings for {cs} -> {traceback.format_exc()}')
+                    if brands:
+                        brands.sort(key=lambda item: item.title)
+                        return msg.ok(brands=brands)
                 return msg.err(15, MSG_BACKEND_ERROR)
             except Exception:
                 _LOGGER.warning(f'Error searching for listings {traceback.format_exc()}')
