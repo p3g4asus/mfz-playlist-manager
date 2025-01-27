@@ -421,7 +421,8 @@ function save_playlist_item_settings(sett, push_for_remote_play) {
     let el = new MainWSQueueElement({
         cmd: CMD_PLAYITSETT,
         playlistitem: playlist_item_current.rowid,
-        conf: playlist_item_current.conf
+        over: false,
+        conf: sett
     }, function(msg) {
         return msg.cmd === CMD_PLAYITSETT? msg:null;
     }, 3000, 1, 'playitsett');

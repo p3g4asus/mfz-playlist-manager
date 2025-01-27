@@ -218,9 +218,12 @@ class MessageProcessor(AbstractMessageProcessor):
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                it.conf = msg.conf
-                if isinstance(it.conf, str):
-                    it.conf = json.loads(it.conf)
+                if msg.f('over'):
+                    it.conf = msg.conf
+                    if isinstance(it.conf, str):
+                        it.conf = json.loads(it.conf)
+                else:
+                    it.conf.update(msg.conf)
                 if not await it.toDB(self.db):
                     return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
             else:
