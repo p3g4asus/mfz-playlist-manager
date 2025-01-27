@@ -3,6 +3,7 @@ import re
 import traceback
 from datetime import datetime
 from functools import cmp_to_key
+from typing import List
 from urllib.parse import urlencode
 
 import aiohttp
@@ -44,8 +45,9 @@ class MessageProcessor(RefreshMessageProcessor):
         if progid:
             try:
                 async with aiohttp.ClientSession() as session:
-                    sets = dict()
+                    sets: List[Brand] = []
                     prog = dict()
+                    bdetails = dict()
                     url = MessageProcessor.contentSetUrl(progid)
                     _LOGGER.debug("Rai: Getting processContentSet " + url)
                     async with session.get(url) as resp:
@@ -65,20 +67,17 @@ class MessageProcessor(RefreshMessageProcessor):
                                 predesc = b['name'] + ' - ' if 'name' in b else ''
                                 for s in b['sets']:
                                     if 'name' in s and 'id' in s and\
-                                       s['id'].count('-') == 5:
-                                        id = s['id']
-                                        desc = predesc + s['name']
-                                        sets[id] = Brand(
-                                            id,
-                                            prog['title'],
-                                            desc
-                                        )
+                                       (id := s['id']).count('-') == 5 and id not in sets:
+                                        if (ttl := prog['title']) and not bdetails:
+                                            bdetails['title'] = ttl
+                                            bdetails['desc'] = prog['desc']
+                                        sets.append(Brand(id, ttl, predesc + s['name']))
                         else:
                             return msg.err(18, MSG_RAI_INVALID_PROGID)
                 if not sets or not prog:
                     return msg.err(12, MSG_RAI_INVALID_PROGID)
                 else:
-                    return msg.ok(brands=list(sets.values()), prog=prog)
+                    return msg.ok(brands=sets, prog=prog, **bdetails)
             except Exception:
                 _LOGGER.error(traceback.format_exc())
                 return msg.err(11, MSG_BACKEND_ERROR)

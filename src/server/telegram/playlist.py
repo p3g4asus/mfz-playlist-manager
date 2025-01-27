@@ -1161,8 +1161,10 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         if pl.rv == 0:
             self.playlist.conf['subbrands_all'] = Brand.get_list_from_json(pl.brands)
             self.playlist.conf['subbrands'] = []
-            if (ttl := pl.f('title')) and (brand := self.playlist.conf['brand']).title == DEFAULT_TITLE:
+            if (brand := self.playlist.conf['brand']).title == DEFAULT_TITLE and (ttl := pl.f('title')):
                 brand.title = ttl
+            if not brand.desc and (ttl := pl.f('desc')):
+                brand.desc = ttl
             self.return_msg = ''
             if pl.brands:
                 await self.navigation.goto_menu(SubBrandSelectTMessage(self.navigation, playlist=self.playlist))
