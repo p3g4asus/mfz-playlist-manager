@@ -142,6 +142,7 @@ class NameDurationStatus(Enum):
     NAMING = auto()
     LISTING = auto()
     MOVING = auto()
+    DUMPING = auto()
 
 
 class StatusTMessage(BaseMessage):

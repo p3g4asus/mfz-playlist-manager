@@ -133,6 +133,20 @@ def cache_on_item_deleted(useri: int, pid: int):
             plTg.refresh(plTg.playlist, plTg.index)
 
 
+def cache_on_item_updated(useri: int, pid: int, it: PlaylistItem):
+    useris = str(useri)
+    dep: dict = _PLAYLIST_CACHE.get(useris, None)
+    if dep:
+        pids = str(pid)
+        if pids in dep:
+            plTg: PlaylistTg = dep[pids]
+            for i, ito in enumerate(plTg.playlist.items):
+                if it.rowid == ito.rowid:
+                    plTg.playlist.items[i] = it
+                    plTg.refresh(plTg.playlist, plTg.index)
+                    break
+
+
 def cache_del_user(useri: int, playlists: List[Playlist]):
     newdict = dict()
     useris = str(useri)

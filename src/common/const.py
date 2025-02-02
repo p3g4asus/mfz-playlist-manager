@@ -40,6 +40,7 @@ CMD_REMOTEPLAY_PUSH = 'remotepush'
 CMD_REMOTEPLAY_PUSH_NOTIFY = 'remotenotify'
 CMD_PING = "ping"
 CMD_REFRESH = "refresh"
+CMD_ITEMDUMP = "itemdump"
 CMD_LS = "ls"
 CMD_TOKEN = "token"
 CMD_PLAYSETT = "playsett"

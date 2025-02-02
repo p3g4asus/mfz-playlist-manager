@@ -16,13 +16,13 @@ from telegram_menu.models import MenuButton
 
 from common.brand import DEFAULT_TITLE, Brand
 from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
-                          CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER,
+                          CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER, CMD_ITEMDUMP,
                           CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
                           CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_PLAYID, CMD_RAI_CONTENTSET,
                           CMD_RAI_LISTINGS, CMD_REN, CMD_SEEN, CMD_SORT, CMD_YT_PLAYLISTCHECK, IMG_NO_VIDEO)
 from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
-from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_store
+from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_on_item_updated, cache_store
 from server.telegram.pages import ListPagesTMessage, PageGenerator
 from server.telegram.message import DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, StatusTMessage, duration2string
 from server.telegram.refresh import RefreshingTMessage
@@ -199,11 +199,41 @@ class PlaylistItemTMessage(NameDurationTMessage):
             if plTg.message:
                 await plTg.message.edit_or_select_items()
 
+    def dump_item(self):
+        asyncio.get_event_loop().create_task(self.dump_item_1())
+
+    async def dump_item_1(self):
+        self.status = NameDurationStatus.DUMPING
+        self.sub_status = 10
+        self.scheduler_job = self.navigation.scheduler.add_job(
+            self.long_operation_do,
+            "interval",
+            id=f"long_operation_do{self.label}",
+            seconds=3,
+            replace_existing=True,
+            next_run_time=StatusTMessage.datenow()
+        )
+        pl = PlaylistMessage(CMD_ITEMDUMP, playlistitem=self.id, useri=self.proc.user.rowid)
+        pl = await self.proc.process(pl)
+        if pl.rv == 0:
+            cache_on_item_updated(self.proc.user.rowid, self.pid, pl.playlistitem)
+            if pl.playlistitem.seen and not self.obj.seen:
+                plTg = cache_get(self.proc.user.rowid, self.pid)
+                if plTg.message:
+                    await plTg.message.edit_or_select_items(5)
+                    await plTg.message.edit_or_select_if_exists(5)
+            self.return_msg = 'Dump OK :thumbs_up:'
+        else:
+            self.return_msg = f'Error {pl.rv} dumping {self.name} :thumbs_down:'
+        await self.switch_to_idle()
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.refresh_from_cache()
-        if not self.deleted:
+        if self.status == NameDurationStatus.DUMPING:
+            return f'Dumping {"." * (self.sub_status & 0xFF)}'
+        elif not self.deleted:
             if self.status == NameDurationStatus.IDLE:
                 self.add_button(u'\U0001F5D1', self.delete_item_pre_pre, args=(CMD_SEEN, ))
                 self.add_button(u'\U00002211', self.switch_to_status, args=(NameDurationStatus.SORTING, ))
@@ -214,6 +244,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                     self.add_button(u'\U0001F511', self.switch_to_status, args=(NameDurationStatus.UPDATING_WAITING, ))
                 if self.obj.takes_space():
                     self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
+                self.add_button('F5', self.dump_item)
             elif self.status == NameDurationStatus.UPDATING_WAITING:
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return 'Enter network filter ' + ("<a href=\"" + self.obj.conf["pageurl"] + "\">here</a> " if "pageurl" in self.obj.conf else "") + '<u>SMIL</u> or /autodetect'
@@ -281,6 +312,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 self.input_field = f'Enter \U00002211 for {self.name}'
                 return f'Enter \U00002211 for <b>{self.name}</b>'
         elif self.status == NameDurationStatus.IDLE:
+            self.add_button('F5', self.dump_item)
             self.add_button(u'\U0000267B', self.delete_item_pre_pre, args=(CMD_SEEN, ))
             if self.obj.takes_space():
                 self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
@@ -468,15 +500,40 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         else:
             self.return_msg = f'Error {pl.rv} renaming {self.name} :thumbs_down:'
 
-    def sort_playlist(self):
-        asyncio.get_event_loop().create_task(self.sort_playlist_1())
-
     async def switch_to_idle_end(self):
         if self.del_and_recreate:
             self.del_and_recreate = False
             await self.send()
         else:
             await super().switch_to_idle_end()
+
+    def dump_playlist(self):
+        asyncio.get_event_loop().create_task(self.dump_playlist_1())
+
+    async def dump_playlist_1(self):
+        self.status = NameDurationStatus.DUMPING
+        self.sub_status = 10
+        self.scheduler_job = self.navigation.scheduler.add_job(
+            self.long_operation_do,
+            "interval",
+            id=f"long_operation_do{self.label}",
+            seconds=3,
+            replace_existing=True,
+            next_run_time=StatusTMessage.datenow()
+        )
+        pl = PlaylistMessage(CMD_DUMP, playlist=self.id, load_all=1, useri=self.proc.user.rowid)
+        pl = await self.proc.process(pl)
+        if pl.rv == 0:
+            cache_store(pl.playlists[0])
+            await self.edit_or_select_items()
+            self.del_and_recreate = True
+            self.return_msg = 'Dump OK :thumbs_up:'
+        else:
+            self.return_msg = f'Error {pl.rv} dumping {self.name} :thumbs_down:'
+        await self.switch_to_idle()
+
+    def sort_playlist(self):
+        asyncio.get_event_loop().create_task(self.sort_playlist_1())
 
     async def sort_playlist_1(self):
         self.status = NameDurationStatus.SORTING
@@ -571,6 +628,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 self.add_button(':memo:', self.list_items, args=(False, ))
                 self.add_button(':eye:', self.list_items, args=(True, ))
                 self.add_button(u'\U0001F4A3', self.list_items, args=(PlaylistTMessage.list_items_taking_space, ))
+                self.add_button('F5', self.dump_playlist)
                 # self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{self.proc.params.link}/{self.proc.params.args["sid"]}-s/play/workout.htm?{urlencode(dict(name=self.name))}')
             elif self.status == NameDurationStatus.RENAMING:
                 self.input_field = f'Enter new name for {self.name}'
@@ -581,9 +639,9 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 self.add_button('\U00002705 Yes', self.delete_item_pre_pre, args=(CMD_DEL, ))
                 self.add_button(':cross_mark: No', self.switch_to_idle)
                 return f'Are you sure to delete <b>{self.name}</b>?'
-            elif self.status == NameDurationStatus.SORTING:
+            elif self.status == NameDurationStatus.SORTING or self.status == NameDurationStatus.DUMPING:
                 self.input_field = u'\U0001F570'
-                return f'{self.name} sorting {"." * (self.sub_status & 0xFF)}'
+                return f'{self.name} {"sorting" if self.status == NameDurationStatus.SORTING else "dumping"} {"." * (self.sub_status & 0xFF)}'
             else:
                 updt = await DeletingTMessage.update(self, context)
                 if updt:

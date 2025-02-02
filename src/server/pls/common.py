@@ -24,7 +24,7 @@ from pythonosc.osc_server import AsyncIOOSCUDPServer
 from pythonosc.udp_client import SimpleUDPClient
 
 from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DEL, CMD_DOWNLOAD,
-                          CMD_DUMP, CMD_FREESPACE, CMD_IORDER, CMD_MOVE,
+                          CMD_DUMP, CMD_FREESPACE, CMD_IORDER, CMD_ITEMDUMP, CMD_MOVE,
                           CMD_PLAYID, CMD_PLAYITSETT, CMD_PLAYSETT, CMD_REN,
                           CMD_SEEN, CMD_SORT, CMD_TOKEN, CMD_USER_SETTINGS, DOWNLOADED_SUFFIX,
                           MSG_BACKEND_ERROR, MSG_INVALID_PARAM, MSG_NAME_TAKEN,
@@ -52,7 +52,8 @@ class MessageProcessor(AbstractMessageProcessor):
             msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or\
             msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or\
             msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT) or msg.c(CMD_DOWNLOAD) or\
-            msg.c(CMD_CLEAR) or msg.c(CMD_FREESPACE) or msg.c(CMD_TOKEN) or msg.c(CMD_USER_SETTINGS)
+            msg.c(CMD_CLEAR) or msg.c(CMD_FREESPACE) or msg.c(CMD_TOKEN) or msg.c(CMD_USER_SETTINGS) or\
+            msg.c(CMD_ITEMDUMP)
 
     async def processMove(self, msg, userid, executor):
         pdst = msg.playlistId()
@@ -231,6 +232,21 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         return msg.ok(playlistitem=x)
+
+    async def processItemDump(self, msg, userid, executor):
+        x = msg.playlistItemId()
+        it = await PlaylistItem.loadbyid(self.db, rowid=x)
+        if it:
+            pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            if pls:
+                if pls[0].useri != userid:
+                    return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                else:
+                    return msg.ok(playlistitem=it)
+            else:
+                return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+        else:
+            return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
 
     class Downloader(abc.ABC):
         @abc.abstractmethod
@@ -799,6 +815,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processDl(msg, userid, executor)
         elif msg.c(CMD_SORT):
             resp = await self.processSort(msg, userid, executor)
+        elif msg.c(CMD_ITEMDUMP):
+            resp = await self.processItemDump(msg, userid, executor)
         elif msg.c(CMD_TOKEN):
             resp = await self.processToken(msg, userid, executor)
         elif msg.c(CMD_FREESPACE):
