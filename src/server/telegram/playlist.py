@@ -216,7 +216,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
         pl = PlaylistMessage(CMD_ITEMDUMP, playlistitem=self.id, useri=self.proc.user.rowid)
         pl = await self.proc.process(pl)
         if pl.rv == 0:
-            cache_on_item_updated(self.proc.user.rowid, self.pid, pl.playlistitem)
+            cache_on_item_updated(self.proc.user.rowid, pl.playlistitem)
             if pl.playlistitem.seen and not self.obj.seen:
                 plTg = cache_get(self.proc.user.rowid, self.pid)
                 if plTg.message:
@@ -579,13 +579,14 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             await super().text_input(text, context)
 
     async def list_items(self, args, context):
-        p = PlaylistItemsPagesTMessage(self.navigation, deleted=args[0], user=self.proc.user, params=self.proc.params, playlist_obj=self)
-        if self.navigation._menu_queue and isinstance(self.navigation._menu_queue[-1], PlaylistItemsPagesTMessage):
-            await self.navigation.goto_back()
-        await self.navigation.goto_menu(p, context, sync=True)
-        if p.first_page.groups:
-            grp = p.first_page.groups[0]
-            await p.goto_group((grp,), context)
+        if self.navigation._menu_queue and isinstance(self.navigation._menu_queue[-1], (PlaylistItemsPagesTMessage, PlaylistsPagesTMessage)):
+            p = PlaylistItemsPagesTMessage(self.navigation, deleted=args[0], user=self.proc.user, params=self.proc.params, playlist_obj=self)
+            if isinstance(self.navigation._menu_queue[-1], PlaylistItemsPagesTMessage):
+                await self.navigation.goto_back(sync=True)
+            await self.navigation.goto_menu(p, context, sync=True)
+            if p.first_page.groups:
+                grp = p.first_page.groups[0]
+                await p.goto_group((grp,), context)
 
     async def edit_me(self, context=None):
         cls = None

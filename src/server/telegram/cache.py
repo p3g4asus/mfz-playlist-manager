@@ -21,7 +21,7 @@ class PlaylistItemTg(object):
 class PlaylistTg(object):
     def __init__(self, playlist: Playlist, index: int):
         self.message: PlaylistTMessage = None
-        self.items: Dict[str, PlaylistItemTg] = dict()
+        self.items: Dict[int, PlaylistItemTg] = dict()
         self.refresh(playlist, index)
 
     def get_items(self, deleted: Union[bool, Callable[[PlaylistItem], bool]] = False) -> List[PlaylistItemTg]:
@@ -42,9 +42,8 @@ class PlaylistTg(object):
         return rv
 
     def get_item(self, rowid: int) -> PlaylistItemTg:
-        key = str(rowid)
-        if key in self.items:
-            itemTg: PlaylistItemTg = self.items[key]
+        if rowid in self.items:
+            itemTg: PlaylistItemTg = self.items[rowid]
             itemTg.refresh(itemTg.item, itemTg.index)
             return itemTg
         else:
@@ -55,10 +54,9 @@ class PlaylistTg(object):
             if it.rowid == rowid:
                 del self.playlist.items[i]
                 break
-        key = str(rowid)
-        if key in self.items:
-            out = self.items[key]
-            del self.items[key]
+        if rowid in self.items:
+            out = self.items[rowid]
+            del self.items[rowid]
             self.refresh(self.playlist, self.index)
             return out
         else:
@@ -68,11 +66,12 @@ class PlaylistTg(object):
         self.playlist = playlist
         self.index = index
         olditems = self.items
-        self.items: Dict[str, PlaylistItemTg] = dict()
+        self.items: Dict[int, PlaylistItemTg] = dict()
         real_index = 0
         del_index = 1000000
         for it in playlist.items:
-            key = str(it.rowid)
+            it: PlaylistItem
+            key = it.rowid
             i = real_index if not it.seen else del_index
             itemTg: PlaylistItemTg
             if key in olditems:
@@ -89,16 +88,16 @@ class PlaylistTg(object):
             self.message = None
 
 
-_PLAYLIST_CACHE: Dict[str, Dict[str, PlaylistTg]] = dict()
+_PLAYLIST_CACHE: Dict[int, Dict[int, PlaylistTg]] = dict()
 
 
 def cache_store(p: Playlist, index=None):
-    useris = str(p.useri)
+    useris = p.useri
     if useris not in _PLAYLIST_CACHE:
         dep = _PLAYLIST_CACHE[useris] = dict()
     else:
         dep = _PLAYLIST_CACHE[useris]
-    pids = str(p.rowid)
+    pids = p.rowid
     if index is None:
         if pids not in dep:
             index = len(dep)
@@ -113,31 +112,28 @@ def cache_store(p: Playlist, index=None):
 
 
 def cache_del(p: Playlist):
-    useris = str(p.useri)
+    useris = p.useri
     dep: dict = _PLAYLIST_CACHE.get(useris, None)
     if dep:
-        pids = str(p.rowid)
+        pids = p.rowid
         if pids in dep:
             del dep[pids]
             for i, pd in enumerate(dep.values()):
                 pd.index = i
 
 
-def cache_on_item_deleted(useri: int, pid: int):
-    useris = str(useri)
+def cache_on_item_deleted(useris: int, pids: int):
     dep: dict = _PLAYLIST_CACHE.get(useris, None)
     if dep:
-        pids = str(pid)
         if pids in dep:
             plTg = dep[pids]
             plTg.refresh(plTg.playlist, plTg.index)
 
 
-def cache_on_item_updated(useri: int, pid: int, it: PlaylistItem):
-    useris = str(useri)
+def cache_on_item_updated(useris: int, it: PlaylistItem):
     dep: dict = _PLAYLIST_CACHE.get(useris, None)
     if dep:
-        pids = str(pid)
+        pids = it.playlist
         if pids in dep:
             plTg: PlaylistTg = dep[pids]
             for i, ito in enumerate(plTg.playlist.items):
@@ -147,12 +143,10 @@ def cache_on_item_updated(useri: int, pid: int, it: PlaylistItem):
                     break
 
 
-def cache_del_user(useri: int, playlists: List[Playlist]):
-    newdict = dict()
-    useris = str(useri)
+def cache_del_user(useris: int, playlists: List[Playlist]):
     newdict = dict() if useris in _PLAYLIST_CACHE else None
     for p in playlists:
-        pids = str(p.rowid)
+        pids = p.rowid
         cache_store(p)
         if newdict is not None:
             newdict[pids] = _PLAYLIST_CACHE[useris][pids]
@@ -160,9 +154,8 @@ def cache_del_user(useri: int, playlists: List[Playlist]):
         _PLAYLIST_CACHE[useris] = newdict
 
 
-def cache_get(useri: int, pid: Optional[int] = None) -> Union[List[PlaylistTg], PlaylistTg]:
-    useris = str(useri)
-    if pid is None:
+def cache_get(useris: int, pids: Optional[int] = None) -> Union[List[PlaylistTg], PlaylistTg]:
+    if pids is None:
         dd = _PLAYLIST_CACHE.get(useris, dict())
         pps = []
         for _, p in dd.items():
@@ -171,7 +164,6 @@ def cache_get(useri: int, pid: Optional[int] = None) -> Union[List[PlaylistTg], 
             pps.append(p)
         return pps
     else:
-        pids = str(pid)
         dd = _PLAYLIST_CACHE.get(useris, dict()).get(pids, None)
         if dd and dd.message and dd.message.has_expired():
             dd.message = None
@@ -183,8 +175,6 @@ def cache_get_items(useri: int, pid: int, deleted: Union[bool, Callable[[Playlis
     return dd.get_items(deleted) if dd else []
 
 
-def cache_get_item(useri: int, pid: int, itid: int) -> PlaylistItemTg:
-    useris = str(useri)
-    pids = str(pid)
+def cache_get_item(useris: int, pids: int, itid: int) -> PlaylistItemTg:
     dd = _PLAYLIST_CACHE.get(useris, dict()).get(pids)
     return dd.get_item(itid) if dd else None
