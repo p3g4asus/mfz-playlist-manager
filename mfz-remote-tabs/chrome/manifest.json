@@ -14,7 +14,7 @@
     "storage",
     "scripting"
   ],
-  "version": "1.33",
+  "version": "1.34",
   "background": {
     "service_worker": "bg-wrapper.js"
   },

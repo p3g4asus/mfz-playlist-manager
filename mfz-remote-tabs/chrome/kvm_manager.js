@@ -208,7 +208,7 @@ const ADD_KEY_REGEXP = new RegExp('^([_<>\\^\\$])');
 const CARD_REGEXP = new RegExp('^@([0-9]+)');
 
 function kvm_process_string(s) {
-    let keyOut = {};
+    let keyOut = {}, mix = null;
     let rexp, quit, remove;
     let card = 1;
     for (;;) {
@@ -218,20 +218,29 @@ function kvm_process_string(s) {
         if ((rexp = ADD_KEY_REGEXP.exec(s))) {
             quit = false;
         } else if ((rexp = /^"([^"]+)"/.exec(s))) {
-            keyOut = Object.assign(keyOut, {'obj': rexp[1]});
-            remove = rexp[1] + '55';
-            rexp = null;
+            const val = rexp[1];
+            rexp = new RegExp('^([^/]+)/([0-9]+)/([^/]*)$').exec(val);
+            if (rexp) {
+                mix = {'keyCode': parseInt(rexp[2]), 'key': rexp[1], 'code': rexp[3]};
+                rexp = [0, val + '55'];
+            } else {
+                keyOut = Object.assign(keyOut, {'obj': val});
+                remove = val + '55';
+                rexp = null;
+            }
         } else if ((rexp = SPECIAL_KEYS_REGEXP.exec(s)));
         else if (KEY_EVENT_MAP[s.charAt(0)]) {
             rexp = [0, s.charAt(0)];
         }
         if (rexp) {
-            const mix = Object.assign({}, KEY_EVENT_MAP[rexp[1]]);
-            if (mix.code) {
-                mix.key = mix.rk || rexp[1];
-                mix.which = mix.keyCode;
-                mix.bubbles = true;
+            if (!mix) {
+                mix = Object.assign({}, KEY_EVENT_MAP[rexp[1]]);
+                if (mix.code) {
+                    mix.key = mix.rk || rexp[1];
+                }
             }
+            mix.which = mix.keyCode;
+            mix.bubbles = true;
             const cards = CARD_REGEXP.exec(s.substring(rexp[1].length));
             if (cards) {
                 card = parseInt(cards[1]);
