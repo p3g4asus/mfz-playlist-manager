@@ -247,6 +247,7 @@ function kvm_process_string(s) {
                 rexp[1] += cards[0];
             }
             keyOut = Object.assign(keyOut, mix);
+            mix = null;
         } else {
             rexp = [0, remove];
             quit = false;
