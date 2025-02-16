@@ -191,8 +191,8 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     await self.redis.zadd(f'urls_{self.user.rowid}', {url: int(score)})
                     await self.goto(url)
                     await self.switch_to_idle()
-            except Exception:
-                pass
+            except Exception as eex:
+                _LOGGER.warning(f'Error in BrowserInfoMessage.text_input({text}): {eex}')
         elif self.status == NameDurationStatus.IDLE:
             text = text.strip()
             try:
