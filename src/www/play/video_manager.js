@@ -278,6 +278,7 @@ function on_player_state_changed(player, event) {
                 if (tm >= 5)
                     save_playlist_item_settings({sec: playlist_item_current.conf.sec = tm}, 'pinfo');
                 playlist_item_current_duration = get_duration_from_video_manager();
+                if (new Date().getTime() - playlist_item_current_wasplaying <= 35000) video_manager_obj.rate(playlist_rate);
             }, 30000);
         }
         return;
