@@ -162,7 +162,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
         if self.lst_sel and re.search(f'/(u|p)p{self.ns}_([0-9]+)', text):
             return True
         elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
-            if re.search(f'/ur{self.ns}_([0-9]+)', text):
+            if re.search(f'/ur{self.ns}_([0-9]+)', text) or re.search(f'/ll{self.ns}_(http.+)', text):
                 return True
         elif self.status == NameDurationStatus.IDLE:
             if re.search(f'^/k{self.ns}_(.+)$', text) or re.search(f'/ST{self.ns}_([0-9]+)', text):
@@ -185,6 +185,8 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     url = self.lst_sel[g][0] if g < len(self.lst_sel) else ''
                     if self.lst_sel[g][1] > score:
                         score += BrowserInfoMessage.PIN_TIME
+                elif (mo := re.search(f'/ll{self.ns}_(http.+)', text)):
+                    url = mo.group(1)
                 else:
                     url = text
                 if url:
