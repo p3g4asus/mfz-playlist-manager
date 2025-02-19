@@ -186,10 +186,10 @@ class ListPagesTMessage(BaseMessage):
     def slash_message_processed(self, text: str) -> bool:
         return False
 
-    async def goto_page(self, args, context=None):
+    async def goto_page(self, args, context=None, sync: bool = False):
         page, = args
         self.first_page = page
-        await self.navigation.goto_menu(self, context, add_if_present=False)
+        await self.navigation.goto_menu(self, context, add_if_present=False, sync=sync)
 
     async def goto_group(self, args, context=None):
         group: GroupOfNameDurationItems = args[0]

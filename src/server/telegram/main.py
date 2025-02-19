@@ -118,9 +118,9 @@ class StartTMessage(BaseMessage):
         self.user = self.link = None
         await self.navigation.goto_home(context)
 
-    async def list_page_of_playlists(self, page, context: Optional[CallbackContext] = None):
+    async def list_page_of_playlists(self, page, context: Optional[CallbackContext] = None, sync: bool = False):
         if self.playlists_lister:
-            await self.playlists_lister.goto_page((page, ), context)
+            await self.playlists_lister.goto_page((page, ), context, sync)
 
     def cache_clear(self, context: Optional[CallbackContext] = None):
         cache_del_user(self.user.rowid, [])

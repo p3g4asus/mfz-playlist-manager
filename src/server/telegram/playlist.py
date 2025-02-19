@@ -579,6 +579,9 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             await super().text_input(text, context)
 
     async def list_items(self, args, context):
+        if self.navigation._menu_queue and not isinstance(self.navigation._menu_queue[-1], (PlaylistItemsPagesTMessage, PlaylistsPagesTMessage)):
+            await self.navigation.goto_home(sync=True)
+            await self.navigation._menu_queue[0].list_page_of_playlists(None, context, sync=True)
         if self.navigation._menu_queue and isinstance(self.navigation._menu_queue[-1], (PlaylistItemsPagesTMessage, PlaylistsPagesTMessage)):
             p = PlaylistItemsPagesTMessage(self.navigation, deleted=args[0], user=self.proc.user, params=self.proc.params, playlist_obj=self)
             if isinstance(self.navigation._menu_queue[-1], PlaylistItemsPagesTMessage):
@@ -1339,7 +1342,7 @@ class RefreshNewPlaylistTMessage(RefreshingTMessage):
     async def on_refresh_finish(self, pl: PlaylistMessage):
         if pl.rv == 0:
             await self.switch_to_idle()
-            await self.navigation.goto_home()
+            await self.navigation.goto_home(sync=True)
             await self.navigation._menu_queue[0].list_page_of_playlists(None)
         else:
             await self.switch_to_idle((NameDurationStatus.UPDATING_WAITING, ))
