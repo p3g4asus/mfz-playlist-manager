@@ -134,13 +134,12 @@ class RemoteInfoMessage(StatusTMessage):
             _LOGGER.debug(f'{self.label} remote_send edit_or_select')
         else:
             _LOGGER.debug(f'{self.label} remote_send send')
+            if self.message_id != -1:
+                self.navigation: MyNavigationHandler
+                await self.navigation.navigation_schedule_wrapper(self.navigation._delete_queued_message(self), True)
             if self.killed:
                 self.killed = False
                 self.time_alive = None
-            mid = None
-            if self in self.navigation._message_queue:
-                mid = self.message_id
-                self.navigation._message_queue.remove(self)
             if (mo := re.search(r'(\d+)$', self.label)):
                 nn = int(mo.group(1))
                 ss = self.label[0:mo.start(1)]
@@ -150,9 +149,6 @@ class RemoteInfoMessage(StatusTMessage):
             nn += 1
             self.label = f'{ss}{nn}'
             await self.send(sync=True)
-            if mid is not None:
-                self.navigation: MyNavigationHandler
-                self.navigation.send_operation_wrapper(self.navigation.delete_message(mid))
 
     async def notify_do(self, arg: Dict[str, Any]):
         if self.notification_cache_handle:
