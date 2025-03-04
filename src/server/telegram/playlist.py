@@ -868,7 +868,7 @@ class YoutubeDLPlaylistTMessage(PlaylistNamingTMessage):
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.long_operation_do,
             "interval",
-            id="check_playlist",
+            id=f"check_playlist{self.navigation.chat_id}",
             seconds=3,
             replace_existing=True,
             next_run_time=StatusTMessage.datenow()
@@ -950,7 +950,7 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.long_operation_do,
             "interval",
-            id="listing_refresh",
+            id=f"listing_refresh{self.navigation.chat_id}",
             seconds=3,
             replace_existing=True,
             next_run_time=StatusTMessage.datenow()
@@ -1152,7 +1152,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.long_operation_do,
             "interval",
-            id="listing_refresh",
+            id=f"listing_refresh{self.navigation.chat_id}",
             seconds=3,
             replace_existing=True,
             next_run_time=StatusTMessage.datenow()
@@ -1214,7 +1214,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.long_operation_do,
             "interval",
-            id="listing_refresh",
+            id=f"listing_refresh{self.navigation.chat_id}",
             seconds=3,
             replace_existing=True,
             next_run_time=StatusTMessage.datenow()
@@ -1332,7 +1332,7 @@ class RefreshNewPlaylistTMessage(RefreshingTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, playlist: Playlist = None) -> None:
         super().__init__(
             navigation,
-            label=self.__class__.__name__,
+            label=self.__class__.__name__ + str(user.rowid),
             input_field=f'Refresh {playlist.name}',
             user=user,
             params=params,
