@@ -9,7 +9,7 @@ class TwitchPlayer {
             height: video_height <= 0?'' + (-video_height) + '%':video_height,
             autoplay: false,
             muted: false,
-            channel: 'twitch',
+            channel: 'p3g4asus',
             // only needed if your site is also embedded on embed.example.com and othersite.example.com
             parent: [window.location.host]
         };
