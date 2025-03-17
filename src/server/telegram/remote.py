@@ -51,7 +51,7 @@ class RemoteInfoMessage(StatusTMessage):
     def __init__(self, name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int, notify_cache_time: float = 0.7, **argw) -> None:
         super().__init__(
             navigation,
-            label=self.__class__.__name__ + name,
+            label=f'{self.__class__.__name__}_{navigation.chat_id}_{name}_0',
             expiry_period=timedelta(hours=3),
             input_field='Timestamp',
             inlined=True,

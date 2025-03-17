@@ -53,7 +53,7 @@ class Html5Player {
     }
 
     rate(v) {
-        setTimeout(() => this.player.playbackRate = v, 10)
+        setTimeout(() => this.player.playbackRate = v, 5000);
     }
 
     play_video(url, typeV) {
