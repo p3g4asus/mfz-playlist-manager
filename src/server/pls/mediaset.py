@@ -103,10 +103,11 @@ if (login_needed == 5000) {
 } else callback(0);
 """
 
-    def __init__(self, db, d1=4, d2=4, d3=65, **kwargs):
+    def __init__(self, db, d1=4, d2=4, d3=65, drmurl='http://127.0.0.1:1337/api/decrypt', **kwargs):
         self.d1 = d1
         self.d2 = d2
         self.d3 = d3
+        self.drmurl = drmurl
         super().__init__(db, **kwargs)
 
     @staticmethod
@@ -298,21 +299,22 @@ if (login_needed == 5000) {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36',
                         }
                         json_data_clone = {
-                            'License URL': lic_url,
-                            'Headers': "{'Connection': 'keep-alive'}",
-                            'PSSH': pssh,
-                            'JSON': '{}',
-                            'Cookies': '{}',
-                            'Data': '{}',
-                            'Proxy': ''
+                            'pssh': pssh,
+                            'licurl': lic_url,
+                            'headers': str({
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0',
+                                'Accept': '*/*',
+                                'Connection': 'keep-alive',
+                                'Accept-Language': 'en-US,en;q=0.5',
+                            })
                         }
                         async with aiohttp.ClientSession(headers=headers_clone) as session:
-                            url = 'https://cdrm-project.com/'
+                            url = self.drmurl
                             _LOGGER.debug("Mediaset: Getting key data from " + url)
                             async with session.post(url, json=json_data_clone) as resp:
                                 if resp.status == 200:
                                     clone_resp = await resp.json(content_type=None)
-                                    keys = clone_resp['Message'].strip().split('\n')
+                                    keys = clone_resp['message'].split(':')
                                     if keys:
                                         it.conf['_drm_k'] = keys
                     except Exception:

@@ -350,6 +350,7 @@ def main():
     parser.add_argument('--telegram', required=False, default='')
     parser.add_argument('--redirect-files', required=False, default=False, action="store_true")
     parser.add_argument('--common-dldir', required=False, default='')
+    parser.add_argument('--mediaset-drmurl', required=False, default='http://127.0.0.1:1337/api/decrypt')
     parser.add_argument('--mediaset-d1', required=False, default=4, type=float)
     parser.add_argument('--mediaset-d2', required=False, default=4, type=float)
     parser.add_argument('--mediaset-d3', required=False, default=65, type=int)
