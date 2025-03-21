@@ -39,6 +39,8 @@ class MessageProcessor(RefreshMessageProcessor):
             return f'https://www.youtube.com/{plid[1:]}' if plid[1] == '@' else f'https://www.youtube.com/channel/{plid[1:]}/videos'
         elif plid[0] == '(':
             return f'https://www.youtube.com/channel/{plid[1:]}/streams'
+        elif plid[0] == ')':
+            return f'https://www.youtube.com/channel/{plid[1:]}/playlists'
         else:
             return f'https://m.youtube.com/playlist?list={plid}'
 
@@ -103,11 +105,13 @@ class MessageProcessor(RefreshMessageProcessor):
                                     plid = '|'
                                     url = text
                             else:
-                                mo2 = re.search(r'/(videos|streams)$', urlp.path)
+                                mo2 = re.search(r'/(videos|streams|playlists)$', urlp.path)
                                 plid = '|'
                                 if mo2:
                                     if mo2.group(1)[0] == 's':
                                         plid = '('
+                                    elif mo2.group(1)[0] == 'p':
+                                        plid = ')'
                                 else:
                                     urlp = urlp._replace(path=urlp.path + '/videos')
                                     text = urlunparse(urlp)
@@ -279,7 +283,12 @@ class MessageProcessor(RefreshMessageProcessor):
                 programs = dict()
                 localtz = datetime.now(timezone.utc).astimezone().tzinfo
                 sta = msg.init_send_status_with_ping(ss=[])
-                for set, ordered, filters, title in sets:
+                setidx = 0
+                while True:
+                    if len(sets) <= setidx:
+                        break
+                    set, ordered, filters, title = sets[setidx]
+                    setidx += 1
                     startFrom = 1
                     while startFrom:
                         ydl_opts['playliststart'] = startFrom
@@ -444,6 +453,10 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                     pass
                                                             video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                                     else:
+                                                        if video['id'].startswith('PL') and video['url'].find('playlist?list=PL') > 0:
+                                                            if self.video_is_not_filtered_out(video, filters):
+                                                                sets.append((video['id'], ordered, dict(), video['title']))
+                                                            continue
                                                         current_url = f"http://www.youtube.com/watch?v={video['id']}&src=plsmanager"
                                                         if youtube:
                                                             try:
