@@ -82,24 +82,48 @@ if (login_needed == 5000) {
     let $el = jQuery('div:contains("Login/R")');
     login_log |= ($el.length?2:0);
     $el.click();
-    setTimeout(function() {
+    let tt = 0;
+    const d1 = %d;
+    const d2 = %d;
+    const fn1 = function() {
         $el = jQuery('input[value*="Accedi con email"');
         login_log |= ($el.length?32:0);
-        $el.click();
-        setTimeout(function() {
-            $el = jQuery('input[name=username]');
-            login_log |= ($el.length?4:0);
-            $el.val('%s');
-            $el = jQuery('input[name=password]');
-            login_log |= ($el.length?8:0);
-            $el.val('%s');
-            $el = jQuery('input[value=Continua]');
-            login_log |= ($el.length?16:0);
+        if (login_log&32) {
             $el.click();
-            console.log('Exiting from script with ' + login_log);
-            callback(login_log);
-        }, %d);
-    }, %d);
+            tt = 0;
+            const fn2 = function() {
+                $el = jQuery('input[name=username]');
+                login_log |= ($el.length?4:0);
+                $el.val('%s');
+                $el = jQuery('input[name=password]');
+                login_log |= ($el.length?8:0);
+                $el.val('%s');
+                $el = jQuery('input[value=Continua]');
+                login_log |= ($el.length?16:0);
+                if ((login_log&28) == 28) {
+                    $el.click();
+                    console.log('Exiting from script with ' + login_log);
+                    callback(login_log);
+                } else {
+                    tt += 1000;
+                    if (tt < d2) setTimeout(fn2, 1000);
+                    else {
+                        console.log('Exiting from script with ' + login_log);
+                        callback(login_log);
+                    }
+                }
+            }
+            setTimeout(fn2, 1000);
+        } else {
+            tt += 1000;
+            if (tt < d1) setTimeout(fn1, 1000);
+            else {
+                console.log('Exiting from script with ' + login_log);
+                callback(login_log);
+            }
+        }
+    }
+    setTimeout(fn1, 1000);
 } else callback(0);
 """
 
@@ -204,7 +228,7 @@ if (login_needed == 5000) {
                             fut = run_coroutine_threadsafe(self.get_user_credentials(userid), loop)
                             uspw = fut.result()
                             if uspw:
-                                rv = driver.execute_async_script(self.INOCULATE_SCR3 % (*uspw, int(self.d2 * 1000), int(self.d1 * 1000)))
+                                rv = driver.execute_async_script(self.INOCULATE_SCR3 % (int(self.d1 * 1000), int(self.d2 * 1000), *uspw))
                                 tstart = time.time()
                                 _LOGGER.info('[mediaset] SMIL need login: inserted -> ' + str(rv))
                                 resp['sta'] += f'-l-{rv}'
