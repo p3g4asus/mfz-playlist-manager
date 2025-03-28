@@ -1,4 +1,6 @@
-from asyncio import get_event_loop, run_coroutine_threadsafe
+from asyncio import Event, get_event_loop, run_coroutine_threadsafe, sleep, wait_for, TimeoutError
+import contextlib
+from functools import partial
 import json
 import logging
 import re
@@ -22,6 +24,21 @@ from common.user import User
 from .refreshmessageprocessor import RefreshMessageProcessor
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class EventUrl(object):
+    def __init__(self):
+        self.evt = Event()
+        self.url = None
+
+    async def wait(self, timeout):
+        with contextlib.suppress(TimeoutError):
+            await wait_for(self.evt.wait(), timeout)
+        return self.url
+
+    def set(self, url):
+        self.url = url
+        self.evt.set()
 
 
 class MessageProcessor(RefreshMessageProcessor):
@@ -127,11 +144,12 @@ if (login_needed == 5000) {
 } else callback(0);
 """
 
-    def __init__(self, db, d1=4, d2=4, d3=65, drmurl='http://127.0.0.1:1337/api/decrypt', **kwargs):
+    def __init__(self, db, d1=4, d2=4, d3=65, drmurl='http://127.0.0.1:1337/api/decrypt', getsmil='selenium', **kwargs):
         self.d1 = d1
         self.d2 = d2
         self.d3 = d3
         self.drmurl = drmurl
+        self.getsmil = self.processGetSMILSelenium if getsmil == 'selenium' else self.processGetSMILPlaywright
         super().__init__(db, **kwargs)
 
     @staticmethod
@@ -164,7 +182,7 @@ if (login_needed == 5000) {
         setts = await User.get_settings(self.db, userid, 'mediaset_user', 'mediaset_password')
         return None if not setts or not setts[0] or not setts[1] else setts
 
-    def processGetSMIL(self, url, resp, userid, loop):
+    def processGetSMILSeleniumInner(self, url, resp, userid, loop):
         resp['sta'] = 'N/A'
         driver = None
         try:
@@ -247,6 +265,102 @@ if (login_needed == 5000) {
         except Exception:
             pass
 
+    async def processGetSMILSelenium(self, url, userid, executor):
+        out_resp = dict()
+        await executor(self.processGetSMILSeleniumInner, url, out_resp, userid, get_event_loop())
+        _LOGGER.info(f'[mediaset] SMIL get sta={out_resp["sta"]} err={out_resp["err"]}')
+        return out_resp['err'] if 'err' in out_resp and out_resp['err'] else out_resp['link']
+
+    async def processGetSMILPlaywrightInner(self, playwright, *, url: str, userid: int) -> dict:
+        from playwright.async_api import Playwright
+        playwright: Playwright = playwright
+        intercepted = EventUrl()
+        exit_value = 0
+
+        async def handle(route, *_, **kwargs):
+            _LOGGER.debug("Intercepted: ", route)
+            await route.continue_()
+            if 'intercepted' in kwargs:
+                kwargs['intercepted'].set(route.request.url)
+
+        browser = await playwright.chromium.launch(
+            headless=False,
+            ignore_default_args=["--headless"],
+            args=["--headless=new"],
+        )
+        context = await browser.new_context(**playwright.devices['Pixel 7'])
+
+        # Open a new browser page.
+        for _ in range(3):
+            try:
+                page = await wait_for(context.new_page(), timeout=30)
+                exit_value |= 128
+                break
+            except TimeoutError as ex0:
+                _LOGGER.debug(f"[mediaset-get-smil] Timeout! 0({exit_value}) -> {ex0}")
+        if not page:
+            return {'url': url, 'title': None, 'smilurl': None, 'exit_value': exit_value}
+        await context.route(re.compile(r"format=SMIL"), partial(handle, intercepted=intercepted))
+
+        # Short sleep to be able to see the browser in action.
+        await sleep(1)
+
+        # Navigate to the specified URL.
+        await page.goto(url)
+        try:
+            await page.locator("#rti-privacy-accept-btn-screen1-id").click(timeout=30000)
+            exit_value |= 1
+        except Exception as ex1:
+            _LOGGER.debug(f"[mediaset-get-smil] Timeout! 1({exit_value}) -> {ex1}")
+        tstart = time.time()
+
+        # Intercept the route to the fruit API
+        while not intercepted.url:
+            now = time.time()
+            if now - tstart < self.d3:
+                try:
+                    await page.get_by_text("Login/Registrati").click(timeout=10000)
+                    exit_value |= 2
+                    try:
+                        await page.get_by_text(re.compile("^Accedi con email"), exact=False).click(timeout=self.d1 * 1000 + 10000)
+                        exit_value |= 4
+                        uspw = await self.get_user_credentials(userid)
+                        if uspw:
+                            await page.get_by_placeholder("Password").fill(uspw[1], timeout=self.d2 * 1000 + 10000)
+                            exit_value |= 8
+                            await page.get_by_placeholder("email").fill(uspw[0], timeout=10000)
+                            exit_value |= 16
+                            await page.get_by_text("Continua").click(timeout=10000)
+                            exit_value |= 32
+                        break
+                    except Exception as ex3:
+                        _LOGGER.debug(f"[mediaset-get-smil] Timeout! 3({exit_value}) -> {ex3}")
+                        break
+                except Exception as ex2:
+                    _LOGGER.debug(f"[mediaset-get-smil] Timeout! 2({exit_value}) -> {ex2}")
+            else:
+                break
+            await sleep(1)
+        smilurl = await intercepted.wait(self.d3)
+        if smilurl is not None:
+            exit_value |= 64
+
+        # Retrieve the title of the page.
+        title = await page.title()
+
+        # Close the browser.
+        await browser.close()
+
+        # Return the page's URL and title as a dictionary.
+        return {'url': url, 'title': title, 'smilurl': smilurl, 'exit_value': exit_value}
+
+    async def processGetSMILPlaywright(self, url, userid, executor):
+        from playwright.async_api import async_playwright
+        async with async_playwright() as playwright:
+            result = await self.processGetSMILPlaywrightInner(playwright, url=url, userid=userid)
+            _LOGGER.info(f'[mediaset] SMIL get sta={result["exit_value"]}')
+            return result['exit_value'] if not (result['exit_value'] & 64) else result['smilurl']
+
     async def processKeyGet(self, msg, userid, executor):
         x = msg.playlistItemId()
         it = await PlaylistItem.loadbyid(self.db, rowid=x)
@@ -258,12 +372,11 @@ if (login_needed == 5000) {
                 try:
                     msg.smil = None if len(msg.smil) < 10 else msg.smil
                     if not msg.smil and 'pageurl' in it.conf:
-                        out_resp = dict()
-                        await executor(self.processGetSMIL, it.conf['pageurl'], out_resp, userid, get_event_loop())
-                        _LOGGER.info(f'[mediaset] SMIL get sta={out_resp["sta"]} err={out_resp["err"]}')
-                        if 'err' in out_resp and out_resp['err']:
-                            return msg.err(out_resp['err'], MSG_BACKEND_ERROR)
-                        smil = out_resp['link']
+                        rv = await self.getsmil(it.conf['pageurl'], userid, executor)
+                        if isinstance(rv, int):
+                            return msg.err(rv, MSG_BACKEND_ERROR)
+                        else:
+                            smil = rv
                     elif not msg.smil:
                         return msg.err(20, MSG_INVALID_PARAM)
                     else:
