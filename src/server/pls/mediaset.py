@@ -300,6 +300,7 @@ if (login_needed == 5000) {
             except TimeoutError as ex0:
                 _LOGGER.debug(f"[mediaset-get-smil] Timeout! 0({exit_value}) -> {ex0}")
         if not page:
+            await browser.close()
             return {'url': url, 'title': None, 'smilurl': None, 'exit_value': exit_value}
         await context.route(re.compile(r"format=SMIL"), partial(handle, intercepted=intercepted))
 
@@ -357,10 +358,11 @@ if (login_needed == 5000) {
 
     async def processGetSMILPlaywright(self, url, userid, executor):
         from playwright.async_api import async_playwright
+        result = None
         async with async_playwright() as playwright:
             result = await self.processGetSMILPlaywrightInner(playwright, url=url, userid=userid)
             _LOGGER.info(f'[mediaset] SMIL get sta={result["exit_value"]}')
-            return result['exit_value'] if not (result['exit_value'] & 64) else result['smilurl']
+        return result['exit_value'] if not (result['exit_value'] & 64) else result['smilurl']
 
     async def processKeyGet(self, msg, userid, executor):
         x = msg.playlistItemId()
