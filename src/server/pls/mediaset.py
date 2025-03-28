@@ -312,6 +312,7 @@ if (login_needed == 5000) {
         try:
             await page.locator("#rti-privacy-accept-btn-screen1-id").click(timeout=30000)
             exit_value |= 1
+            await sleep(3)
         except Exception as ex1:
             _LOGGER.debug(f"[mediaset-get-smil] Timeout! 1({exit_value}) -> {ex1}")
         tstart = time.time()
@@ -323,15 +324,19 @@ if (login_needed == 5000) {
                 try:
                     await page.get_by_text("Login/Registrati").click(timeout=10000)
                     exit_value |= 2
+                    await sleep(3)
                     try:
                         await page.get_by_text(re.compile("^Accedi con email"), exact=False).click(timeout=self.d1 * 1000 + 10000)
                         exit_value |= 4
+                        await sleep(3)
                         uspw = await self.get_user_credentials(userid)
                         if uspw:
                             await page.get_by_placeholder("Password").fill(uspw[1], timeout=self.d2 * 1000 + 10000)
                             exit_value |= 8
+                            await sleep(3)
                             await page.get_by_placeholder("email").fill(uspw[0], timeout=10000)
                             exit_value |= 16
+                            await sleep(3)
                             await page.get_by_text("Continua").click(timeout=10000)
                             exit_value |= 32
                         break
