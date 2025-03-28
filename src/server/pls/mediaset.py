@@ -203,6 +203,7 @@ if (login_needed == 5000) {
             chrome_options.add_argument("--headless=new")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-software-rasterizer")
+            chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36")
             chrome_options.set_capability("goog:loggingPrefs", {"performance": "ALL"})  # newer: goog:loggingPrefs
 
             driver = webdriver.Chrome(options=chrome_options)
