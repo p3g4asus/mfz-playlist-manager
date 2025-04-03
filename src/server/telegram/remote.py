@@ -1,24 +1,28 @@
-from abc import abstractmethod
-from asyncio import AbstractEventLoop, Task, TimerHandle, create_task, get_event_loop
-from datetime import timedelta
 import json
 import logging
-from os import urandom
 import re
 import traceback
+from abc import abstractmethod
+from asyncio import (AbstractEventLoop, Task, TimerHandle, create_task,
+                     get_event_loop)
+from datetime import datetime, timedelta
+from os import urandom
 from typing import Any, Coroutine, Dict, List, Optional, Tuple, Union
 from urllib.parse import ParseResult, parse_qs, urlencode, urlparse, urlunparse
 
 from aiohttp import ClientSession, WSMsgType
-from telegram_menu import MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
+from telegram_menu import MenuButton, NavigationHandler
+from tzlocal import get_localzone
 
-from common.const import CMD_REMOTEPLAY, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY
+from common.const import (CMD_REMOTEPLAY, CMD_REMOTEPLAY_PUSH,
+                          CMD_REMOTEPLAY_PUSH_NOTIFY)
 from common.playlist import PlaylistMessage
 from common.user import User
 from common.utils import MyEncoder, coro_could_safely_not_be_awaited
-from server.telegram.message import MyNavigationHandler, NameDurationStatus, ProcessorMessage, StatusTMessage
+from server.telegram.message import (MyNavigationHandler, NameDurationStatus,
+                                     ProcessorMessage, StatusTMessage)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -122,11 +126,17 @@ class RemoteInfoMessage(StatusTMessage):
             return False
 
     def message_is_hidden(self) -> bool:
+        old_not_remote = 0
+        now = datetime.now(tz=get_localzone())
+        td1m = timedelta(minutes=1)
         for x in reversed(self.navigation._message_queue):
             if x is self:
-                return False
+                return old_not_remote > 0
             elif not isinstance(x, RemoteInfoMessage):
-                return True
+                if x.time_alive is None or now - x.time_alive < td1m:
+                    return False
+                else:
+                    old_not_remote += 1
         return True
 
     async def remote_send(self):
