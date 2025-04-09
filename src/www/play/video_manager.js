@@ -78,7 +78,7 @@ function get_video_params_from_item(idx) {
     let old_height = video_height;
     playlist_player = 'youtube';
 
-    if (is_item_downloaded(playlist_item_current) || playlist_current.type == 'localfolder')
+    if (is_item_downloaded(playlist_item_current) || playlist_current.type == 'localfolder' || playlist_current.type == 'urlebird')
         playlist_player = 'html5';
     else if (playlist_current.type == 'youtube') {
         let extr;
@@ -91,7 +91,7 @@ function get_video_params_from_item(idx) {
     }
     else if (playlist_current.type == 'mediaset')
         playlist_player = 'dash';
-    else if (playlist_current.type == 'rai' || playlist_current.type == 'urlebird')
+    else if (playlist_current.type == 'rai')
         playlist_player = 'videojs';
     console.log('Using those settings ' + JSON.stringify(playlist_item_play_settings));
     video_height = playlist_item_play_settings?.height? playlist_item_play_settings.height: 1200;    
