@@ -3,7 +3,7 @@ import logging
 import urllib.parse
 from datetime import datetime
 from os import remove
-from common.const import CONV_LINK_MASK, CONV_LINK_REDIRECT, CONV_LINK_TWITCH, CONV_LINK_UNTOUCH, CONV_LINK_YTDL_DICT, CONV_LINK_YTDL_REDIRECT
+from common.const import CONV_LINK_BIRD_REDIRECT, CONV_LINK_MASK, CONV_LINK_REDIRECT, CONV_LINK_TWITCH, CONV_LINK_UNTOUCH, CONV_LINK_YTDL_DICT, CONV_LINK_YTDL_REDIRECT
 
 from .utils import Fieldable, JSONAble, MyEncoder
 
@@ -353,6 +353,8 @@ class PlaylistItem(JSONAble, Fieldable):
             piece = 'red'
         elif conv == CONV_LINK_TWITCH:
             piece = 'twi'
+        elif conv == CONV_LINK_BIRD_REDIRECT:
+            piece = 'bird'
         return f"{host}/{piece}?{urllib.parse.urlencode(dict(link=self.link))}"
 
     def toJSON(self, host='', conv=0, **kwargs):
@@ -417,18 +419,14 @@ class PlaylistItem(JSONAble, Fieldable):
                 items.append(osr)
             return items
 
-    async def setSeen(self, db, value=True, commit=True):
+    async def setSeen(self, db, value=True, commit=True, previous=False):
         rv = False
         if self.rowid:
             async with db.cursor() as cursor:
-                if value:
-                    await cursor.execute(
-                        "UPDATE playlist_item SET seen=datetime('now') WHERE rowid=?",
-                        (self.rowid,))
-                else:
-                    await cursor.execute(
-                        "UPDATE playlist_item SET seen=NULL WHERE rowid=?",
-                        (self.rowid,))
+                vc = "datetime('now')" if value else "NULL"
+                await cursor.execute(
+                    f"UPDATE playlist_item SET seen={vc} WHERE {'rowid=?' if not previous else 'iorder<=?'}",
+                    (self.rowid if not previous else self.iorder,))
                 rv = cursor.rowcount > 0
         if rv and commit:
             await db.commit()

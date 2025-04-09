@@ -29,7 +29,7 @@ from server.telegram.main import start_telegram_bot, stop_telegram_bot
 from server.webhandlers import (auth_for_item, download_2, img_link, index, login, login_g, logout,
                                 modify_pw, playlist_m3u_2, pls_h_2, post_proxy,
                                 redirect_till_last, register, remote_command,
-                                telegram_command, twitch_redir_do,
+                                telegram_command, twitch_redir_do, urlebird_redir_do,
                                 youtube_dl_do, youtube_redir_do)
 
 __prog__ = "mfz-playlist-manager"
@@ -281,6 +281,10 @@ async def start_app(app):
     })
     resource = cors.add(app.router.add_resource("/ytto"))
     cors.add(resource.add_route('GET', youtube_redir_do), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
+    })
+    resource = cors.add(app.router.add_resource("/bird"))
+    cors.add(resource.add_route('GET', urlebird_redir_do), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
     resource = cors.add(app.router.add_resource("/twi"))

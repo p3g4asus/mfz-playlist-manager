@@ -562,6 +562,20 @@ async def twitch_redir_do(request):
     return web.HTTPBadRequest(body='Link not found in URL')
 
 
+async def urlebird_redir_do(request):
+    videodict = 0
+    if 'link' in request.query:
+        from .pls.urlebird import MessageProcessor as Urlebird
+        link = request.query['link']
+        msgp: Urlebird = request.app.p.processors['urlebird']
+        videodict = 77
+        async with ClientSession(headers=msgp.get_scraper_headers()) as session:
+            videodict = await msgp.get_video_info_from_url(session, link)
+            if isinstance(videodict, dict) and 'contentUrl' in videodict and (url := videodict['contentUrl']):
+                return web.HTTPFound(url)
+    return web.HTTPBadRequest(body=f'Link not found in URL [{videodict}]')
+
+
 async def youtube_redir_do(request):
     playlist_dict = dict()
     current_url = ''

@@ -26,7 +26,7 @@ from pythonosc.udp_client import SimpleUDPClient
 from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DEL, CMD_DOWNLOAD,
                           CMD_DUMP, CMD_FREESPACE, CMD_IORDER, CMD_ITEMDUMP, CMD_MOVE,
                           CMD_PLAYID, CMD_PLAYITSETT, CMD_PLAYSETT, CMD_REN,
-                          CMD_SEEN, CMD_SORT, CMD_TOKEN, CMD_USER_SETTINGS, DOWNLOADED_SUFFIX,
+                          CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TOKEN, CMD_USER_SETTINGS, DOWNLOADED_SUFFIX,
                           MSG_BACKEND_ERROR, MSG_INVALID_PARAM, MSG_NAME_TAKEN,
                           MSG_PLAYLIST_NOT_FOUND, MSG_PLAYLISTITEM_NOT_FOUND,
                           MSG_TASK_ABORT, MSG_UNAUTHORIZED)
@@ -49,7 +49,7 @@ class MessageProcessor(AbstractMessageProcessor):
 
     def interested(self, msg):
         return msg.c(CMD_DEL) or msg.c(CMD_REN) or msg.c(CMD_DUMP) or\
-            msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_MOVE) or\
+            msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_SEEN_PREV) or msg.c(CMD_MOVE) or\
             msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or\
             msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT) or msg.c(CMD_DOWNLOAD) or\
             msg.c(CMD_CLEAR) or msg.c(CMD_FREESPACE) or msg.c(CMD_TOKEN) or msg.c(CMD_USER_SETTINGS) or\
@@ -210,6 +210,26 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         return msg.ok(playlistitem=llx)
+
+    async def processSeenPrev(self, msg, userid, executor):
+        x = msg.playlistItemId()
+        if x is not None:
+            it = await PlaylistItem.loadbyid(self.db, rowid=x)
+            if it:
+                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+                if pls:
+                    if pls[0].useri != userid:
+                        return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                    if not await it.setSeen(self.db, True, commit=True, previous=True):
+                        return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                else:
+                    return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+            else:
+                return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+        else:
+            return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+        pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_ALL)
+        return msg.ok(playlistitem=x, playlist=pls[0])
 
     async def processPlayItSett(self, msg, userid, executor):
         x = msg.playlistItemId()
@@ -809,6 +829,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processClear(msg, userid, executor)
         elif msg.c(CMD_SEEN):
             resp = await self.processSeen(msg, userid, executor)
+        elif msg.c(CMD_SEEN_PREV):
+            resp = await self.processSeenPrev(msg, userid, executor)
         elif msg.c(CMD_IORDER):
             resp = await self.processIOrder(msg, userid, executor)
         elif msg.c(CMD_DOWNLOAD):

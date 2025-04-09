@@ -91,7 +91,7 @@ function get_video_params_from_item(idx) {
     }
     else if (playlist_current.type == 'mediaset')
         playlist_player = 'dash';
-    else if (playlist_current.type == 'rai')
+    else if (playlist_current.type == 'rai' || playlist_current.type == 'urlebird')
         playlist_player = 'videojs';
     console.log('Using those settings ' + JSON.stringify(playlist_item_play_settings));
     video_height = playlist_item_play_settings?.height? playlist_item_play_settings.height: 1200;    
@@ -131,6 +131,8 @@ function playlist_play_current_video() {
     const lnk = playlist_item_current.link;
     if (is_item_downloaded(playlist_item_current) || playlist_current.type == 'localfolder')
         video_manager_obj.play_video(MAIN_PATH + 'dl/' + playlist_item_current.rowid);
+    else if (playlist_current.type == 'urlebird')
+        video_manager_obj.play_video(MAIN_PATH + 'bird?link=' + encodeURIComponent(lnk), Object.assign({}, playlist_item_current.conf, {mime: playlist_item_play_settings?.mime}));
     /* else if (playlist_item_current.link.charAt(0) == '@')
         video_manager_obj.play_video(MAIN_PATH_S + playlist_item_current.link.substring(1));*/
     else if (vid.length && video_manager_obj.play_video_id)
