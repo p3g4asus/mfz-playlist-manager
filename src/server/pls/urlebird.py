@@ -224,7 +224,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                             programs[pr.uid] = pr
                                             _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
                                             self.record_status(sta, f'\U00002795 Added {pr.title} [{pr.datepub}]', 'ss')
-                                    else:
+                                    elif page >= 3:
                                         page = 0
                                         break
                             if not page:

@@ -424,8 +424,9 @@ class PlaylistItem(JSONAble, Fieldable):
         if self.rowid:
             async with db.cursor() as cursor:
                 vc = "datetime('now')" if value else "NULL"
+                inverse = "IS NULL" if value else "IS NOT NULL"
                 await cursor.execute(
-                    f"UPDATE playlist_item SET seen={vc} WHERE {'rowid=?' if not previous else 'iorder<=? AND playlist=? AND seen IS NULL'}",
+                    f"UPDATE playlist_item SET seen={vc} WHERE {'rowid=?' if not previous else ('iorder<=? AND playlist=? AND seen ' + inverse)}",
                     (self.rowid,) if not previous else (self.iorder, self.playlist))
                 rv = cursor.rowcount > 0
         if rv and commit:
