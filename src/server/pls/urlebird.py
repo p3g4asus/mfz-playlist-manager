@@ -231,7 +231,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                     when = dateparser_parse(when)
                                 except Exception:
                                     _LOGGER.debug(f"[urlebird] Invalid date field is {when}")
-                                    pass
+                                    when = None
                                 vidinfo = await self.get_video_info_from_url(session, vurl)
                                 if isinstance(vidinfo, int):
                                     self.record_status(sta, f'\U000026A0 Error Set {title}: {vurl} [{vidinfo}]', 'ss')
