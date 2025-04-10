@@ -2,7 +2,7 @@ import json
 import logging
 import re
 import traceback
-from datetime import (datetime)
+from datetime import datetime
 
 import aiohttp
 
@@ -10,6 +10,7 @@ from common.const import (CMD_TT_PLAYLISTCHECK, MSG_BACKEND_ERROR, MSG_NO_VIDEOS
 from common.playlist import PlaylistItem
 from common.utils import parse_isoduration
 
+from dateparser import parse as dateparser_parse
 from dateutil.parser import parse as dateutil_parse
 from pyquery import PyQuery as pq
 from .refreshmessageprocessor import RefreshMessageProcessor
@@ -227,8 +228,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                         when = stat_el.text()
                                         break
                                 try:
-                                    when = dateutil_parse(when)
+                                    when = dateparser_parse(when)
                                 except Exception:
+                                    _LOGGER.debug(f"[urlebird] Invalid date field is {when}")
                                     pass
                                 vidinfo = await self.get_video_info_from_url(session, vurl)
                                 if isinstance(vidinfo, int):
