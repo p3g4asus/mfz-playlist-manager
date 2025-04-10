@@ -215,16 +215,16 @@ class MessageProcessor(RefreshMessageProcessor):
                                 break
                             # videosdoc('#thumbs div.thumb div.info3 div.author-name').remove()
                             thumbs = videosdoc('#thumbs div.thumb')
-                            for k in range(await thumbs.count()):
-                                thumb = thumbs.nth(k)
+                            for th in thumbs:
+                                thumb = pq(th)
                                 thumb('div.info3 div.author-name').remove()
                                 vurl = await thumb('div.info3 a').attr('href')
                                 stat_els = thumb('div.stats span')
                                 when = None
-                                for j in range(await stat_els.count()):
-                                    stat_el = stat_els.nth(j)
-                                    if await stat_el.locator('.fa-clock').count():
-                                        when = await stat_el.inner_text()
+                                for se in stat_els:
+                                    stat_el = pq(se)
+                                    if await stat_el('.fa-clock').count():
+                                        when = await stat_el.text()
                                         break
                                 try:
                                     when = dateutil_parse(when)
