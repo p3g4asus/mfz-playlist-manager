@@ -223,7 +223,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                 when = None
                                 for se in stat_els:
                                     stat_el = pq(se)
-                                    if stat_el('.fa-clock').count():
+                                    if len(stat_el('.fa-clock')):
                                         when = stat_el.text()
                                         break
                                 try:
