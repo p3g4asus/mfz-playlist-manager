@@ -218,13 +218,13 @@ class MessageProcessor(RefreshMessageProcessor):
                             for th in thumbs:
                                 thumb = pq(th)
                                 thumb('div.info3 div.author-name').remove()
-                                vurl = await thumb('div.info3 a').attr('href')
+                                vurl = thumb('div.info3 a').attr('href')
                                 stat_els = thumb('div.stats span')
                                 when = None
                                 for se in stat_els:
                                     stat_el = pq(se)
-                                    if await stat_el('.fa-clock').count():
-                                        when = await stat_el.text()
+                                    if stat_el('.fa-clock').count():
+                                        when = stat_el.text()
                                         break
                                 try:
                                     when = dateutil_parse(when)
