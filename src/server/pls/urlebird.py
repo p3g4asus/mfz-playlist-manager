@@ -51,7 +51,7 @@ class MessageProcessor(RefreshMessageProcessor):
                 return 1000
         return 1001
 
-    async def get_all_videos_from_user(self, session: aiohttp.ClientSession, user: str | dict):
+    async def get_all_videos_from_user(self, session: aiohttp.ClientSession, user: str | dict) -> pq | int:
         if isinstance(user, str):
             url = 'https://urlebird.com/user/' + user + '/'
             method = 'GET'
@@ -139,14 +139,17 @@ class MessageProcessor(RefreshMessageProcessor):
         else:
             return msg.err(19, MSG_TT_INVALID_PLAYLIST)
 
-    def entry2Program(self, it, set, playlist):
+    def entry2Program(self, it, alternate_date: datetime | None, set, playlist):
         conf = dict(playlist=set,
                     userid=it.get('creator', dict(alternateName=set))['alternateName'])
         try:
             datepubo = dateutil_parse(it['uploadDate'])
+            if alternate_date:
+                if datepubo.day != alternate_date.day or datepubo.month != alternate_date.month or datepubo.year != alternate_date.year:
+                    datepubo = alternate_date
         except ValueError:
             _LOGGER.debug("Invalid added field is %s" % str(it))
-            datepubo = datetime.now()
+            datepubo = alternate_date if alternate_date else datetime.now()
         datepubi = int(datepubo.replace(hour=0, minute=0, second=0).timestamp() * 1000)
         datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
         img = it['thumbnailURL']
@@ -210,15 +213,28 @@ class MessageProcessor(RefreshMessageProcessor):
                             if isinstance(videosdoc, int):
                                 self.record_status(sta, f'\U000026A0 Error Set {title} [{page}] : {videosdoc}', 'ss')
                                 break
-                            videosdoc('#thumbs div.thumb div.info3 div.author-name').remove()
-                            all2 = videosdoc('#thumbs div.thumb div.info3 a')
-                            vurls = [pq(a).attr('href') for a in all2]
-                            for vurl in vurls:
+                            # videosdoc('#thumbs div.thumb div.info3 div.author-name').remove()
+                            thumbs = videosdoc('#thumbs div.thumb')
+                            for k in range(await thumbs.count()):
+                                thumb = thumbs.nth(k)
+                                thumb('div.info3 div.author-name').remove()
+                                vurl = await thumb('div.info3 a').attr('href')
+                                stat_els = thumb('div.stats span')
+                                when = None
+                                for j in range(await stat_els.count()):
+                                    stat_el = stat_els.nth(j)
+                                    if await stat_el.locator('.fa-clock').count():
+                                        when = await stat_el.inner_text()
+                                        break
+                                try:
+                                    when = dateutil_parse(when)
+                                except Exception:
+                                    pass
                                 vidinfo = await self.get_video_info_from_url(session, vurl)
                                 if isinstance(vidinfo, int):
                                     self.record_status(sta, f'\U000026A0 Error Set {title}: {vurl} [{vidinfo}]', 'ss')
                                 else:
-                                    pr, datepubi_conf = self.entry2Program(vidinfo, set, playlist)
+                                    pr, datepubi_conf = self.entry2Program(vidinfo, when, set, playlist)
                                     if datepubi_conf >= datefrom:
                                         if (datepubi_conf <= dateto or dateto < datefrom) and self.video_is_not_filtered_out(dict(title=pr.title), filters):
                                             programs[pr.uid] = pr
