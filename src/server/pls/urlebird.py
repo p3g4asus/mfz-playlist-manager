@@ -2,7 +2,7 @@ import json
 import logging
 import re
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import aiohttp
 
@@ -154,7 +154,7 @@ class MessageProcessor(RefreshMessageProcessor):
         datepubi = int(datepubo.replace(hour=0, minute=0, second=0).timestamp() * 1000)
         datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
         img = it['thumbnailURL']
-        if mo := re.search(r'^\-(\d{5,})/', it['url']):
+        if mo := re.search(r'\-(\d{5,})/?$', it['url']):
             uid = mo.group(1)
         else:
             uid = it['url']
@@ -205,6 +205,8 @@ class MessageProcessor(RefreshMessageProcessor):
                     set, filters, title = sets[setidx]
                     setidx += 1
                     page = 1
+                    rel_s = 0
+                    rel_base = datetime.now()
                     userinfo = None
                     async with aiohttp.ClientSession(headers=headers) as session:
                         while True:
@@ -228,7 +230,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                         when = stat_el.text()
                                         break
                                 try:
-                                    when = dateparser_parse(when)
+                                    rel_base = rel_base - timedelta(seconds=rel_s)
+                                    rel_s += 1
+                                    when = dateparser_parse(when, settings=dict(RELATIVE_BASE=rel_base))
                                 except Exception:
                                     _LOGGER.debug(f"[urlebird] Invalid date field is {when}")
                                     when = None
