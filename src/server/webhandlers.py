@@ -21,9 +21,9 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 
 from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_JS,
-                          CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY,
-                          CONV_LINK_ASYNCH_SHIFT, CONV_LINK_ASYNCH_TWITCH,
-                          CONV_LINK_MASK, INVALID_SID,
+                          CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY, LINK_CONV_OPTION_VIDEO_EMBED,
+                          LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_ASYNCH_TWITCH,
+                          LINK_CONV_OPTION_MASK, INVALID_SID,
                           MSG_UNAUTHORIZED)
 from common.playlist import LOAD_ITEMS_NO, Playlist, PlaylistItem, PlaylistMessage
 from common.timer import Timer
@@ -386,8 +386,8 @@ async def playlist_m3u(request, userid=None):
     if 'name' in request.query:
         host = request.query['host'] if 'host' in request.query else f"{request.scheme}://{request.host}"
         pl = await Playlist.loadbyid(request.app.p.db, useri=userid, name=request.query['name'])
-        asconv = (conv >> CONV_LINK_ASYNCH_SHIFT) & CONV_LINK_MASK
-        if asconv == CONV_LINK_ASYNCH_TWITCH:
+        asconv = (conv >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_MASK
+        if asconv == LINK_CONV_OPTION_ASYNCH_TWITCH:
             for it in pl[0].items:
                 it.link = await twitch_link_finder(it.link, request.app)
         if pl[0].type == 'localfolder':
@@ -565,6 +565,7 @@ async def twitch_redir_do(request):
 async def urlebird_redir_do(request):
     videodict = 0
     if 'link' in request.query:
+        conv = 0 if 'conv' not in request.query else int(request.query['conv'])
         from .pls.urlebird import MessageProcessor as Urlebird
         link = request.query['link']
         msgp: Urlebird = request.app.p.processors['urlebird']
@@ -572,7 +573,27 @@ async def urlebird_redir_do(request):
         async with ClientSession(headers=msgp.get_scraper_headers()) as session:
             videodict = await msgp.get_video_info_from_url(session, link)
             if isinstance(videodict, dict) and 'contentUrl' in videodict and (url := videodict['contentUrl']):
-                return web.HTTPFound(url)
+                if ((conv >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_MASK) == LINK_CONV_OPTION_VIDEO_EMBED:
+                    webp = f"""
+                    <!doctype html>
+                        <head>
+                        <meta property="og-title" content="{videodict["name"]}"/>
+                        <meta property="og-description" content="{videodict["description"]}"/>
+                        <meta property="og-image" content="{videodict["thumbnailURL"]}"/>
+                        <meta property="og:video:type" content="video/mp4">
+                        </head>
+                        <body>
+                            <video src="{url}" type="video/mp4"/>
+                        </body>
+                    """
+                    resp = web.Response(
+                        text=webp,
+                        content_type='text/html',
+                        charset='utf-8'
+                    )
+                else:
+                    resp = web.HTTPFound(url)
+                return resp
     return web.HTTPBadRequest(body=f'Link not found in URL [{videodict}]')
 
 

@@ -3,7 +3,7 @@ import logging
 import urllib.parse
 from datetime import datetime
 from os import remove
-from common.const import CONV_LINK_BIRD_REDIRECT, CONV_LINK_MASK, CONV_LINK_REDIRECT, CONV_LINK_TWITCH, CONV_LINK_UNTOUCH, CONV_LINK_YTDL_DICT, CONV_LINK_YTDL_REDIRECT
+from common.const import LINK_CONV_BIRD_REDIRECT, LINK_CONV_MASK, LINK_CONV_REDIRECT, LINK_CONV_TWITCH, LINK_CONV_UNTOUCH, LINK_CONV_YTDL_DICT, LINK_CONV_YTDL_REDIRECT
 
 from .utils import Fieldable, JSONAble, MyEncoder
 
@@ -341,21 +341,21 @@ class PlaylistItem(JSONAble, Fieldable):
             return self.uid and self.uid == other.uid and\
                 self.playlist == other.playlist and self.playlist
 
-    def get_conv_link(self, host, conv):
-        conv = conv & CONV_LINK_MASK
-        if conv == CONV_LINK_UNTOUCH:
+    def get_conv_link(self, host, convall):
+        conv = convall & LINK_CONV_MASK
+        if conv == LINK_CONV_UNTOUCH:
             return self.link
-        elif conv == CONV_LINK_YTDL_DICT:
+        elif conv == LINK_CONV_YTDL_DICT:
             piece = 'ytdl'
-        elif conv == CONV_LINK_YTDL_REDIRECT:
+        elif conv == LINK_CONV_YTDL_REDIRECT:
             piece = 'ytto'
-        elif conv == CONV_LINK_REDIRECT:
+        elif conv == LINK_CONV_REDIRECT:
             piece = 'red'
-        elif conv == CONV_LINK_TWITCH:
+        elif conv == LINK_CONV_TWITCH:
             piece = 'twi'
-        elif conv == CONV_LINK_BIRD_REDIRECT:
+        elif conv == LINK_CONV_BIRD_REDIRECT:
             piece = 'bird'
-        return f"{host}/{piece}?{urllib.parse.urlencode(dict(link=self.link))}"
+        return f"{host}/{piece}?{urllib.parse.urlencode(dict(conv=convall, link=self.link, uid=self.uid))}"
 
     def toJSON(self, host='', conv=0, **kwargs):
         dct = vars(self)
