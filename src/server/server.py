@@ -26,10 +26,10 @@ from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
 from server.telegram.main import start_telegram_bot, stop_telegram_bot
-from server.webhandlers import (auth_for_item, download_2, img_link, index, login, login_g, logout,
-                                modify_pw, playlist_m3u_2, pls_h_2, post_proxy,
+from server.webhandlers import (auth_for_item, download, img_link, index, login, login_g, logout,
+                                modify_pw, playlist_m3u, pls_h_2, post_proxy,
                                 redirect_till_last, register, remote_command,
-                                telegram_command, twitch_redir_do, urlebird_redir_do,
+                                telegram_command, twitch_redir_do, twitch_redir_logged, urlebird_redir_do, urlebird_redir_logged, user_check_call,
                                 youtube_dl_do, youtube_redir_do)
 
 __prog__ = "mfz-playlist-manager"
@@ -259,12 +259,12 @@ async def start_app(app):
     app.router.add_route('GET', '/telegram/{hex:[a-fA-F0-9]+}', telegram_command)
     app.router.add_route('POST', '/login_g', login_g)
     app.router.add_route('POST', '/login', login)
-    app.router.add_route('get', '/dl{token:(/[a-fA-F0-9\\-]+)?}/{rowid:[0-9]+}', download_2)
+    app.router.add_route('get', '/dl{token:(/[a-fA-F0-9\\-]+)?}/{rowid:[0-9]+}', partial(user_check_call, method=download))
     app.router.add_route('POST', '/modifypw', modify_pw)
     app.router.add_route('POST', '/register', register)
     app.router.add_route('GET', '/logout', logout)
     resource = cors.add(app.router.add_resource("/m3u{token:(/[a-fA-F0-9\\-]+)?}"))
-    cors.add(resource.add_route('GET', playlist_m3u_2), {
+    cors.add(resource.add_route('GET', partial(user_check_call, method=playlist_m3u)), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
     resource = cors.add(app.router.add_resource("/red"))
@@ -287,12 +287,20 @@ async def start_app(app):
     cors.add(resource.add_route('GET', urlebird_redir_do), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
+    resource = cors.add(app.router.add_resource("/birds{token:(/[a-fA-F0-9\\-]+)?}/{rowid:[0-9]+}"))
+    cors.add(resource.add_route('GET', partial(user_check_call, method=urlebird_redir_logged)), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
+    })
     resource = cors.add(app.router.add_resource("/twi"))
     cors.add(resource.add_route('GET', twitch_redir_do), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
     resource = cors.add(app.router.add_resource("/img"))
     cors.add(resource.add_route('GET', img_link), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
+    })
+    resource = cors.add(app.router.add_resource("/twis{token:(/[a-fA-F0-9\\-]+)?}/{rowid:[0-9]+}"))
+    cors.add(resource.add_route('GET', partial(user_check_call, method=twitch_redir_logged)), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
     resource = cors.add(app.router.add_resource("/ws{hex:(/[g-z][a-f0-9]+)?}"))

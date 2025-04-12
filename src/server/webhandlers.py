@@ -363,16 +363,38 @@ async def user_check_token(request):
         return None
 
 
-async def playlist_m3u_2(request):
+async def user_check_call(request, method=None):
     if (rv := await user_check_token(request)) is None or isinstance(rv, int):
-        return await playlist_m3u(request, rv)
+        return await method(request, rv)
     else:
         return rv
+
+
+async def get_playlist_and_item_from_request(request, userid=None):
+    if not userid:
+        auid, _, _ = await authorized_userid(request)
+        if not isinstance(auid, int):
+            userid = None
+        else:
+            userid = auid
+    rowid = int(request.match_info['rowid'])
+    if userid and rowid:
+        it = await PlaylistItem.loadbyid(request.app.p.db, rowid=rowid)
+        if it:
+            pls = await Playlist.loadbyid(request.app.p.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            if pls:
+                if pls[0].useri != userid:
+                    return web.HTTPUnauthorized(body='Invalid user id')
+                return pls[0], it
+        return web.HTTPNotFound(body='Invalid playlist or playlist item')
+    else:
+        return web.HTTPNotAcceptable(body="Invalid userid or rowid")
 
 
 async def playlist_m3u(request, userid=None):
     _LOGGER.debug("host is %s" % str(request.host))
     identity = None
+    hextoken = None
     if userid is None:
         auid, hextoken, _ = await authorized_userid(request)
         if isinstance(auid, int):
@@ -384,18 +406,23 @@ async def playlist_m3u(request, userid=None):
     fmt = request.query['fmt'] if 'fmt' in request.query else 'm3u'
 
     if 'name' in request.query:
+        login_token = None
         host = request.query['host'] if 'host' in request.query else f"{request.scheme}://{request.host}"
         pl = await Playlist.loadbyid(request.app.p.db, useri=userid, name=request.query['name'])
         asconv = (conv >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_MASK
-        if asconv == LINK_CONV_OPTION_ASYNCH_TWITCH:
+        if asconv & LINK_CONV_OPTION_ASYNCH_TWITCH:
             for it in pl[0].items:
                 it.link = await twitch_link_finder(it.link, request.app)
+        if asconv & LINK_CONV_OPTION_VIDEO_EMBED:
+            mi = request.match_info
+            login_token = mi['token'][1:] if 'token' in mi and mi['token'] else None
+
         if pl[0].type == 'localfolder':
             for it in pl[0].items:
                 it.link = f'{host}/dl/{it.rowid}'
         if pl:
             if fmt == 'm3u':
-                txt = pl[0].toM3U(host, conv)
+                txt = pl[0].toM3U(host, conv, login_token)
                 resp = web.Response(
                     text=txt,
                     content_type='text/plain',
@@ -406,12 +433,12 @@ async def playlist_m3u(request, userid=None):
                 if it >= len(pl[0].items):
                     it = len(pl[0].items) - 1
                 if it >= 0 and it < len(pl[0].items):
-                    lnk = f'http://embedly.com/widgets/media.html?{urlencode(dict(url=pl[0].items[it].get_conv_link(host, conv)))}'
+                    lnk = f'http://embedly.com/widgets/media.html?{urlencode(dict(url=pl[0].items[it].get_conv_link(host, conv, token=login_token)))}'
                     ln = f'<div class="embedly-card" href="{lnk}"></div>'
                 else:
                     ln = '\n'
                     for it in pl[0].items:
-                        lnk = f'http://embedly.com/widgets/media.html?{urlencode(dict(url=it.get_conv_link(host, conv)))}'
+                        lnk = f'http://embedly.com/widgets/media.html?{urlencode(dict(url=it.get_conv_link(host, conv, token=login_token)))}'
                         ln += f'<div class="embedly-card" href="{lnk}"></div>\n'
                 webp = f"""
                     <!doctype html>
@@ -426,7 +453,7 @@ async def playlist_m3u(request, userid=None):
                     charset='utf-8'
                 )
             elif fmt == 'json':
-                js = json.dumps(pl[0], cls=get_json_encoder(f'MyEnc{conv}', host=host, conv=conv))
+                js = json.dumps(pl[0], cls=get_json_encoder(f'MyEnc{conv}', host=host, conv=conv, token=login_token))
                 resp = web.Response(
                     text=js,
                     content_type='application/json',
@@ -554,6 +581,31 @@ async def twitch_link_finder(link, app):
     return link
 
 
+async def twitch_redir_logged(request, userid=None):
+    rv = await get_playlist_and_item_from_request(request, userid)
+    if isinstance(rv, tuple):
+        _, it = rv
+        link = await twitch_link_finder(it.link, request.app)
+        webp = f"""
+            <!doctype html>
+                <head>
+                <meta property="og-title" content="{it.title}"/>
+                <meta property="og-image" content="{it.img}"/>
+                <meta property="og:video:type" content="application/vnd.apple.mpegurl">
+                </head>
+                <body>
+                    <video src="{link}" type="application/vnd.apple.mpegurl"/>
+                </body>
+            """
+        return web.Response(
+            text=webp,
+            content_type='text/html',
+            charset='utf-8'
+        )
+    else:
+        return rv
+
+
 async def twitch_redir_do(request):
     if 'link' in request.query:
         link = request.query['link']
@@ -562,12 +614,24 @@ async def twitch_redir_do(request):
     return web.HTTPBadRequest(body='Link not found in URL')
 
 
-async def urlebird_redir_do(request):
+async def urlebird_redir_logged(request, userid=None):
+    rv = await get_playlist_and_item_from_request(request, userid)
+    if isinstance(rv, tuple):
+        _, it = rv
+        return urlebird_redir_do(request, it)
+    else:
+        return rv
+
+
+async def urlebird_redir_do(request, item: PlaylistItem = None):
     videodict = 0
-    if 'link' in request.query:
-        conv = 0 if 'conv' not in request.query else int(request.query['conv'])
+    if item or 'link' in request.query:
+        if item:
+            conv = LINK_CONV_OPTION_VIDEO_EMBED << LINK_CONV_OPTION_SHIFT
+        else:
+            conv = 0 if 'conv' not in request.query else int(request.query['conv'])
         from .pls.urlebird import MessageProcessor as Urlebird
-        link = request.query['link']
+        link = request.query['link'] if not item else item.link
         msgp: Urlebird = request.app.p.processors['urlebird']
         videodict = 77
         async with ClientSession(headers=msgp.get_scraper_headers()) as session:
@@ -773,13 +837,6 @@ async def file_sender(writer, file_path=None):
             chunk = f.read(2 ** 16)
 
 
-async def download_2(request):
-    if (rv := await user_check_token(request)) is None or isinstance(rv, int):
-        return await download(request, rv)
-    else:
-        return rv
-
-
 def get_local_play_file(it: PlaylistItem) -> str:
     return it.conf['todel'][0] if not it.dl and it.conf and isinstance(it.conf, dict) and 'todel' in it.conf and it.conf['todel'] else it.dl
 
@@ -802,33 +859,21 @@ def get_download_url_path(it: PlaylistItem, args: dict, token: str = '') -> str:
 
 
 async def download(request, userid=None):
-    if not userid:
-        auid, _, _ = await authorized_userid(request)
-        if not isinstance(auid, int):
-            userid = None
+    rv = await get_playlist_and_item_from_request(request, userid)
+    if isinstance(rv, tuple):
+        _, it = rv
+        args = request.app.p.args
+        dl = get_local_play_file(it)
+        if not dl or not exists(dl) or not isfile(dl):
+            return web.HTTPBadRequest(body=f'Invalid dl: {dl} for {it.title}')
+        dlp = get_download_url_path(it, args, '0' if 'token' not in request.match_info or not request.match_info['token'] else request.match_info['token'][1:])
+        if args['redirect_files']:
+            pthd = f'{request.scheme}://{request.host}/{args["sid"]}/{dlp}'
+            return web.HTTPFound(pthd)
         else:
-            userid = auid
-    rowid = int(request.match_info['rowid'])
-    if userid and rowid:
-        it = await PlaylistItem.loadbyid(request.app.p.db, rowid=rowid)
-        if it:
-            pls = await Playlist.loadbyid(request.app.p.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
-            if pls:
-                args = request.app.p.args
-                dl = get_local_play_file(it)
-                if pls[0].useri != userid:
-                    return web.HTTPUnauthorized(body='Invalid user id')
-                elif not dl or not exists(dl) or not isfile(dl):
-                    return web.HTTPBadRequest(body=f'Invalid dl: {dl} for {it.title}')
-                dlp = get_download_url_path(it, args, '0' if 'token' not in request.match_info or not request.match_info['token'] else request.match_info['token'][1:])
-                if args['redirect_files']:
-                    pthd = f'{request.scheme}://{request.host}/{args["sid"]}/{dlp}'
-                    return web.HTTPFound(pthd)
-                else:
-                    return web.FileResponse(dlp)
-        return web.HTTPNotFound(body='Invalid playlist or playlist item')
+            return web.FileResponse(dlp)
     else:
-        return web.HTTPNotAcceptable(body="Invalid userid or rowid")
+        return rv
 
 
 async def telegram_command(request):

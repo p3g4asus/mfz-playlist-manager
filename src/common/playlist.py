@@ -3,7 +3,7 @@ import logging
 import urllib.parse
 from datetime import datetime
 from os import remove
-from common.const import LINK_CONV_BIRD_REDIRECT, LINK_CONV_MASK, LINK_CONV_REDIRECT, LINK_CONV_TWITCH, LINK_CONV_UNTOUCH, LINK_CONV_YTDL_DICT, LINK_CONV_YTDL_REDIRECT
+from common.const import LINK_CONV_BIRD_REDIRECT, LINK_CONV_MASK, LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_VIDEO_EMBED, LINK_CONV_REDIRECT, LINK_CONV_TWITCH, LINK_CONV_UNTOUCH, LINK_CONV_YTDL_DICT, LINK_CONV_YTDL_REDIRECT
 
 from .utils import Fieldable, JSONAble, MyEncoder
 
@@ -61,11 +61,11 @@ class Playlist(JSONAble, Fieldable):
         # del dct['useri']
         return dct
 
-    def toM3U(self, host, conv):
+    def toM3U(self, host, conv, token=None):
         s = "#EXTM3U\n"
         for i in self.items:
             if not i.seen:
-                s += i.toM3U(host, conv)
+                s += i.toM3U(host, conv, token=token)
         return s
 
     @staticmethod
@@ -341,7 +341,7 @@ class PlaylistItem(JSONAble, Fieldable):
             return self.uid and self.uid == other.uid and\
                 self.playlist == other.playlist and self.playlist
 
-    def get_conv_link(self, host, convall):
+    def get_conv_link(self, host, convall, token=None):
         conv = convall & LINK_CONV_MASK
         if conv == LINK_CONV_UNTOUCH:
             return self.link
@@ -352,8 +352,12 @@ class PlaylistItem(JSONAble, Fieldable):
         elif conv == LINK_CONV_REDIRECT:
             piece = 'red'
         elif conv == LINK_CONV_TWITCH:
+            if token and ((convall >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_VIDEO_EMBED):
+                return f"{host}/{piece}/twis/{token}/{self.rowid}"
             piece = 'twi'
         elif conv == LINK_CONV_BIRD_REDIRECT:
+            if token and ((convall >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_VIDEO_EMBED):
+                return f"{host}/{piece}/birds/{token}/{self.rowid}"
             piece = 'bird'
         return f"{host}/{piece}?{urllib.parse.urlencode(dict(conv=convall, link=self.link, uid=self.uid))}"
 
@@ -361,7 +365,7 @@ class PlaylistItem(JSONAble, Fieldable):
         dct = vars(self)
         if conv:
             dct = dict(**dct)
-            dct['link'] = self.get_conv_link(host, conv)
+            dct['link'] = self.get_conv_link(host, conv, token=kwargs['token'] if 'token' in kwargs else None)
         # del dct['playlist']
         return dct
 
@@ -447,8 +451,8 @@ class PlaylistItem(JSONAble, Fieldable):
                 await db.commit()
         return rv
 
-    def toM3U(self, host, conv):
-        return "#EXTINF:0,%s\n%s\n" % (self.title if self.title else "N/A", self.get_conv_link(host, conv))
+    def toM3U(self, host, conv, token=None):
+        return "#EXTINF:0,%s\n%s\n" % (self.title if self.title else "N/A", self.get_conv_link(host, conv, token=token))
 
     async def isPresent(self, db):
         if not self.playlist or not self.uid:
