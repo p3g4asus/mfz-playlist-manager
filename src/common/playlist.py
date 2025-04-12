@@ -352,14 +352,13 @@ class PlaylistItem(JSONAble, Fieldable):
         elif conv == LINK_CONV_REDIRECT:
             piece = 'red'
         elif conv == LINK_CONV_TWITCH:
-            if token and ((convall >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_VIDEO_EMBED):
-                return f"{host}/{piece}/twis/{token}/{self.rowid}"
             piece = 'twi'
         elif conv == LINK_CONV_BIRD_REDIRECT:
-            if token and ((convall >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_VIDEO_EMBED):
-                return f"{host}/{piece}/birds/{token}/{self.rowid}"
             piece = 'bird'
-        return f"{host}/{piece}?{urllib.parse.urlencode(dict(conv=convall, link=self.link, uid=self.uid))}"
+        if token and ((convall >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_VIDEO_EMBED):
+            return f"{host}/{piece}s/{token}/{self.rowid}"
+        else:
+            return f"{host}/{piece}?{urllib.parse.urlencode(dict(conv=convall, link=self.link, uid=self.uid))}"
 
     def toJSON(self, host='', conv=0, **kwargs):
         dct = vars(self)

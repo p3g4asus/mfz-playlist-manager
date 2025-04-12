@@ -295,12 +295,12 @@ async def start_app(app):
     cors.add(resource.add_route('GET', twitch_redir_do), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
-    resource = cors.add(app.router.add_resource("/img"))
-    cors.add(resource.add_route('GET', img_link), {
-        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
-    })
     resource = cors.add(app.router.add_resource("/twis{token:(/[a-fA-F0-9\\-]+)?}/{rowid:[0-9]+}"))
     cors.add(resource.add_route('GET', partial(user_check_call, method=twitch_redir_logged)), {
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
+    })
+    resource = cors.add(app.router.add_resource("/img"))
+    cors.add(resource.add_route('GET', img_link), {
         "*": aiohttp_cors.ResourceOptions(allow_credentials=False, expose_headers="*", allow_headers="*")
     })
     resource = cors.add(app.router.add_resource("/ws{hex:(/[g-z][a-f0-9]+)?}"))
