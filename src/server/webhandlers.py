@@ -618,7 +618,7 @@ async def urlebird_redir_logged(request, userid=None):
     rv = await get_playlist_and_item_from_request(request, userid)
     if isinstance(rv, tuple):
         _, it = rv
-        return urlebird_redir_do(request, it)
+        return await urlebird_redir_do(request, it)
     else:
         return rv
 
