@@ -1,3 +1,4 @@
+from datetime import datetime
 import hashlib
 import json
 import logging
@@ -19,6 +20,7 @@ from aiohttp_security import (authorized_userid, check_authorized, forget,
                               remember)
 from google.auth.transport import requests
 from google.oauth2 import id_token
+from pathvalidate import sanitize_filename
 
 from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_JS,
                           CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY, LINK_CONV_OPTION_VIDEO_EMBED,
@@ -391,6 +393,31 @@ async def get_playlist_and_item_from_request(request, userid=None):
         return web.HTTPNotAcceptable(body="Invalid userid or rowid")
 
 
+JWPLAYER_TEMPLATE = """
+                    <!doctype html>
+                        <head></head>
+                        <body>
+                        <script type="text/javascript">
+                            jwplayer('player').setup(%s);
+                        </script>
+                        </body>
+                """
+
+
+def it2jwplayer(it: PlaylistItem, url: str, type: str = 'video/mp4', additional: dict = dict()) -> dict:
+    return dict(file=url,
+                type=type,
+                channel=it.conf.get('author', it.conf.get('userid', 'N/A')),
+                title=it.title if 'lim' not in additional else sanitize_filename(it.title[:int(additional['lim'])]),
+                duration=it.dur,
+                image=it.img,
+                pubdate=int(datetime.strptime(it.datepub, '%Y-%m-%d %H:%M:%S.%f').timestamp()))
+
+
+def jwplayer_html(pls: list | dict) -> str:
+    return JWPLAYER_TEMPLATE % json.dumps(dict(playlist=pls if isinstance(pls, list) else [pls]))
+
+
 async def playlist_m3u(request, userid=None):
     _LOGGER.debug("host is %s" % str(request.host))
     identity = None
@@ -428,17 +455,34 @@ async def playlist_m3u(request, userid=None):
                     content_type='text/plain',
                     charset='utf-8'
                 )
+            elif fmt == 'jwp':
+                it = int(request.query['it']) if 'it' in request.query else -2
+                if it >= len(items := pl[0].items):
+                    it = len(items) - 1
+                if it >= 0 and it < len(items):
+                    items = [items[it]]
+                jwpl = []
+                for it in items:
+                    it: PlaylistItem
+                    jwpl.append(
+                        it2jwplayer(it, it.get_conv_link(host, conv, token=login_token, additional=request.query), request.query['type'] if 'type' in request.query else 'mp4', request.query)
+                    )
+                resp = web.Response(
+                    text=jwplayer_html(jwpl),
+                    content_type='text/html',
+                    charset='utf-8'
+                )
             elif fmt == 'ely':
                 it = int(request.query['it']) if 'it' in request.query else -2
-                if it >= len(pl[0].items):
-                    it = len(pl[0].items) - 1
-                if it >= 0 and it < len(pl[0].items):
-                    lnk = f'http://embedly.com/widgets/media.html?{urlencode(dict(url=pl[0].items[it].get_conv_link(host, conv, token=login_token)))}'
+                if it >= len(items := pl[0].items):
+                    it = len(items) - 1
+                if it >= 0 and it < len(items):
+                    lnk = f'http://embedly.com/widgets/media.html?{urlencode(dict(url=items[it].get_conv_link(host, conv, token=login_token, additional=request.query)))}'
                     ln = f'<div class="embedly-card" href="{lnk}"></div>'
                 else:
                     ln = '\n'
-                    for it in pl[0].items:
-                        lnk = f'http://embedly.com/widgets/media.html?{urlencode(dict(url=it.get_conv_link(host, conv, token=login_token)))}'
+                    for it in items:
+                        lnk = f'http://embedly.com/widgets/media.html?{urlencode(dict(url=it.get_conv_link(host, conv, token=login_token, additional=request.query)))}'
                         ln += f'<div class="embedly-card" href="{lnk}"></div>\n'
                 webp = f"""
                     <!doctype html>
@@ -586,19 +630,8 @@ async def twitch_redir_logged(request, userid=None):
     if isinstance(rv, tuple):
         _, it = rv
         link = await twitch_link_finder(it.link, request.app)
-        webp = f"""
-            <!doctype html>
-                <head>
-                <meta property="og-title" content="{it.title}"/>
-                <meta property="og-image" content="{it.img}"/>
-                <meta property="og:video:type" content="application/vnd.apple.mpegurl">
-                </head>
-                <body>
-                    <video src="{link}" type="application/vnd.apple.mpegurl"/>
-                </body>
-            """
         return web.Response(
-            text=webp,
+            text=jwplayer_html(it2jwplayer(it, link, 'application/vnd.apple.mpegurl', additional=request.query)),
             content_type='text/html',
             charset='utf-8'
         )
@@ -638,20 +671,10 @@ async def urlebird_redir_do(request, item: PlaylistItem = None):
             videodict = await msgp.get_video_info_from_url(session, link)
             if isinstance(videodict, dict) and 'contentUrl' in videodict and (url := videodict['contentUrl']):
                 if ((conv >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_MASK) == LINK_CONV_OPTION_VIDEO_EMBED:
-                    webp = f"""
-                    <!doctype html>
-                        <head>
-                        <meta property="og-title" content="{videodict["name"]}"/>
-                        <meta property="og-description" content="{videodict["description"]}"/>
-                        <meta property="og-image" content="{videodict["thumbnailURL"]}"/>
-                        <meta property="og:video:type" content="video/mp4">
-                        </head>
-                        <body>
-                            <video src="{url}" type="video/mp4"/>
-                        </body>
-                    """
+                    if item is None:
+                        item, _ = msgp.entry2Program(videodict, None, 'N/A', 0)
                     resp = web.Response(
-                        text=webp,
+                        text=it2jwplayer(item, url, 'video/mp4', additional=request.query),
                         content_type='text/html',
                         charset='utf-8'
                     )

@@ -341,7 +341,7 @@ class PlaylistItem(JSONAble, Fieldable):
             return self.uid and self.uid == other.uid and\
                 self.playlist == other.playlist and self.playlist
 
-    def get_conv_link(self, host, convall, token=None):
+    def get_conv_link(self, host, convall, token=None, additional: dict = dict()):
         conv = convall & LINK_CONV_MASK
         if conv == LINK_CONV_UNTOUCH:
             return self.link
@@ -352,13 +352,17 @@ class PlaylistItem(JSONAble, Fieldable):
         elif conv == LINK_CONV_REDIRECT:
             piece = 'red'
         elif conv == LINK_CONV_TWITCH:
+            if 'twitch.tv' not in self.link:
+                return self.link
             piece = 'twi'
         elif conv == LINK_CONV_BIRD_REDIRECT:
             piece = 'bird'
+        dictv = additional.copy()
+        dictv.update(dict(conv=conv, link=self.link))
         if token and ((convall >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_VIDEO_EMBED):
-            return f"{host}/{piece}s/{token}/{self.rowid}"
+            return f"{host}/{piece}s/{token}/{self.rowid}?{urllib.parse.urlencode(dictv)}"
         else:
-            return f"{host}/{piece}?{urllib.parse.urlencode(dict(conv=convall, link=self.link, uid=self.uid))}"
+            return f"{host}/{piece}?{urllib.parse.urlencode(dictv)}"
 
     def toJSON(self, host='', conv=0, **kwargs):
         dct = vars(self)
