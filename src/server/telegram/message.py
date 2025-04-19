@@ -15,6 +15,7 @@ from telegram.ext._utils.types import BD, BT, CD, UD
 import tzlocal
 import validators
 
+from common.playlist import PlaylistItem
 from common.user import User
 
 _LOGGER = logging.getLogger(__name__)
@@ -333,7 +334,7 @@ class NameDurationTMessage(DeletingTMessage):
         if self._old_thumb != self.thumb:
             self._old_thumb = self.thumb
             headers = {"range": "bytes=0-10", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
-            thumb = unquote(self.thumb[6:]) if self.thumb and self.thumb[0] == '?' else (f'{self.proc.params.link}/{self.proc.params.args["sid"]}-s/{self.thumb[1:]}' if self.thumb and self.thumb[0] == '@' else self.thumb)
+            thumb = PlaylistItem.convert_img_url(self.thumb, f'{self.proc.params.link}/{self.proc.params.args["sid"]}')
             if thumb and validators.url(thumb):
                 async with ClientSession() as session:
                     async with session.get(thumb, headers=headers) as resp:

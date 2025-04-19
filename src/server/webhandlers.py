@@ -23,9 +23,9 @@ from google.oauth2 import id_token
 from pathvalidate import sanitize_filename
 
 from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_JS,
-                          CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY, LINK_CONV_OPTION_VIDEO_EMBED,
+                          CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY, LINK_CONV_MASK, LINK_CONV_OPTION_VIDEO_EMBED,
                           LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_ASYNCH_TWITCH,
-                          LINK_CONV_OPTION_MASK, INVALID_SID,
+                          LINK_CONV_OPTION_MASK, INVALID_SID, LINK_CONV_TWITCH,
                           MSG_UNAUTHORIZED)
 from common.playlist import LOAD_ITEMS_NO, Playlist, PlaylistItem, PlaylistMessage
 from common.timer import Timer
@@ -404,13 +404,13 @@ JWPLAYER_TEMPLATE = """
                 """
 
 
-def it2jwplayer(it: PlaylistItem, url: str, type: str = 'video/mp4', additional: dict = dict()) -> dict:
+def it2jwplayer(it: PlaylistItem, url: str, type: str = 'video/mp4', additional: dict = dict(), host: str | None = None) -> dict:
     return dict(file=url,
                 type=type,
                 channel=it.conf.get('author', it.conf.get('userid', 'N/A')),
                 title=it.title if 'lim' not in additional else sanitize_filename(it.title[:int(additional['lim'])]),
                 duration=it.dur,
-                image=it.img,
+                image=PlaylistItem.convert_img_url(it.img, host),
                 pubdate=int(datetime.strptime(it.datepub, '%Y-%m-%d %H:%M:%S.%f').timestamp()))
 
 
@@ -465,7 +465,7 @@ async def playlist_m3u(request, userid=None):
                 for it in items:
                     it: PlaylistItem
                     jwpl.append(
-                        it2jwplayer(it, it.get_conv_link(host, conv, token=login_token, additional=request.query), request.query['type'] if 'type' in request.query else 'mp4', request.query)
+                        it2jwplayer(it, it.get_conv_link(host, conv, token=login_token, additional=request.query), request.query['type'] if 'type' in request.query else 'mp4', request.query, host=host)
                     )
                 resp = web.Response(
                     text=jwplayer_html(jwpl),
@@ -629,9 +629,10 @@ async def twitch_redir_logged(request, userid=None):
     rv = await get_playlist_and_item_from_request(request, userid)
     if isinstance(rv, tuple):
         _, it = rv
-        link = await twitch_link_finder(it.link, request.app)
+        conv = int(request.query['conv']) & LINK_CONV_MASK
+        link = await twitch_link_finder(it.link, request.app) if conv == LINK_CONV_TWITCH else it.link
         return web.Response(
-            text=jwplayer_html(it2jwplayer(it, link, 'application/vnd.apple.mpegurl', additional=request.query)),
+            text=jwplayer_html(it2jwplayer(it, link, 'application/vnd.apple.mpegurl' if conv == LINK_CONV_TWITCH else 'video/url', additional=request.query)),
             content_type='text/html',
             charset='utf-8'
         )

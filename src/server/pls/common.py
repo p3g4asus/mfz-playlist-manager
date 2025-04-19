@@ -441,22 +441,45 @@ class MessageProcessor(AbstractMessageProcessor):
             msg = self.msg
             format = msg.f('fmt')
             conv = msg.f('conv')
+            token = msg.f('token')
             host = msg.f('host')
+            post = [
+                {
+                    'key': 'FFmpegThumbnailsConvertor',
+                    'format': 'jpg',
+                    'when': 'before_dl',
+                },
+                {
+                    'key': 'FFmpegExtractAudio'
+                },
+                {
+                    'key': 'FFmpegMetadata',
+                    'add_chapters': True,
+                    'add_metadata': True,
+                    'add_infojson': False,
+                },
+                {
+                    'key': 'EmbedThumbnail',
+                    'already_have_thumbnail': False,
+                }
+            ]
             if 'video' not in format:
                 kw = dict(extractaudio=True,
                           addmetadata=True,
-                          embedthumbnail=True,
-                          postprocessors=[dict(key='FFmpegExtractAudio')])
+                          embedthumbnail=True)
             else:
                 kw = dict()
+                post.pop(1)
             ytdl_opt = dict(
                 format=format,
                 noplaylist=True,
+                writethumbnail=True,
                 ignoreerrors=True,
                 outtmpl=join(self.dl_dir, f'{self.it.rowid}_t.%(ext)s'),
+                postprocessors=post,
                 **kw
             )
-            await executor(self.open_and_wait, await self.init_osc_client_server((self.it.get_conv_link(host, conv), ytdl_opt), status))
+            await executor(self.open_and_wait, await self.init_osc_client_server((self.it.get_conv_link(host, conv, token=token), ytdl_opt), status))
             if 'sta' in status['dl'] and not status['dl']['sta'] and\
                'file' in status['dl'] and status['dl']['file'] and\
                'rv' in status['dlx'] and not status['dlx']['rv']:

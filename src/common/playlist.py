@@ -341,10 +341,18 @@ class PlaylistItem(JSONAble, Fieldable):
             return self.uid and self.uid == other.uid and\
                 self.playlist == other.playlist and self.playlist
 
+    @staticmethod
+    def convert_img_url(thumb, host):
+        return urllib.parse.unquote(thumb[6:]) if thumb and thumb[0] == '?' else (f'{host}-s/{thumb[1:]}' if thumb and thumb[0] == '@' else thumb)
+
     def get_conv_link(self, host, convall, token=None, additional: dict = dict()):
         conv = convall & LINK_CONV_MASK
+        embed = (convall >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_VIDEO_EMBED
         if conv == LINK_CONV_UNTOUCH:
-            return self.link
+            if token and embed:
+                piece = 'twi'
+            else:
+                return self.link
         elif conv == LINK_CONV_YTDL_DICT:
             piece = 'ytdl'
         elif conv == LINK_CONV_YTDL_REDIRECT:
@@ -359,7 +367,7 @@ class PlaylistItem(JSONAble, Fieldable):
             piece = 'bird'
         dictv = additional.copy()
         dictv.update(dict(conv=conv, link=self.link))
-        if token and ((convall >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_VIDEO_EMBED):
+        if token and embed:
             return f"{host}/{piece}s/{token}/{self.rowid}?{urllib.parse.urlencode(dictv)}"
         else:
             return f"{host}/{piece}?{urllib.parse.urlencode(dictv)}"

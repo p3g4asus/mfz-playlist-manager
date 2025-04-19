@@ -19,7 +19,7 @@ from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
                           CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER, CMD_ITEMDUMP,
                           CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
                           CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_PLAYID, CMD_RAI_CONTENTSET,
-                          CMD_RAI_LISTINGS, CMD_REN, CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TT_PLAYLISTCHECK, CMD_YT_PLAYLISTCHECK, IMG_NO_VIDEO)
+                          CMD_RAI_LISTINGS, CMD_REN, CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TT_PLAYLISTCHECK, CMD_YT_PLAYLISTCHECK, IMG_NO_VIDEO, LINK_CONV_BIRD_REDIRECT, LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_VIDEO_EMBED, LINK_CONV_TWITCH, LINK_CONV_UNTOUCH)
 from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
 from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_on_item_updated, cache_store
@@ -115,6 +115,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
         pl = PlaylistMessage(CMD_DOWNLOAD,
                              playlistitem=self.id,
                              fmt=args[0],
+                             token=self.proc.user.token,
                              host=f'{self.proc.params.link}/{self.proc.params.args["sid"]}',
                              conv=args[1])
         self.download_message = pl
@@ -261,15 +262,17 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
             elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
                 self.input_field = u'\U0001F449'
-                self.add_button('bestaudio', self.download_format, args=('bestaudio/best', 0))
-                self.add_button('best', self.download_format, args=('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 0))
-                self.add_button('worstaudio', self.download_format, args=('worstaudio/worst', 0))
-                self.add_button('worst', self.download_format, args=('worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst', 0))
+                conv = (LINK_CONV_BIRD_REDIRECT if 'urlebird.com' in self.obj.link else LINK_CONV_UNTOUCH) | (LINK_CONV_OPTION_VIDEO_EMBED << LINK_CONV_OPTION_SHIFT)
+                self.add_button('bestaudio', self.download_format, args=('bestaudio/best', conv))
+                self.add_button('best', self.download_format, args=('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', conv))
+                self.add_button('worstaudio', self.download_format, args=('worstaudio/worst', conv))
+                self.add_button('worst', self.download_format, args=('worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst', conv))
                 if 'twitch.tv' in self.obj.link:
-                    self.add_button('bestaudio os', self.download_format, args=('bestaudio/best', 4))
-                    self.add_button('best os', self.download_format, args=('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 4))
-                    self.add_button('worstaudio os', self.download_format, args=('worstaudio/worst', 4))
-                    self.add_button('worst os', self.download_format, args=('worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst', 4))
+                    conv = LINK_CONV_TWITCH | (LINK_CONV_OPTION_VIDEO_EMBED << LINK_CONV_OPTION_SHIFT)
+                    self.add_button('bestaudio os', self.download_format, args=('bestaudio/best', conv))
+                    self.add_button('best os', self.download_format, args=('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', conv))
+                    self.add_button('worstaudio os', self.download_format, args=('worstaudio/worst', conv))
+                    self.add_button('worst os', self.download_format, args=('worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst', conv))
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
             elif self.status == NameDurationStatus.DOWNLOADING:
                 self.add_button(f':cross_mark: Abort {self.id}', self.stop_download, args=(self.id, ))
