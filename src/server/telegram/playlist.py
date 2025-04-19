@@ -263,15 +263,15 @@ class PlaylistItemTMessage(NameDurationTMessage):
             elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
                 self.input_field = u'\U0001F449'
                 conv = (LINK_CONV_BIRD_REDIRECT if 'urlebird.com' in self.obj.link else LINK_CONV_UNTOUCH) | (LINK_CONV_OPTION_VIDEO_EMBED << LINK_CONV_OPTION_SHIFT)
-                self.add_button('bestaudio', self.download_format, args=('bestaudio/best', conv))
+                self.add_button('bestaudio', self.download_format, args=('bestaudio[ext=m4a]/best', conv))
                 self.add_button('best', self.download_format, args=('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', conv))
-                self.add_button('worstaudio', self.download_format, args=('worstaudio/worst', conv))
+                self.add_button('worstaudio', self.download_format, args=('worstaudio[ext=m4a]/worst', conv))
                 self.add_button('worst', self.download_format, args=('worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst', conv))
                 if 'twitch.tv' in self.obj.link:
                     conv = LINK_CONV_TWITCH | (LINK_CONV_OPTION_VIDEO_EMBED << LINK_CONV_OPTION_SHIFT)
-                    self.add_button('bestaudio os', self.download_format, args=('bestaudio/best', conv))
+                    self.add_button('bestaudio os', self.download_format, args=('bestaudio[ext=m4a]/best', conv))
                     self.add_button('best os', self.download_format, args=('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', conv))
-                    self.add_button('worstaudio os', self.download_format, args=('worstaudio/worst', conv))
+                    self.add_button('worstaudio os', self.download_format, args=('worstaudio[ext=m4a]/worst', conv))
                     self.add_button('worst os', self.download_format, args=('worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst', conv))
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
             elif self.status == NameDurationStatus.DOWNLOADING:
