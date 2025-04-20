@@ -675,7 +675,7 @@ async def urlebird_redir_do(request, item: PlaylistItem = None):
                     if item is None:
                         item, _ = msgp.entry2Program(videodict, None, 'N/A', 0)
                     resp = web.Response(
-                        text=it2jwplayer(item, url, 'video/mp4', additional=request.query),
+                        text=jwplayer_html(it2jwplayer(item, url, 'video/mp4', additional=request.query)),
                         content_type='text/html',
                         charset='utf-8'
                     )
