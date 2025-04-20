@@ -339,7 +339,7 @@ class MessageProcessor(AbstractMessageProcessor):
                             clean = re.sub(r'\[[0-9;]+[a-zA-Z]|\t|\x1b', ' ', line).strip()
                             # downloaded_bytes speed total_bytes
                             if re.search(r'^(?:Vid|Aud)', clean):
-                                if (mo := re.search(r'(?P<type>Vid|Aud)\s+(?P<res>[0-9]+x[0-9]+|[0-9]+\s+[^\s]+)\s+\|\s+(?P<br>[0-9]+\s+[^\s]+|[a-z0-9]+)\s+[^\d]+(?P<perc>[0-9]+)%\s+(?P<b1>[0-9\.]+)(?P<u1>[^/]+)?/(?P<b2>[0-9\.]+)(?P<u2>[^\s]+)?\s+(?P<spd>[0-9\.]+)(?P<uspd>[^\s]+)\s+(?P<time>[^\s]+)', clean)):
+                                if (mo := re.search(r'(?P<type>Vid|Aud)\s+(?P<res>[0-9]+x[0-9]+|[0-9]+\s+[^\s]+)\s+\|\s+(?P<br>[0-9]+\s+[^\s]+|[a-z0-9]+)\s+[^\d]+(?P<frag>\d+/\d+\s+)?(?P<perc>[0-9\.]+)%\s+(?P<b1>[0-9\.]+)(?P<u1>[^/]+)?/(?P<b2>[0-9\.]+)(?P<u2>[^\s]+)?\s+(?P<spd>[0-9\.]+)(?P<uspd>[^\s]+)\s+(?P<time>[^\s]+)', clean)):
                                     t = mo.group('type')
                                     u1 = u1d[t]
                                     u2 = u2d[t]
