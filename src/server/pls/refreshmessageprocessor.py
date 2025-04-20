@@ -1,6 +1,7 @@
 import abc
 import json
 import logging
+import re
 import traceback
 from datetime import datetime
 
@@ -50,6 +51,46 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
     @abc.abstractmethod
     def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         pass
+
+    @staticmethod
+    def video_is_not_filtered_out(video, filters) -> bool:
+        if 'durmin' in filters:
+            if 'duration' in video and video['duration'] and video['duration'] < filters['durmin']:
+                return False
+        if 'durmax' in filters:
+            if 'duration' in video and video['duration'] and video['duration'] > filters['durmax']:
+                return False
+        if 'yes' in filters:
+            for x in filters['yes']:
+                if not re.search(x, video['title'], re.IGNORECASE):
+                    return False
+        if 'no' in filters:
+            for x in filters['no']:
+                if re.search(x, video['title'], re.IGNORECASE):
+                    return False
+        # keep maybe checking last
+        if 'maybe' in filters:
+            for x in filters['maybe']:
+                if re.search(x, video['title'], re.IGNORECASE):
+                    return True
+            return False
+        return True
+
+    @staticmethod
+    def process_filters(filters: dict) -> dict:
+        if 'durmin' in filters and filters['durmin']:
+            try:
+                if isinstance(filters['durmin'], list):
+                    filters['durmin'] = int(filters['durmin'][0])
+            except Exception:
+                del filters['durmin']
+        if 'durmax' in filters and filters['durmax']:
+            try:
+                if isinstance(filters['durmax'], list):
+                    filters['durmax'] = int(filters['durmax'][0])
+            except Exception:
+                del filters['durmax']
+        return filters
 
     @staticmethod
     def record_status(sta, newstr, field):

@@ -247,23 +247,6 @@ class MessageProcessor(RefreshMessageProcessor):
             _LOGGER.error(f'FFP: {traceback.format_exc()}')
             out_dict.update(dict(_err=401))
 
-    def video_is_not_filtered_out(self, video, filters):
-        if 'yes' in filters:
-            for x in filters['yes']:
-                if not re.search(x, video['title'], re.IGNORECASE):
-                    return False
-        if 'no' in filters:
-            for x in filters['no']:
-                if re.search(x, video['title'], re.IGNORECASE):
-                    return False
-        # keep maybe checking last
-        if 'maybe' in filters:
-            for x in filters['maybe']:
-                if re.search(x, video['title'], re.IGNORECASE):
-                    return True
-            return False
-        return True
-
     async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         try:
             sets = [(s['id'], s['ordered'] if 'ordered' in s else True, s['params'] if 'params' in s else dict(), s['title'] if 'title' in s and s['title'] else s['id']) for s in conf['playlists']]
@@ -288,6 +271,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     if len(sets) <= setidx:
                         break
                     set, ordered, filters, title = sets[setidx]
+                    filters = self.process_filters(filters)
                     setidx += 1
                     startFrom = 1
                     while startFrom:

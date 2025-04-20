@@ -170,23 +170,6 @@ class MessageProcessor(RefreshMessageProcessor):
             playlist=playlist
         ), datepubi)
 
-    def video_is_not_filtered_out(self, video, filters):
-        if 'yes' in filters:
-            for x in filters['yes']:
-                if not re.search(x, video['title'], re.IGNORECASE):
-                    return False
-        if 'no' in filters:
-            for x in filters['no']:
-                if re.search(x, video['title'], re.IGNORECASE):
-                    return False
-        # keep maybe checking last
-        if 'maybe' in filters:
-            for x in filters['maybe']:
-                if re.search(x, video['title'], re.IGNORECASE):
-                    return True
-            return False
-        return True
-
     async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
         try:
             sets = [(s['id'], s['params'], s['title']) for s in conf['playlists']]
@@ -203,6 +186,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     if len(sets) <= setidx:
                         break
                     set, filters, title = sets[setidx]
+                    filters = self.process_filters(filters)
                     setidx += 1
                     page = 1
                     rel_s = 0
@@ -242,7 +226,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                 else:
                                     pr, datepubi_conf = self.entry2Program(vidinfo, when, set, playlist)
                                     if datepubi_conf >= datefrom:
-                                        if (datepubi_conf <= dateto or dateto < datefrom) and self.video_is_not_filtered_out(dict(title=pr.title), filters):
+                                        if (datepubi_conf <= dateto or dateto < datefrom) and self.video_is_not_filtered_out(dict(title=pr.title, duration=pr.dur), filters):
                                             programs[pr.uid] = pr
                                             _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
                                             self.record_status(sta, f'\U00002795 Added {pr.title} [{pr.datepub}]', 'ss')
