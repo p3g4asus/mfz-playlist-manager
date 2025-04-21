@@ -129,7 +129,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     author = playlist_dict.get('creator', dict(name=text)).get('name', text)
                     plinfo = dict(
                         title=author,
-                        params=params,
+                        params=self.process_filters(params),
                         id=text,
                         description=f'Videos from {author}',
                     )
@@ -186,7 +186,6 @@ class MessageProcessor(RefreshMessageProcessor):
                     if len(sets) <= setidx:
                         break
                     set, filters, title = sets[setidx]
-                    filters = self.process_filters(filters)
                     setidx += 1
                     page = 1
                     rel_s = 0

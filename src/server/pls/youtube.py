@@ -76,7 +76,7 @@ class MessageProcessor(RefreshMessageProcessor):
                 if urlp.hostname.find('twitch.tv') >= 0 and (mo := re.search(r'^/([^/]+)/?$', urlp.path)):
                     plinfo = dict(
                         title=f'{mo.group(1)} Live',
-                        params=params,
+                        params=self.process_filters(params),
                         channel=mo.group(1),
                         id='%' + text,
                         description=f'{mo.group(1)} Live streams'
@@ -136,7 +136,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     if '_err' not in playlist_dict:
                         plinfo = dict(
                             title=playlist_dict['title'],
-                            params=params,
+                            params=self.process_filters(params),
                             channel=playlist_dict.get('uploader', playlist_dict['title']),
                             id=plid if len(plid) > 1 else plid + playlist_dict['id'],
                             description=playlist_dict.get('description', playlist_dict['title'])
@@ -150,7 +150,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     if '_err' not in vinf:
                         plinfo = dict(
                             title=url,
-                            params=params,
+                            params=self.process_filters(params),
                             channel=url,
                             id='>' + url,
                             description=''
@@ -271,7 +271,6 @@ class MessageProcessor(RefreshMessageProcessor):
                     if len(sets) <= setidx:
                         break
                     set, ordered, filters, title = sets[setidx]
-                    filters = self.process_filters(filters)
                     setidx += 1
                     startFrom = 1
                     while startFrom:

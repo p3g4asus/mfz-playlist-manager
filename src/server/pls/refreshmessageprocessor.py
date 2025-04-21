@@ -80,14 +80,12 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
     def process_filters(filters: dict) -> dict:
         if 'durmin' in filters and filters['durmin']:
             try:
-                if isinstance(filters['durmin'], list):
-                    filters['durmin'] = int(filters['durmin'][0])
+                filters['durmin'] = int(filters['durmin'][0])
             except Exception:
                 del filters['durmin']
         if 'durmax' in filters and filters['durmax']:
             try:
-                if isinstance(filters['durmax'], list):
-                    filters['durmax'] = int(filters['durmax'][0])
+                filters['durmax'] = int(filters['durmax'][0])
             except Exception:
                 del filters['durmax']
         return filters
