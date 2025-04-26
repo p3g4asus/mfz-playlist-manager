@@ -19,7 +19,7 @@ from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
                           CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER, CMD_ITEMDUMP,
                           CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
                           CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_PLAYID, CMD_RAI_CONTENTSET,
-                          CMD_RAI_LISTINGS, CMD_REN, CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TT_PLAYLISTCHECK, CMD_YT_PLAYLISTCHECK, IMG_NO_VIDEO, LINK_CONV_BIRD_REDIRECT, LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_VIDEO_EMBED, LINK_CONV_TWITCH, LINK_CONV_UNTOUCH)
+                          CMD_RAI_LISTINGS, CMD_REN, CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TT_PLAYLISTCHECK, CMD_YT_PLAYLISTCHECK, IMG_NO_VIDEO, LINK_CONV_BIRD_REDIRECT, LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_VIDEO_EMBED, LINK_CONV_TWITCH, LINK_CONV_UNTOUCH, LINK_CONV_YTDL_REDIRECT)
 from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
 from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_on_item_updated, cache_store
@@ -632,6 +632,40 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
     def list_items_taking_space(it: PlaylistItem) -> bool:
         return it.takes_space()
 
+    def get_m3u8_link(self, conv: int | None = None) -> str:
+        lnk = f'{self.proc.params.link}/{self.proc.params.args["sid"]}'
+        par = urlencode(dict(name=self.name, host=lnk))
+        uprefix: str = f'{lnk}/m3u/{self.proc.user.token}?{par}&'
+        namesfx = f'c{conv}' if conv else ''
+        linksfx = f'&conv={conv}' if conv else ''
+        typesfx = r'&type=video%2Furl' if self.obj.type != 'urlebird' else r'&type=video%2Fmp4'
+        return f'<a href="{uprefix}fmt=m3u{linksfx}">M3U8{namesfx}</a>, <a href="{uprefix}fmt=ely{linksfx}">ELY{namesfx}</a>, <a href="{uprefix}fmt=jwp{linksfx}{typesfx}">JWP{namesfx}</a>\n'
+
+    def get_m3u8_links(self) -> str:
+        if self.obj.type == 'youtube':
+            youtwipres = 0
+            it: PlaylistItem
+            conv = [None]
+            for it in self.obj.items:
+                if 'twitch.tv' in it.link:
+                    youtwipres |= 2
+                elif 'youtu' in it.link:
+                    youtwipres |= 1
+                if youtwipres == 3:
+                    break
+            if youtwipres & 2:
+                conv.append(LINK_CONV_TWITCH)
+            if youtwipres & 1:
+                conv.append(LINK_CONV_YTDL_REDIRECT)
+        elif self.obj.type == 'urlebird':
+            conv = [LINK_CONV_BIRD_REDIRECT]
+        else:
+            conv = [None]
+        links = ''
+        for c in conv:
+            links += self.get_m3u8_link(c)
+        return links
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
@@ -686,11 +720,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         upd += f'\nLength: {self.unseen} \U000023F1 {duration2string(self.obj.get_duration())}\n'
         upd += f':eye: {len(self.obj.items)} \U000023F1 {duration2string(self.obj.get_duration(True))}\n'
         upd += f'Update \U000023F3: {datepubo.strftime("%Y-%m-%d %H:%M:%S")} ' + ("\U00002705" if self.obj.autoupdate else "") + '\n'
-        par = urlencode(dict(name=self.name, host=lnk))
-        uprefix: str = f'{lnk}/m3u/{self.proc.user.token}?{par}&'
-        upd += f'<a href="{uprefix}fmt=m3u">M3U8</a>, <a href="{uprefix}fmt=ely">ELY</a>, <a href="{uprefix}fmt=json">JSON</a>\n'
-        upd += f'<a href="{uprefix}fmt=m3u&conv=4">M3U8c4</a>, <a href="{uprefix}fmt=ely&conv=4">ELYc4</a>, <a href="{uprefix}fmt=json&conv=4">JSONc4</a>\n'
-        upd += f'<a href="{uprefix}fmt=m3u&conv=2">M3U8c2</a>, <a href="{uprefix}fmt=ely&conv=2">ELYc2</a>, <a href="{uprefix}fmt=json&conv=2">JSONc2</a>\n'
+        upd += self.get_m3u8_links()
         upd += f'Playback Rate {self.obj.conf["play"]["rate"] if "play" in self.obj.conf and "rate" in self.obj.conf["play"] else 1.0:.2f}\U0000274E'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'
         if self.return_msg:
