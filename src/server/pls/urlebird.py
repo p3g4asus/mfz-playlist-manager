@@ -140,6 +140,12 @@ class MessageProcessor(RefreshMessageProcessor):
         else:
             return msg.err(19, MSG_TT_INVALID_PLAYLIST)
 
+    @staticmethod
+    def video_is_not_filtered_out(video, filters) -> bool:
+        if 'duration' in video and not video['duration']:
+            return False
+        return RefreshMessageProcessor.video_is_not_filtered_out(video, filters)
+
     def entry2Program(self, it, alternate_date: datetime | None, set, playlist):
         conf = dict(playlist=set,
                     userid=it.get('creator', dict(alternateName=set))['alternateName'])
