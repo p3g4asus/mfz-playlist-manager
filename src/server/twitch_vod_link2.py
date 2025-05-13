@@ -36,7 +36,7 @@ async def get_vod_link(vodid, audio=False):
                         data = token["data"]["video"]["seekPreviewsURL"]
                         mo = re.search(r'^(https://[a-z0-9]+\.cloudfront.net/[a-f0-9]+_.+?_[0-9]+_[0-9]+)/', data)
                         if mo:
-                            link = f'{mo.group(1)}/chunked/index-dvr.m3u8'
+                            link = f'{mo.group(1)}/{"chunked" if not audio else "audio_only"}/index-dvr.m3u8'
                             return link
                     except Exception:
                         pass
