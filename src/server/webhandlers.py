@@ -437,9 +437,10 @@ async def playlist_m3u(request, userid=None):
         host = request.query['host'] if 'host' in request.query else f"{request.scheme}://{request.host}"
         pl = await Playlist.loadbyid(request.app.p.db, useri=userid, name=request.query['name'])
         asconv = (conv >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_MASK
+        audio = request.query.get('audio', '0') == '1'
         if asconv & LINK_CONV_OPTION_ASYNCH_TWITCH:
             for it in pl[0].items:
-                it.link = await twitch_link_finder(it.link, request.app)
+                it.link = await twitch_link_finder(it.link, request.app, audio=audio)
         if asconv & LINK_CONV_OPTION_VIDEO_EMBED:
             mi = request.match_info
             login_token = mi['token'][1:] if 'token' in mi and mi['token'] else None
@@ -596,7 +597,7 @@ async def img_link(request):
     return web.HTTPBadRequest(body='Link not found in URL')
 
 
-async def twitch_link_finder(link, app):
+async def twitch_link_finder(link, app, audio=False):
     if 0:
         from server.twitch_vod_link import get_vod_feeds
         from server.twitch_vod_link0 import get_vod_link
@@ -619,7 +620,7 @@ async def twitch_link_finder(link, app):
     else:
         from server.twitch_vod_link2 import get_vod_link
         vodid = vod_get_id(link)
-        link0 = await get_vod_link(vodid)
+        link0 = await get_vod_link(vodid, audio=audio)
         if link0:
             link = link0
     return link
@@ -630,7 +631,7 @@ async def twitch_redir_logged(request, userid=None):
     if isinstance(rv, tuple):
         _, it = rv
         conv = int(request.query['conv']) & LINK_CONV_MASK
-        link = await twitch_link_finder(it.link, request.app) if conv == LINK_CONV_TWITCH else it.link
+        link = await twitch_link_finder(it.link, request.app, audio=request.query.get('audio', '0') == '1') if conv == LINK_CONV_TWITCH else it.link
         return web.Response(
             text=jwplayer_html(it2jwplayer(it, link, 'application/vnd.apple.mpegurl' if conv == LINK_CONV_TWITCH else 'video/url', additional=request.query)),
             content_type='text/html',
@@ -643,7 +644,7 @@ async def twitch_redir_logged(request, userid=None):
 async def twitch_redir_do(request):
     if 'link' in request.query:
         link = request.query['link']
-        link = await twitch_link_finder(link, request.app)
+        link = await twitch_link_finder(link, request.app, audio=request.query.get('audio', '0') == '1')
         return web.HTTPFound(link)
     return web.HTTPBadRequest(body='Link not found in URL')
 
