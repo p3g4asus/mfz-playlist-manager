@@ -16,11 +16,12 @@ LOAD_ITEMS_SEEN = 3
 
 
 class Playlist(JSONAble, Fieldable):
-    def __init__(self, dbitem=None, rowid=None, name=None, items=None, typei=None, type=None, useri=None, user=None, conf=None, dateupdate=None, autoupdate=True, **kwargs):
+    def __init__(self, dbitem=None, rowid=None, name=None, items=None, typei=None, type=None, useri=None, user=None, conf=None, dateupdate=None, autoupdate=True, iorder=0, **kwargs):
         if dbitem:
             if isinstance(dbitem, str):
                 dbitem = json.loads(dbitem)
             self.rowid = dbitem['rowid']
+            self.iorder = dbitem['iorder'] if 'iorder' in dbitem else 0
             self.dateupdate = dbitem['dateupdate']
             self.autoupdate = dbitem['autoupdate'] if 'autoupdate' in dbitem else 1
             self.name = dbitem['name']
@@ -37,6 +38,7 @@ class Playlist(JSONAble, Fieldable):
             else:
                 self.rowid = rowid
                 self.name = name
+            self.iorder = iorder
             self.typei = typei
             self.type = type
             self.useri = useri
@@ -69,8 +71,9 @@ class Playlist(JSONAble, Fieldable):
         return s
 
     @staticmethod
-    async def loadbyid(db, rowid=None, useri=None, name=None, username=None, loaditems=LOAD_ITEMS_UNSEEN, sort_item_field='iorder', offset=None, limit=None):
+    async def loadbyid(db, rowid=None, useri=None, name=None, username=None, loaditems=LOAD_ITEMS_UNSEEN, sort_item_field='iorder', offset=None, limit=None) -> list["Playlist"]:
         pls = []
+        sort = ' ORDER BY iorder, rowid'
         commontxt = '''
             SELECT P.name AS name,
             P.type AS typei,
@@ -80,26 +83,27 @@ class Playlist(JSONAble, Fieldable):
             P.dateupdate AS dateupdate,
             P.autoupdate AS autoupdate,
             T.name AS type,
-            U.username AS user
+            U.username AS user,
+            P.iorder AS iorder
             FROM playlist AS P, user AS U, type AS T
             WHERE P.type=T.rowid AND P.user=U.rowid%s%s
         ''' % ("" if not isinstance(rowid, int) else (" AND P.rowid=%d" % rowid),
                "" if not isinstance(useri, int) else (" AND P.user=%d" % useri),)
         if isinstance(name, str) and len(name) and isinstance(username, str) and len(username):
             cursor = await db.execute(
-                commontxt + " AND P.name=? AND U.username=?", (name, username)
+                commontxt + " AND P.name=? AND U.username=?" + sort, (name, username)
             )
         elif isinstance(name, str) and len(name):
             cursor = await db.execute(
-                commontxt + " AND P.name=?", (name,)
+                commontxt + " AND P.name=?" + sort, (name,)
             )
         elif isinstance(username, str) and len(username):
             cursor = await db.execute(
-                commontxt + " AND U.username=?", (username,)
+                commontxt + " AND U.username=?" + sort, (username,)
             )
         else:
             cursor = await db.execute(
-                commontxt
+                commontxt + sort
             )
         async for row in cursor:
             dctr = dict(row)
@@ -143,7 +147,7 @@ class Playlist(JSONAble, Fieldable):
                 pass
         return None
 
-    async def delete(self, db):
+    async def delete(self, db, commit=True):
         rv = False
         if self.rowid:
             async with db.cursor() as cursor:
@@ -156,9 +160,18 @@ class Playlist(JSONAble, Fieldable):
                     async with db.cursor() as cursor:
                         await cursor.execute("DELETE FROM playlist WHERE name=? and user=?", (self.name, self.useri))
                         rv = cursor.rowcount > 0
-        if rv:
+        if rv and commit:
             await db.commit()
         return rv
+
+    @staticmethod
+    async def reset_index(db, useri=None, commit=True):
+        pls = await Playlist.loadbyid(db, None, useri=useri, loaditems=LOAD_ITEMS_NO)
+        for i, pl in enumerate(pls):
+            pl.iorder = i + 1
+            await pl.toDB(db, commit=False)
+        if commit:
+            await db.commit()
 
     def isOk(self):
         return self.typei and self.useri and self.name
@@ -255,8 +268,8 @@ class Playlist(JSONAble, Fieldable):
                 async with db.cursor() as cursor:
                     await cursor.execute(
                         '''
-                        UPDATE playlist SET name=?, dateupdate=?, autoupdate=?, conf=? WHERE rowid=?
-                        ''', (self.name, self.dateupdate, self.autoupdate, c, self.rowid)
+                        UPDATE playlist SET name=?, dateupdate=?, autoupdate=?, conf=?, iorder=? WHERE rowid=?
+                        ''', (self.name, self.dateupdate, self.autoupdate, c, self.iorder, self.rowid)
                     )
                     if cursor.rowcount <= 0:
                         return False
@@ -280,6 +293,7 @@ class Playlist(JSONAble, Fieldable):
                     if cursor.rowcount <= 0:
                         return False
                     self.rowid = cursor.lastrowid
+                    self.iorder = cursor.lastrowid  # Set iorder to rowid for new playlists
             for i in self.items:
                 if not i.seen:
                     i.playlist = self.rowid

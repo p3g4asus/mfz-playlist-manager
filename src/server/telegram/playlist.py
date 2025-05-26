@@ -16,13 +16,13 @@ from telegram_menu.models import MenuButton
 
 from common.brand import DEFAULT_TITLE, Brand
 from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
-                          CMD_FOLDER_LIST, CMD_FREESPACE, CMD_IORDER, CMD_ITEMDUMP,
+                          CMD_FOLDER_LIST, CMD_FREESPACE, CMD_INDEX, CMD_IORDER, CMD_ITEMDUMP,
                           CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
                           CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_PLAYID, CMD_RAI_CONTENTSET,
                           CMD_RAI_LISTINGS, CMD_REN, CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TT_PLAYLISTCHECK, CMD_YT_PLAYLISTCHECK, IMG_NO_VIDEO, LINK_CONV_BIRD_REDIRECT, LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_VIDEO_EMBED, LINK_CONV_TWITCH, LINK_CONV_UNTOUCH, LINK_CONV_YTDL_REDIRECT)
 from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
-from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_on_item_updated, cache_store
+from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_on_item_updated, cache_sort, cache_store
 from server.telegram.pages import ListPagesTMessage, PageGenerator
 from server.telegram.message import DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, StatusTMessage, duration2string
 from server.telegram.refresh import RefreshingTMessage
@@ -168,9 +168,8 @@ class PlaylistItemTMessage(NameDurationTMessage):
         await self.switch_to_status((NameDurationStatus.SORTING, ))
 
     async def set_iorder(self) -> None:
-        if self.current_sort[0] != u'\U0001F502' or len(self.current_sort) > 1:
-            await self.set_iorder_do(int(self.current_sort) if self.current_sort[0] != u'\U0001F502' else self.get_iorder_from_index(int(self.current_sort[1:])))
-            await self.switch_to_idle()
+        await self.set_iorder_do(self.get_iorder_from_index(int(self.current_sort)))
+        await self.switch_to_idle()
 
     async def add_to_sort(self, args) -> None:
         self.current_sort += f'{args[0]}'
@@ -238,7 +237,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
             if self.status == NameDurationStatus.IDLE:
                 self.add_button(u'\U0001F5D1', self.delete_item_pre_pre, args=(CMD_SEEN, ))
                 self.add_button(u'\U0001F5D1\U0001F519', self.delete_item_pre_pre, args=(CMD_SEEN_PREV, ))
-                self.add_button(u'\U00002211', self.switch_to_status, args=(NameDurationStatus.SORTING, ))
+                self.add_button(f'\U0001F449{self.index + 1}', self.switch_to_status, args=(NameDurationStatus.SORTING, ))
                 self.add_button(u'\U0001F517', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, ))
                 self.add_button(u'\U0001F4EE', self.switch_to_status, args=(NameDurationStatus.MOVING, ))
                 self.add_button(u'\U000025B6', self.set_play_id)
@@ -309,9 +308,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                     self.add_button(f'{(i + 1) % 10}' + u'\U0000FE0F\U000020E3', self.add_to_sort, args=((i + 1) % 10, ))
                 self.add_button(u'\U000002C2', self.remove_from_sort)
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
-                if not self.current_sort:
-                    self.add_button(u'\U0001F502', self.add_to_sort, args=(u'\U0001F502', ), new_row=True)
-                else:
+                if self.current_sort:
                     self.add_button(self.current_sort, self.set_iorder, new_row=True)
                 self.input_field = f'Enter \U00002211 for {self.name}'
                 return f'Enter \U00002211 for <b>{self.name}</b>'
@@ -449,7 +446,17 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             user=user,
             params=params)
         self.del_and_recreate = False
+        self.current_sort: str = ''
         self.set_playlist(self.obj)
+
+    async def remove_from_sort(self) -> None:
+        if self.current_sort:
+            self.current_sort = self.current_sort[0:-1]
+            await self.edit_or_select()
+
+    async def add_to_sort(self, args) -> None:
+        self.current_sort += f'{args[0]}'
+        await self.edit_or_select()
 
     async def edit_or_select_items(self, delay: float = 0):
         itemsTg = cache_get_items(self.proc.user.rowid, self.id, True)
@@ -476,7 +483,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 lmm = self.navigation._menu_queue[-1]
                 if isinstance(lmm, PlaylistItemsPagesTMessage) and\
                         lmm.playlist_obj.id == self.id:
-                    await self.navigation.goto_back()
+                    await self.navigation.goto_back(sync=True)
                 lmm = self.navigation._menu_queue[-1]
                 if isinstance(lmm, PlaylistsPagesTMessage):
                     await self.navigation.goto_menu(lmm, None, add_if_present=False)
@@ -666,6 +673,31 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             links += self.get_m3u8_link(c)
         return links
 
+    async def set_index(self, context: Union[CallbackContext, None] = None):
+        if self.current_sort:
+            await self.set_index_do(int(self.current_sort))
+        self.current_sort = ''
+        await self.switch_to_idle()
+
+    async def set_index_do(self, index):
+        pl = PlaylistMessage(CMD_INDEX, playlist=self.id, index=index)
+        pl = await self.proc.process(pl)
+        if pl.rv == 0:
+            cache_sort(self.proc.user.rowid, pl.sort)
+            plTgs: list[PlaylistTg] = cache_get(self.proc.user.rowid)
+            for plTg in plTgs:
+                if plTg.message:
+                    await plTg.message.edit_or_select_if_exists()
+            lmm = self.navigation._menu_queue[-1]
+            if isinstance(lmm, PlaylistItemsPagesTMessage):
+                await self.navigation.goto_back(sync=True)
+            lmm = self.navigation._menu_queue[-1]
+            if isinstance(lmm, PlaylistsPagesTMessage):
+                await self.navigation.goto_home()
+            self.return_msg = 'IOrder OK :thumbs_up:'
+        else:
+            self.return_msg = f'Error {pl.rv} IOrdering {self.name} :thumbs_down:'
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
@@ -679,12 +711,13 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 self.add_button(u'\U0001F9F9', self.delete_item_pre_pre, args=(CMD_CLEAR, ))
                 self.add_button(u'\U0001F501', self.switch_to_status, args=(NameDurationStatus.UPDATING_INIT, ))
                 self.add_button(u'\U00002211', self.sort_playlist)
-                self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{lnk}-s/play/workout.htm?{urlencode(dict(name=self.name))}')
-                self.add_button(u'\U0001F4D2', btype=ButtonType.LINK, web_app_url=f'{lnk}-s/index.htm?{urlencode(dict(pid=self.id))}')
-                self.add_button(':memo:', self.list_items, args=(False, ))
+                self.add_button(f'\U0001F449{self.index + 1}', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, ))
+                self.add_button(':memo:', self.list_items, args=(False, ), new_row=True)
                 self.add_button(':eye:', self.list_items, args=(True, ))
                 self.add_button(u'\U0001F4A3', self.list_items, args=(PlaylistTMessage.list_items_taking_space, ))
                 self.add_button('F5', self.dump_playlist)
+                self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{lnk}-s/play/workout.htm?{urlencode(dict(name=self.name))}', new_row=True)
+                self.add_button(u'\U0001F4D2', btype=ButtonType.LINK, web_app_url=f'{lnk}-s/index.htm?{urlencode(dict(pid=self.id))}')
                 # self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{self.proc.params.link}/{self.proc.params.args["sid"]}-s/play/workout.htm?{urlencode(dict(name=self.name))}')
             elif self.status == NameDurationStatus.RENAMING:
                 self.input_field = f'Enter new name for {self.name}'
@@ -698,6 +731,14 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             elif self.status == NameDurationStatus.SORTING or self.status == NameDurationStatus.DUMPING:
                 self.input_field = u'\U0001F570'
                 return f'{self.name} {"sorting" if self.status == NameDurationStatus.SORTING else "dumping"} {"." * (self.sub_status & 0xFF)}'
+            elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
+                for i in range(10):
+                    self.add_button(f'{(i + 1) % 10}' + u'\U0000FE0F\U000020E3', self.add_to_sort, args=((i + 1) % 10, ))
+                self.add_button(u'\U000002C2', self.remove_from_sort)
+                self.add_button(':cross_mark: Abort', self.switch_to_idle)
+                if self.current_sort:
+                    self.add_button(self.current_sort, self.set_index, new_row=True)
+                self.input_field = f'Enter \U00002211 for {self.name}'
             else:
                 updt = await DeletingTMessage.update(self, context)
                 if updt:
@@ -738,7 +779,7 @@ class PlaylistsPagesGenerator(PageGenerator):
             PlaylistTMessage(navigation, myid, self.proc.user, self.proc.params)
 
     def get_playlist_message(self, pid=None, deleted=False):
-        return PlaylistMessage(CMD_DUMP, useri=self.proc.user.rowid, load_all=1 if deleted else 0, playlist=pid)
+        return PlaylistMessage(CMD_DUMP, useri=self.proc.user.rowid, load_all=1 if deleted else 0, playlist=pid, index=1)
 
     async def get_items_list(self, deleted=False, pid=None):
         plout = await self.proc.process(self.get_playlist_message(pid, deleted))

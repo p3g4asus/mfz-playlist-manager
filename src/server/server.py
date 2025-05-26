@@ -124,6 +124,7 @@ CREATE_DB_IF_NOT_EXIST = [
         dateupdate INTEGER,
         autoupdate INTEGER NOT NULL DEFAULT 0,
         conf TEXT,
+        iorder INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (user)
             REFERENCES user (rowid)
             ON UPDATE CASCADE

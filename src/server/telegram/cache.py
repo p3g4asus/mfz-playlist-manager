@@ -99,10 +99,7 @@ def cache_store(p: Playlist, index=None):
         dep = _PLAYLIST_CACHE[useris]
     pids = p.rowid
     if index is None:
-        if pids not in dep:
-            index = len(dep)
-        else:
-            index = dep[pids].index
+        index = p.iorder - 1  # iorder starts from 1, index from 0
     plaTg: PlaylistTg
     if pids in dep:
         plaTg = dep[pids]
@@ -141,6 +138,14 @@ def cache_on_item_updated(useris: int, it: PlaylistItem):
                     plTg.playlist.items[i] = it
                     plTg.refresh(plTg.playlist, plTg.index)
                     break
+
+
+def cache_sort(useris: int, playlists: List[Playlist]):
+    for p in playlists:
+        pids = p.rowid
+        pltd: PlaylistTg = _PLAYLIST_CACHE.get(useris, dict()).get(pids, None)
+        if pltd:
+            pltd.refresh(p, p.iorder - 1)
 
 
 def cache_del_user(useris: int, playlists: List[Playlist]):
