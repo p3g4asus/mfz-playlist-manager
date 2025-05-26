@@ -145,7 +145,8 @@ def cache_sort(useris: int, playlists: List[Playlist]):
         pids = p.rowid
         pltd: PlaylistTg = _PLAYLIST_CACHE.get(useris, dict()).get(pids, None)
         if pltd:
-            pltd.refresh(p, p.iorder - 1)
+            pltd.playlist.iorder = p.iorder
+            pltd.refresh(pltd.playlist, p.iorder - 1)
 
 
 def cache_del_user(useris: int, playlists: List[Playlist]):
