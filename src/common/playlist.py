@@ -283,17 +283,24 @@ class Playlist(JSONAble, Fieldable):
                     data = (await cursor.fetchone())[0]
                     if data:
                         return False
+                async with db.execute(
+                    '''
+                    SELECT MAX(iorder) FROM playlist
+                    WHERE user = ?
+                    ''', (self.useri, )
+                ) as cursor:
+                    data = (await cursor.fetchone())[0]
+                self.iorder = data + 1
                 async with db.cursor() as cursor:
                     await cursor.execute(
                         '''
-                        INSERT OR IGNORE into playlist(name,user,type,dateupdate,autoupdate,conf) VALUES (?,?,?,?,?,?)
+                        INSERT OR IGNORE into playlist(name,user,type,dateupdate,autoupdate,conf,iorder) VALUES (?,?,?,?,?,?,?)
                         ''',
-                        (self.name, self.useri, self.typei, self.dateupdate, self.autoupdate, c)
+                        (self.name, self.useri, self.typei, self.dateupdate, self.autoupdate, c, self.iorder)
                     )
                     if cursor.rowcount <= 0:
                         return False
                     self.rowid = cursor.lastrowid
-                    self.iorder = cursor.lastrowid  # Set iorder to rowid for new playlists
             for i in self.items:
                 if not i.seen:
                     i.playlist = self.rowid
