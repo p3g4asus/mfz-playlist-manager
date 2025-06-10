@@ -482,7 +482,13 @@ class MessageProcessor(AbstractMessageProcessor):
                 postprocessors=post,
                 **kw
             )
-            await executor(self.open_and_wait, await self.init_osc_client_server((self.it.get_conv_link(host, conv, token=token, additional=dict(audio='1' if 'video' not in format else '0')), ytdl_opt), status))
+            if 'video' not in format:
+                qual = 'audio'
+            elif 'worst' in format:
+                qual = '9999'
+            else:
+                qual = '0'
+            await executor(self.open_and_wait, await self.init_osc_client_server((self.it.get_conv_link(host, conv, token=token, additional=dict(qual=qual)), ytdl_opt), status))
             if 'sta' in status['dl'] and not status['dl']['sta'] and\
                'file' in status['dl'] and status['dl']['file'] and\
                'rv' in status['dlx'] and not status['dlx']['rv']:

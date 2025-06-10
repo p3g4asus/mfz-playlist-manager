@@ -405,13 +405,19 @@ JWPLAYER_TEMPLATE = """
 
 
 def it2jwplayer(it: PlaylistItem, url: str, type: str = 'video/mp4', additional: dict = dict(), host: str | None = None) -> dict:
-    return dict(file=url,
-                type=type,
-                channel=it.conf.get('author', it.conf.get('userid', 'N/A')),
-                title=it.title if 'lim' not in additional else sanitize_filename(it.title[:int(additional['lim'])]),
-                duration=it.dur,
-                image=PlaylistItem.convert_img_url(it.img, host),
-                pubdate=int(datetime.strptime(it.datepub, '%Y-%m-%d %H:%M:%S.%f').timestamp()))
+    rv = dict(channel=it.conf.get('author', it.conf.get('userid', 'N/A')),
+              title=it.title if 'lim' not in additional else sanitize_filename(it.title[:int(additional['lim'])]),
+              duration=it.dur,
+              image=PlaylistItem.convert_img_url(it.img, host),
+              pubdate=int(datetime.strptime(it.datepub, '%Y-%m-%d %H:%M:%S.%f').timestamp()))
+    if isinstance(url, dict):
+        rv['sources'] = sources = []
+        for k, v in url.items():
+            sources.append(dict(file=v, label=k, type=type))
+    else:
+        rv['file'] = url
+        rv['type'] = type
+    return rv
 
 
 def jwplayer_html(pls: list | dict) -> str:
@@ -437,10 +443,10 @@ async def playlist_m3u(request, userid=None):
         host = request.query['host'] if 'host' in request.query else f"{request.scheme}://{request.host}"
         pl = await Playlist.loadbyid(request.app.p.db, useri=userid, name=request.query['name'])
         asconv = (conv >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_MASK
-        audio = request.query.get('audio', '0') == '1'
         if asconv & LINK_CONV_OPTION_ASYNCH_TWITCH:
             for it in pl[0].items:
-                it.link = await twitch_link_finder(it.link, request.app, audio=audio)
+                it.link = await find_twitch_link(request, LINK_CONV_TWITCH, it)
+
         if asconv & LINK_CONV_OPTION_VIDEO_EMBED:
             mi = request.match_info
             login_token = mi['token'][1:] if 'token' in mi and mi['token'] else None
@@ -597,7 +603,7 @@ async def img_link(request):
     return web.HTTPBadRequest(body='Link not found in URL')
 
 
-async def twitch_link_finder(link, app, audio=False):
+async def twitch_link_finder(link, app):
     if 0:
         from server.twitch_vod_link import get_vod_feeds
         from server.twitch_vod_link0 import get_vod_link
@@ -620,9 +626,33 @@ async def twitch_link_finder(link, app, audio=False):
     else:
         from server.twitch_vod_link2 import get_vod_link
         vodid = vod_get_id(link)
-        link0 = await get_vod_link(vodid, audio=audio)
+        link0 = await get_vod_link(vodid)
         if link0:
             link = link0
+    return link
+
+
+async def find_twitch_link(request, conv: int, it: PlaylistItem) -> str:
+    link = it.link if isinstance(it, PlaylistItem) else it
+    if conv == LINK_CONV_TWITCH:
+        links = await twitch_link_finder(link, request.app)
+        if links:
+            qual = request.query.get('qual', '0')
+            keys = list(links.keys())
+            if qual == 'audio':
+                link = links['Audio_Only'] if 'Audio_Only' in links else links[keys[0]]
+            else:
+                off = 1 if 'Audio_Only' in links else 0
+                ln = len(keys) - off
+                try:
+                    qual = int(qual)
+                except ValueError:
+                    qual = 0
+                if qual < 0:
+                    qual = 0
+                elif qual >= ln:
+                    qual = ln - 1
+                link = links[keys[qual]]
     return link
 
 
@@ -631,7 +661,7 @@ async def twitch_redir_logged(request, userid=None):
     if isinstance(rv, tuple):
         _, it = rv
         conv = int(request.query['conv']) & LINK_CONV_MASK
-        link = await twitch_link_finder(it.link, request.app, audio=request.query.get('audio', '0') == '1') if conv == LINK_CONV_TWITCH else it.link
+        link = await find_twitch_link(request, conv, it)
         return web.Response(
             text=jwplayer_html(it2jwplayer(it, link, 'application/vnd.apple.mpegurl' if conv == LINK_CONV_TWITCH else 'video/url', additional=request.query)),
             content_type='text/html',
@@ -644,7 +674,7 @@ async def twitch_redir_logged(request, userid=None):
 async def twitch_redir_do(request):
     if 'link' in request.query:
         link = request.query['link']
-        link = await twitch_link_finder(link, request.app, audio=request.query.get('audio', '0') == '1')
+        link = await find_twitch_link(request, LINK_CONV_TWITCH, link)
         return web.HTTPFound(link)
     return web.HTTPBadRequest(body='Link not found in URL')
 
