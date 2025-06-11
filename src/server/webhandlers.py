@@ -413,7 +413,7 @@ def it2jwplayer(it: PlaylistItem, url: str, type: str = 'video/mp4', additional:
     if isinstance(url, dict):
         rv['sources'] = sources = []
         for k, v in url.items():
-            sources.append(dict(file=v, label=k, type=type))
+            sources.append(dict(label=k, type=type, **v))
     else:
         rv['file'] = url
         rv['type'] = type
@@ -640,7 +640,7 @@ async def find_twitch_link(request, conv: int, it: PlaylistItem) -> str:
             qual = request.query.get('qual', '0')
             keys = list(links.keys())
             if qual == 'audio':
-                link = links['Audio_Only'] if 'Audio_Only' in links else links[keys[0]]
+                link = links['Audio_Only']['file'] if 'Audio_Only' in links else links[keys[0]]['file']
             else:
                 off = 1 if 'Audio_Only' in links else 0
                 ln = len(keys) - off
@@ -649,10 +649,10 @@ async def find_twitch_link(request, conv: int, it: PlaylistItem) -> str:
                 except ValueError:
                     qual = 0
                 if qual < 0:
-                    qual = 0
+                    return links
                 elif qual >= ln:
                     qual = ln - 1
-                link = links[keys[qual]]
+                link = links[keys[qual]]['file']
     return link
 
 
@@ -663,7 +663,7 @@ async def twitch_redir_logged(request, userid=None):
         conv = int(request.query['conv']) & LINK_CONV_MASK
         link = await find_twitch_link(request, conv, it)
         return web.Response(
-            text=jwplayer_html(it2jwplayer(it, link, 'application/vnd.apple.mpegurl' if conv == LINK_CONV_TWITCH else 'video/url', additional=request.query)),
+            text=jwplayer_html(it2jwplayer(it, link, 'video/url' if conv == LINK_CONV_TWITCH else 'video/url', additional=request.query)),
             content_type='text/html',
             charset='utf-8'
         )

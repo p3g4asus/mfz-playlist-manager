@@ -2,6 +2,7 @@ import logging
 import aiohttp
 import traceback
 import re
+from yt_dlp.utils import parse_resolution
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -12,11 +13,11 @@ async def get_vod_link(vodid) -> dict:
     url = "https://gql.twitch.tv/gql"
     headers = {'content-type': "text/plain;charset=UTF-8", "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko"}
     format_check = {
-        '1080p60': 'chunked',
-        '720p60': '720p60',
-        '480p': '480p30',
-        '360p': '360p30',
-        '160p': '160p30',
+        '1080p60 - 1920x1080 (Source)': 'chunked',
+        '720p60 - 1280x720': '720p60',
+        '480p - 852x480': '480p30',
+        '360p - 640x360': '360p30',
+        '160p - 284x160': '160p30',
         'Audio_Only': 'audio_only',
     }
     links = dict()
@@ -30,6 +31,13 @@ async def get_vod_link(vodid) -> dict:
                     if txt and txt.strip()[0] == '#':
                         return link
         return None
+
+    def get_format_dict(format, link):
+        res = parse_resolution(format)
+        if 'width' not in res or 'height' not in res:
+            res.update({'width': 0, 'height': 0})
+        res.update({'file': link, 'filesize': res['width'] * 1024 * 1024})
+        return res
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -46,7 +54,7 @@ async def get_vod_link(vodid) -> dict:
                             for format, idv in format_check.items():
                                 link = await test_url(base, idv)
                                 if link:
-                                    links[format] = link
+                                    links[format] = get_format_dict(format, link)
                                     _LOGGER.debug(f"Found {format} link: {link}")
                     except Exception:
                         pass
@@ -59,7 +67,7 @@ async def get_vod_link(vodid) -> dict:
                             for format, idv in format_check.items():
                                 link = await test_url(base, idv)
                                 if link:
-                                    links[format] = link
+                                    links[format] = get_format_dict(format, link)
                                     _LOGGER.debug(f"Found {format} link: {link}")
                     except Exception:
                         pass
