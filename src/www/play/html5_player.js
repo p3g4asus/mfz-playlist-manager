@@ -46,6 +46,14 @@ class Html5Player {
         }
     }
 
+    resize(width, height) {
+        let $v = $('#player video');
+        if (width)
+            $v.width(width);
+        if (height)
+            $v.height(height);
+    }
+
     destroy() {
         this.player.pause();
         this.player.removeAttribute('src'); // empty source

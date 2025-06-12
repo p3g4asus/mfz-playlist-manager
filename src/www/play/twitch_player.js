@@ -47,6 +47,14 @@ class TwitchPlayer {
         addev(Twitch.Player.OFFLINE);
     }
 
+    resize(width, height) {
+        let $v = $('#twitch-video iframe');
+        if (width)
+            $v.width(width);
+        if (height)
+            $v.height(height);
+    }
+
     /*
     -1 (unstarted)
     0 (ended)

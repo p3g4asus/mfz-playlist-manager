@@ -24,6 +24,13 @@ class VideojsPlayer {
         on_player_load('videojs', this);
     }
 
+    resize(width, height) {
+        if (width)
+            this.player.width(width);
+        if (height)
+            this.player.height(height);
+    }
+
     /*
     -1 (unstarted)
     0 (ended)

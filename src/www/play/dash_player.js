@@ -66,6 +66,14 @@ class DashPlayer {
         }
     }
 
+    resize(width, height) {
+        let $v = $('#player video');
+        if (width)
+            $v.width(width);
+        if (height)
+            $v.height(height);
+    }
+
     destroy() {
         this.player.reset();
     }

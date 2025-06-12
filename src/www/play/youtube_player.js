@@ -9,12 +9,23 @@ class YoutubePlayer {
                 'onStateChange': this.onPlayerStateChange.bind(this)
             }
         });
+        this.video_width = video_width;
+        this.video_height = video_height;
         this.on_play_finished = null;
         this.on_state_changed = null;
     }
 
     onPlayerReady(event) {
         on_player_load('youtube', this);
+    }
+
+    
+    resize(width, height) {
+        if (!width) width = this.video_width;
+        if (!height) height = this.video_height;
+        this.player.setSize(width, height);
+        this.video_width = width;
+        this.video_height = height;
     }
 
     /*

@@ -369,6 +369,7 @@ function on_video_info_change(idx, isat, objstart) {
 function on_player_load(name, manager_obj) {
     players_map[name] = manager_obj;
     video_manager_obj = manager_obj;
+    video_resize();
     video_manager_obj.on_play_finished = on_play_finished;
     video_manager_obj.on_state_changed = on_player_state_changed;
     let event = {dir: playlist_item_current.playlist + '_' + playlist_item_current.uid};
@@ -1038,7 +1039,47 @@ function init_playlist_play_settings() {
     }
 }
 
+function video_resize_old() {
+    if (!video_manager_obj)
+        return;
+    let videoRatio = video_height / video_width;
+    let windowRatio = window.innerHeight / window.innerWidth; /* browser size */
+
+    if (windowRatio < videoRatio) {
+        if (window.innerHeight > 150) { /* smallest video height */
+            video_manager_obj.resize(null, window.innerHeight - 100);
+        } else {
+            video_manager_obj.resize(null,50);
+        }
+    } else {
+        video_manager_obj.resize(window.innerWidth, null);
+    }
+}
+
+function video_resize() {
+    if (!video_manager_obj)
+        return;
+    if (video_height + 100 > window.innerHeight || video_width > window.innerWidth) {
+        let new_height = window.innerHeight - 100;
+        let new_width = window.innerWidth;
+        if (new_height < 160 || new_width < 284) {
+            new_height = 160;
+            new_width = 284;
+        } else {
+            let videoRatio = video_height / video_width;
+            let new_ratio = new_height / new_width; /* browser size */
+            if (new_ratio > videoRatio) {
+                new_height = new_width * videoRatio;
+            } else {
+                new_width = new_height / videoRatio;
+            }
+        }
+        video_manager_obj.resize(new_width, new_height);
+    }
+}
+
 function init_video_manager() {
+    window.addEventListener('resize', video_resize, false);
     $(document).on('keydown', playlist_prrocess_key);
     fill_conf_name(playlists_conf_map);
     playlist_play_settings_key = docCookies.getItem(COOKIE_PLAYSETT + playlist_current_userid);
