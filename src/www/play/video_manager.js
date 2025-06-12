@@ -1059,9 +1059,10 @@ function video_resize_old() {
 function video_resize() {
     if (!video_manager_obj)
         return;
+    let new_height, new_width;
     if (video_height + 100 > window.innerHeight || video_width > window.innerWidth) {
-        let new_height = window.innerHeight - 100;
-        let new_width = window.innerWidth;
+        new_height = window.innerHeight - 100;
+        new_width = window.innerWidth;
         if (new_height < 160 || new_width < 284) {
             new_height = 160;
             new_width = 284;
@@ -1074,8 +1075,11 @@ function video_resize() {
                 new_width = new_height / videoRatio;
             }
         }
-        video_manager_obj.resize(new_width, new_height);
+    } else {
+        new_width = video_width;
+        new_height = video_height;
     }
+    video_manager_obj.resize(new_width, new_height);
 }
 
 function init_video_manager() {
