@@ -16,18 +16,44 @@ from server.telegram.message import NameDurationStatus, StatusTMessage
 class RefreshingTMessage(StatusTMessage):
     def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", user: User = None, params: object = None, playlist: Playlist = None, **argw) -> None:
         super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, user, params, **argw)
-        self.playlist = playlist
         self.upd_sta = None
         self.upd_sto = None
         self.refresh_message: PlaylistMessage = None
         self.refresh_status: list[str] = []
+        self.refresh_conf: dict = dict()
+        self.set_playlist(playlist)
 
     def set_playlist(self, playlist):
         self.playlist = playlist
+        if playlist:
+            rc = self.refresh_conf
+
+            def select_field(dct, default, *args):
+                for a in args:
+                    if a in dct and dct[a]:
+                        return dct[a]
+                return default
+            plss = select_field(self.playlist.conf, [], 'playlists', 'subbrands')
+            if isinstance(plss, dict):
+                plss = list(plss.values())
+            for i, pl in enumerate(plss):
+                rc[pl['id']] = {
+                    'description': f'{i + 1}) ' + select_field(pl, None, 'title', 'id'),
+                    'sel': True
+                }
 
     async def switch_to_status_cond(self, args, context):
         if self.status != NameDurationStatus.UPDATING_RUNNING:
             return await super().switch_to_status(args, context)
+
+    async def change_sel(self, args: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
+        ids = args[0]
+        if isinstance(ids, bool):
+            for _, pls in self.refresh_conf.items():
+                pls['sel'] = ids
+        else:
+            self.refresh_conf[ids]['sel'] = not self.refresh_conf[ids]['sel']
+        await self.edit_or_select(context)
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         if self.status in (NameDurationStatus.UPDATING_INIT, NameDurationStatus.UPDATING_START, NameDurationStatus.UPDATING_STOP, NameDurationStatus.UPDATING_WAITING) or (self.status == NameDurationStatus.IDLE and not self.inlined):
@@ -55,6 +81,10 @@ class RefreshingTMessage(StatusTMessage):
                 self.add_button(self.upd_sto.strftime('%Y-%m-%d'), self.switch_to_status, args=(NameDurationStatus.UPDATING_STOP, ))
                 self.add_button(':cross_mark: Abort Refresh', self.on_refresh_abort_cond, new_row=True)
                 self.add_button(u'\U0001F501', self.update_playlist)
+                self.add_button("\U00002611", self.change_sel, args=(True,), new_row=True)
+                self.add_button("\U00002610", self.change_sel, args=(False,))
+                for ids, pl in self.refresh_conf.items():
+                    self.add_button(("\U00002611" if pl["sel"] else "\U00002610") + f' {pl["description"]}', self.change_sel, args=(ids, ), new_row=True)
                 return f'Review params for {self.playlist.name} and update or abort'
         if self.status == NameDurationStatus.UPDATING_RUNNING:
             self.input_field = u'\U0001F570'
@@ -101,7 +131,7 @@ class RefreshingTMessage(StatusTMessage):
             replace_existing=True,
             next_run_time=StatusTMessage.datenow()
         )
-        pl = PlaylistMessage(CMD_REFRESH, playlist=self.playlist, datefrom=int(self.upd_sta.timestamp() * 1000), dateto=int(self.upd_sto.timestamp() * 1000))
+        pl = PlaylistMessage(CMD_REFRESH, playlist=self.playlist, filter=self.refresh_conf, datefrom=int(self.upd_sta.timestamp() * 1000), dateto=int(self.upd_sto.timestamp() * 1000))
         self.refresh_message = pl
         pl = await self.proc.process(pl)
         if pl.rv == 0:

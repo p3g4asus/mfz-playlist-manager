@@ -176,9 +176,12 @@ class MessageProcessor(RefreshMessageProcessor):
             playlist=playlist
         ), datepubi)
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), filter=dict(), playlist=None, userid=None, executor=None):
         try:
-            sets = [(s['id'], s['params'], s['title']) for s in conf['playlists']]
+            sets = []
+            for s in conf['playlists']:
+                if not filter or (s['id'] in filter and filter[s['id']]['sel']):
+                    sets.append((s['id'], s['params'], s['title']))
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)

@@ -247,9 +247,12 @@ class MessageProcessor(RefreshMessageProcessor):
             _LOGGER.error(f'FFP: {traceback.format_exc()}')
             out_dict.update(dict(_err=401))
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), filter=dict(), playlist=None, userid=None, executor=None):
         try:
-            sets = [(s['id'], s['ordered'] if 'ordered' in s else True, s['params'] if 'params' in s else dict(), s['title'] if 'title' in s and s['title'] else s['id']) for s in conf['playlists']]
+            sets = []
+            for s in conf['playlists']:
+                if not filter or (s['id'] in filter and filter[s['id']]['sel']):
+                    sets.append((s['id'], s['ordered'] if 'ordered' in s else True, s['params'] if 'params' in s else dict(), s['title'] if 'title' in s and s['title'] else s['id']))
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)

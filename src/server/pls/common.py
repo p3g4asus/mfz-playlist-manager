@@ -832,7 +832,7 @@ class MessageProcessor(AbstractMessageProcessor):
                             if 'default' not in key:
                                 key['default'] = cont
                             if f'default{DOWNLOADED_SUFFIX}' not in key:
-                                key['default{DOWNLOADED_SUFFIX}'] = cont
+                                key[f'default{DOWNLOADED_SUFFIX}'] = cont
                         key[msg.f('set')] = cont
                     elif cont is not None:
                         play[keys] = dict()

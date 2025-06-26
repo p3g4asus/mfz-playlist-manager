@@ -145,9 +145,12 @@ class MessageProcessor(RefreshMessageProcessor):
                     self.record_status(sta, f'\U00002795 Added {pr.title} [{pr.datepub}]', 'ss')
                     programs[video['id']] = pr
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), filter=dict(), playlist=None, userid=None, executor=None):
         try:
-            sets = [(s['id'], s['relative'], s['description']) for _, s in conf['playlists'].items()]
+            sets = []
+            for _, s in conf['playlists'].items():
+                if not filter or (s['id'] in filter and filter[s['id']]['sel']):
+                    sets.append((s['id'], s['relative'], s['description']))
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)

@@ -614,11 +614,14 @@ if (login_needed == 5000) {
             playlist=playlist
         ), datepubi)
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), playlist=None, userid=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), filter=dict(), playlist=None, userid=None, executor=None):
         try:
             brand = conf['brand']['id']
             brandt = conf['brand']['title'] if 'title' in conf['brand'] else brand
-            subbrands = [(s['id'], s['desc'] if 'desc' in s and s['desc'] else s['title']) for s in conf['subbrands']]
+            subbrands = []
+            for s in conf['subbrands']:
+                if not filter or (s['id'] in filter and filter[s['id']]['sel']):
+                    subbrands.append((s['id'], s['desc'] if 'desc' in s and s['desc'] else s['title']))
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
