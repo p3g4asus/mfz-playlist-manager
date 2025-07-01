@@ -143,7 +143,7 @@ class MessageProcessor(RefreshMessageProcessor):
             order = int(it['season']) * 100 + int(it['episode'])
         lnk = it.get('weblink')
         conf = dict(progid=progid,
-                    set=set,
+                    playlist=set,
                     pageurl=MessageProcessor.relativeUrl(lnk) if lnk else None,
                     path=it["path_id"] if "path_id" in it else '',
                     order=order)
@@ -183,7 +183,7 @@ class MessageProcessor(RefreshMessageProcessor):
         try:
             progid = conf['brand']['id']
             sets = []
-            for s in conf['subbrands']:
+            for s in conf['playlists'].values():
                 if not filter or (s['id'] in filter and filter[s['id']]['sel']):
                     sets.append((s['id'], s['desc'] if 'desc' in s and s['desc'] else s['title']))
         except (KeyError, AttributeError):

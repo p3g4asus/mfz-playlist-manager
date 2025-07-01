@@ -879,11 +879,8 @@ class ChangeOrderedOrDeleteOrCancelTMessage(BaseMessage):
         await self.navigation.goto_menu(self, context, add_if_present=False)
 
     async def remove(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
-        for i in range(len(self.playlist.conf['playlists'])):
-            p = self.playlist.conf['playlists'][i]
-            if p["id"] == self.plinfo["id"]:
-                del self.playlist.conf['playlists'][i]
-                break
+        if (ids := self.plinfo["id"]) in self.playlist.conf['playlists']:
+            del self.playlist.conf['playlists'][ids]
         await self.navigation.goto_back()
 
     async def update(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
@@ -961,7 +958,7 @@ class CheckPlaylistTMessage(PlaylistNamingTMessage):
                 useri=user.rowid,
                 autoupdate=False,
                 dateupdate=0,
-                conf=dict(playlists=[], play=dict()))
+                conf=dict(playlists=dict(), play=dict()))
         self.checking_playlist = ''
         super().__init__(navigation, user, params, playlist)
         self.init_inner_playlist()
@@ -992,16 +989,12 @@ class CheckPlaylistTMessage(PlaylistNamingTMessage):
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             plinfo = pl.playlistinfo
-            add = True
-            for p in self.playlist.conf['playlists']:
-                if p["id"] == plinfo["id"]:
-                    self.return_msg = f'\U0001F7E1 {plinfo["title"]} already present!'
-                    add = False
-                    break
-            if add:
+            if plinfo["id"] in self.playlist.conf['playlists']:
+                self.return_msg = f'\U0001F7E1 {plinfo["title"]} already present!'
+            else:
                 plinfo["ordered"] = True
                 self.return_msg = f':thumbs_up: ({plinfo["title"]} - {plinfo["id"]})'
-                self.playlist.conf['playlists'].append(plinfo)
+                self.playlist.conf['playlists'][plinfo['id']] = plinfo
         else:
             self.return_msg = f'Error {pl.rv} with playlist {text} :thumbs_down:'
         await self.switch_to_idle()
@@ -1017,7 +1010,7 @@ class CheckPlaylistTMessage(PlaylistNamingTMessage):
             self.add_autoupdate_button()
             new_row = True
             if self.playlist.conf['playlists']:
-                for p in self.playlist.conf['playlists']:
+                for p in self.playlist.conf['playlists'].values():
                     self.add_playlist_button(p)
                 self.add_button(u'\U0001F501', RefreshNewPlaylistTMessage(
                     self.navigation,
@@ -1044,7 +1037,7 @@ class YoutubeDLPlaylistTMessage(CheckPlaylistTMessage):
 
     def init_inner_playlist(self):
         plss = self.playlist.conf['playlists']
-        for p in plss:
+        for p in plss.values():
             p['ordered'] = p.get('ordered', True)
 
     def get_check_command_message(self, text: str) -> PlaylistMessage:
@@ -1179,26 +1172,30 @@ class SubBrandSelectTMessage(BaseMessage):
 
     def compute_id_map(self):
         self.id_map = dict()
-        for i, b in enumerate(self.playlist.conf['subbrands_all']):
-            self.id_map[b.id] = i + 1
+        i = 0
+        for bid, _ in self.playlist.conf['playlists_all'].items():
+            self.id_map[bid] = i + 1
+            i += 1
 
     def get_brand_index(self, brand):
-        return self.id_map.get(brand.id, 0)
+        return self.id_map.get(str(brand.id), 0)
 
     async def toggle_selected(self, args, context):
         subid, = args
-        try:
-            self.playlist.conf['subbrands'].remove(subid)
-        except ValueError:
-            self.playlist.conf['subbrands'].append(self.playlist.conf['subbrands_all'][self.playlist.conf['subbrands_all'].index(subid)])
+        dk = str(subid)
+        if dk in (plss := self.playlist.conf['playlists']):
+            del plss[dk]
+        else:
+            plss[dk] = self.playlist.conf['playlists_all'][dk]
         await self.navigation.goto_menu(self, context, add_if_present=False)
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.input_field = f'Select content for {self.playlist.conf["brand"].title}'
-        for b in self.playlist.conf['subbrands_all']:
-            subchk = b in self.playlist.conf['subbrands']
+        for b in self.playlist.conf['playlists_all'].values():
+            b: Brand
+            subchk = str(b.id) in self.playlist.conf['playlists']
             self.add_button(f"[{self.get_brand_index(b)}] {b.title} - {b.desc}" + (" \U00002611" if subchk else " \U00002610"), self.toggle_selected, args=(b.id, ), new_row=True)
         self.add_button('OK: \U0001F197', self.navigation.goto_back, new_row=True)
         return self.input_field
@@ -1249,19 +1246,21 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
                 useri=user.rowid,
                 autoupdate=False,
                 dateupdate=0,
-                conf=dict(brand=None, subbrands=[], subbrands_all=[], listings_command=None, play=dict()))
+                conf=dict(brand=None, playlists=dict(), playlists_all=dict(), listings_command=None, play=dict()))
+            plsc = playlist.conf
         else:
-            if 'subbrands_all' not in playlist.conf:
-                playlist.conf['subbrands_all'] = []
-            playlist.conf['listings_command'] = None
-        playlist.conf['subbrands_all'] = Brand.get_list_from_json(playlist.conf['subbrands_all'])
-        playlist.conf['subbrands'] = Brand.get_list_from_json(playlist.conf['subbrands'])
-        if not playlist.conf['subbrands_all'] and playlist.conf['subbrands']:
-            playlist.conf['subbrands_all'] = playlist.conf['subbrands'].copy()
-        if isinstance(br := playlist.conf['brand'], dict):
-            playlist.conf['brand'] = br = Brand(**br)
-        if br and br.title == DEFAULT_TITLE and playlist.conf['subbrands']:
-            br.title = playlist.conf['subbrands'][0].title
+            plsc = playlist.conf
+            if 'playlists_all' not in plsc:
+                plsc['playlists_all'] = dict()
+            plsc['listings_command'] = None
+        plsc['playlists_all'] = Brand.get_dict_from_json(plsc['playlists_all'])
+        plsc['playlists'] = Brand.get_dict_from_json(plsc['playlists'])
+        if not plsc['playlists_all'] and plsc['playlists']:
+            plsc['playlists_all'] = plsc['playlists'].copy()
+        if isinstance(br := plsc['brand'], dict):
+            plsc['brand'] = br = Brand(**br)
+        if br and br.title == DEFAULT_TITLE and plsc['playlists']:
+            br.title = plsc['playlists'][next(iter(plsc['playlists']))].title
         super().__init__(
             navigation,
             user=user,
@@ -1306,7 +1305,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         if self.status == NameDurationStatus.IDLE:
             self.listings_cache: List[Brand] = []
             self.playlist.conf['brand'] = None
-            self.playlist.conf['subbrands'] = []
+            self.playlist.conf['playlists'] = dict()
             cmd = self.get_listings_command()
             self.playlist.conf['listings_command'] = None
             if not cmd:
@@ -1354,8 +1353,8 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         )
         pl = await self.proc.process(self.get_subbrand_command())
         if pl.rv == 0:
-            self.playlist.conf['subbrands_all'] = Brand.get_list_from_json(pl.brands)
-            self.playlist.conf['subbrands'] = []
+            self.playlist.conf['playlists_all'] = Brand.get_dict_from_json(pl.brands)
+            self.playlist.conf['playlists'] = dict()
             if (brand := self.playlist.conf['brand']).title == DEFAULT_TITLE and (ttl := pl.f('title')):
                 brand.title = ttl
             if not brand.desc and (ttl := pl.f('desc')):
@@ -1409,10 +1408,10 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
             new_row = True
             if self.playlist.conf['brand']:
                 self.add_autoupdate_button()
-                if self.playlist.conf['subbrands_all']:
-                    self.add_button(f'{self.playlist.conf["brand"].title} ({self.playlist.conf["brand"].id})' + ('\U00002757' if not self.playlist.conf["subbrands"] else '\U00002714'),
+                if self.playlist.conf['playlists_all']:
+                    self.add_button(f'{self.playlist.conf["brand"].title} ({self.playlist.conf["brand"].id})' + ('\U00002757' if not self.playlist.conf["playlists"] else '\U00002714'),
                                     SubBrandSelectTMessage(self.navigation, playlist=self.playlist))
-                    if self.playlist.conf["subbrands"]:
+                    if self.playlist.conf["playlists"]:
                         self.add_button(u'\U0001F501', RefreshNewPlaylistTMessage(
                                         self.navigation,
                                         user=self.proc.user,

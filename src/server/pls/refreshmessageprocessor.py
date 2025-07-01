@@ -185,6 +185,12 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                     return msg.err(502, MSG_UNAUTHORIZED, playlist=None)
                 if 'play' in x.conf:
                     c['play'] = x.conf['play']
+                    if 'rates' in c['play']:
+                        rd = c['play']['rates']
+                        for rk in rd.copy().keys():
+                            if rk not in c['playlists']:
+                                del rd[rk]
+
                 x.conf = c
                 x.name = n
                 x.autoupdate = u

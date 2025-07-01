@@ -429,7 +429,7 @@ if (login_needed == 5000) {
                     it.conf['_drm_a'] = aid
                     it.conf['_drm_t'] = token
                     it.conf['_drm_m'] = mpd
-                    drmi = it.conf['_drm_i'] = f'b{it.conf["brand"]}s{it.conf["subbrand"]}'
+                    drmi = it.conf['_drm_i'] = f'b{it.conf["brand"]}s{it.conf["playlist"]}'
                     plc = pls[0].conf
                     if '_drm_i' not in plc or drmi not in plc['_drm_i']:
                         plc['_drm_i'] = plc.get('_drm_i', [])
@@ -578,7 +578,7 @@ if (login_needed == 5000) {
 
     def entry2Program(self, e, brand, subbrand, playlist):
         lnk = e.get('mediasetprogram$videoPageUrl')
-        conf = dict(subbrand=subbrand, brand=brand, pageurl=f'https:{lnk}' if lnk else None)
+        conf = dict(playlist=subbrand, brand=brand, pageurl=f'https:{lnk}' if lnk else None)
         title = e['title']
         uid = e['guid']
         img = None
@@ -619,7 +619,7 @@ if (login_needed == 5000) {
             brand = conf['brand']['id']
             brandt = conf['brand']['title'] if 'title' in conf['brand'] else brand
             subbrands = []
-            for s in conf['subbrands']:
+            for s in conf['playlists'].values():
                 if not filter or (s['id'] in filter and filter[s['id']]['sel']):
                     subbrands.append((s['id'], s['desc'] if 'desc' in s and s['desc'] else s['title']))
         except (KeyError, AttributeError):

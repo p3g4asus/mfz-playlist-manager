@@ -34,6 +34,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
         self.last_pinfo: float = 0.0
         self.default_vinfo: int = 1
         self.default_pstat: int = 1
+        self.rate_for_single_video = False
 
     @staticmethod
     def get_my_hex_prefix() -> str:
@@ -100,7 +101,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
             await self.switch_to_idle()
 
     async def rate(self, args: tuple, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
-        await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_RATE, n=args[0])
+        await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_RATE, n=args[0], for_me=self.rate_for_single_video)
 
     async def move(self, args: tuple, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
         val = args[0]
@@ -187,6 +188,10 @@ class PlayerInfoMessage(RemoteInfoMessage):
         else:  # if self.play_stat == PLAYER_VIDEO_STATUS_CANNOT_PLAY:
             return u'\U000026A0'
 
+    async def toggle_rate_for_single_video(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
+        self.rate_for_single_video = not self.rate_for_single_video
+        await self.edit_or_select()
+
     async def update(self, context: CallbackContext | None = None) -> str:
         rv = await super().update(context)
         self.input_field = u'\U000023F2 Timestamp'
@@ -202,6 +207,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
             self.add_button(u'\U000021C5', self.sync_changes, args=(), new_row=True)
             self.add_button(u'\U0001F4C5', self.switch_to_status, args=(NameDurationStatus.UPDATING_WAITING, context))
             self.add_button(u'\U0001F51C', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, context))
+            self.add_button(u'\U0001F7E3For this' if self.rate_for_single_video else u'\U0001F7E2For playlist', self.toggle_rate_for_single_video, new_row=True)
             self.add_button(u'\U000025B61x', self.rate, args=(1.0, ), new_row=True)
             self.add_button(u'\U000025B61.5x', self.rate, args=(1.5, ))
             self.add_button(u'\U000025B61.8x', self.rate, args=(1.8, ), new_row=True)

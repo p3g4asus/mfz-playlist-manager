@@ -35,8 +35,22 @@ class Brand(JSONAble):
         return isinstance(value, Brand) and self.id == value.id
 
     @staticmethod
-    def get_list_from_json(lstd: List[dict]) -> List["Brand"]:
+    def get_list_from_json(lstd: list | dict) -> List["Brand"]:
         rv = []
+        if isinstance(lstd, dict):
+            lstd = lstd.values()
         for dd in lstd:
             rv.append(Brand(**dd) if isinstance(dd, dict) else dd)
+        return rv
+
+    @staticmethod
+    def get_dict_from_json(lstd: dict) -> dict["Brand"]:
+        rv = dict()
+        if isinstance(lstd, dict):
+            lstd = lstd.values()
+        for dd in lstd:
+            if isinstance(dd, dict):
+                rv[str(dd['id'])] = Brand(**dd)
+            else:
+                rv[str(dd.id)] = dd
         return rv

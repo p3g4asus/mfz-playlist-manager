@@ -250,7 +250,7 @@ class MessageProcessor(RefreshMessageProcessor):
     async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), filter=dict(), playlist=None, userid=None, executor=None):
         try:
             sets = []
-            for s in conf['playlists']:
+            for s in conf['playlists'].values():
                 if not filter or (s['id'] in filter and filter[s['id']]['sel']):
                     sets.append((s['id'], s['ordered'] if 'ordered' in s else True, s['params'] if 'params' in s else dict(), s['title'] if 'title' in s and s['title'] else s['id']))
         except (KeyError, AttributeError):

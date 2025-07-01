@@ -794,6 +794,9 @@ class MessageProcessor(AbstractMessageProcessor):
                         pass
                 manage_play_dict(play, msg, 'playid', 'id')
                 manage_play_dict(play, msg, 'playrate', 'rate')
+                if hasattr(msg, 'rates'):
+                    rates = play['rates'] = play.get('rates', dict())
+                    manage_play_dict(rates, msg, 'rates', str(msg.f('key')))
 
                 rv = await pl.toDB(self.db)
                 if not rv:

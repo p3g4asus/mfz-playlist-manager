@@ -121,7 +121,7 @@ class MessageProcessor(RefreshMessageProcessor):
                     thup = join(absolute, thun)
                     space = video['duration'] / 2
                     await executor(self.generate_thumb, f, thup, min(space, 60), playlist_dict)
-                    conf = dict(todel=[f])
+                    conf = dict(todel=[f], playlist=absolute)
                     video['id'] = f
                     video['title'] = bn
                     relq = quote(relative)

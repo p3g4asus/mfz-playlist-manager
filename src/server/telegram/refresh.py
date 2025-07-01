@@ -33,7 +33,7 @@ class RefreshingTMessage(StatusTMessage):
                     if a in dct and dct[a]:
                         return dct[a]
                 return default
-            plss = select_field(self.playlist.conf, [], 'playlists', 'subbrands')
+            plss = select_field(self.playlist.conf, [], 'playlists')
             if isinstance(plss, dict):
                 plss = list(plss.values())
             for i, pl in enumerate(plss):

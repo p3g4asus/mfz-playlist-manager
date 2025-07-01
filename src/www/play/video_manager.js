@@ -223,7 +223,7 @@ function playlist_adjust_gui(index) {
 function get_item_playlist_identity(pl, it)  {
     const tp = pl.type;
     if (tp == 'mediaset') {
-        return 'b' + it.conf.brand + 's' + it.conf.subbrand;
+        return 'b' + it.conf.brand + 's' + it.conf.playlist;
     } else if (tp == 'rai') {
         return 'b' + it.conf.progid + 's' + it.conf.set;
     } else if (tp == 'youtube') {
@@ -236,6 +236,20 @@ function get_item_playlist_identity(pl, it)  {
 function get_duration_from_video_manager() {
     const dur = video_manager_obj.duration();
     return !isNaN(dur) && dur > 0?dur:0;
+}
+
+function video_playlist_has_custom_rate(video, pls) {
+    let vcp, pcpl, vrate;
+    return video && (vcp = video.conf.playlist) && (pcpl = pls.conf.play) && (pcpl = pcpl.rates) && typeof(vrate = pcpl[vcp]) === 'number'?vrate:0;
+}
+
+function get_rate_for_video(video, pls) {
+    let vrate;
+    if  ((vrate = video_playlist_has_custom_rate(video, pls))) {
+        return vrate;
+    } else {
+        return playlist_rate;
+    }
 }
 
 function on_player_state_changed(player, event) {
@@ -273,7 +287,7 @@ function on_player_state_changed(player, event) {
             } else 
                 send_video_info_for_remote_play('pinfo', {sec: 0});
             on_video_info_change(playlist_item_current_idx, playlist_item_current.conf.sec);
-            video_manager_obj.rate(playlist_rate);
+            video_manager_obj.rate(get_rate_for_video(playlist_item_current, playlist_current));
         }
         if (playlist_item_current_time_timer == null) {
             playlist_item_current_time_timer = setInterval(function() {
@@ -301,20 +315,23 @@ function get_video_info(idx) {
     let tot_played = 0;
     let tot_n = 0;
     let video_info = {tot_n: 0};
+    let main_rate = playlist_rate;
     for (let i = idx < 0 ? 0: idx; i<playlist_arr.length; i++) {
         let video = playlist_arr[i];
         if (!video || video.playlist != playlist_current.rowid) break;
         let sdur = video?.length || video?.dur || 0;
+        const rate = get_rate_for_video(video, playlist_current);
         if (i == idx && playlist_item_current) {
-            sdur = Math.max(sdur, playlist_item_current_duration) / playlist_rate;
+            sdur = Math.max(sdur, playlist_item_current_duration) / rate;
+            main_rate = rate;
             video_info.duri = sdur;
             video_info.durs = format_duration(sdur);
             video_info.idx = idx;
             video_info.title = video?.title || 'N/A';
             video_info.chapters = video?.conf?.chapters || [];
         } else {
-            sdur = sdur / playlist_rate;
-            let splayed = (video?.conf?.sec || 0) / playlist_rate;
+            sdur = sdur / rate;
+            let splayed = (video?.conf?.sec || 0) / rate;
             if (splayed > sdur) splayed = sdur;
             tot_played += splayed;
         }
@@ -322,7 +339,7 @@ function get_video_info(idx) {
     }
     tot_n = playlist_arr.length - idx;
     for (const pls of playlist_sched) {
-        const rate = pls.conf?.play?.rate || 1;
+        let rate;
         const first = pls.conf?.play?.id;
         let tdur = 0;
         let tplay = 0;
@@ -333,19 +350,20 @@ function get_video_info(idx) {
                 tplay = 0;
                 nvid = 0;
             }
+            rate = get_rate_for_video(it, pls);
             const sdur = it?.length || it?.dur || 0;
-            tdur += sdur;
+            tdur += sdur / rate;
             let splayed = it?.conf?.sec || 0;
             if (splayed > sdur) splayed = sdur;
-            tplay += splayed;
+            tplay += splayed / rate;
             nvid++;
         }
         tot_n += nvid;
-        tot_dur += tdur / rate;
-        tot_played += tplay / rate;
+        tot_dur += tdur;
+        tot_played += tplay;
     }
     video_info.tot_n = tot_n;
-    video_info.rate = playlist_rate;
+    video_info.rate = main_rate;
     video_info.tot_played = tot_played;
     video_info.tot_dur = tot_dur;
     video_info.tot_durs = format_duration(tot_dur);
@@ -355,8 +373,8 @@ function get_video_info(idx) {
 function on_video_info_change(idx, isat, objstart) {
     let video_info =  get_video_info(idx);
     if (video_info.title) {
-        isat = (isat || 0) / playlist_rate;
-        toast_msg('Video duration is ' + video_info.durs + ' (' + format_duration(video_info.duri - isat) +'). Remaining videos are ' + video_info.tot_n + ' [' + video_info.tot_durs +  ' (' + format_duration(video_info.tot_dur - isat - video_info.tot_played) +')] @ ' + playlist_rate.toFixed(2) + 'x.', 'info');
+        isat = (isat || 0) / video_info.rate;
+        toast_msg('Video duration is ' + video_info.durs + ' (' + format_duration(video_info.duri - isat) +'). Remaining videos are ' + video_info.tot_n + ' [' + video_info.tot_durs +  ' (' + format_duration(video_info.tot_dur - isat - video_info.tot_played) +')] @ ' + video_info.rate.toFixed(2) + 'x.', 'info');
     }
     const exp = objstart?1:0;
     if (objstart)
@@ -392,7 +410,7 @@ function go_to_video(mydir) {
         on_play_finished({dir: mydir});
 }
 
-function save_playlist_settings(vid, key) {
+function save_playlist_settings(vid, key, mixin) {
     if (playlist_item_current.rowid < 0) return;
     if (!key)
         key = 'playid';
@@ -401,6 +419,8 @@ function save_playlist_settings(vid, key) {
         playlist: playlist_current.rowid
     };
     objsource[key] = vid;
+    if (mixin)
+        Object.assign(objsource, mixin);
     let el = new MainWSQueueElement(objsource, function(msg) {
         return msg.cmd === CMD_PLAYID? msg:null;
     }, 3000, 1, 'playid');
@@ -553,11 +573,10 @@ class DumpJob {
                             playlist_sched.push(pls);
                             const first = pls.conf?.play?.id;
                             const itemstoadd = [];
-                            const rate = pls.conf?.play?.rate || 1;
                             for (const it of pls.items) {
                                 if (it.uid == first)
                                     itemstoadd.length = 0;
-                                it.conf.rate = rate;
+                                it.conf.rate = get_rate_for_video(it, pls);
                                 itemstoadd.push(it);
                             }
                             playlist_arr.push(...itemstoadd);
@@ -589,6 +608,9 @@ class DumpJob {
                             playlist_current.conf = {play: {id: this.overwrite_play_id}};
                     }
                     playlist_arr = playlist_current.items;
+                    for (let it of playlist_arr) {
+                        it.conf.rate = get_rate_for_video(it, playlist_current);
+                    }
                     send_video_info_for_remote_play('ilst', playlist_arr);
                     parse_list(playlist_arr);
                     page_set_title(playlist_current.name);
@@ -701,9 +723,27 @@ function playlist_prrocess_key(ke) {
     }
 }
 
-function playlist_process_rate(v) {
-    save_playlist_settings(playlist_rate = parseFloat(v), 'playrate');
-    video_manager_obj.rate(playlist_rate);
+function playlist_process_rate(v, for_me) {
+    let rate = parseFloat(v);
+    let videokey = playlist_item_current?.conf?.playlist;
+    if (!for_me || !videokey) {
+        if (video_playlist_has_custom_rate(playlist_item_current, playlist_current)) {
+            save_playlist_settings(null, 'rates', {'key': videokey});
+            let rat;
+            if ((rat = playlist_current.conf?.play?.rates) && rat[videokey])
+                delete rat[videokey];
+        }
+        save_playlist_settings(playlist_rate = rate, 'playrate');
+    } else {
+        save_playlist_settings(rate, 'rates', {'key': videokey});
+        let pl = playlist_current.conf.play || {};
+        let rat = pl?.rates || {};
+        playlist_current.conf.play = pl;
+        pl.rates = rat;
+        rat[videokey] = rate;
+    }
+    video_manager_obj.rate(rate);
+    playlist_item_current.conf.rate = rate;
     on_video_info_change(playlist_item_current_idx, video_manager_obj.currenttime());
 }
 
@@ -761,7 +801,7 @@ function remotejs_process(msg) {
             on_play_finished({dir: null});
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_RATE) {
-            playlist_process_rate(msg.n);
+            playlist_process_rate(msg.n, msg.for_me == 'False' || !msg.for_me?0:1);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_F5PL) {
             if (!msg.n) msg.n = '';
@@ -897,12 +937,12 @@ function playlist_key_get_suffix(ci, prefix) {
 function playlist_key_from_item(ci) {
     const conf = ci.conf;
     const sfx = playlist_key_get_suffix(ci);
-    if (conf.playlist)
-        return conf.playlist + sfx;
+    if (conf.brand && conf.playlist)
+        return '' + conf.brand + '_' + conf.playlist + sfx;
     else if (conf.progid)
         return conf.progid + sfx;
-    else if (conf.brand && conf.subbrand)
-        return '' + conf.brand + '_' + conf.subbrand + sfx;
+    else if (conf.playlist)
+        return conf.playlist + sfx;
     else
         return 'boh';
 }
