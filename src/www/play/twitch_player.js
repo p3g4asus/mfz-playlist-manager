@@ -24,6 +24,7 @@ class TwitchPlayer {
         this.embed = this.player = null;
         this.embed = new Twitch.Embed('twitch-video', options);
         this.player = this.embed.getPlayer();
+        this.cur_dur = null;
         this.embed.addEventListener(Twitch.Embed.VIDEO_READY, function() {
             this.connect_embed_events();
             on_player_load('twitch', this);
@@ -69,7 +70,9 @@ class TwitchPlayer {
             this.is_orig_channel = false;
             this.play_video_id(this.next_channel);
         } else {
-            if (((event.type == Twitch.Player.OFFLINE && !this.vid.startsWith(TWITCH_VIDEO_ID_PRE)) ||  event.type == Twitch.Player.ENDED) && this.on_play_finished) { // ended
+            let ct = this.currenttime();
+            console.log('[twitch] event ' + event.type + ' current time is ' + ct + ', duration is ' + this.duration() + ', cur_dur is ' + this.cur_dur + ' df is ' + (this.cur_dur - ct));
+            if (((event.type == Twitch.Player.OFFLINE && !this.vid.startsWith(TWITCH_VIDEO_ID_PRE)) ||  event.type == Twitch.Player.ENDED  || (this.cur_dur > 0 && event.type == Twitch.Player.PAUSE && (this.cur_dur <= ct || (this.cur_dur - ct < 5 && this.cur_dur < this.duration())))) && this.on_play_finished) { // ended
                 this.on_play_finished(this);
             }
             if (event.type == Twitch.Player.OFFLINE ||  event.type == Twitch.Player.ENDED)
@@ -78,8 +81,12 @@ class TwitchPlayer {
                 this.state = VIDEO_STATUS_PAUSED;
             else if (event.type == Twitch.Player.PLAY)
                 this.state = VIDEO_STATUS_BUFFERING;
-            else if (event.type == Twitch.Player.PLAYING || event.type == Twitch.Embed.PLAY)
+            else if (event.type == Twitch.Player.PLAYING || event.type == Twitch.Embed.PLAY) {
+                if (this.cur_dur  < 0) {
+                    this.cur_dur = this.player.getDuration();
+                }
                 this.state = VIDEO_STATUS_PLAYING;
+            }
             if (this.on_state_changed) {
                 this.on_state_changed(this, this.state);
             }
@@ -110,13 +117,16 @@ class TwitchPlayer {
             this.vid = vid;
             this.onPlayerStateChange({type: Twitch.Player.PAUSE});
             if (vid.startsWith(TWITCH_VIDEO_ID_PRE)) {
+                this.cur_dur = -1; // -1 means unknown duration
                 this.player.setChannel(null);
                 this.player.setVideo(vid.substring(TWITCH_VIDEO_ID_PRE.length),5);
             } else if (/^[0-9]{7,}$/i.exec(vid)) {
+                this.cur_dur = -1; // -1 means unknown duration
                 this.vid = TWITCH_VIDEO_ID_PRE + vid;
                 this.player.setChannel(null);
                 this.player.setVideo(vid, 5);
             } else {
+                this.cur_dur = 0;
                 this.player.setVideo(null,5);
                 this.player.setChannel(vid);
             }
