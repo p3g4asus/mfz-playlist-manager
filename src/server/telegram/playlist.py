@@ -18,19 +18,21 @@ from common.brand import DEFAULT_TITLE, Brand
 from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
                           CMD_FOLDER_LIST, CMD_FREESPACE, CMD_INDEX, CMD_IORDER, CMD_ITEMDUMP,
                           CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
-                          CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_PLAYID, CMD_RAI_CONTENTSET,
+                          CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_PLAYID, CMD_PLAYTIME, CMD_RAI_CONTENTSET,
                           CMD_RAI_LISTINGS, CMD_REN, CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TT_PLAYLISTCHECK, CMD_YT_PLAYLISTCHECK, IMG_NO_VIDEO, LINK_CONV_BIRD_REDIRECT, LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_VIDEO_EMBED, LINK_CONV_TWITCH, LINK_CONV_UNTOUCH, LINK_CONV_YTDL_REDIRECT)
 from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
 from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_on_item_updated, cache_sort, cache_store
 from server.telegram.pages import ListPagesTMessage, PageGenerator
-from server.telegram.message import DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, StatusTMessage, duration2string
+from server.telegram.message import DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, StatusTMessage, duration2dict, duration2string
 from server.telegram.refresh import RefreshingTMessage
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class PlaylistItemTMessage(NameDurationTMessage):
+    MT_SEPARATORS = ['d ', 'h ', 'm ', 's']
+    MT_MUL = [86400, 3600, 60, 1]
     def refresh_from_cache(self):
         obj = cache_get_item(self.proc.user.rowid, self.pid, self.id)
         if obj:
@@ -53,6 +55,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
         self.pid = pid
         self.current_sort: str = ''
         self.download_message: PlaylistMessage = None
+        self.modding_time: list[str] = []
         super().__init__(navigation, myid, user, params)
 
     def slash_message_processed(self, text: str) -> bool:
@@ -217,6 +220,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             cache_on_item_updated(self.proc.user.rowid, pl.playlistitem)
+            self.modding_time = []
             if pl.playlistitem.seen and not self.obj.seen:
                 plTg = cache_get(self.proc.user.rowid, self.pid)
                 if plTg.message:
@@ -225,6 +229,134 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.return_msg = 'Dump OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} dumping {self.name} :thumbs_down:'
+        await self.switch_to_idle()
+
+    def modding_time_get(self) -> str:
+        if isinstance(self.obj.conf, dict) and 'sec' in self.obj.conf:
+            dct = duration2dict(self.obj.conf['sec'])
+        else:
+            dct = dict(d=0, h=0, m=0, s=None)
+        out = []
+        if dct['d'] == 0:
+            ss = '_'
+            filled = False
+        else:
+            ss = str(dct['d'])
+            filled = True
+        out.append(ss)
+        if dct['h'] == 0 and not filled:
+            ss = '__'
+        else:
+            filled = True
+            ss = str(dct['h']).rjust(2, '_' if not filled else '0')
+        out.append(ss)
+        if dct['m'] == 0 and not filled:
+            ss = '__'
+        else:
+            filled = True
+            ss = str(dct['m']).rjust(2, '_' if not filled else '0')
+        out.append(ss)
+        if dct['s'] is None:
+            ss = '__'
+        else:
+            ss = str(dct['s']).rjust(2, '_' if not filled else '0')
+        out.append(ss)
+        self.modding_time = out
+        return self.modding_time_conv()
+
+    def modding_time_conv(self) -> str:
+        ss = ''
+        for i, s in enumerate(self.modding_time):
+            ss += s + self.MT_SEPARATORS[i]
+        return ss
+
+    def modding_time_del(self) -> str:
+        idxfirst = -1
+        for i, s in enumerate(self.modding_time):
+            if mo := re.search(r'\d+', s):
+                idxfirst = mo.start()
+                break
+        if idxfirst < 0:
+            return self.modding_time_conv()
+        else:
+            mt = self.modding_time
+            if i == 0:
+                if len(mt[i]) > 1:
+                    mt[i] = mt[i][1:]
+                else:
+                    mt[i] = '_'
+            else:
+                mt[i] = mt[i][0:idxfirst] + '_' + mt[i][idxfirst + 1:]
+            return self.modding_time_conv()
+
+    def modding_time_char(self, char) -> str:
+        i = -1
+        for i, s in reversed(list(enumerate(self.modding_time))):
+            idxlast = s.rfind('_')
+            if idxlast >= 0:
+                break
+        mt = self.modding_time
+        if idxlast < 0:
+            mt[i] = mt[i] + str(char)
+        else:
+            mt[i] = mt[i][0:idxlast] + mt[i][idxlast + 1:] + str(char)
+        return self.modding_time_conv()
+
+    def modding_time_chars(self) -> str:
+        i = -1
+        for i, s in reversed(list(enumerate(self.modding_time))):
+            idxlast = s.rfind('_')
+            if idxlast >= 0:
+                break
+        if idxlast != 0 or not i:
+            return '0123456789'
+        else:
+            mm = int(self.modding_time[i][1])
+            if i == 1:
+                if mm >= 3:
+                    return ''
+                elif mm <= 1:
+                    return '0123456789'
+                else:  # if mm == 2:
+                    return '0123'
+            else:
+                return '' if mm >= 6 else '0123456789'
+
+    def modding_time_secs(self):
+        if not self.modding_time or self.modding_time[3] == '__':
+            return None
+        else:
+            secs = None
+            for i, m in enumerate(self.modding_time):
+                if mo := re.search(r'(\d+)', m):
+                    if secs is None:
+                        secs = 0
+                    secs += int(mo.group(1)) * self.MT_MUL[i]
+        return secs
+
+    async def modding_time_mod(self, args):
+        if not args[0]:
+            self.modding_time_del()
+        elif args[0] == -1:
+            self.modding_time = []
+            await self.switch_to_idle()
+            return
+        else:
+            self.modding_time_char(args[0])
+        await self.edit_or_select()
+
+    async def modding_time_send(self):
+        secs = self.modding_time_secs()
+        pl = PlaylistMessage(CMD_PLAYTIME, playlistitem=self.id, sec=secs)
+        pl = await self.proc.process(pl)
+        if pl.rv == 0:
+            if secs is not None:
+                self.obj.conf['sec'] = secs
+            elif 'sec' in self.obj.conf:
+                del self.obj.conf['sec']
+            self.return_msg = 'Set time OK :thumbs_up:'
+        else:
+            self.return_msg = f'Error {pl.rv} setting time :thumbs_down:'
         await self.switch_to_idle()
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
@@ -241,11 +373,23 @@ class PlaylistItemTMessage(NameDurationTMessage):
                 self.add_button(u'\U0001F517', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, ))
                 self.add_button(u'\U0001F4EE', self.switch_to_status, args=(NameDurationStatus.MOVING, ))
                 self.add_button(u'\U000025B6', self.set_play_id)
+                self.add_button(u'\U000023F2', self.switch_to_status, args=(NameDurationStatus.UPDATING_INIT, ))
                 if self.type == "mediaset":
                     self.add_button(u'\U0001F511', self.switch_to_status, args=(NameDurationStatus.UPDATING_WAITING, ))
                 if self.obj.takes_space():
                     self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
                 self.add_button('F5', self.dump_item)
+            elif self.status == NameDurationStatus.UPDATING_INIT:
+                txtbtn = self.modding_time_conv() if self.modding_time else self.modding_time_get()
+                self.add_button(txtbtn, self.modding_time_send)
+                chars = self.modding_time_chars()
+                for c in '1234567890':
+                    if c in chars:
+                        self.add_button(c, self.modding_time_mod, args=(c, ), new_row=c == '1')
+                    else:
+                        self.add_button(' ', new_row=c == '1')
+                self.add_button('<', self.modding_time_mod, args=(None, ))
+                self.add_button(':cross_mark: Abort', self.modding_time_mod, args=(-1, ))
             elif self.status == NameDurationStatus.UPDATING_WAITING:
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return 'Enter network filter ' + ("<a href=\"" + self.obj.conf["pageurl"] + "\">here</a> " if "pageurl" in self.obj.conf else "") + '<u>SMIL</u> or /autodetect'

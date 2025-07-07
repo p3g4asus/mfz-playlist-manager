@@ -25,7 +25,7 @@ from pythonosc.udp_client import SimpleUDPClient
 
 from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DEL, CMD_DOWNLOAD,
                           CMD_DUMP, CMD_FREESPACE, CMD_INDEX, CMD_IORDER, CMD_ITEMDUMP, CMD_MOVE,
-                          CMD_PLAYID, CMD_PLAYITSETT, CMD_PLAYSETT, CMD_REN,
+                          CMD_PLAYID, CMD_PLAYTIME, CMD_PLAYITSETT, CMD_PLAYSETT, CMD_REN,
                           CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TOKEN, CMD_USER_SETTINGS, DOWNLOADED_SUFFIX,
                           MSG_BACKEND_ERROR, MSG_INVALID_PARAM, MSG_NAME_TAKEN,
                           MSG_PLAYLIST_NOT_FOUND, MSG_PLAYLISTITEM_NOT_FOUND,
@@ -50,7 +50,7 @@ class MessageProcessor(AbstractMessageProcessor):
     def interested(self, msg):
         return msg.c(CMD_DEL) or msg.c(CMD_REN) or msg.c(CMD_DUMP) or\
             msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_SEEN_PREV) or msg.c(CMD_MOVE) or\
-            msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or\
+            msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or msg.c(CMD_PLAYTIME) or\
             msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT) or msg.c(CMD_DOWNLOAD) or msg.c(CMD_INDEX) or\
             msg.c(CMD_CLEAR) or msg.c(CMD_FREESPACE) or msg.c(CMD_TOKEN) or msg.c(CMD_USER_SETTINGS) or\
             msg.c(CMD_ITEMDUMP)
@@ -807,6 +807,32 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
+    async def processPlayTime(self, msg, userid, executor):
+        x = msg.playlistItemId()
+        it = await PlaylistItem.loadbyid(self.db, rowid=x)
+        if it:
+            pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            if pls:
+                if pls[0].useri != userid:
+                    return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                mod = True
+                if (tm := msg.f('sec')) is not None:
+                    it.conf['sec'] = tm
+                elif 'sec' in it.conf:
+                    del it.conf['sec']
+                else:
+                    mod = False
+                if mod:
+                    rv = await it.toDB(self.db)
+                    if not rv:
+                        return msg.err(20, MSG_INVALID_PARAM, playlistitem=None)
+                return msg.ok()
+            else:
+                return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+        else:
+            return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+
+
     async def processPlaySett(self, msg, userid, executor):
         x = msg.playlistId()
         if x is not None:
@@ -877,6 +903,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processMove(msg, userid, executor)
         elif msg.c(CMD_PLAYID):
             resp = await self.processPlayId(msg, userid, executor)
+        elif msg.c(CMD_PLAYTIME):
+            resp = await self.processPlayTime(msg, userid, executor)
         elif msg.c(CMD_PLAYSETT):
             resp = await self.processPlaySett(msg, userid, executor)
         elif msg.c(CMD_PLAYITSETT):

@@ -21,7 +21,7 @@ from common.user import User
 _LOGGER = logging.getLogger(__name__)
 
 
-def duration2string(secs):
+def duration2string(secs) -> str:
     gg = int(secs / 86400)
     rem = secs % 86400
     hh = int(rem / 3600)
@@ -36,6 +36,16 @@ def duration2string(secs):
         return '%dm %02ds' % (mm, ss)
     else:
         return f'{ss}s'
+
+
+def duration2dict(secs) -> dict:
+    gg = int(secs / 86400)
+    rem = secs % 86400
+    hh = int(rem / 3600)
+    rem = secs % 3600
+    mm = int(rem / 60)
+    ss = rem % 60
+    return dict(d=gg, h=hh, m=mm, s=ss)
 
 
 class NavigationSyncSchedule(object):
