@@ -44,7 +44,7 @@ def duration2dict(secs) -> dict:
     hh = int(rem / 3600)
     rem = secs % 3600
     mm = int(rem / 60)
-    ss = rem % 60
+    ss = int(rem) % 60
     return dict(d=gg, h=hh, m=mm, s=ss)
 
 

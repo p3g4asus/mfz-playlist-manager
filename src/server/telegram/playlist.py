@@ -249,14 +249,14 @@ class PlaylistItemTMessage(NameDurationTMessage):
             if dct['h'] == 0 and not filled:
                 ss = '__'
             else:
-                filled = True
                 ss = str(dct['h']).rjust(2, '_' if not filled else '0')
+                filled = True
             out.append(ss)
             if dct['m'] == 0 and not filled:
                 ss = '__'
             else:
-                filled = True
                 ss = str(dct['m']).rjust(2, '_' if not filled else '0')
+                filled = True
             out.append(ss)
             if dct['s'] is None:
                 ss = '__'
