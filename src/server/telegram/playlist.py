@@ -33,6 +33,7 @@ _LOGGER = logging.getLogger(__name__)
 class PlaylistItemTMessage(NameDurationTMessage):
     MT_SEPARATORS = ['d ', 'h ', 'm ', 's']
     MT_MUL = [86400, 3600, 60, 1]
+
     def refresh_from_cache(self):
         obj = cache_get_item(self.proc.user.rowid, self.pid, self.id)
         if obj:
