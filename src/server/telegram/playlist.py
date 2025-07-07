@@ -233,42 +233,45 @@ class PlaylistItemTMessage(NameDurationTMessage):
         await self.switch_to_idle()
 
     def modding_time_get(self) -> str:
-        if isinstance(self.obj.conf, dict) and 'sec' in self.obj.conf:
-            dct = duration2dict(self.obj.conf['sec'])
-        else:
-            dct = dict(d=0, h=0, m=0, s=None)
-        out = []
-        if dct['d'] == 0:
-            ss = '_'
-            filled = False
-        else:
-            ss = str(dct['d'])
-            filled = True
-        out.append(ss)
-        if dct['h'] == 0 and not filled:
-            ss = '__'
-        else:
-            filled = True
-            ss = str(dct['h']).rjust(2, '_' if not filled else '0')
-        out.append(ss)
-        if dct['m'] == 0 and not filled:
-            ss = '__'
-        else:
-            filled = True
-            ss = str(dct['m']).rjust(2, '_' if not filled else '0')
-        out.append(ss)
-        if dct['s'] is None:
-            ss = '__'
-        else:
-            ss = str(dct['s']).rjust(2, '_' if not filled else '0')
-        out.append(ss)
-        self.modding_time = out
+        if not self.modding_time:
+            if isinstance(self.obj.conf, dict) and 'sec' in self.obj.conf:
+                dct = duration2dict(self.obj.conf['sec'])
+            else:
+                dct = dict(d=0, h=0, m=0, s=None)
+            out = []
+            if dct['d'] == 0:
+                ss = '_'
+                filled = False
+            else:
+                ss = str(dct['d'])
+                filled = True
+            out.append(ss)
+            if dct['h'] == 0 and not filled:
+                ss = '__'
+            else:
+                filled = True
+                ss = str(dct['h']).rjust(2, '_' if not filled else '0')
+            out.append(ss)
+            if dct['m'] == 0 and not filled:
+                ss = '__'
+            else:
+                filled = True
+                ss = str(dct['m']).rjust(2, '_' if not filled else '0')
+            out.append(ss)
+            if dct['s'] is None:
+                ss = '__'
+            else:
+                ss = str(dct['s']).rjust(2, '_' if not filled else '0')
+            out.append(ss)
+            self.modding_time = out
         return self.modding_time_conv()
 
     def modding_time_conv(self) -> str:
         ss = ''
-        for i, s in enumerate(self.modding_time):
-            ss += s + self.MT_SEPARATORS[i]
+        for i, s in reversed(list(enumerate(self.modding_time))):
+            ss = s + self.MT_SEPARATORS[i] + ss
+            if s.count('_') > 0:
+                break
         return ss
 
     def modding_time_del(self) -> str:
@@ -381,8 +384,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                     self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
                 self.add_button('F5', self.dump_item)
             elif self.status == NameDurationStatus.UPDATING_INIT:
-                txtbtn = self.modding_time_conv() if self.modding_time else self.modding_time_get()
-                self.add_button(txtbtn, self.modding_time_send)
+                self.add_button(self.modding_time_get(), self.modding_time_send)
                 chars = self.modding_time_chars()
                 for c in '1234567890':
                     if c in chars:
