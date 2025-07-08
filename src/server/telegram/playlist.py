@@ -361,6 +361,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.return_msg = 'Set time OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} setting time :thumbs_down:'
+        self.modding_time = []
         await self.switch_to_idle()
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
@@ -384,7 +385,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
                     self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
                 self.add_button('F5', self.dump_item)
             elif self.status == NameDurationStatus.UPDATING_INIT:
-                self.add_button(self.modding_time_get(), self.modding_time_send)
+                self.add_button(u'\U000023F2 ' + self.modding_time_get(), self.modding_time_send)
                 chars = self.modding_time_chars()
                 for c in '1234567890':
                     if c in chars:
