@@ -275,22 +275,22 @@ class PlaylistItemTMessage(NameDurationTMessage):
         return ss
 
     def modding_time_del(self) -> str:
-        idxfirst = -1
+        idxlast = -1
         for i, s in enumerate(self.modding_time):
             if mo := re.search(r'\d+', s):
-                idxfirst = mo.start()
+                idxlast = mo.end()
                 break
-        if idxfirst < 0:
+        if idxlast < 0:
             return self.modding_time_conv()
         else:
             mt = self.modding_time
             if i == 0:
                 if len(mt[i]) > 1:
-                    mt[i] = mt[i][1:]
+                    mt[i] = mt[i][0:-1]
                 else:
                     mt[i] = '_'
             else:
-                mt[i] = mt[i][0:idxfirst] + '_' + mt[i][idxfirst + 1:]
+                mt[i] = '_' + mt[i][0:idxlast - 1]
             return self.modding_time_conv()
 
     def modding_time_char(self, char) -> str:
