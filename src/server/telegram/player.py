@@ -12,18 +12,19 @@ from telegram.ext._utils.types import BD, BT, CD, UD
 from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_F5PL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_INFO, CMD_REMOTEPLAY_JS_ITEM, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SCHED, CMD_REMOTEPLAY_JS_SEC, PLAYER_VIDEO_STATUS_BUFFERING, PLAYER_VIDEO_STATUS_CUED, PLAYER_VIDEO_STATUS_ENDED, PLAYER_VIDEO_STATUS_PAUSED, PLAYER_VIDEO_STATUS_PLAYING, PLAYER_VIDEO_STATUS_UNSTARTED
 from common.playlist import PlaylistItem
 from common.user import User
-from server.telegram.message import NameDurationStatus, duration2string
+from server.telegram.message import ChangeTimeTMessage, NameDurationStatus, duration2string
 from server.telegram.remote import RemoteInfoMessage, RemoteListMessage
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class PlayerInfoMessage(RemoteInfoMessage):
+class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
     DEFAULT_VINFO = dict(tot_n=0, tot_durs='0s', rate=1)
     DEFAULT_PINFO = dict(sec=0)
 
     def __init__(self, name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int) -> None:
-        super().__init__(name, url, sel, navigation, remoteid, link_preview=LinkPreviewOptions(is_disabled=True))
+        ChangeTimeTMessage.__init__(self, navigation)
+        RemoteInfoMessage.__init__(self, name, url, sel, navigation, remoteid, link_preview=LinkPreviewOptions(is_disabled=True))
         pr = self.parsed_url
         self.plitems: List[PlaylistItem] = []
         self.plnames: List[str] = list(pr[1]['name'])
@@ -35,6 +36,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
         self.default_vinfo: int = 1
         self.default_pstat: int = 1
         self.rate_for_single_video = False
+        self.rel_abs: int = 0
 
     @staticmethod
     def get_my_hex_prefix() -> str:
@@ -127,15 +129,13 @@ class PlayerInfoMessage(RemoteInfoMessage):
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_ITEM, n=idx)
 
     def slash_message_processed(self, text):
-        return super().slash_message_processed(text) or (self.status == NameDurationStatus.IDLE and (re.search(r'^/s' + self.ns + r'\s*(.+)', text) or re.search(r'^/I' + self.ns + r'_(\d+)', text) or text.startswith(f'/TT{self.ns}_')))
+        return RemoteInfoMessage.slash_message_processed(self, text) or (self.status == NameDurationStatus.IDLE and (re.search(r'^/s' + self.ns + r'\s*(.+)', text) or re.search(r'^/I' + self.ns + r'_(\d+)', text) or text.startswith(f'/TT{self.ns}_')))
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
-        await super().text_input(text, context)
+        await RemoteInfoMessage.text_input(self, text, context)
         if self.status == NameDurationStatus.IDLE:
             text = text.strip()
             try:
-                sect = None
-                rel = 0
                 if ((mo := re.search(r'^/s' + self.ns + r'\s*(.+)', text)) and (mo := PlayerInfoMessage.is_url(mo.group(1)))):
                     await self.schedule(mo.group(1))
                     return
@@ -144,26 +144,28 @@ class PlayerInfoMessage(RemoteInfoMessage):
                     return
                 elif text.startswith(ss := f'/TT{self.ns}_'):
                     text = text[len(ss):]
-                if (mo := re.search(r'^\s*([\-\+])', text)):
-                    rel = 1 if mo.group(1) == '+' else -1
-                    text = text[mo.end():]
-                while True:
-                    if (mo := re.search(r'^\s*([0-9]+)\s*([msh]?)', text)):
-                        sec = int(mo.group(1))
-                        um = mo.group(2)
-                        if um == 'm':
-                            sec *= 60
-                        elif um == 'h':
-                            sec *= 3600
-                        text = text[len(mo.group(0)):]
-                        sect = sec if sect is None else sect + sec
-                    else:
-                        break
-                if sect is not None:
-                    if rel:
-                        await self.move((sect * rel, ))
-                    else:
-                        await self.move_abs((sect, ))
+                    sect = None
+                    rel = 0
+                    if (mo := re.search(r'^\s*([\-\+])', text)):
+                        rel = 1 if mo.group(1) == '+' else -1
+                        text = text[mo.end():]
+                    while True:
+                        if (mo := re.search(r'^\s*([0-9]+)\s*([msh]?)', text)):
+                            sec = int(mo.group(1))
+                            um = mo.group(2)
+                            if um == 'm':
+                                sec *= 60
+                            elif um == 'h':
+                                sec *= 3600
+                            text = text[len(mo.group(0)):]
+                            sect = sec if sect is None else sect + sec
+                        else:
+                            break
+                    if sect is not None:
+                        if rel:
+                            await self.move((sect * rel, ))
+                        else:
+                            await self.move_abs((sect, ))
             except Exception:
                 pass
 
@@ -192,8 +194,28 @@ class PlayerInfoMessage(RemoteInfoMessage):
         self.rate_for_single_video = not self.rate_for_single_video
         await self.edit_or_select()
 
+    async def cycle_rel_abs(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
+        self.rel_abs = (self.rel_abs + 1) % 3
+        await self.edit_or_select()
+
+    def modding_time_conv(self) -> str:
+        return self.modding_time_icon() + ' ' + ChangeTimeTMessage.modding_time_conv(self)
+
+    def modding_time_icon(self) -> str:
+        return u'\U00002795' if self.rel_abs == 1 else u'\U00002796' if self.rel_abs == 2 else u'\U0001F5B2'
+
+    async def modding_time_send(self):
+        secs = self.modding_time_secs()
+        if self.rel_abs == 0:
+            await self.move_abs((secs, ))
+        elif self.rel_abs == 1:
+            await self.move((secs, ))
+        elif self.rel_abs == 2:
+            await self.move((-secs, ))
+        await self.switch_to_idle()
+
     async def update(self, context: CallbackContext | None = None) -> str:
-        rv = await super().update(context)
+        rv = await RemoteInfoMessage.update(self, context)
         self.input_field = u'\U000023F2 Timestamp'
         addtxt = ''
         if self.status == NameDurationStatus.IDLE:
@@ -212,6 +234,7 @@ class PlayerInfoMessage(RemoteInfoMessage):
             self.add_button(u'\U000025B61.5x', self.rate, args=(1.5, ))
             self.add_button(u'\U000025B61.8x', self.rate, args=(1.8, ), new_row=True)
             self.add_button(u'\U000025B62x', self.rate, args=(2, ))
+            self.add_button(u'\U000023F2', self.switch_to_status, args=(NameDurationStatus.UPDATING_INIT, ), new_row=True)
             self.add_button(u'30s\U000023EA', self.move, args=(-30, ), new_row=True)
             self.add_button(u'\U000023E930s', self.move, args=(+30, ))
             self.add_button(u'60s\U000023EA', self.move, args=(-60, ), new_row=True)
@@ -221,6 +244,10 @@ class PlayerInfoMessage(RemoteInfoMessage):
             for plname in self.plnames:
                 self.add_button(plname, self.sync_changes, args=(plname, self.status == NameDurationStatus.UPDATING_WAITING))
             self.add_button(u'\U00002934', self.switch_to_idle)
+        elif self.status == NameDurationStatus.UPDATING_INIT:
+            self.set_init_secs(self.pinfo.get('sec', None))
+            self.add_button(self.modding_time_icon(), self.cycle_rel_abs, new_row=True)
+            await ChangeTimeTMessage.update(self, context)
         if addtxt:
             for x in addtxt:
                 rv += x + u'\U0000FE0F\U000020E3'

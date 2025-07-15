@@ -24,15 +24,13 @@ from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
 from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_on_item_updated, cache_sort, cache_store
 from server.telegram.pages import ListPagesTMessage, PageGenerator
-from server.telegram.message import DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, StatusTMessage, duration2dict, duration2string
+from server.telegram.message import ChangeTimeTMessage, DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, StatusTMessage, duration2string
 from server.telegram.refresh import RefreshingTMessage
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class PlaylistItemTMessage(NameDurationTMessage):
-    MT_SEPARATORS = ['d ', 'h ', 'm ', 's']
-    MT_MUL = [86400, 3600, 60, 1]
+class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
 
     def refresh_from_cache(self):
         obj = cache_get_item(self.proc.user.rowid, self.pid, self.id)
@@ -56,11 +54,11 @@ class PlaylistItemTMessage(NameDurationTMessage):
         self.pid = pid
         self.current_sort: str = ''
         self.download_message: PlaylistMessage = None
-        self.modding_time: list[str] = []
-        super().__init__(navigation, myid, user, params)
+        ChangeTimeTMessage.__init__(self, navigation)
+        NameDurationTMessage.__init__(self, navigation, myid, user, params)
 
     def slash_message_processed(self, text: str) -> bool:
-        return super().slash_message_processed(text) or (self.status == NameDurationStatus.UPDATING_WAITING and text == '/autodetect')
+        return NameDurationTMessage.slash_message_processed(self, text) or (self.status == NameDurationStatus.UPDATING_WAITING and text == '/autodetect')
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status == NameDurationStatus.SORTING:
@@ -232,123 +230,6 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.return_msg = f'Error {pl.rv} dumping {self.name} :thumbs_down:'
         await self.switch_to_idle()
 
-    def modding_time_get(self) -> str:
-        if not self.modding_time:
-            if isinstance(self.obj.conf, dict) and 'sec' in self.obj.conf:
-                dct = duration2dict(self.obj.conf['sec'])
-            else:
-                dct = dict(d=0, h=0, m=0, s=None)
-            out = []
-            if dct['d'] == 0:
-                ss = '_'
-                filled = False
-            else:
-                ss = str(dct['d'])
-                filled = True
-            out.append(ss)
-            if dct['h'] == 0 and not filled:
-                ss = '__'
-            else:
-                ss = str(dct['h']).rjust(2, '_' if not filled else '0')
-                filled = True
-            out.append(ss)
-            if dct['m'] == 0 and not filled:
-                ss = '__'
-            else:
-                ss = str(dct['m']).rjust(2, '_' if not filled else '0')
-                filled = True
-            out.append(ss)
-            if dct['s'] is None:
-                ss = '__'
-            else:
-                ss = str(dct['s']).rjust(2, '_' if not filled else '0')
-            out.append(ss)
-            self.modding_time = out
-        return self.modding_time_conv()
-
-    def modding_time_conv(self) -> str:
-        ss = ''
-        for i, s in reversed(list(enumerate(self.modding_time))):
-            ss = s + self.MT_SEPARATORS[i] + ss
-            if s.count('_') > 0:
-                break
-        return ss
-
-    def modding_time_del(self) -> str:
-        idxlast = -1
-        for i, s in enumerate(self.modding_time):
-            if mo := re.search(r'\d+', s):
-                idxlast = mo.end()
-                break
-        if idxlast < 0:
-            return self.modding_time_conv()
-        else:
-            mt = self.modding_time
-            if i == 0:
-                if len(mt[i]) > 1:
-                    mt[i] = mt[i][0:-1]
-                else:
-                    mt[i] = '_'
-            else:
-                mt[i] = '_' + mt[i][0:idxlast - 1]
-            return self.modding_time_conv()
-
-    def modding_time_char(self, char) -> str:
-        i = -1
-        for i, s in reversed(list(enumerate(self.modding_time))):
-            idxlast = s.rfind('_')
-            if idxlast >= 0:
-                break
-        mt = self.modding_time
-        if idxlast < 0:
-            mt[i] = mt[i] + str(char)
-        else:
-            mt[i] = mt[i][0:idxlast] + mt[i][idxlast + 1:] + str(char)
-        return self.modding_time_conv()
-
-    def modding_time_chars(self) -> str:
-        i = -1
-        for i, s in reversed(list(enumerate(self.modding_time))):
-            idxlast = s.rfind('_')
-            if idxlast >= 0:
-                break
-        if idxlast != 0 or not i:
-            return '0123456789'
-        else:
-            mm = int(self.modding_time[i][1])
-            if i == 1:
-                if mm >= 3:
-                    return ''
-                elif mm <= 1:
-                    return '0123456789'
-                else:  # if mm == 2:
-                    return '0123'
-            else:
-                return '' if mm >= 6 else '0123456789'
-
-    def modding_time_secs(self):
-        if not self.modding_time or self.modding_time[3] == '__':
-            return None
-        else:
-            secs = None
-            for i, m in enumerate(self.modding_time):
-                if mo := re.search(r'(\d+)', m):
-                    if secs is None:
-                        secs = 0
-                    secs += int(mo.group(1)) * self.MT_MUL[i]
-        return secs
-
-    async def modding_time_mod(self, args):
-        if not args[0]:
-            self.modding_time_del()
-        elif args[0] == -1:
-            self.modding_time = []
-            await self.switch_to_idle()
-            return
-        else:
-            self.modding_time_char(args[0])
-        await self.edit_or_select()
-
     async def modding_time_send(self):
         secs = self.modding_time_secs()
         pl = PlaylistMessage(CMD_PLAYTIME, playlistitem=self.id, sec=secs)
@@ -385,15 +266,8 @@ class PlaylistItemTMessage(NameDurationTMessage):
                     self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
                 self.add_button('F5', self.dump_item)
             elif self.status == NameDurationStatus.UPDATING_INIT:
-                self.add_button(u'\U000023F2 ' + self.modding_time_get(), self.modding_time_send)
-                chars = self.modding_time_chars()
-                for c in '1234567890':
-                    if c in chars:
-                        self.add_button(c, self.modding_time_mod, args=(c, ), new_row=c == '1')
-                    else:
-                        self.add_button(' ', new_row=c == '1')
-                self.add_button('<', self.modding_time_mod, args=(None, ))
-                self.add_button(':cross_mark: Abort', self.modding_time_mod, args=(-1, ))
+                self.set_init_secs(self.obj.conf.get('sec', None))
+                await ChangeTimeTMessage.update(self, context)
             elif self.status == NameDurationStatus.UPDATING_WAITING:
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return 'Enter network filter ' + ("<a href=\"" + self.obj.conf["pageurl"] + "\">here</a> " if "pageurl" in self.obj.conf else "") + '<u>SMIL</u> or /autodetect'
@@ -465,7 +339,7 @@ class PlaylistItemTMessage(NameDurationTMessage):
             self.add_button(u'\U0000267B', self.delete_item_pre_pre, args=(CMD_SEEN, ))
             if self.obj.takes_space():
                 self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
-        upd = await super().update(context)
+        upd = await NameDurationTMessage.update(self, context)
         if upd:
             return upd
         upd += f'<a href="{self.obj.link}">{self.index + 1})<b> {escape(self.name)}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub[0:19]}\n'

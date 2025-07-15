@@ -1,19 +1,19 @@
+import asyncio
+import logging
+import re
+import traceback
 from abc import abstractmethod
 from asyncio import Event, Task
-import asyncio
 from datetime import datetime, timedelta
 from enum import Enum, auto
-import logging
-import traceback
 from typing import Any, Coroutine, List, Optional, Union
-from urllib.parse import unquote
 
-from aiohttp import ClientSession
-from telegram_menu import BaseMessage, MenuButton, NavigationHandler
-from telegram.ext._callbackcontext import CallbackContext
-from telegram.ext._utils.types import BD, BT, CD, UD
 import tzlocal
 import validators
+from aiohttp import ClientSession
+from telegram.ext._callbackcontext import CallbackContext
+from telegram.ext._utils.types import BD, BT, CD, UD
+from telegram_menu import BaseMessage, MenuButton, NavigationHandler
 
 from common.playlist import PlaylistItem
 from common.user import User
@@ -414,3 +414,149 @@ class YesNoTMessage(BaseMessage):
         self.add_button(self.yes_btn, self.on_yes, args=self.yes_args)
         self.add_button(self.no_btn, self.on_no, args=self.no_args)
         return self.input_field
+
+
+class ChangeTimeTMessage(StatusTMessage):
+    MT_SEPARATORS = ['d ', 'h ', 'm ', 's']
+    MT_MUL = [86400, 3600, 60, 1]
+
+    def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", user: User = None, params: object = None, **argw) -> None:
+        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, user, params, **argw)
+        self.modding_time: list[str] = []
+        self.init_secs: Optional[int] = None
+
+    def modding_time_get(self) -> str:
+        if not self.modding_time:
+            if self.init_secs is not None:
+                dct = duration2dict(self.init_secs)
+            else:
+                dct = dict(d=0, h=0, m=0, s=None)
+            out = []
+            if dct['d'] == 0:
+                ss = '_'
+                filled = False
+            else:
+                ss = str(dct['d'])
+                filled = True
+            out.append(ss)
+            if dct['h'] == 0 and not filled:
+                ss = '__'
+            else:
+                ss = str(dct['h']).rjust(2, '_' if not filled else '0')
+                filled = True
+            out.append(ss)
+            if dct['m'] == 0 and not filled:
+                ss = '__'
+            else:
+                ss = str(dct['m']).rjust(2, '_' if not filled else '0')
+                filled = True
+            out.append(ss)
+            if dct['s'] is None:
+                ss = '__'
+            else:
+                ss = str(dct['s']).rjust(2, '_' if not filled else '0')
+            out.append(ss)
+            self.modding_time = out
+        return self.modding_time_conv()
+
+    def modding_time_conv(self) -> str:
+        ss = ''
+        for i, s in reversed(list(enumerate(self.modding_time))):
+            ss = s + self.MT_SEPARATORS[i] + ss
+            if s.count('_') > 0:
+                break
+        return ss
+
+    def modding_time_del(self) -> str:
+        idxlast = -1
+        for i, s in enumerate(self.modding_time):
+            if mo := re.search(r'\d+', s):
+                idxlast = mo.end()
+                break
+        if idxlast < 0:
+            return self.modding_time_conv()
+        else:
+            mt = self.modding_time
+            if i == 0:
+                if len(mt[i]) > 1:
+                    mt[i] = mt[i][0:-1]
+                else:
+                    mt[i] = '_'
+            else:
+                mt[i] = '_' + mt[i][0:idxlast - 1]
+            return self.modding_time_conv()
+
+    def modding_time_char(self, char) -> str:
+        i = -1
+        for i, s in reversed(list(enumerate(self.modding_time))):
+            idxlast = s.rfind('_')
+            if idxlast >= 0:
+                break
+        mt = self.modding_time
+        if idxlast < 0:
+            mt[i] = mt[i] + str(char)
+        else:
+            mt[i] = mt[i][0:idxlast] + mt[i][idxlast + 1:] + str(char)
+        return self.modding_time_conv()
+
+    def modding_time_chars(self) -> str:
+        i = -1
+        for i, s in reversed(list(enumerate(self.modding_time))):
+            idxlast = s.rfind('_')
+            if idxlast >= 0:
+                break
+        if idxlast != 0 or not i:
+            return '0123456789'
+        else:
+            mm = int(self.modding_time[i][1])
+            if i == 1:
+                if mm >= 3:
+                    return ''
+                elif mm <= 1:
+                    return '0123456789'
+                else:  # if mm == 2:
+                    return '0123'
+            else:
+                return '' if mm >= 6 else '0123456789'
+
+    def modding_time_secs(self):
+        if not self.modding_time or self.modding_time[3] == '__':
+            return None
+        else:
+            secs = None
+            for i, m in enumerate(self.modding_time):
+                if mo := re.search(r'(\d+)', m):
+                    if secs is None:
+                        secs = 0
+                    secs += int(mo.group(1)) * self.MT_MUL[i]
+        return secs
+
+    async def modding_time_mod(self, args):
+        if not args[0]:
+            self.modding_time_del()
+        elif args[0] == -1:
+            self.modding_time = []
+            await self.switch_to_idle()
+            return
+        else:
+            self.modding_time_char(args[0])
+        await self.edit_or_select()
+
+    @abstractmethod
+    async def modding_time_send(self):
+        pass
+
+    def set_init_secs(self, init_secs: Optional[int] = None):
+        self.init_secs = init_secs
+
+    async def update(self, context: Union[CallbackContext, None] = None) -> str:
+        self.add_button(u'\U000023F2 ' + self.modding_time_get(), self.modding_time_send)
+        chars = self.modding_time_chars()
+        for c in '1234567890':
+            if c in chars:
+                self.add_button(c, self.modding_time_mod, args=(c, ), new_row=c == '1')
+            else:
+                self.add_button(' ', new_row=c == '1')
+        self.add_button('<', self.modding_time_mod, args=(None, ))
+        self.add_button(':cross_mark: Abort', self.modding_time_mod, args=(-1, ))
+        return await super().update(context)
