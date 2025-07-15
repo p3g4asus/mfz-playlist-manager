@@ -204,6 +204,10 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
     def modding_time_icon(self) -> str:
         return u'\U00002795' if self.rel_abs == 1 else u'\U00002796' if self.rel_abs == 2 else u'\U0001F5B2'
 
+    async def force_reset_time(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
+        self.rel_abs = -1
+        await self.edit_or_select()
+
     async def modding_time_send(self):
         secs = self.modding_time_secs()
         if self.rel_abs == 0:
@@ -245,8 +249,14 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
                 self.add_button(plname, self.sync_changes, args=(plname, self.status == NameDurationStatus.UPDATING_WAITING))
             self.add_button(u'\U00002934', self.switch_to_idle)
         elif self.status == NameDurationStatus.UPDATING_INIT:
-            self.set_init_secs(self.pinfo.get('sec', None))
+            if self.rel_abs < 0:
+                self.rel_abs = 0
+                self.modding_time = []
+                self.set_init_secs(None)
+            else:
+                self.set_init_secs(self.pinfo.get('sec', None))
             self.add_button(self.modding_time_icon(), self.cycle_rel_abs, new_row=True)
+            self.add_button(u'*\U0000FE0F\U000020E3', self.force_reset_time)
             await ChangeTimeTMessage.update(self, context)
         if addtxt:
             for x in addtxt:
