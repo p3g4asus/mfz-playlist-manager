@@ -211,6 +211,7 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
     async def modding_time_send(self):
         secs = self.modding_time_secs()
         if self.rel_abs == 0:
+            self.modding_time = []
             await self.move_abs((secs, ))
         elif self.rel_abs == 1:
             await self.move((secs, ))
