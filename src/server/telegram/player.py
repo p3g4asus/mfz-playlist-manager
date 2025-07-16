@@ -219,6 +219,12 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
             await self.move((-secs, ))
         await self.switch_to_idle()
 
+    async def modding_time_mod(self, args):
+        if args[0] == -1 and self.rel_abs:
+            await self.switch_to_idle()
+        else:
+            await super().modding_time_mod(args)
+
     async def update(self, context: CallbackContext | None = None) -> str:
         rv = await RemoteInfoMessage.update(self, context)
         self.input_field = u'\U000023F2 Timestamp'
