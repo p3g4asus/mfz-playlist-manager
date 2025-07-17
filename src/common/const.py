@@ -95,6 +95,7 @@ LINK_CONV_OPTION_SHIFT = 8
 LINK_CONV_OPTION_ASYNCH_TWITCH = 1
 LINK_CONV_OPTION_VIDEO_EMBED = 2
 CMD_USER_SETTINGS = 'setusettings'
+CMD_DL_SETTINGS = 'setdlsettings'
 IMG_NO_VIDEO = 'https://i3.ytimg.com/vi/Di-qI09MdB8/maxresdefault.jpg'
 IMG_NO_THUMB = 'https://i3.ytimg.com/vi/AqN4nJk_dJk/maxresdefault.jpg'
 

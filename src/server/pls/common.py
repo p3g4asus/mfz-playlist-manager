@@ -8,6 +8,7 @@ import signal
 import socket
 import subprocess
 import sys
+from tempfile import NamedTemporaryFile
 import traceback
 import zlib
 from asyncio import Event
@@ -19,11 +20,12 @@ from os import makedirs, remove, rename
 from os.path import join, realpath, split, splitext
 from shutil import move, rmtree
 
+from aiosqlite import Connection
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import AsyncIOOSCUDPServer
 from pythonosc.udp_client import SimpleUDPClient
 
-from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DEL, CMD_DOWNLOAD,
+from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DEL, CMD_DL_SETTINGS, CMD_DOWNLOAD,
                           CMD_DUMP, CMD_FREESPACE, CMD_INDEX, CMD_IORDER, CMD_ITEMDUMP, CMD_MOVE,
                           CMD_PLAYID, CMD_PLAYTIME, CMD_PLAYITSETT, CMD_PLAYSETT, CMD_REN,
                           CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TOKEN, CMD_USER_SETTINGS, DOWNLOADED_SUFFIX,
@@ -51,7 +53,7 @@ class MessageProcessor(AbstractMessageProcessor):
         return msg.c(CMD_DEL) or msg.c(CMD_REN) or msg.c(CMD_DUMP) or\
             msg.c(CMD_ADD) or msg.c(CMD_SEEN) or msg.c(CMD_SEEN_PREV) or msg.c(CMD_MOVE) or\
             msg.c(CMD_IORDER) or msg.c(CMD_SORT) or msg.c(CMD_PLAYID) or msg.c(CMD_PLAYTIME) or\
-            msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT) or msg.c(CMD_DOWNLOAD) or msg.c(CMD_INDEX) or\
+            msg.c(CMD_PLAYSETT) or msg.c(CMD_PLAYITSETT) or msg.c(CMD_DL_SETTINGS) or msg.c(CMD_DOWNLOAD) or msg.c(CMD_INDEX) or\
             msg.c(CMD_CLEAR) or msg.c(CMD_FREESPACE) or msg.c(CMD_TOKEN) or msg.c(CMD_USER_SETTINGS) or\
             msg.c(CMD_ITEMDUMP)
 
@@ -280,8 +282,9 @@ class MessageProcessor(AbstractMessageProcessor):
         async def dl(self, status, executor):
             pass
 
-        def __init__(self, it, msg, db, dl_dir) -> None:
+        def __init__(self, it: PlaylistItem, pls: Playlist, msg: PlaylistMessage, db: Connection, dl_dir: str) -> None:
             self.it = it
+            self.pls = pls
             self.db = db
             self.msg = msg
             self.dl_dir = dl_dir
@@ -290,6 +293,13 @@ class MessageProcessor(AbstractMessageProcessor):
 
         def mark_del(self):
             self.rem = True
+
+        def safe_del(self, path):
+            if path:
+                try:
+                    remove(path)
+                except Exception:
+                    pass
 
         def awake(self):
             if self.ev:
@@ -303,8 +313,8 @@ class MessageProcessor(AbstractMessageProcessor):
             await self.ev.wait()
 
     class DRMDownloader(Downloader):
-        def __init__(self, it, msg, db, dl_dir) -> None:
-            super().__init__(it, msg, db, dl_dir)
+        def __init__(self, it: PlaylistItem, pls: Playlist, msg: PlaylistMessage, db: Connection, dl_dir: str) -> None:
+            super().__init__(it, pls, msg, db, dl_dir)
             self.p = None
 
         @staticmethod
@@ -418,10 +428,7 @@ class MessageProcessor(AbstractMessageProcessor):
             rv = await executor(self.popen_do, kw, status, sd)
             if not rv:
                 dest = join(self.dl_dir, f'{self.it.rowid}.mp4')
-                try:
-                    remove(dest)
-                except Exception:
-                    pass
+                self.safe_del(dest)
                 move(join(sd, f'{self.it.rowid}.mp4'), dest)
                 self.it.dl = dest
                 if not await self.it.toDB(self.db):
@@ -434,8 +441,8 @@ class MessageProcessor(AbstractMessageProcessor):
             return msg
 
     class YTDLDownloader(Downloader):
-        def __init__(self, it, msg, db, dl_dir) -> None:
-            super().__init__(it, msg, db, dl_dir)
+        def __init__(self, it: PlaylistItem, pls: Playlist, msg: PlaylistMessage, db: Connection, dl_dir: str) -> None:
+            super().__init__(it, pls, msg, db, dl_dir)
             self.osc_s = None
             self.osc_t = None
             self.osc_c = None
@@ -473,6 +480,15 @@ class MessageProcessor(AbstractMessageProcessor):
             else:
                 kw = dict()
                 post.pop(1)
+            if (co := self.pls.conf.get('dl', dict()).get('cookie')):
+                tmp = NamedTemporaryFile(delete=False)
+                try:
+                    tmp.write(co.encode('utf-8'))
+                finally:
+                    tmp.close()
+                kw['cookiefile'] = todel = tmp.name
+            else:
+                todel = None
             ytdl_opt = dict(
                 format=format,
                 noplaylist=True,
@@ -492,10 +508,7 @@ class MessageProcessor(AbstractMessageProcessor):
             if 'sta' in status['dl'] and not status['dl']['sta'] and\
                'file' in status['dl'] and status['dl']['file'] and\
                'rv' in status['dlx'] and not status['dlx']['rv']:
-                try:
-                    remove(self.it.dl)
-                except Exception:
-                    pass
+                self.safe_del(self.it.dl)
                 rv_err = status['dlx']
                 if 'raw' in rv_err and 'requested_downloads' in rv_err['raw'] and\
                    rv_err['raw']['requested_downloads'] and\
@@ -514,18 +527,13 @@ class MessageProcessor(AbstractMessageProcessor):
             else:
                 if 'dl' in status and 'files' in status['dl']:
                     i = status['dl']['file']
-                    try:
-                        remove(i)
-                    except Exception:
-                        pass
+                    self.safe_del(i)
                     for i in status['dl']['files']:
-                        try:
-                            remove(i)
-                        except Exception:
-                            pass
+                        self.safe_del(i)
                 msg = msg.err(5, MSG_BACKEND_ERROR, playlistitem=None)
             self.osc_t.close()
             self.osc_s = None
+            self.safe_del(todel)
             return msg
 
         def halt(self):
@@ -573,7 +581,7 @@ class MessageProcessor(AbstractMessageProcessor):
                 if pls:
                     drm = '_drm_k' in it.conf and it.conf['_drm_k'] and '_drm_m' in it.conf and it.conf['_drm_m']
                     sp = msg.init_send_status_with_ping()
-                    downloader = self.DRMDownloader(it, msg, self.db, self.dl_dir) if drm else self.YTDLDownloader(it, msg, self.db, self.dl_dir)
+                    downloader = self.DRMDownloader(it, pls[0], msg, self.db, self.dl_dir) if drm else self.YTDLDownloader(it, pls[0], msg, self.db, self.dl_dir)
                     if pls[0].useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                     elif self.downloader:
@@ -698,6 +706,33 @@ class MessageProcessor(AbstractMessageProcessor):
                     return msg.ok(playlist=x)
                 else:
                     msg.err(2, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+            else:
+                msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+        else:
+            return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+
+    async def processDlSettings(self, msg, userid, executor):
+        x = msg.playlistId()
+        if x is not None:
+            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            if pls:
+                pl = pls[0]
+                if pl.useri != userid:
+                    return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
+                confdl = msg.f('dl')
+                mod = False
+                if not isinstance(confdl, dict) or not confdl:
+                    if 'dl' in pl.conf:
+                        del pl.conf['dl']
+                        mod = True
+                else:
+                    pl.conf['dl'] = confdl
+                    mod = True
+                if mod:
+                    res = await pl.toDB(self.db, commit=True)
+                    if not res:
+                        return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                return msg.ok()
             else:
                 msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
         else:
@@ -927,6 +962,8 @@ class MessageProcessor(AbstractMessageProcessor):
             resp = await self.processIndex(msg, userid, executor)
         elif msg.c(CMD_DOWNLOAD):
             resp = await self.processDl(msg, userid, executor)
+        elif msg.c(CMD_DL_SETTINGS):
+            resp = await self.processDlSettings(msg, userid, executor)
         elif msg.c(CMD_SORT):
             resp = await self.processSort(msg, userid, executor)
         elif msg.c(CMD_ITEMDUMP):

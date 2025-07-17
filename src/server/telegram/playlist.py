@@ -12,10 +12,10 @@ from urllib.parse import (urlencode)
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 from telegram_menu import (BaseMessage, ButtonType, NavigationHandler)
-from telegram_menu.models import MenuButton
+from telegram_menu.models import AttachmentType, MenuButton
 
 from common.brand import DEFAULT_TITLE, Brand
-from common.const import (CMD_CLEAR, CMD_DEL, CMD_DOWNLOAD, CMD_DUMP,
+from common.const import (CMD_CLEAR, CMD_DEL, CMD_DL_SETTINGS, CMD_DOWNLOAD, CMD_DUMP,
                           CMD_FOLDER_LIST, CMD_FREESPACE, CMD_INDEX, CMD_IORDER, CMD_ITEMDUMP,
                           CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
                           CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_PLAYID, CMD_PLAYTIME, CMD_RAI_CONTENTSET,
@@ -470,6 +470,35 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         self.del_and_recreate = False
         self.current_sort: str = ''
         self.set_playlist(self.obj)
+
+    def slash_message_processed(self, text):
+        return super().slash_message_processed(text) or text.startswith(f'/coo{self.id}')
+
+    async def file_input(self, text: str, attachment: AttachmentType, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
+        file = await attachment.get_file()
+        try:
+            file_text = (await file.download_as_bytearray()).decode('utf-8')
+            delkey = False
+            if not file_text or len(file_text) < 10:
+                delkey = True
+            elif not file_text.startswith('# Netscape HTTP Cookie File'):
+                raise ValueError('Invalid cookie file format')
+            confdl = self.obj.conf.get('dl', {})
+            if delkey:
+                if 'cookie' in confdl:
+                    del confdl['cookie']
+            else:
+                confdl['cookie'] = file_text
+            self.obj.conf['dl'] = confdl
+            pl = PlaylistMessage(CMD_DL_SETTINGS, playlist=self.id, dl=confdl)
+            pl = await self.proc.process(pl)
+            if pl.rv == 0:
+                self.return_msg = f'Cookie file for {self.name}[{self.id}] store OK :thumbs_up:'
+            else:
+                self.return_msg = f'Error {pl.rv} storing cookie file for {self.name}[{self.id}] :thumbs_down:'
+        except UnicodeDecodeError | ValueError:
+            self.return_msg = 'Invalid cookie file :thumbs_down:'
+        await self.switch_to_idle()
 
     async def remove_from_sort(self) -> None:
         if self.current_sort:
