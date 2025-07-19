@@ -255,14 +255,15 @@ class StatusTMessage(BaseMessage):
             )
         await self.switch_to_idle_end()
 
-    async def long_operation_do(self):
-        sign = self.sub_status & 512
-        self.sub_status &= 0xFF
-        if self.sub_status == 10:
-            sign = 512
-        elif self.sub_status == 0:
-            sign = 0
-        self.sub_status = (self.sub_status + 1 * (-1 if sign else 1)) | sign
+    async def long_operation_do(self, edit_only: bool = False):
+        if not edit_only:
+            sign = self.sub_status & 512
+            self.sub_status &= 0xFF
+            if self.sub_status == 10:
+                sign = 512
+            elif self.sub_status == 0:
+                sign = 0
+            self.sub_status = (self.sub_status + 1 * (-1 if sign else 1)) | sign
         await self.edit_or_select()
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
@@ -409,7 +410,6 @@ class YesNoTMessage(BaseMessage):
         pass
 
     def update(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.add_button(self.yes_btn, self.on_yes, args=self.yes_args)
         self.add_button(self.no_btn, self.on_no, args=self.no_args)

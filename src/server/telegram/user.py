@@ -145,7 +145,6 @@ class UserSettingsMessage(StatusTMessage):
                     break
 
     async def update(self, context: CallbackContext | None = None) -> str:
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         if self.has_expired():
             self.current_setting = ''

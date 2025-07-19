@@ -216,7 +216,6 @@ class ListPagesTMessage(BaseMessage):
     async def update(self, context: Optional[CallbackContext] = None) -> str:
         if not self.first_page or not self.soft_refresh():
             await self.put_items_in_pages()
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         if self.first_page:
             self.input_field = f'{self.first_page.first_item_index + 1} - {self.first_page.last_item_index + 1}'\

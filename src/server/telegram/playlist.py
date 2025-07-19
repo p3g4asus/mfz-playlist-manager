@@ -109,6 +109,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.long_operation_do,
             "interval",
+            args=(True, ),
             id=f"long_operation_do{self.label}",
             seconds=3,
             replace_existing=True,
@@ -246,7 +247,6 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
         await self.switch_to_idle()
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.refresh_from_cache()
         if self.status == NameDurationStatus.DUMPING:
@@ -750,7 +750,6 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             self.return_msg = f'Error {pl.rv} IOrdering {self.name} :thumbs_down:'
 
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.refresh_from_cache()
         lnk = f'{self.proc.params.link}/{self.proc.params.args["sid"]}'
@@ -935,7 +934,6 @@ class ChangeOrderedOrDeleteOrCancelTMessage(BaseMessage):
         await self.navigation.goto_back()
 
     async def update(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.input_field = self.plinfo["title"]
         if self.ordered_present:
@@ -1052,7 +1050,6 @@ class CheckPlaylistTMessage(PlaylistNamingTMessage):
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         upd = ''
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         await PlaylistNamingTMessage.update(self, context)
         if self.status == NameDurationStatus.IDLE:
@@ -1165,7 +1162,6 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         upd = ''
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         await PlaylistNamingTMessage.update(self, context)
         if self.status == NameDurationStatus.IDLE:
@@ -1241,7 +1237,6 @@ class SubBrandSelectTMessage(BaseMessage):
         await self.navigation.goto_menu(self, context, add_if_present=False)
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.input_field = f'Select content for {self.playlist.conf["brand"].title}'
         for b in self.playlist.conf['playlists_all'].values():
@@ -1279,7 +1274,6 @@ class SelectDayTMessage(BaseMessage):
         await self.navigation.goto_back()
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.input_field = 'Select day of listing'
         d = self.nearest_weekday(0)
@@ -1443,7 +1437,6 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         upd = ''
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         await PlaylistNamingTMessage.update(self, context)
         enteridle = False
@@ -1536,7 +1529,6 @@ class RefreshNewPlaylistTMessage(RefreshingTMessage):
         await self.navigation.goto_back()
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         upd = await super().update(context)
         self.input_field = f'Refresh {self.playlist.name}'
@@ -1557,7 +1549,6 @@ class PlaylistAddTMessage(StatusTMessage):
             params=params)
 
     def update(self, _: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.add_button('\U0001F534 YoutubeDL', YoutubeDLPlaylistTMessage(self.navigation, user=self.proc.user, params=self.proc.params))
         self.add_button('\U0001F535 Rai', RaiPlaylistTMessage(self.navigation, user=self.proc.user, params=self.proc.params))

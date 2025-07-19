@@ -127,7 +127,6 @@ class StartTMessage(BaseMessage):
 
     async def async_init(self, context: Optional[CallbackContext] = None):
         res = await self.check_if_username_registred(self.params.db2, self.navigation.user_name)
-        self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
         if context:
             self.user_data = context.user_data.setdefault('user_data', dict(link=''))
