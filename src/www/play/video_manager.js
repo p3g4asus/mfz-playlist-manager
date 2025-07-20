@@ -26,14 +26,17 @@ let playlist_rate = 1;
 let playlist_sched = [];
 const playlist_dump_jobs = [];
 
+function get_rate_for_playlist(pls) {
+    let rate = pls.conf?.play?.rate;
+    return !rate?1:rate;
+}
+
 function get_video_params_from_item(idx) {
     playlist_item_current = null;
     playlist_item_play_settings = {};
     let pos;
     if (idx === null) {
-        playlist_rate = playlist_current.conf?.play?.rate;
-        if (!playlist_rate)
-            playlist_rate = 1;
+        playlist_rate = get_rate_for_playlist(playlist_current);
         let vid = playlist_current.conf?.play?.id;
         if (!vid || !vid.length) {
             if (!playlist_arr.length)
@@ -248,7 +251,7 @@ function get_rate_for_video(video, pls) {
     if  ((vrate = video_playlist_has_custom_rate(video, pls))) {
         return vrate;
     } else {
-        return playlist_rate;
+        return get_rate_for_playlist(pls);
     }
 }
 
