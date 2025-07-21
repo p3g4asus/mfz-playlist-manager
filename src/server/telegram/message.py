@@ -271,13 +271,16 @@ class StatusTMessage(BaseMessage):
 
 
 class DeletingTMessage(StatusTMessage):
+    MAX_DELETING_SIMULTANEOUS = 4
+    UNDO_TASK_PATTERN = re.compile(r'wait_undo_job(\d+)')
+
     async def wait_undo_job(self):
         if self.sub_status <= 0:
             if self.status == NameDurationStatus.DELETING:
                 self.scheduler_job_remove()
                 await self.delete_item_do()
                 await self.switch_to_idle()
-        else:
+        elif self.sub_status < 10 or self.is_task_active():
             self.sub_status -= 1
             await self.edit_or_select()
 
@@ -285,8 +288,32 @@ class DeletingTMessage(StatusTMessage):
     async def delete_item_do(self):
         return
 
+    def is_task_active(self):
+        jobs = self.navigation.scheduler.get_jobs()
+        ll = [999999] * self.MAX_DELETING_SIMULTANEOUS
+        for jb in jobs:
+            if mo := self.UNDO_TASK_PATTERN.search(jb.name):
+                jbi = int(mo.group(1))
+                for k, jbioth in enumerate(ll):
+                    if jbioth >= jbi:
+                        ll = ll[0:k] + [jbi] + ll[k: -1]
+                        break
+        return self.jbi in ll
+
+    def get_new_undo_task_name(self):
+        jobs = self.navigation.scheduler.get_jobs()
+        max_jb = 0
+        for jb in jobs:
+            if mo := self.UNDO_TASK_PATTERN.search(jb.name):
+                jbi = int(mo.group(1))
+                if jbi > max_jb:
+                    max_jb = jbi
+        self.jbi = max_jb + 1
+        return f'wait_undo_job{self.jbi}'
+
     def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: timedelta | None = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", user: User = None, params: object = None, **argw) -> None:
         self.del_action: str = ''
+        self.jbi: int = -1
         super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, user, params, **argw)
 
     def delete_item_pre_pre(self, args):
@@ -296,7 +323,7 @@ class DeletingTMessage(StatusTMessage):
     def delete_item_pre(self):
         self.status = NameDurationStatus.DELETING
         self.sub_status = 10
-        name: str = f"wait_undo_job{id(self)}"
+        name: str = self.get_new_undo_task_name()
         self.scheduler_job = self.navigation.scheduler.add_job(
             self.wait_undo_job,
             "interval",
