@@ -47,7 +47,7 @@ async def get_vod_link(vodid) -> dict:
                 for token in tokens:
                     try:
                         data = token["data"]["video"]["previewThumbnailURL"]
-                        mo = re.search('/([a-z0-9]+)/([a-f0-9]+_.+?_[0-9]+_[0-9]+)/', data)
+                        mo = re.search(r'/([a-z0-9]+)/([a-f0-9]+_.+?_[0-9]+_[0-9a-z\-]+)/', data)
                         headers = {"range": "bytes=0-200", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
                         if mo:
                             base = f'https://{mo.group(1)}.cloudfront.net/{mo.group(2)}'
