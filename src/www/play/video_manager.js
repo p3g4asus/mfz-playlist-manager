@@ -1104,10 +1104,12 @@ function video_resize() {
     if (!video_manager_obj)
         return;
     let new_height, new_width;
+    const wiw = Math.min(window.innerWidth, window.screen.availWidth);
+    const wih = Math.min(window.innerHeight, window.screen.availHeight);
     let ttlw = $('#video_title').height() + 25 + $('#prev_button').height(); /* title + buttons */
-    if (video_height + ttlw > window.innerHeight || video_width > window.innerWidth) {
-        new_height = window.innerHeight - ttlw;
-        new_width = window.innerWidth;
+    if (video_height + ttlw > wih || video_width > wiw) {
+        new_height = wih - ttlw;
+        new_width = wiw;
         if (new_height < 160 || new_width < 284) {
             new_height = 160;
             new_width = 284;

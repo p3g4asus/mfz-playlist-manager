@@ -18,3 +18,28 @@ a {
 .panel {
   margin: 5px;
 }
+#form {
+    margin-right: auto;
+    margin-left: auto;
+    margin-top: 0px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    padding: 0px;
+    text-align:center;
+}
+label {
+    color: #333;
+    height: 20px;
+    width: 80px;
+    margin-top: 10px;
+    margin-left: 5px;
+    text-align: right;
+    margin-right:5px;
+    float:left;
+}
+input {
+    height: 20px;
+    width: 190px;
+    border: 1px solid #000;
+    margin-top: 10px;
+}
