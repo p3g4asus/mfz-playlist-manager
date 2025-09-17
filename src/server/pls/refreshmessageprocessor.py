@@ -171,7 +171,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             dateto = msg.f('dateto')
             if dateto is None:
                 dateto = 33134094791000
-            dateto = min(dateto, int(datetime.now().timestamp() * 1000))
+            # dateto = min(dateto, int(datetime.now().timestamp() * 1000))
             if x.rowid is not None:
                 c = x.conf
                 n = x.name

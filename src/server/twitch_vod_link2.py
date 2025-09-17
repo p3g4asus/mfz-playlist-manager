@@ -1,10 +1,13 @@
 import logging
+from time import time
+from typing import Dict, Tuple
 import aiohttp
 import traceback
 import re
 from yt_dlp.utils import parse_resolution
 
 _LOGGER = logging.getLogger(__name__)
+_VOD_CACHE: Dict[int, Tuple[float, Dict[str, str]]] = dict()
 
 
 async def get_vod_link(vodid) -> dict:
@@ -38,7 +41,11 @@ async def get_vod_link(vodid) -> dict:
             res.update({'width': 0, 'height': 0})
         res.update({'file': link, 'filesize': res['width'] * 1024 * 1024})
         return res
-
+    if vodid in _VOD_CACHE:
+        cached = _VOD_CACHE[vodid]
+        if cached[0] >= time() - 3600:
+            _LOGGER.debug(f"Using cached VOD links for {vodid}")
+            return cached[1]
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, data=json.encode('utf8'), headers=headers) as resp:
@@ -74,6 +81,7 @@ async def get_vod_link(vodid) -> dict:
 
     except Exception:
         _LOGGER.error(traceback.format_exc())
+    _VOD_CACHE[vodid] = (time(), links)
     return links
 
 
