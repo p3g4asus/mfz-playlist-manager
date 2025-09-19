@@ -120,7 +120,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                 x.autoupdate = u
             elif x.items is None:
                 x.items = []
-            resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto, conf=x.conf, playlist=x.rowid, userid=userid, executor=executor)
+            resp = await self.processPrograms(msg, datefrom=datefrom, dateto=dateto + 86400000 * 365 * 5, conf=x.conf, playlist=x.rowid, userid=userid, executor=executor)
             if resp.rv == 0:
                 n_new = len(resp.items)
                 items = x.items
@@ -227,6 +227,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                 else:
                     _LOGGER.warning('Refresh OK but no new video')
                 try:
+                    dateto = min(dateto, int(datetime.now().timestamp() * 1000))
                     await x.cleanItems(self.db, dateto - 86400 * 120000, commit=False)
                     _LOGGER.debug(f"BTDB PL={x} Items: {x.items}")
                     x.dateupdate = dateto - 86400 * 3000
