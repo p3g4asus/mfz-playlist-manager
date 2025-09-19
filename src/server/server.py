@@ -161,9 +161,6 @@ CREATE_DB_IF_NOT_EXIST = [
     '''
     CREATE INDEX IF NOT EXISTS playlist_item_iorder
         ON playlist_item (iorder)
-    ''',
-    '''
-    PRAGMA foreign_keys = ON
     '''
 ]
 
@@ -179,6 +176,7 @@ async def _init_db(app, create_db=False):
             for q in CREATE_DB_IF_NOT_EXIST:
                 await db.execute(q)
             await db.commit()
+        await db.execute("PRAGMA foreign_keys = ON")
         import importlib
         modules = glob.glob(join(dirname(__file__), "pls", "*.py*"))
         pls = [splitext(basename(f))[0] for f in modules if isfile(f)]
