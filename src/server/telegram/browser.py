@@ -263,7 +263,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
                     linklen += len(urladd := f'<a href="{t.url}">') + 4
                 else:
                     urladd = ''
-                out += (f'/ST{self.ns}_{i:07} ' if links & 1 else f'{i:07}) ') + ('\U0001F6A6' if t.active else ('<code>' if not (links & 2) else '')) + (urladd if links & 2 else '') + f'{escape(t.title[0:150])}' + (u'\U0001F507' if t.muted else '') + f'{"</a>" if links & 2 else ""}{"</u></b>" if t.active else ("</code>" if not (links & 2) else "")}\n'
+                out += (f'/ST{self.ns}_{i:07} ' if links & 1 else f'{i:07}) ') + ('\U0001F6A6' if t.active else ('<code>' if not (links & 2) else '')) + (urladd if links & 2 else '') + f'{escape(t.title[0:150]) if t.title else "[NO TITLE]"}' + (u'\U0001F507' if t.muted else '') + f'{"</a>" if links & 2 else ""}{"</u></b>" if t.active else ("</code>" if not (links & 2) else "")}\n'
                 if len(out) - linklen > 3900:
                     break
         else:
