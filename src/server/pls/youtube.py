@@ -374,7 +374,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                 mo = re.search(r'_([0-9]{7,})/+thumb', video["thumbnail"])
                                                                 if mo:
                                                                     tsi = int(mo.group(1))
-                                                                    if tsi >= 1590734846:
+                                                                    nowtsi = int(datetime.now().timestamp())
+                                                                    tsi5y = 86400 * 365 * 5
+                                                                    if tsi >= nowtsi - tsi5y and tsi <= nowtsi + tsi5y:
                                                                         try:
                                                                             datetime.fromtimestamp(tsi)
                                                                             video['timestamp'] = tsi
