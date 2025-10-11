@@ -9,7 +9,7 @@ from telegram_menu import NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
-from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_F5PL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_INFO, CMD_REMOTEPLAY_JS_ITEM, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SCHED, CMD_REMOTEPLAY_JS_SEC, PLAYER_VIDEO_STATUS_BUFFERING, PLAYER_VIDEO_STATUS_CUED, PLAYER_VIDEO_STATUS_ENDED, PLAYER_VIDEO_STATUS_PAUSED, PLAYER_VIDEO_STATUS_PLAYING, PLAYER_VIDEO_STATUS_UNSTARTED
+from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_F5PL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_INFO, CMD_REMOTEPLAY_JS_ITEM, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SCHED, CMD_REMOTEPLAY_JS_SEC, PLAYER_VIDEO_STATUS_BUFFERING, PLAYER_VIDEO_STATUS_CUED, PLAYER_VIDEO_STATUS_ENDED, PLAYER_VIDEO_STATUS_PAUSED, PLAYER_VIDEO_STATUS_PLAYING, PLAYER_VIDEO_STATUS_UNSTARTED, PLAYLIST_SCHED_AT_THE_END, PLAYLIST_SCHED_REPLACE
 from common.playlist import PlaylistItem
 from common.user import User
 from server.telegram.message import ChangeTimeTMessage, NameDurationStatus, duration2string
@@ -21,6 +21,18 @@ _LOGGER = logging.getLogger(__name__)
 class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
     DEFAULT_VINFO = dict(tot_n=0, tot_durs='0s', rate=1)
     DEFAULT_PINFO = dict(sec=0)
+    PLAYLIST_SCHED_TYPE = (
+        'replacing current one',
+        'at the end of current playlist',
+        'at the end of all playlists',
+        'at the end of current video'
+    )
+    PLAYLIST_SCHED_TYPE_ABBR = (
+        'RP',
+        'EP',
+        'EA',
+        'EV'
+    )
 
     def __init__(self, name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int) -> None:
         ChangeTimeTMessage.__init__(self, navigation)
@@ -37,6 +49,7 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
         self.default_pstat: int = 1
         self.rate_for_single_video = False
         self.rel_abs: int = 0
+        self.sched_type: int = PLAYLIST_SCHED_REPLACE
 
     @staticmethod
     def get_my_hex_prefix() -> str:
@@ -98,7 +111,7 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
         await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_PAUSE)
 
     async def sync_changes(self, args: tuple = tuple(), context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
-        await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_F5PL, n=args[0] if args else '', sched=args[1] if len(args) > 1 else False)
+        await self.sendGenericCommand(cmd=CMD_REMOTEPLAY_JS, sub=CMD_REMOTEPLAY_JS_F5PL, n=args[0] if args else '', sched=args[1] if len(args) > 1 else PLAYLIST_SCHED_REPLACE)
         if args:
             await self.switch_to_idle()
 
@@ -225,6 +238,16 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
         else:
             await super().modding_time_mod(args)
 
+    async def sched_prepare(self, args: tuple, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
+        old_sched = self.sched_type
+        self.sched_type = args[0]
+        if self.status == NameDurationStatus.UPDATING_WAITING and old_sched == self.sched_type:
+            pass
+        elif self.status == NameDurationStatus.UPDATING_WAITING:
+            await self.edit_or_select()
+        else:
+            await self.switch_to_status((NameDurationStatus.UPDATING_WAITING, ), context)
+
     async def update(self, context: CallbackContext | None = None) -> str:
         rv = await RemoteInfoMessage.update(self, context)
         self.input_field = u'\U000023F2 Timestamp'
@@ -238,8 +261,8 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
             self.add_button(u'\U000023ED', self.move_pl, args=(+1, ))
             self.add_button(u'\U000023ED \U0001F5D1', self.move_pl, args=(0, ))
             self.add_button(u'\U000021C5', self.sync_changes, args=(), new_row=True)
-            self.add_button(u'\U0001F4C5', self.switch_to_status, args=(NameDurationStatus.UPDATING_WAITING, context))
-            self.add_button(u'\U0001F51C', self.switch_to_status, args=(NameDurationStatus.DOWNLOADING_WAITING, context))
+            self.add_button(u'\U0001F4C5', self.sched_prepare, args=(PLAYLIST_SCHED_AT_THE_END,))
+            self.add_button(u'\U0001F51C', self.sched_prepare, args=(PLAYLIST_SCHED_REPLACE, ))
             self.add_button(u'\U0001F7E3For this' if self.rate_for_single_video else u'\U0001F7E2For playlist', self.toggle_rate_for_single_video, new_row=True)
             self.add_button(u'\U000025B61x', self.rate, args=(1.0, ), new_row=True)
             self.add_button(u'\U000025B61.5x', self.rate, args=(1.5, ))
@@ -250,11 +273,14 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
             self.add_button(u'\U000023E930s', self.move, args=(+30, ))
             self.add_button(u'60s\U000023EA', self.move, args=(-60, ), new_row=True)
             self.add_button(u'\U000023E960s', self.move, args=(+60, ))
-        elif self.status == NameDurationStatus.DOWNLOADING_WAITING or self.status == NameDurationStatus.UPDATING_WAITING:
+        elif self.status == NameDurationStatus.UPDATING_WAITING:
             self.input_field = u'\U0001F449'
-            for plname in self.plnames:
-                self.add_button(plname, self.sync_changes, args=(plname, self.status == NameDurationStatus.UPDATING_WAITING))
+            for i, abbr in enumerate(PlayerInfoMessage.PLAYLIST_SCHED_TYPE_ABBR):
+                self.add_button(abbr + ('\U00002705' if i == self.sched_type else ''), self.sched_prepare, args=(i, ), new_row=(i == 0))
+            for i, plname in enumerate(self.plnames):
+                self.add_button(plname, self.sync_changes, args=(plname, self.sched_type), new_row=i == 0)
             self.add_button(u'\U00002934', self.switch_to_idle)
+            addtxt = '\n<b>Schedule playlist ' + PlayerInfoMessage.PLAYLIST_SCHED_TYPE[self.sched_type] + '</b>'
         elif self.status == NameDurationStatus.UPDATING_INIT:
             if self.rel_abs < 0:
                 self.rel_abs = 0
@@ -265,58 +291,53 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
             self.add_button(self.modding_time_icon(), self.cycle_rel_abs, new_row=True)
             self.add_button(u'*\U0000FE0F\U000020E3', self.force_reset_time)
             await ChangeTimeTMessage.update(self, context)
-        if addtxt:
-            for x in addtxt:
-                rv += x + u'\U0000FE0F\U000020E3'
-            return rv
+        plitems = self.plitems
+        vinfo = self.vinfo
+        rate = vinfo["rate"]
+        if 'title' not in vinfo:
+            rv += '<b>No more video in playlist</b>'
+            idx = -1
+            add = ''
         else:
-            plitems = self.plitems
-            vinfo = self.vinfo
-            rate = vinfo["rate"]
-            if 'title' not in vinfo:
-                rv += '<b>No more video in playlist</b>'
-                idx = -1
-                add = ''
+            sec = self.pinfo["sec"] / rate
+            rv += f'{escape(vinfo["title"])} {self.get_play_status_symbol()}\n'
+            rv += u'\U000023F3 ' + f'{vinfo["durs"]} ' + u'\U0000231B ' + duration2string(0 if (idx := round(vinfo["duri"] - sec)) < 0 else idx) + '\n'
+            rv += u'\U0001F4B0 ' + f'{vinfo["tot_n"]} (\U000023F3 {vinfo["tot_durs"]} \U0000231B {duration2string(round(vinfo["tot_dur"] - vinfo["tot_played"] - sec))})\n'
+            no = int(round(30.0 * (perc := sec / vinfo["duri"]))) if vinfo["duri"] else (perc := 0)
+            rv += f'<code>{duration2string(round(sec))} ({vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}% ({rate:.2f}\U0000274E)</code>'
+            for ch in vinfo["chapters"]:
+                rv += f'\n/TT{self.ns}_{int(ch["start_time"])}s {escape(ch["title"])}'
+            idx = vinfo['idx']
+            if idx >= len(plitems):
+                return rv
+            it = plitems[idx]
+            add = u'\n<b>\U0001F6A6' + f'{idx:06d}) <a href="{it.link}">{escape(vinfo["title"])}</a> ({duration2string(round(vinfo["duri"]))})</b>'
+        updown_s = 1
+        updown_i = 1
+        dirs = 2
+        while len(rv) + len(add) < 3700:
+            ci = idx + updown_i * updown_s
+            if ci < 0 or ci >= len(plitems):
+                dirs -= 1
+                updown_s = -updown_s
+                if not dirs:
+                    break
+                elif updown_s == 1:
+                    updown_i += 1
             else:
-                sec = self.pinfo["sec"] / rate
-                rv += f'{escape(vinfo["title"])} {self.get_play_status_symbol()}\n'
-                rv += u'\U000023F3 ' + f'{vinfo["durs"]} ' + u'\U0000231B ' + duration2string(0 if (idx := round(vinfo["duri"] - sec)) < 0 else idx) + '\n'
-                rv += u'\U0001F4B0 ' + f'{vinfo["tot_n"]} (\U000023F3 {vinfo["tot_durs"]} \U0000231B {duration2string(round(vinfo["tot_dur"] - vinfo["tot_played"] - sec))})\n'
-                no = int(round(30.0 * (perc := sec / vinfo["duri"]))) if vinfo["duri"] else (perc := 0)
-                rv += f'<code>{duration2string(round(sec))} ({vinfo["durs"]})\n[' + (no * 'o') + ((30 - no) * ' ') + f'] {round(perc * 100)}% ({rate:.2f}\U0000274E)</code>'
-                for ch in vinfo["chapters"]:
-                    rv += f'\n/TT{self.ns}_{int(ch["start_time"])}s {escape(ch["title"])}'
-                idx = vinfo['idx']
-                if idx >= len(plitems):
-                    return rv
-                it = plitems[idx]
-                add = u'\n<b>\U0001F6A6' + f'{idx:06d}) <a href="{it.link}">{escape(vinfo["title"])}</a> ({duration2string(round(vinfo["duri"]))})</b>'
-            updown_s = 1
-            updown_i = 1
-            dirs = 2
-            while len(rv) + len(add) < 3700:
-                ci = idx + updown_i * updown_s
-                if ci < 0 or ci >= len(plitems):
-                    dirs -= 1
-                    updown_s = -updown_s
-                    if not dirs:
-                        break
-                    elif updown_s == 1:
-                        updown_i += 1
+                it = self.plitems[ci]
+                if 'rate' in it.conf:
+                    rate = it.conf['rate']
+                a2 = f'\n<b>/I{self.ns}_{ci:06d}</b> <a href="{it.link}">{escape(it.title)}</a> ({duration2string(round(it.dur / rate))})'
+                if updown_s == 1:
+                    add += a2
                 else:
-                    it = self.plitems[ci]
-                    if 'rate' in it.conf:
-                        rate = it.conf['rate']
-                    a2 = f'\n<b>/I{self.ns}_{ci:06d}</b> <a href="{it.link}">{escape(it.title)}</a> ({duration2string(round(it.dur / rate))})'
-                    if updown_s == 1:
-                        add += a2
-                    else:
-                        add = a2 + add
-                    if dirs > 1:
-                        updown_s = -updown_s
-                    if updown_s == 1 or dirs == 1:
-                        updown_i += 1
-            return rv + add
+                    add = a2 + add
+                if dirs > 1:
+                    updown_s = -updown_s
+                if updown_s == 1 or dirs == 1:
+                    updown_i += 1
+            return rv + add + addtxt
 
 
 class PlayerListMessage(RemoteListMessage):

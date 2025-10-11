@@ -25,6 +25,7 @@ let playlist_current_userid = -1;
 let playlist_rate = 1;
 let playlist_sched = [];
 const playlist_dump_jobs = [];
+let playlist_endpoints = {};
 
 function get_rate_for_playlist(pls) {
     let rate = pls.conf?.play?.rate;
@@ -493,7 +494,7 @@ function send_video_info_for_remote_play(w, video_info, exp) {
 
 function playlist_dump_refresh_sched() {
     for (const ppp of playlist_sched) {
-        playlist_dump(playlist_current_userid, ppp.name, true);
+        playlist_dump(playlist_current_userid, ppp.name, PLAYLIST_SCHED_AT_THE_END);
     }
     playlist_sched.length = 0;
 }
@@ -503,9 +504,21 @@ class DumpJob {
     static init_link_arg() {
         const orig_up = new URLSearchParams(URL_PARAMS);
         const plnames = orig_up.getAll('name');
+        const endp = /^end(\d+)$/g;
+        playlist_endpoints = {};
+        orig_up.forEach((value, key) => {
+            let iv;
+            let rendp;
+            if ((rendp = endp.exec(key)) && !isNaN(iv = parseInt(value)) && iv > 0) {
+                playlist_endpoints[parseInt(rendp[1])] = iv;
+            }
+        });
         DumpJob.link_arg = '';
         for (const pls of plnames) {
             DumpJob.link_arg += (DumpJob.link_arg.length?'&':'?') + 'name=' + encodeURIComponent(pls);
+        }
+        for (const [key, value] of Object.entries(playlist_endpoints)) {
+            DumpJob.link_arg += '&' + 'end' + key + '=' + value;
         }
     }
     constructor(useri, plid, sched, overwrite_play_id, replace_url) {
@@ -566,9 +579,39 @@ class DumpJob {
             if (msg.playlists.length) {
                 if (this.plid) {
                     const pls = msg.playlists[0];
+                    if (playlist_item_current) {
+                        let list_changed = false;
+                        if (this.sched == PLAYLIST_SCHED_AT_THE_END_OF_VIDEO) {
+                            if (playlist_endpoints[playlist_current.rowid]) delete playlist_endpoints[playlist_current.rowid];
+                            else {
+                                playlist_endpoints[playlist_current.rowid] = playlist_item_current.rowid;
+                                playlist_sched.length = 0;
+                            }
+                            list_changed = true;
+                        } else if (this.sched == PLAYLIST_SCHED_AT_THE_END_OF_PLAYLIST) {
+                            if (playlist_sched.length) {
+                                playlist_sched.length = 0;
+                                list_changed = true;
+                            }
+                        }
+                        if (list_changed) {
+                            playlist_dump(playlist_current_userid, playlist_current.name, PLAYLIST_SCHED_REPLACE, 0, this.replace_url);
+                            if (playlist_sched.map(function(e) { return e.name; }).indexOf(this.plid) < 0)
+                                playlist_sched.push(pls);
+                            for (let plsi of playlist_sched) {
+                                playlist_dump(playlist_current_userid, plsi.name, PLAYLIST_SCHED_AT_THE_END, 0, this.replace_url);
+                            }
+                            playlist_sched.length = 0;
+                            return;
+                        }
+                    }
                     if (this.replace_url) {
                         let argvalue = this.sched?DumpJob.link_arg + '&':'?';
                         DumpJob.link_arg = argvalue + 'name=' + encodeURIComponent(this.plid);
+                        if (!this.sched) {
+                            for (let [key, value] of Object.entries(playlist_endpoints)) 
+                                DumpJob.link_arg += '&end' + key + '=' + value;
+                        }
                         DumpJob.urlfix();
                     }
                     if (this.sched && playlist_item_current && playlist_current.name !== this.plid) {
@@ -581,6 +624,7 @@ class DumpJob {
                                     itemstoadd.length = 0;
                                 it.conf.rate = get_rate_for_video(it, pls);
                                 itemstoadd.push(it);
+                                if (playlist_endpoints[it.playlist] == it.rowid) break;
                             }
                             playlist_arr.push(...itemstoadd);
                             send_video_info_for_remote_play('ilst', playlist_arr);
@@ -611,8 +655,14 @@ class DumpJob {
                             playlist_current.conf = {play: {id: this.overwrite_play_id}};
                     }
                     playlist_arr = playlist_current.items;
-                    for (let it of playlist_arr) {
+                    for (let i = 0; i < playlist_arr.length; i++) {
+                        const it = playlist_arr[i];
                         it.conf.rate = get_rate_for_video(it, playlist_current);
+                        if (playlist_endpoints[it.playlist] == it.rowid) {
+                            if (i + 1 < playlist_arr.length)
+                                playlist_arr.splice(i + 1, playlist_arr.length - i - 1);
+                            break;
+                        }
                     }
                     send_video_info_for_remote_play('ilst', playlist_arr);
                     parse_list(playlist_arr);
@@ -776,11 +826,25 @@ function playlist_process_ffw(v) {
     save_playlist_item_settings({sec: video_manager_obj.currenttime()}, 'pinfo');
 }
 
+function playlist_process_f5pl_parse_sched(s) {
+    if (typeof(s) == 'number') return s;
+    else if (!s) return PLAYLIST_SCHED_REPLACE;
+    s = s.toLowerCase();
+    let si;
+    if ((si = parseInt(s)) == PLAYLIST_SCHED_AT_THE_END || s == 'true') return PLAYLIST_SCHED_AT_THE_END;
+    else if (si == PLAYLIST_SCHED_AT_THE_END_OF_PLAYLIST) return PLAYLIST_SCHED_AT_THE_END_OF_PLAYLIST;
+    else if (si == PLAYLIST_SCHED_AT_THE_END_OF_VIDEO) return PLAYLIST_SCHED_AT_THE_END_OF_VIDEO;
+    else return PLAYLIST_SCHED_REPLACE;
+}
+
 function playlist_process_f5pl(pls, sched) {
     if (playlist_current || pls.length) {
-        if (!playlist_current) sched = false;
+        if (!playlist_current) sched = PLAYLIST_SCHED_REPLACE;
+        else sched = playlist_process_f5pl_parse_sched(sched);
+        if (sched == PLAYLIST_SCHED_REPLACE)
+            playlist_endpoints = {};
         playlist_dump(playlist_current_userid);
-        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name, sched && sched.toLowerCase() == 'true', false, pls.length);
+        playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name, sched, false, pls.length);
     }
 }
 
@@ -922,7 +986,7 @@ function get_startup_settings() {
             playlist_dump(useri);
             playlist_dump(useri, plnames[0]);
             for (let i = 1; i < plnames.length; i++) {
-                playlist_dump(useri, plnames[i], true);
+                playlist_dump(useri, plnames[i], PLAYLIST_SCHED_AT_THE_END);
             }
         }).catch(function() {
             manage_errors({rv: 501, err: 'Cannot find user cookie!'});
@@ -971,9 +1035,9 @@ function playlist_start_playing(idx, forceuid_if_reload) {
         while ((nextpls = playlist_sched.shift()) && nextpls.rowid != mypls);
         if (nextpls) {
             const plssched = [... playlist_sched];
-            playlist_dump(playlist_current_userid, nextpls.name, false, forceuid_if_reload?playlist_arr[rebuild].uid:null);
+            playlist_dump(playlist_current_userid, nextpls.name, PLAYLIST_SCHED_REPLACE, forceuid_if_reload?playlist_arr[rebuild].uid:null);
             for (const pls of plssched) {
-                playlist_dump(playlist_current_userid, pls.name, true);
+                playlist_dump(playlist_current_userid, pls.name, PLAYLIST_SCHED_AT_THE_END);
             }
         }
     } else {

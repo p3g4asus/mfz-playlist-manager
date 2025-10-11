@@ -54,6 +54,10 @@ const PL_ADD_VIEW_TYPE_CLASS = 'pl-add-view-type-class';
 const GOOGLE_CLIENT_ID = '60860343069-fg6qgf1fogpjrb6femd2p7n0l9nsq4vt.apps.googleusercontent.com';
 const DOWNLOADED_SUFFIX = '_d';
 const WS_URL = location.protocol == 'https:'?'wss://' + location.host + (PTHREG?'/' + PTHREG[1] + '-ws/':'/pm-ws/'):'ws://' + location.host + '/ws';
+const PLAYLIST_SCHED_REPLACE = 0;
+const PLAYLIST_SCHED_AT_THE_END_OF_PLAYLIST = 1;
+const PLAYLIST_SCHED_AT_THE_END = 2;
+const PLAYLIST_SCHED_AT_THE_END_OF_VIDEO = 3;
 
 const MIME_TYPES = {
     'video/ogg': 'opus,ogv',
