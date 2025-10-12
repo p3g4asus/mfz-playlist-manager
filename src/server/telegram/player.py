@@ -337,7 +337,7 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
                     updown_s = -updown_s
                 if updown_s == 1 or dirs == 1:
                     updown_i += 1
-            return rv + add + addtxt
+        return rv + add + addtxt
 
 
 class PlayerListMessage(RemoteListMessage):

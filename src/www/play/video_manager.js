@@ -841,7 +841,7 @@ function playlist_process_f5pl(pls, sched) {
     if (playlist_current || pls.length) {
         if (!playlist_current) sched = PLAYLIST_SCHED_REPLACE;
         else sched = playlist_process_f5pl_parse_sched(sched);
-        if (sched == PLAYLIST_SCHED_REPLACE)
+        if (sched == PLAYLIST_SCHED_REPLACE && playlist_current && pls.length)
             playlist_endpoints = {};
         playlist_dump(playlist_current_userid);
         playlist_dump(playlist_current_userid, pls.length?pls:playlist_current.name, sched, false, pls.length);
