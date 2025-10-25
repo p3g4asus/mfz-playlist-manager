@@ -322,22 +322,22 @@ if (login_needed == 5000) {
             now = time.time()
             if now - tstart < self.d3:
                 try:
-                    await page.get_by_text("Login/Registrati").click(timeout=10000)
+                    await page.get_by_text("Login o Registrati").click(timeout=10000)
                     exit_value |= 2
                     await sleep(3)
                     try:
-                        await page.get_by_text(re.compile("^Accedi con email"), exact=False).click(timeout=self.d1 * 1000 + 10000)
-                        exit_value |= 4
-                        await sleep(3)
+                        # await page.get_by_text(re.compile("^Accedi con email"), exact=False).click(timeout=self.d1 * 1000 + 10000)
+                        # exit_value |= 4
+                        # await sleep(3)
                         uspw = await self.get_user_credentials(userid)
                         if uspw:
-                            await page.get_by_placeholder("Password").fill(uspw[1], timeout=self.d2 * 1000 + 10000)
+                            await page.get_by_placeholder("Password *").fill(uspw[1], timeout=self.d2 * 1000 + 10000)
                             exit_value |= 8
                             await sleep(3)
-                            await page.get_by_placeholder("email").fill(uspw[0], timeout=10000)
+                            await page.get_by_placeholder("E-mail *").fill(uspw[0], timeout=10000)
                             exit_value |= 16
                             await sleep(3)
-                            await page.get_by_text("Continua").click(timeout=10000)
+                            await page.get_by_text("Invia").click(timeout=10000)
                             exit_value |= 32
                         break
                     except Exception as ex3:
