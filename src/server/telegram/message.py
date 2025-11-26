@@ -15,6 +15,7 @@ from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 from telegram_menu import BaseMessage, MenuButton, NavigationHandler
 
+from common.const import IMG_NO_THUMB
 from common.playlist import PlaylistItem
 from common.user import User
 
@@ -193,7 +194,12 @@ class StatusTMessage(BaseMessage):
             else:
                 await self.navigation.goto_menu(self, context, add_if_present=False, sync=False, going_home=True)
         except Exception:
-            _LOGGER.warning(f'send error {traceback.format_exc()}')
+            if self.picture and self.picture != IMG_NO_THUMB:
+                _LOGGER.warning(f'send error: trying fallback thumb (old was {self.picture})')
+                self.picture = IMG_NO_THUMB
+                await self.send_wrap(context)
+            else:
+                _LOGGER.warning(f'send error {traceback.format_exc()}')
 
     async def send(self, context: Optional[CallbackContext] = None, sync: bool = False):
         await self.navigation.navigation_schedule_wrapper(self.send_wrap(context), sync)
