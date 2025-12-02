@@ -173,8 +173,13 @@ class NameDurationStatus(Enum):
 
 
 class StatusTMessage(BaseMessage):
+    def set_pict_arr(self, picture: str):
+        self.pict_arr = picture.split('|') if picture else []
+        self.pict_idx = 1 if len(self.pict_arr) > 1 else 0
+
     def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", user: User = None, params: object = None, **argw) -> None:
-        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, **argw)
+        self.set_pict_arr(picture)
+        super().__init__(navigation, label, '' if not self.pict_arr else self.pict_arr[self.pict_idx], expiry_period, inlined, home_after, notification, input_field, **argw)
         self.status = NameDurationStatus.IDLE
         self.navigation: MyNavigationHandler
         self.sub_status = 0
@@ -195,8 +200,19 @@ class StatusTMessage(BaseMessage):
                 await self.navigation.goto_menu(self, context, add_if_present=False, sync=False, going_home=True)
         except Exception:
             if self.picture and self.picture != IMG_NO_THUMB:
-                _LOGGER.warning(f'send error: trying fallback thumb (old was {self.picture})')
-                self.picture = IMG_NO_THUMB
+                while True:
+                    if self.pict_idx + 1 < len(self.pict_arr):
+                        self.pict_idx += 1
+                        new_idx = self.pict_idx
+                        new_pict = await self.check_picture_url(self.pict_arr[self.pict_idx])
+                        if not new_pict:
+                            continue
+                    else:
+                        new_pict = IMG_NO_THUMB
+                        new_idx = -1
+                    break
+                _LOGGER.warning(f'send error: trying fallback thumb[{new_idx}] {new_pict} (old was {self.picture})')
+                self.picture = new_pict
                 await self.send_wrap(context)
             else:
                 _LOGGER.warning(f'send error {traceback.format_exc()}')
@@ -374,20 +390,32 @@ class NameDurationTMessage(DeletingTMessage):
             else:
                 await self.edit_or_select()
 
+    async def check_picture_url(self, url: str) -> str:
+        headers = {"range": "bytes=0-10", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
+        thumb = PlaylistItem.convert_img_url(url, f'{self.proc.params.link}/{self.proc.params.args["sid"]}')
+        if thumb and validators.url(thumb):
+            async with ClientSession() as session:
+                async with session.get(thumb, headers=headers) as resp:
+                    if not (resp.status >= 200 and resp.status < 300):
+                        return ''
+                    else:
+                        return thumb
+        else:
+            return ''
+
     async def set_picture_path(self):
         if self._old_thumb != self.thumb:
             self._old_thumb = self.thumb
-            headers = {"range": "bytes=0-10", "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0"}
-            thumb = PlaylistItem.convert_img_url(self.thumb, f'{self.proc.params.link}/{self.proc.params.args["sid"]}')
-            if thumb and validators.url(thumb):
-                async with ClientSession() as session:
-                    async with session.get(thumb, headers=headers) as resp:
-                        if not (resp.status >= 200 and resp.status < 300):
-                            self.picture = ''
-                        else:
-                            self.picture = thumb
-            else:
-                self.picture = ''
+            self.set_pict_arr(self.thumb)
+            self.picture = ''
+            for i in range(len(self.pict_arr)):
+                real_idx = (i + self.pict_idx) % len(self.pict_arr)
+                tt = self.pict_arr[real_idx]
+                thumb = await self.check_picture_url(tt)
+                if thumb:
+                    self.picture = thumb
+                    self.pict_idx = real_idx
+                    break
 
     @abstractmethod
     def refresh_from_cache(self):

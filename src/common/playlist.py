@@ -363,7 +363,9 @@ class PlaylistItem(JSONAble, Fieldable):
                 self.playlist == other.playlist and self.playlist
 
     @staticmethod
-    def convert_img_url(thumb, host):
+    def convert_img_url(thumb, host, idx=0):
+        thumb = thumb.split('|')
+        thumb = thumb[idx if idx < len(thumb) else 0]
         return urllib.parse.unquote(thumb[6:]) if thumb and thumb[0] == '?' else (f'{host}-s/{thumb[1:]}' if thumb and thumb[0] == '@' else thumb)
 
     def get_conv_link(self, host, convall, token=None, additional: dict = dict()):

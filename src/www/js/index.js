@@ -274,6 +274,7 @@ function bootstrap_table_date_uploader_formatter(row, classv) {
 }
 
 function playlist_transform_thumbnail_path(dbpath) {
+    dbpath = dbpath.split('|')[0];
     return dbpath[0] == '?'?MAIN_PATH + 'img' + dbpath:(dbpath[0] == '@'?MAIN_PATH_S + dbpath.substring(1):dbpath);
 }
 

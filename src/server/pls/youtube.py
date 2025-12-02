@@ -472,10 +472,11 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                             video['uploader_id'] = base.get('channelId')
                                                                             video['description'] = base.get('description')
                                                                             video['title'] = base.get('title', video['title'])
+                                                                            thumb = ''
                                                                             for x in ths:
                                                                                 if x in base['thumbnails']:
-                                                                                    video['thumbnail'] = base['thumbnails'][x]['url']
-                                                                                    break
+                                                                                    thumb += ('|' if thumb else '') + base['thumbnails'][x]['url']
+                                                                            video['thumbnail'] = thumb if thumb else IMG_NO_THUMB
                                                             except Exception:
                                                                 _LOGGER.error(f'APIKEY ERROR {traceback.format_exc()}')
                                                         if 'upload_date' not in video:
