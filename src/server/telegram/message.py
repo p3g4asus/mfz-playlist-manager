@@ -175,7 +175,7 @@ class NameDurationStatus(Enum):
 class StatusTMessage(BaseMessage):
     def set_pict_arr(self, picture: str):
         self.pict_arr = picture.split('|') if picture else []
-        self.pict_idx = 1 if len(self.pict_arr) > 1 else 0
+        self.pict_idx = 2 if len(self.pict_arr) > 2 else (1 if len(self.pict_arr) > 1 else 0)
 
     def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", user: User = None, params: object = None, **argw) -> None:
         self.set_pict_arr(picture)
