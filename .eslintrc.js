@@ -157,7 +157,8 @@ module.exports = {
         'PLAYLIST_SCHED_REPLACE': true,
         'PLAYLIST_SCHED_AT_THE_END_OF_PLAYLIST': true,
         'PLAYLIST_SCHED_AT_THE_END': true,
-        'PLAYLIST_SCHED_AT_THE_END_OF_VIDEO': true
+        'PLAYLIST_SCHED_AT_THE_END_OF_VIDEO': true,
+        'PLAYLIST_SCHED_AT_THE_END_OF_FIRST_VIDEO': true
     },
     'rules': {
         'indent': [

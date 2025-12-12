@@ -25,13 +25,15 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
         'replacing current one',
         'at the end of current playlist',
         'at the end of all playlists',
-        'at the end of current video'
+        'at the end of current video',
+        'at the end of last playlist\'s first video'
     )
     PLAYLIST_SCHED_TYPE_ABBR = (
-        'RP',
+        'REPLACE \U000026D5',
         'EP',
         'EA',
-        'EV'
+        'EV',
+        'EFV'
     )
 
     def __init__(self, name: str, url: str, sel: bool, navigation: NavigationHandler, remoteid: int) -> None:
@@ -276,7 +278,7 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
         elif self.status == NameDurationStatus.UPDATING_WAITING:
             self.input_field = u'\U0001F449'
             for i, abbr in enumerate(PlayerInfoMessage.PLAYLIST_SCHED_TYPE_ABBR):
-                self.add_button(abbr + ('\U00002705' if i == self.sched_type else ''), self.sched_prepare, args=(i, ), new_row=(i == 0))
+                self.add_button(abbr + ('\U00002705' if i == self.sched_type else ''), self.sched_prepare, args=(i, ), new_row=(i == 0 or i == 1))
             for i, plname in enumerate(self.plnames):
                 self.add_button(plname, self.sync_changes, args=(plname, self.sched_type), new_row=i == 0)
             self.add_button(u'\U00002934', self.switch_to_idle)

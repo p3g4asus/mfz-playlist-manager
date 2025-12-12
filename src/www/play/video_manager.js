@@ -581,13 +581,21 @@ class DumpJob {
                     const pls = msg.playlists[0];
                     if (playlist_item_current) {
                         let list_changed = false;
-                        if (this.sched == PLAYLIST_SCHED_AT_THE_END_OF_VIDEO) {
+                        if (this.sched == PLAYLIST_SCHED_AT_THE_END_OF_VIDEO || (this.sched == PLAYLIST_SCHED_AT_THE_END_OF_FIRST_VIDEO && !playlist_sched.length)) {
                             if (playlist_endpoints[playlist_current.rowid]) delete playlist_endpoints[playlist_current.rowid];
                             else {
                                 playlist_endpoints[playlist_current.rowid] = playlist_item_current.rowid;
                                 playlist_sched.length = 0;
                             }
                             list_changed = true;
+                        } else if (this.sched == PLAYLIST_SCHED_AT_THE_END_OF_FIRST_VIDEO) {
+                            let lastpl;
+                            const item = (lastpl = playlist_sched[playlist_sched.length - 1]).items.length ? lastpl.items[0] : null;
+                            if (item) {
+                                if (playlist_endpoints[lastpl.rowid]) delete playlist_endpoints[lastpl.rowid];
+                                else playlist_endpoints[lastpl.rowid] = item.rowid;
+                                list_changed = true;
+                            }
                         } else if (this.sched == PLAYLIST_SCHED_AT_THE_END_OF_PLAYLIST) {
                             if (playlist_sched.length) {
                                 playlist_sched.length = 0;
@@ -834,6 +842,7 @@ function playlist_process_f5pl_parse_sched(s) {
     if ((si = parseInt(s)) == PLAYLIST_SCHED_AT_THE_END || s == 'true') return PLAYLIST_SCHED_AT_THE_END;
     else if (si == PLAYLIST_SCHED_AT_THE_END_OF_PLAYLIST) return PLAYLIST_SCHED_AT_THE_END_OF_PLAYLIST;
     else if (si == PLAYLIST_SCHED_AT_THE_END_OF_VIDEO) return PLAYLIST_SCHED_AT_THE_END_OF_VIDEO;
+    else if (si == PLAYLIST_SCHED_AT_THE_END_OF_FIRST_VIDEO) return PLAYLIST_SCHED_AT_THE_END_OF_FIRST_VIDEO;
     else return PLAYLIST_SCHED_REPLACE;
 }
 
