@@ -499,6 +499,18 @@ function playlist_dump_refresh_sched() {
     playlist_sched.length = 0;
 }
 
+function playlist_get_first_item(pls) {
+    const first = pls.conf?.play?.id;
+    let itrv = null;
+    for (const it of pls.items) {
+        if (it.uid == first)
+            return it;
+        else if (!itrv)
+            itrv = it;
+    }
+    return itrv;
+}
+
 class DumpJob {
     static link_arg = '';
     static init_link_arg() {
@@ -590,7 +602,7 @@ class DumpJob {
                             list_changed = true;
                         } else if (this.sched == PLAYLIST_SCHED_AT_THE_END_OF_FIRST_VIDEO) {
                             let lastpl;
-                            const item = (lastpl = playlist_sched[playlist_sched.length - 1]).items.length ? lastpl.items[0] : null;
+                            const item = playlist_get_first_item(lastpl = playlist_sched[playlist_sched.length - 1]);
                             if (item) {
                                 if (playlist_endpoints[lastpl.rowid]) delete playlist_endpoints[lastpl.rowid];
                                 else playlist_endpoints[lastpl.rowid] = item.rowid;
