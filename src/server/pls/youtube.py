@@ -405,8 +405,15 @@ class MessageProcessor(RefreshMessageProcessor):
                                                             video['thumbnail'] = re.sub(r'[0-9]+x[0-9]+\.jpg', '0x0.jpg', video['thumbnail'])
                                                         else:
                                                             if 'timestamp' not in video or 'thumbnail' not in video or not video['timestamp'] or not video['thumbnail']:
+                                                                oldvideo = video
                                                                 video = dict()
                                                                 await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video)
+                                                                if 'title' not in video or not video['title']:
+                                                                    video['title'] = oldvideo.get('title', 'N/A')
+                                                                if 'thumbnail' not in video or not video['thumbnail']:
+                                                                    video['thumbnail'] = oldvideo.get('thumbnail', IMG_NO_THUMB)
+                                                                if 'timestamp' not in video or not video['timestamp']:
+                                                                    video['timestamp'] = oldvideo.get('timestamp', None)
                                                                 video_priv = video
                                                             if 'timestamp' in video and video['timestamp']:
                                                                 datepubo = datepubo_conf = datetime.fromtimestamp(int(video['timestamp']))
