@@ -477,6 +477,86 @@ class YesNoTMessage(BaseMessage):
         return self.input_field
 
 
+class SetRateTMessage(StatusTMessage):
+    def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", user: User = None, params: object = None, **argw) -> None:
+        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, user, params, **argw)
+        self.modding_rate: list[str] = [5] * 5
+        self.init_rate: Optional[float] = None
+
+    def modding_rate_del(self) -> str:
+        if self.modding_rate:
+            self.modding_rate.pop(0)
+        return self.modding_rate_conv()
+
+    def modding_rate_conv(self) -> str:
+        ss = ''
+        ln = len(self.modding_rate)
+        for i, s in reversed(list(enumerate(self.modding_rate))):
+            if i == 0 and ln > 2:
+                ss = s + '.' + ss
+            else:
+                ss = s + ss
+        if ln == 1:
+            ss = '_._' + ss
+        elif ln == 0:
+            ss = '_.__'
+        elif ln == 2:
+            ss = '_.' + ss
+        return ss
+
+    async def modding_rate_mod(self, args):
+        if not args[0]:
+            self.modding_rate_del()
+        elif args[0] == -1:
+            self.modding_rate = [5] * 5
+            await self.switch_to_idle()
+            return
+        else:
+            self.modding_rate_char(args[0])
+        await self.edit_or_select()
+
+    def modding_rate_char(self, char) -> str:
+        ln = len(self.modding_rate)
+        if ln == 2:
+            self.modding_rate.insert(0, str(char))
+        elif ln < 3:
+            self.modding_rate.append(str(char))
+        return self.modding_rate_conv()
+
+    def set_init_rate(self, init_rate: Optional[float] = None):
+        if init_rate is None or (init_rate < 10.0 and init_rate > 0.0):
+            self.init_rate = init_rate
+
+    def modding_rate_get(self) -> str:
+        if len(self.modding_rate) > 3:
+            if self.init_rate is not None:
+                self.modding_rate = list(f'{int(self.init_rate * 100)}')
+            else:
+                self.modding_rate = []
+        return self.modding_rate_conv()
+
+    def modding_rate_float(self) -> Optional[float]:
+        if len(self.modding_rate) < 3:
+            return None
+        else:
+            return int(''.join(self.modding_rate)) / 100.0
+
+    @abstractmethod
+    async def modding_rate_send(self):
+        pass
+
+    async def update(self, context: Union[CallbackContext, None] = None) -> str:
+        self.add_button(u'\U0001F3C3 ' + self.modding_rate_get(), self.modding_rate_send)
+        for c in '1234567890':
+            if len(self.modding_rate) < 3:
+                self.add_button(c, self.modding_rate_mod, args=(c, ), new_row=c == '1')
+            else:
+                self.add_button(' ', new_row=c == '1')
+        self.add_button('<', self.modding_rate_mod, args=(None, ))
+        self.add_button(':cross_mark: Abort', self.modding_rate_mod, args=(-1, ))
+        return await super().update(context)
+
+
 class ChangeTimeTMessage(StatusTMessage):
     MT_SEPARATORS = ['d ', 'h ', 'm ', 's']
     MT_MUL = [86400, 3600, 60, 1]

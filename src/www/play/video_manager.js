@@ -244,7 +244,7 @@ function get_duration_from_video_manager() {
 
 function video_playlist_has_custom_rate(video, pls) {
     let vcp, pcpl, vrate;
-    return video && (vcp = video.conf.playlist) && (pcpl = pls.conf.play) && (pcpl = pcpl.rates) && typeof(vrate = pcpl[vcp]) === 'number'?vrate:0;
+    return video && (typeof(vrate = video.conf.rate) === 'number' || ((vcp = video.conf.playlist) && (pcpl = pls.conf.play) && (pcpl = pcpl.rates) && typeof(vrate = pcpl[vcp]) === 'number'))?vrate:0;
 }
 
 function get_rate_for_video(video, pls) {

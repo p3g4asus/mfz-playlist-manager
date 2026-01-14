@@ -851,10 +851,13 @@ class MessageProcessor(AbstractMessageProcessor):
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                 mod = True
-                if (tm := msg.f('sec')) is not None:
-                    it.conf['sec'] = tm
-                elif 'sec' in it.conf:
-                    del it.conf['sec']
+                key = msg.f('key')
+                if not (key := msg.f('key')):
+                    key = 'sec'
+                if (tm := msg.f(key)) is not None:
+                    it.conf[key] = tm
+                elif key in it.conf:
+                    del it.conf[key]
                 else:
                     mod = False
                 if mod:
@@ -866,7 +869,6 @@ class MessageProcessor(AbstractMessageProcessor):
                 return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-
 
     async def processPlaySett(self, msg, userid, executor):
         x = msg.playlistId()

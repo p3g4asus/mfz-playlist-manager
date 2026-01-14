@@ -24,13 +24,13 @@ from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
 from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_on_item_updated, cache_sort, cache_store
 from server.telegram.pages import ListPagesTMessage, PageGenerator
-from server.telegram.message import ChangeTimeTMessage, DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, StatusTMessage, duration2string
+from server.telegram.message import ChangeTimeTMessage, DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, SetRateTMessage, StatusTMessage, duration2string
 from server.telegram.refresh import RefreshingTMessage
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
+class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMessage):
 
     def refresh_from_cache(self):
         obj = cache_get_item(self.proc.user.rowid, self.pid, self.id)
@@ -46,6 +46,11 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
             self.thumb = self.obj.img
             self.deleted = self.obj.seen
             self.is_playing = p.playlist.conf.get('play', dict()).get('id') == self.obj.uid
+            self.rate = self.obj.conf.get('rate', None)
+            if not self.rate and (vcp := self.obj.conf.get('playlist', None)):
+                self.rate = p.playlist.conf["play"]["rates"][vcp] if "play" in p.playlist.conf and "rates" in p.playlist.conf["play"] and vcp in p.playlist.conf["play"]["rates"] else None
+            if not self.rate:
+                self.rate = p.playlist.conf["play"]["rate"] if "play" in p.playlist.conf and "rate" in p.playlist.conf["play"] else 1.0
             return True
         else:
             return False
@@ -54,7 +59,9 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
         self.pid = pid
         self.current_sort: str = ''
         self.download_message: PlaylistMessage = None
+        self.rate_for_single_video: bool = True
         ChangeTimeTMessage.__init__(self, navigation)
+        SetRateTMessage.__init__(self, navigation, user=user, params=params)
         NameDurationTMessage.__init__(self, navigation, myid, user, params)
 
     def slash_message_processed(self, text: str) -> bool:
@@ -231,6 +238,33 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
             self.return_msg = f'Error {pl.rv} dumping {self.name} :thumbs_down:'
         await self.switch_to_idle()
 
+    async def modding_rate_send(self):
+        secs = self.modding_rate_float()
+        if not self.rate_for_single_video and (vcp := self.obj.conf.get('playlist', None)):
+            pl = PlaylistMessage(CMD_PLAYID, playlist=self.pid, rates=secs, key=vcp)
+            pl = await self.proc.process(pl)
+            if pl.rv == 0:
+                plTg = cache_get(self.proc.user.rowid, self.pid)
+                plTg.playlist.conf.update(pl.playlist.conf)
+                if plTg.message:
+                    await plTg.message.edit_or_select_items()
+                self.return_msg = 'Set rate OK :thumbs_up:'
+            else:
+                self.return_msg = f'Error {pl.rv} setting rate :thumbs_down:'
+        elif self.rate_for_single_video:
+            pl = PlaylistMessage(CMD_PLAYTIME, playlistitem=self.id, rate=secs, key='rate')
+            pl = await self.proc.process(pl)
+            if pl.rv == 0:
+                if secs is not None:
+                    self.obj.conf['rate'] = secs
+                elif 'rate' in self.obj.conf:
+                    del self.obj.conf['rate']
+                self.return_msg = 'Set rate OK :thumbs_up:'
+            else:
+                self.return_msg = f'Error {pl.rv} setting rate :thumbs_down:'
+        self.modding_rate = [5] * 5
+        await self.switch_to_idle()
+
     async def modding_time_send(self):
         secs = self.modding_time_secs()
         pl = PlaylistMessage(CMD_PLAYTIME, playlistitem=self.id, sec=secs)
@@ -246,6 +280,10 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
         self.modding_time = []
         await self.switch_to_idle()
 
+    async def toggle_rate_for_single_video(self, context: Optional[CallbackContext] = None):
+        self.rate_for_single_video = not self.rate_for_single_video
+        await self.edit_or_select(context)
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.refresh_from_cache()
@@ -260,6 +298,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
                 self.add_button(u'\U0001F4EE', self.switch_to_status, args=(NameDurationStatus.MOVING, ))
                 self.add_button(u'\U000025B6', self.set_play_id)
                 self.add_button(u'\U000023F2', self.switch_to_status, args=(NameDurationStatus.UPDATING_INIT, ))
+                self.add_button(u'\U0000267F', self.switch_to_status, args=(NameDurationStatus.UPDATING_START, ))
                 if self.type == "mediaset":
                     self.add_button(u'\U0001F511', self.switch_to_status, args=(NameDurationStatus.UPDATING_WAITING, ))
                 if self.obj.takes_space():
@@ -268,6 +307,10 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
             elif self.status == NameDurationStatus.UPDATING_INIT:
                 self.set_init_secs(self.obj.conf.get('sec', None))
                 await ChangeTimeTMessage.update(self, context)
+            elif self.status == NameDurationStatus.UPDATING_START:
+                self.add_button(u'\U0001F7E3For this' if self.rate_for_single_video else u'\U0001F7E2For playlist', self.toggle_rate_for_single_video, new_row=True)
+                self.set_init_rate(self.rate)
+                await SetRateTMessage.update(self, context)
             elif self.status == NameDurationStatus.UPDATING_WAITING:
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return 'Enter network filter ' + ("<a href=\"" + self.obj.conf["pageurl"] + "\">here</a> " if "pageurl" in self.obj.conf else "") + '<u>SMIL</u> or /autodetect'
@@ -345,7 +388,8 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
         upd += f'<a href="{self.obj.link}">{self.index + 1})<b> {escape(self.name)}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub[0:19]}\n'
         if self.obj.conf and 'author' in self.obj.conf and self.obj.conf['author']:
             upd += f'\U0001F64B: {self.obj.conf["author"]}\n'
-        upd += f'\U00002211: {self.obj.iorder}'
+        upd += f'\U00002211: {self.obj.iorder}  '
+        upd += f'Playback Rate {self.rate:.2f}\U0000274E'
         mainlnk = f'{self.proc.params.link}/{self.proc.params.args["sid"]}'
         if 'twitch.tv' in self.obj.link:
             lnk = f'{mainlnk}/twi?'
@@ -439,7 +483,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage):
             self.return_msg = f'Error {pl.rv} IOrdering {self.name} :thumbs_down:'
 
 
-class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
+class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage):
     def refresh_from_cache(self):
         obj = cache_get(self.proc.user.rowid, self.id)
         if obj:
@@ -462,13 +506,11 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
             return False
 
     def __init__(self, navigation: NavigationHandler, myid: int = None, user: User = None, params: object = None, **argw) -> None:
-        super().__init__(
-            navigation,
-            myid=myid,
-            user=user,
-            params=params)
         self.del_and_recreate = False
         self.current_sort: str = ''
+        RefreshingTMessage.__init__(self, navigation, user=user, params=params, **argw)
+        SetRateTMessage.__init__(self, navigation, user=user, params=params, **argw)
+        NameDurationTMessage.__init__(self, navigation, myid=myid, user=user, params=params, **argw)
         self.set_playlist(self.obj)
 
     def slash_message_processed(self, text):
@@ -749,6 +791,23 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
         else:
             self.return_msg = f'Error {pl.rv} IOrdering {self.name} :thumbs_down:'
 
+    async def modding_rate_send(self):
+        secs = self.modding_rate_float()
+        pl = PlaylistMessage(CMD_PLAYID, playlist=self.id, playrate=secs)
+        pl = await self.proc.process(pl)
+        if pl.rv == 0:
+            plTg = cache_get(self.proc.user.rowid, self.id)
+            plTg.playlist.conf.update(pl.playlist.conf)
+            if plTg.message:
+                await plTg.message.edit_or_select_items()
+            play = plTg.playlist.conf.get('play', {})
+            self.obj.conf['play'] = play
+            self.return_msg = 'Set rate OK :thumbs_up:'
+        else:
+            self.return_msg = f'Error {pl.rv} setting rate :thumbs_down:'
+        self.modding_rate = [5] * 5
+        await self.switch_to_idle()
+
     async def update(self, context: Union[CallbackContext, None] = None) -> str:
         self.keyboard: List[List["MenuButton"]] = [[]]
         self.refresh_from_cache()
@@ -766,6 +825,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 self.add_button(':eye:', self.list_items, args=(True, ))
                 self.add_button(u'\U0001F4A3', self.list_items, args=(PlaylistTMessage.list_items_taking_space, ))
                 self.add_button('F5', self.dump_playlist)
+                self.add_button(u'\U0000267F', self.switch_to_status, args=(NameDurationStatus.MOVING, ))
                 self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{lnk}-s/play/workout.htm?{urlencode(dict(name=self.name))}', new_row=True)
                 self.add_button(u'\U0001F4D2', btype=ButtonType.LINK, web_app_url=f'{lnk}-s/index.htm?{urlencode(dict(pid=self.id))}')
                 # self.add_button(':play_button:', btype=ButtonType.LINK, web_app_url=f'{self.proc.params.link}/{self.proc.params.args["sid"]}-s/play/workout.htm?{urlencode(dict(name=self.name))}')
@@ -773,6 +833,9 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage):
                 self.input_field = f'Enter new name for {self.name}'
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return f'Enter new name for <b>{self.name}</b>'
+            elif self.status == NameDurationStatus.MOVING:
+                self.set_init_rate(self.obj.conf["play"]["rate"] if "play" in self.obj.conf and "rate" in self.obj.conf["play"] else None)
+                await SetRateTMessage.update(self, context)
             elif self.status == NameDurationStatus.DELETING_CONFIRM:
                 self.input_field = u'\U0001F449'
                 self.add_button('\U00002705 Yes', self.delete_item_pre_pre, args=(CMD_DEL, ))
