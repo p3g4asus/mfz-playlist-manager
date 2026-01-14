@@ -485,7 +485,7 @@ class SetRateTMessage(StatusTMessage):
 
     def modding_rate_del(self) -> str:
         if self.modding_rate:
-            self.modding_rate.pop(0)
+            self.modding_rate.pop()
         return self.modding_rate_conv()
 
     def modding_rate_conv(self) -> str:
@@ -517,9 +517,7 @@ class SetRateTMessage(StatusTMessage):
 
     def modding_rate_char(self, char) -> str:
         ln = len(self.modding_rate)
-        if ln == 2:
-            self.modding_rate.insert(0, str(char))
-        elif ln < 3:
+        if ln < 3:
             self.modding_rate.append(str(char))
         return self.modding_rate_conv()
 
@@ -554,7 +552,7 @@ class SetRateTMessage(StatusTMessage):
                 self.add_button(' ', new_row=c == '1')
         self.add_button('<', self.modding_rate_mod, args=(None, ))
         self.add_button(':cross_mark: Abort', self.modding_rate_mod, args=(-1, ))
-        return await super().update(context)
+        return await StatusTMessage.update(context)
 
 
 class ChangeTimeTMessage(StatusTMessage):
@@ -700,4 +698,4 @@ class ChangeTimeTMessage(StatusTMessage):
                 self.add_button(' ', new_row=c == '1')
         self.add_button('<', self.modding_time_mod, args=(None, ))
         self.add_button(':cross_mark: Abort', self.modding_time_mod, args=(-1, ))
-        return await super().update(context)
+        return await StatusTMessage.update(context)
