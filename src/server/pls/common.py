@@ -17,7 +17,7 @@ from collections import OrderedDict
 from datetime import datetime
 from functools import partial
 from os import makedirs, remove, rename
-from os.path import join, realpath, split, splitext
+from os.path import join, isfile, realpath, split, splitext
 from shutil import move, rmtree
 
 from aiosqlite import Connection
@@ -447,6 +447,15 @@ class MessageProcessor(AbstractMessageProcessor):
             self.osc_t = None
             self.osc_c = None
 
+        def additional_ytdl_opts(self) -> dict:
+            if isfile(fj := join(self.dl_dir, 'yt-dlp.json')):
+                try:
+                    return json.load(open(fj))
+                except Exception:
+                    _LOGGER.warning(f'Cannot load additional ytdl opts from {fj}')
+                    pass
+            return dict()
+
         async def dl(self, status, executor):
             msg = self.msg
             format = msg.f('fmt')
@@ -480,6 +489,8 @@ class MessageProcessor(AbstractMessageProcessor):
             else:
                 kw = dict()
                 post.pop(1)
+            dctadd = self.additional_ytdl_opts()
+            kw.update(dctadd)
             if (co := self.pls.conf.get('dl', dict()).get('cookie')):
                 tmp = NamedTemporaryFile(delete=False)
                 try:
