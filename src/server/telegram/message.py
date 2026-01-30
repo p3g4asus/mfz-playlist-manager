@@ -14,6 +14,7 @@ from aiohttp import ClientSession
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 from telegram_menu import BaseMessage, MenuButton, NavigationHandler
+from telegram_menu.models import AttachmentType
 
 from common.const import IMG_NO_THUMB
 from common.playlist import PlaylistItem
@@ -475,6 +476,31 @@ class YesNoTMessage(BaseMessage):
         self.add_button(self.yes_btn, self.on_yes, args=self.yes_args)
         self.add_button(self.no_btn, self.on_no, args=self.no_args)
         return self.input_field
+
+
+class CookieFileProcessTMessage(StatusTMessage):
+    def __init__(self, navigation: NavigationHandler, label: str = "", picture: str = "", expiry_period: Optional[timedelta] = None, inlined: bool = False, home_after: bool = False, notification: bool = True, input_field: str = "", user: User = None, params: object = None, initial_status: NameDurationStatus = NameDurationStatus.IDLE, **argw) -> None:
+        super().__init__(navigation, label, picture, expiry_period, inlined, home_after, notification, input_field, user, params, **argw)
+        self.initial_status = initial_status
+
+    async def file_input(self, text: str, attachment: AttachmentType, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
+        if self.status == self.initial_status or self.initial_status is None:
+            file = await attachment.get_file()
+            try:
+                file_text = (await file.download_as_bytearray()).decode('utf-8')
+                delkey = False
+                if not file_text or len(file_text) < 10:
+                    delkey = True
+                elif not file_text.startswith('# Netscape HTTP Cookie File'):
+                    raise ValueError('Invalid cookie file format')
+                self.return_msg = await self.process_received_cookie(file_text, delkey)
+            except UnicodeDecodeError | ValueError:
+                self.return_msg = 'Invalid cookie file :thumbs_down:'
+            await self.switch_to_idle()
+
+    @abstractmethod
+    async def process_received_cookie(self, file_text: str, delete: bool) -> str:
+        pass
 
 
 class SetRateTMessage(StatusTMessage):

@@ -24,7 +24,7 @@ from common.playlist import Playlist, PlaylistItem, PlaylistMessage
 from common.user import User
 from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_on_item_updated, cache_sort, cache_store
 from server.telegram.pages import ListPagesTMessage, PageGenerator
-from server.telegram.message import ChangeTimeTMessage, DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, SetRateTMessage, StatusTMessage, duration2string
+from server.telegram.message import ChangeTimeTMessage, CookieFileProcessTMessage, DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, SetRateTMessage, StatusTMessage, duration2string
 from server.telegram.refresh import RefreshingTMessage
 
 _LOGGER = logging.getLogger(__name__)
@@ -483,7 +483,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
             self.return_msg = f'Error {pl.rv} IOrdering {self.name} :thumbs_down:'
 
 
-class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage):
+class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage, CookieFileProcessTMessage):
     def refresh_from_cache(self):
         obj = cache_get(self.proc.user.rowid, self.id)
         if obj:
@@ -510,21 +510,15 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
         self.current_sort: str = ''
         RefreshingTMessage.__init__(self, navigation, user=user, params=params, **argw)
         SetRateTMessage.__init__(self, navigation, user=user, params=params, **argw)
+        CookieFileProcessTMessage.__init__(self, navigation, user=user, params=params, **argw)
         NameDurationTMessage.__init__(self, navigation, myid=myid, user=user, params=params, **argw)
         self.set_playlist(self.obj)
 
     def slash_message_processed(self, text):
         return super().slash_message_processed(text) or text.startswith(f'/coo{self.id}')
 
-    async def file_input(self, text: str, attachment: AttachmentType, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
-        file = await attachment.get_file()
+    async def process_received_cookie(self, file_text: str, delkey: bool) -> str:
         try:
-            file_text = (await file.download_as_bytearray()).decode('utf-8')
-            delkey = False
-            if not file_text or len(file_text) < 10:
-                delkey = True
-            elif not file_text.startswith('# Netscape HTTP Cookie File'):
-                raise ValueError('Invalid cookie file format')
             confdl = self.obj.conf.get('dl', {})
             if delkey:
                 if 'cookie' in confdl:
@@ -535,12 +529,11 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
             pl = PlaylistMessage(CMD_DL_SETTINGS, playlist=self.id, dl=confdl)
             pl = await self.proc.process(pl)
             if pl.rv == 0:
-                self.return_msg = f'Cookie file for {self.name}[{self.id}] store OK :thumbs_up:'
+                return f'Cookie file for {self.name}[{self.id}] store OK :thumbs_up:'
             else:
-                self.return_msg = f'Error {pl.rv} storing cookie file for {self.name}[{self.id}] :thumbs_down:'
+                return f'Error {pl.rv} storing cookie file for {self.name}[{self.id}] :thumbs_down:'
         except UnicodeDecodeError | ValueError:
-            self.return_msg = 'Invalid cookie file :thumbs_down:'
-        await self.switch_to_idle()
+            return 'Invalid cookie file :thumbs_down:'
 
     async def remove_from_sort(self) -> None:
         if self.current_sort:

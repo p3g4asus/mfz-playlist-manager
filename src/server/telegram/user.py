@@ -1,6 +1,6 @@
 import asyncio
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import timedelta
 import re
 from time import time
 from typing import Any, List, Optional
@@ -11,7 +11,7 @@ from telegram.ext._callbackcontext import CallbackContext
 from common.const import CMD_USER_SETTINGS
 from common.playlist import PlaylistMessage
 from common.user import User
-from server.telegram.message import NameDurationStatus, StatusTMessage
+from server.telegram.message import CookieFileProcessTMessage, NameDurationStatus, StatusTMessage
 
 
 class GenericSetting:
@@ -32,6 +32,9 @@ class GenericSetting:
         else:
             return False
 
+    def set_shortcut(self) -> str:
+        return '/' + self.field
+
     def from_user_conf(self, sett: dict):
         self.obj_value = sett[self.field] if self.field in sett else self.default
 
@@ -46,7 +49,7 @@ class GenericSetting:
         return bool((mo := self._parse(text)) and self.match_to_value(mo))
 
     def __str__(self) -> str:
-        return f'<code>{self.desc}: <u>{self.obj_value}</u></code> /{self.field}\n'
+        return f'<code>{self.desc}: <u>{self.obj_value}</u></code> {self.set_shortcut()}\n'
 
     def req(self) -> str:
         return f'Enter {self.desc}:'
@@ -55,10 +58,18 @@ class GenericSetting:
 class PasswordSetting(GenericSetting):
     def __str__(self) -> str:
         s = f'{self.obj_value[0]}{(len(self.obj_value) - 2) * "*"}{self.obj_value[-1]}' if self.obj_value else "----------"
-        return f'<code>{self.desc}: <u>{s}</u></code> /{self.field}\n'
+        return f'<code>{self.desc}: <u>{s}</u></code> {self.set_shortcut()}\n'
 
 
-class UserSettingsMessage(StatusTMessage):
+class CookieSetting(GenericSetting):
+    def __str__(self) -> str:
+        return f'<code>{self.desc}: <u>{"NOT SET" if not self.obj_value else "SET"}</u></code>\n'
+
+    def set_shortcut(self) -> str:
+        return ''
+
+
+class UserSettingsMessage(CookieFileProcessTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, **argw) -> None:
         super().__init__(navigation, label=f'{self.__class__.__name__}{id(self)}', inlined=True, expiry_period=timedelta(minutes=10), user=user, params=params, **argw)
         self.user = User(self.proc.user.toJSON())
@@ -91,6 +102,13 @@ class UserSettingsMessage(StatusTMessage):
                 'youtube_apikey',
                 '',
                 cnf
+            ),
+            cookie=CookieSetting(
+                r'^# Netscape HTTP Cookie File',
+                'Download cookie',
+                'cookie',
+                '',
+                cnf
             )
         )
 
@@ -98,7 +116,21 @@ class UserSettingsMessage(StatusTMessage):
         self.current_setting = ''
         await self.edit_or_select()
 
-    async def settings_save(self, context: Optional[CallbackContext] = None):
+    async def process_received_cookie(self, file_text: str, delkey: bool) -> str:
+        try:
+            if delkey:
+                if 'cookie' in self.cnf:
+                    del self.cnf['cookie']
+            else:
+                self.cnf['cookie'] = file_text
+            self.changed = True
+            self.setts['cookie'].from_user_conf(self.cnf)
+            return await self.settings_save((False, ))
+        except UnicodeDecodeError | ValueError:
+            return 'Invalid cookie file :thumbs_down:'
+
+    async def settings_save(self, args, context: Optional[CallbackContext] = None):
+        should_return_idle = args[0]
         self.status = NameDurationStatus.UPDATING_RUNNING
         self.sub_status = 10
         self.scheduler_job = self.navigation.scheduler.add_job(
@@ -117,15 +149,18 @@ class UserSettingsMessage(StatusTMessage):
             await asyncio.sleep(1.5 - df)
         if pl.rv == 0:
             self.proc.user.conf['settings'] = deepcopy(self.cnf)
-            self.return_msg = ':thumbs_up:'
+            msg = ':thumbs_up:'
             self.changed = False
         else:
-            self.return_msg = f'Error {pl.rv} saving settings :thumbs_down:'
-        await self.switch_to_idle()
+            msg = f'Error {pl.rv} saving settings :thumbs_down:'
+        if should_return_idle:
+            self.return_msg = msg
+            await self.switch_to_idle()
+        return msg
 
     def slash_message_processed(self, text: str) -> bool:
-        for k, s in self.setts.items():
-            if text == '/' + k:
+        for _, s in self.setts.items():
+            if text == '/' + s.set_shortcut():
                 return True
         return super().slash_message_processed(text)
 
@@ -139,7 +174,7 @@ class UserSettingsMessage(StatusTMessage):
                 await self.edit_or_select(context)
         elif text and text[0] == '/':
             for k, s in self.setts.items():
-                if text == '/' + k:
+                if text == s.set_shortcut():
                     self.current_setting = k
                     await self.edit_or_select(context)
                     break
@@ -154,7 +189,7 @@ class UserSettingsMessage(StatusTMessage):
                 for _, s in self.setts.items():
                     msg += str(s)
                 if self.changed:
-                    self.add_button(u'\U0001F4BE', self.settings_save)
+                    self.add_button(u'\U0001F4BE', self.settings_save, args=(True, ))
                 # self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back)
             else:
                 self.add_button(':cross_mark: Abort', self.abort_edit)

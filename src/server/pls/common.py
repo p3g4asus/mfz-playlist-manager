@@ -441,11 +441,12 @@ class MessageProcessor(AbstractMessageProcessor):
             return msg
 
     class YTDLDownloader(Downloader):
-        def __init__(self, it: PlaylistItem, pls: Playlist, msg: PlaylistMessage, db: Connection, dl_dir: str) -> None:
+        def __init__(self, it: PlaylistItem, pls: Playlist, msg: PlaylistMessage, db: Connection, dl_dir: str, userid: int) -> None:
             super().__init__(it, pls, msg, db, dl_dir)
             self.osc_s = None
             self.osc_t = None
             self.osc_c = None
+            self.userid = userid
 
         def additional_ytdl_opts(self) -> dict:
             if isfile(fj := join(self.dl_dir, 'yt-dlp.json')):
@@ -489,9 +490,10 @@ class MessageProcessor(AbstractMessageProcessor):
             else:
                 kw = dict()
                 post.pop(1)
+            cookie = await User.get_settings(self.db, self.userid, 'cookie')
             dctadd = self.additional_ytdl_opts()
             kw.update(dctadd)
-            if (co := self.pls.conf.get('dl', dict()).get('cookie')):
+            if (co := self.pls.conf.get('dl', dict()).get('cookie')) or (co := cookie):
                 tmp = NamedTemporaryFile(delete=False)
                 try:
                     tmp.write(co.encode('utf-8'))
@@ -592,7 +594,7 @@ class MessageProcessor(AbstractMessageProcessor):
                 if pls:
                     drm = '_drm_k' in it.conf and it.conf['_drm_k'] and '_drm_m' in it.conf and it.conf['_drm_m']
                     sp = msg.init_send_status_with_ping()
-                    downloader = self.DRMDownloader(it, pls[0], msg, self.db, self.dl_dir) if drm else self.YTDLDownloader(it, pls[0], msg, self.db, self.dl_dir)
+                    downloader = self.DRMDownloader(it, pls[0], msg, self.db, self.dl_dir) if drm else self.YTDLDownloader(it, pls[0], msg, self.db, self.dl_dir, userid)
                     if pls[0].useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                     elif self.downloader:
