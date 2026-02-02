@@ -352,7 +352,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                             for video in playlist_dict['entries']:
                                                 video_priv = dict()
                                                 if not video:
-                                                    continue
+                                                    startFrom = 0
+                                                    break
                                                 try:
                                                     if set[0] == '%':
                                                         current_url = video['url']
