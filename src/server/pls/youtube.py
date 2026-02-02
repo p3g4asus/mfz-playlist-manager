@@ -351,6 +351,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                             secadd = 86000
                                             for video in playlist_dict['entries']:
                                                 video_priv = dict()
+                                                if not video:
+                                                    continue
                                                 try:
                                                     if set[0] == '%':
                                                         current_url = video['url']
