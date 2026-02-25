@@ -42,7 +42,7 @@ class TokenMessage(StatusTMessage):
     async def update(self, context: CallbackContext | None = None) -> str:
         self.keyboard_previous: List[List["MenuButton"]] = [[]]
         self.keyboard: List[List["MenuButton"]] = [[]]
-        msg = self.proc.user.token
+        msg = f'<code>{self.proc.user.token}</code>'
         if self.status == NameDurationStatus.IDLE:
             self.add_button(u'\U0001F503', self.token_refresh)
             # self.add_button(label=u"\U0001F519", callback=self.navigation.goto_back)

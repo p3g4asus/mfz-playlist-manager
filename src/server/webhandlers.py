@@ -635,8 +635,9 @@ async def twitch_link_finder(link, app):
 async def find_twitch_link(request, conv: int, it: PlaylistItem) -> str:
     link = it.link if isinstance(it, PlaylistItem) else it
     if conv == LINK_CONV_TWITCH:
-        links = await twitch_link_finder(link, request.app)
-        if links:
+        current = link
+        links = await twitch_link_finder(current, request.app)
+        if links and isinstance(links, dict):
             qual = request.query.get('qual', '0')
             keys = list(links.keys())
             if qual == 'audio':
@@ -653,6 +654,16 @@ async def find_twitch_link(request, conv: int, it: PlaylistItem) -> str:
                 elif qual >= ln:
                     qual = ln - 1
                 link = links[keys[qual]]['file']
+        else:
+            current_url = 'https://www.twitch.tv/videos/2407162616'
+            playlist_dict = dict()
+            await request.app.p.executor(youtube_dl_get_dict, current_url, playlist_dict)
+            if '_err' not in playlist_dict:
+                if 'formats' in playlist_dict:
+                    for fmt in playlist_dict['formats']:
+                        if (url := fmt.get('url', '')) and 'storyboard' not in fmt.get('format_note', '') and not fmt.get('format_id', '').startswith('sb'):
+                            link = url
+                            break
     return link
 
 
