@@ -115,9 +115,15 @@ function main_ws_queue_process(msg) {
     for (let i = 0; i < main_ws_queue.length; i++) {
         let el = main_ws_queue[i];
         if ((jsonobj = el.pop_msg_to_send())) {
-            let logString = JSON.stringify(jsonobj);
+            const rm = jsonobj._rr;
+            if (typeof rm !== 'undefined') delete jsonobj._rr;
+            const logString = JSON.stringify(jsonobj);
             main_ws.send(logString);
             console.log('WS >> ' + logString);
+            if (rm) {
+                main_ws_queue.splice(i, 1);
+                i--;
+            }
         }
         else if (msg) {
             if (el.process_arrived_msg(msg)) {

@@ -1,3 +1,4 @@
+from asyncio import TimerHandle, create_task, get_running_loop
 from datetime import datetime
 import hashlib
 import json
@@ -22,15 +23,15 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 from pathvalidate import sanitize_filename
 
-from common.const import (CMD_PING, CMD_REMOTEPLAY, CMD_REMOTEPLAY_JS,
-                          CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY, LINK_CONV_MASK, LINK_CONV_OPTION_VIDEO_EMBED,
+from common.const import (CMD_PING, CMD_REMOTEBROWSER_JS, CMD_REMOTEPLAY, CMD_REMOTEPLAY_ID, CMD_REMOTEPLAY_JS,
+                          CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PING, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY, LINK_CONV_MASK, LINK_CONV_OPTION_VIDEO_EMBED,
                           LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_ASYNCH_TWITCH,
                           LINK_CONV_OPTION_MASK, INVALID_SID, LINK_CONV_TWITCH,
                           MSG_UNAUTHORIZED)
 from common.playlist import LOAD_ITEMS_NO, Playlist, PlaylistItem, PlaylistMessage
 from common.timer import Timer
 from common.user import User
-from common.utils import MyEncoder, get_json_encoder
+from common.utils import MyEncoder, coro_could_safely_not_be_awaited, get_json_encoder
 from multidict import CIMultiDict
 from server.dict_auth_policy import check_credentials, identity2username
 from server.twitch_vod_id import vod_get_id
@@ -39,19 +40,24 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class RemoteItem(object):
+    REMOTE_ITEM_TICK_TIME: float = 14.0
+
     def __init__(self, hex: str, ws: Optional[web.WebSocketResponse] = None, hex_for_redto: Optional[str] = None, hex_for_redfr: Optional[str] = None, hex_for_telegram: Optional[str] = None, hex_for_sh: Optional[str] = None, uid: Optional[int] = None, **kwargs):
         self.hex: str = hex
         self.sh: str = None
         self.ws: web.WebSocketResponse = None
         self.uid = None
         self.redfr: list[str] = []
+        self.tick: float = 0.0
+        self.queue_id: int = 0
+        self.queue_timer: Optional[TimerHandle] = None
         self.redto: list[str] = []
         self.telegram: str = None
         self.d: Dict[str, Any] = dict()
         self.cmdqueue: list[str] = []
         self.refresh(ws=ws, hex_for_redfr=hex_for_redfr, hex_for_redto=hex_for_redto, hex_for_sh=hex_for_sh, hex_for_telegram=hex_for_telegram, uid=uid, **kwargs)
 
-    def refresh(self, ws: Optional[web.WebSocketResponse] = None, hex_for_redto: Optional[str] = None, hex_for_redfr: Optional[str] = None, hex_for_telegram: Optional[str] = None, hex_for_sh: Optional[str] = None, uid: Optional[int] = None, **kwargs):
+    def refresh(self, ws: Optional[web.WebSocketResponse] = None, hex_for_redto: Optional[str] = None, hex_for_redfr: Optional[str] = None, hex_for_telegram: Optional[str] = None, hex_for_sh: Optional[str] = None, uid: Optional[int] = None, tick: Optional[int | float] = None, **kwargs):
         if ws is not None:
             self.ws = ws
         if hex_for_telegram:
@@ -73,6 +79,8 @@ class RemoteItem(object):
             _REMOTE_ITEM_DB[hex_for_sh] = self
         if isinstance(uid, int):
             self.uid = uid
+        if isinstance(tick, int | float):
+            self.tick = tick
         self.d.update(kwargs)
 
     def sh_or_hex(self):
@@ -86,6 +94,9 @@ class RemoteItem(object):
             self.process_ws_error(self.hex)
             self.redfr.clear()
             return
+        if self.queue_timer:
+            self.queue_timer.cancel()
+            self.queue_timer = None
         dws = _REMOTE_ITEM_DB
         if not self.redto and not self.cmdqueue and sh in dws:
             del dws[sh]
@@ -94,33 +105,79 @@ class RemoteItem(object):
             if x in dws and (bb := dws[x]) and sh in (cc := bb.redto):
                 cc.remove(sh)
 
+    def queue_pop_id(self):
+        self.queue_id += 1
+        return self.queue_id
+
     async def queue_append(self, cmd: Optional[str] = None):
+        if cmd:
+            if not isinstance(cmd, str) and ((cmdc := cmd.get('cmd')) == CMD_REMOTEPLAY_JS or cmdc == CMD_REMOTEBROWSER_JS):
+                cmd[CMD_REMOTEPLAY_ID] = self.queue_pop_id()
         if (self.cmdqueue and cmd) or self.ws is None:
             if cmd:
                 self.cmdqueue.append(cmd)
         else:
             self.cmdqueue = await self.queue_process([cmd] if cmd else self.cmdqueue)
 
+    async def queue_pop(self, idv: Optional[int] = None):
+        if self.cmdqueue:
+            firstel = self.cmdqueue[0]
+            if idv is not None and not isinstance(firstel, str) and firstel.get(CMD_REMOTEPLAY_ID) == idv:
+                if self.queue_timer:
+                    self.queue_timer.cancel()
+                    self.queue_timer = None
+                self.cmdqueue.pop(0)
+                _LOGGER.debug(f'Cmd with id {idv} done for {self} : {firstel}')
+            await self.queue_append()
+
+    async def close_ws(self, idv: Optional[int] = None):
+        self.queue_timer = None
+        _LOGGER.info(f'Closing ws for {self} (timeout for cmd with id {idv})')
+        if self.ws:
+            try:
+                await self.ws.close()
+            except Exception:
+                _LOGGER.warning(f'Error closing ws for {self} : {traceback.format_exc()}')
+            self.process_ws_error()
+
     async def queue_process(self, queue: list[str]) -> list[str]:
         if not queue:
             return []
+        elif time() - self.tick >= RemoteItem.REMOTE_ITEM_TICK_TIME:
+            _LOGGER.warning(f'Queue processing for {self} skipped due to tick timeout')
+            return queue
         else:
             i = 0
             while True:
                 cmd = queue[i]
+                if not isinstance(cmd, str):
+                    wait = True if (idv := cmd.get(CMD_REMOTEPLAY_ID)) else False
+                    cmd = json.dumps(cmd, cls=MyEncoder)
+                else:
+                    wait = False
                 try:
+                    if wait:
+                        if not self.queue_timer or self.queue_timer.cancelled():
+                            self.queue_timer = get_running_loop().call_later(5.5, create_task, coro_could_safely_not_be_awaited(self.close_ws(idv)))
+                            _LOGGER.debug(f'Cmd sent for {self} : {cmd} -> waiting for response with id {idv}')
+                        else:
+                            return queue[i:]
                     await self.ws.send_str(cmd)
-                    if i == len(queue) - 1:
-                        return []
+                    if wait:
+                        return queue[i:]
                     else:
                         i += 1
+                        if i >= len(queue):
+                            return []
                 except Exception:
                     _LOGGER.warning(f'Remote play command [{self}] <- {cmd} failed {traceback.format_exc()}')
                     self.process_ws_error()
                     return queue[i:]
 
     def __str__(self):
-        return f'{self.hex}/{self.sh}'
+        h = self.hex[0:8] if self.hex else 'None'
+        s = self.sh[0:8] if self.sh else 'None'
+        return f'{h}/{s}'
 
     def __getitem__(self, item: str):
         return self.d.get(item)
@@ -149,7 +206,7 @@ class RemoteItem(object):
         for hex in self.redto:
             if hex in _REMOTE_ITEM_DB and (rit := _REMOTE_ITEM_DB[hex]):
                 _LOGGER.debug(f'Push redir to {self} -> {rit} : {cmd}')
-                await rit.queue_append(cmd)
+                await rit.queue_append(what)
 
     @staticmethod
     async def on_js_remoteplay_cmd(player_hex: str, ws: web.WebSocketResponse, userid: int | None, pl: PlaylistMessage) -> PlaylistMessage:
@@ -171,6 +228,39 @@ class RemoteItem(object):
             await rit.notify_push()
             await rit.queue_append()
             return pl.ok(**dct)
+
+    @staticmethod
+    async def on_js_remoteplay_cmd_done(player_hex, ws: web.WebSocketResponse, userid: int, pl: PlaylistMessage) -> Optional[PlaylistMessage]:
+        if not player_hex:
+            _LOGGER.warning("Invalid token")
+        else:
+            try:
+                dws = _REMOTE_ITEM_DB
+                rit: RemoteItem
+                dws[player_hex] = rit = dws.get(player_hex, RemoteItem(player_hex))
+                await rit.queue_pop(pl.f(CMD_REMOTEPLAY_ID))
+            except Exception:
+                _LOGGER.warning(f'Error processing remote play cmd done for {player_hex} : {traceback.format_exc()}')
+
+    @staticmethod
+    async def on_js_remoteplay_ping(player_hex, ws: web.WebSocketResponse, userid: int, pl: PlaylistMessage) -> PlaylistMessage:
+        if not player_hex:
+            _LOGGER.info("Invalid token")
+            return pl.err(502, MSG_UNAUTHORIZED)
+        else:
+            try:
+                dws = _REMOTE_ITEM_DB
+                rit: RemoteItem
+                dws[player_hex] = rit = dws.get(player_hex, RemoteItem(player_hex))
+                rit.refresh(ws=ws, uid=userid, tick=time())
+                if rit.cmdqueue:
+                    await rit.queue_append()
+                datefrom = datetime.fromtimestamp(float(pl.f('t', 0)))
+                dateto = datetime.now()
+                _LOGGER.info(f'Tick for remote {rit}: {datefrom.strftime("%Y-%m-%d %H:%M:%S.%f")} -> {dateto.strftime("%Y-%m-%d %H:%M:%S.%f")}')
+                return pl.ok()
+            except Exception:
+                return pl.err(509, traceback.format_exc())
 
     @staticmethod
     async def on_js_remoteplay_push(player_hex, ws: web.WebSocketResponse, userid: int, pl: PlaylistMessage) -> PlaylistMessage:
@@ -211,7 +301,7 @@ class RemoteItem(object):
                     return web.HTTPUnauthorized(body='Invalid token: please retry')
             else:
                 return web.HTTPNotAcceptable(body='Invalid params')
-            cmd = json.dumps(cmd)
+            # cmd = json.dumps(cmd)
             await rit.queue_append(cmd)
             return rv
         else:
@@ -998,8 +1088,7 @@ async def remote_command(request):
         else:
             _LOGGER.debug(f'Sending this dict: {outdict}')
             if typem == 0:
-                cmd = json.dumps(outdict)
-                await rit.queue_append(cmd)
+                await rit.queue_append(outdict)
                 outdict['queue'] = len(rit.cmdqueue)
             return web.json_response(outdict)
     else:
@@ -1016,8 +1105,12 @@ async def pls_h_2(request):
                     pl = PlaylistMessage(None, msg.json())
                     player_hex = phex[1:]
                     rv = None
-                    if pl.c(CMD_REMOTEPLAY):
+                    if pl.c(CMD_REMOTEPLAY) and pl.f(CMD_REMOTEPLAY_ID):
+                        rv = await RemoteItem.on_js_remoteplay_cmd_done(player_hex, ws, None, pl)
+                    elif pl.c(CMD_REMOTEPLAY):
                         rv = await RemoteItem.on_js_remoteplay_cmd(player_hex, ws, None, pl)
+                    elif pl.c(CMD_REMOTEPLAY_PING):
+                        rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, None, pl)
                     elif pl.c(CMD_REMOTEPLAY_PUSH):
                         rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, None, pl)
                     elif pl.c(CMD_REMOTEPLAY_PUSH_NOTIFY):
@@ -1048,8 +1141,12 @@ async def pls_h(request):
                 _LOGGER.info("Unauthorized")
                 await ws.send_str(json.dumps(pl.err(501, MSG_UNAUTHORIZED), cls=MyEncoder))
                 break
+            elif pl.c(CMD_REMOTEPLAY) and pl.f(CMD_REMOTEPLAY_ID):
+                rv = await RemoteItem.on_js_remoteplay_cmd_done(player_hex, ws, userid, pl)
             elif pl.c(CMD_REMOTEPLAY):
                 rv = await RemoteItem.on_js_remoteplay_cmd(player_hex, ws, userid, pl)
+            elif pl.c(CMD_REMOTEPLAY_PING):
+                rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, userid, pl)
             elif pl.c(CMD_REMOTEPLAY_PUSH):
                 rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, userid, pl)
             if rv is not None:

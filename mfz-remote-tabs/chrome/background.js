@@ -109,12 +109,16 @@ function updateCount(tabId, isOnRemoved) {
 }
 
 function remotejs_process(msg) {
+    const idv = msg[CMD_REMOTEPLAY_ID];
+    console.log('Remotejs command received: ' + msg.sub + ' with id ' + idv);
     try {
         if (msg.sub == CMD_REMOTEBROWSER_JS_ACTIVATE) {
             browser.tabs.update(parseInt(msg.id), {active: true}).then(() => {
                 console.log(msg.id + ' Tab activate ok');
+                remotejs_answ(msg, 0);
             }).catch(() => {
                 console.warn(msg.id + ' Tab activate fail');
+                remotejs_answ(msg, 508);
             });
         }
         else if (msg.sub == CMD_REMOTEBROWSER_JS_RELOAD) {
@@ -124,8 +128,10 @@ function remotejs_process(msg) {
                         console.log(tabId + ' Tab reload ok');
                     });
                 }
+                remotejs_answ(msg, 0);
             }).catch(() => {
                 console.warn(msg.id + ' Tab reload fail');
+                remotejs_answ(msg, 508);
             });
         }
         else if (msg.sub == CMD_REMOTEBROWSER_JS_MUTE) {
@@ -145,8 +151,10 @@ function remotejs_process(msg) {
                         });
                     }
                 }
+                remotejs_answ(msg, 0);
             }).catch(() => {
                 console.warn(msg.id + ' Tab mute fail');
+                remotejs_answ(msg, 508);
             });
         }
         else if (msg.sub == CMD_REMOTEBROWSER_JS_KEY) {
@@ -195,39 +203,61 @@ function remotejs_process(msg) {
                         });
                     }
                 }
+                remotejs_answ(msg, 0);
             }).catch((err) => {
                 console.warn('Send ' + msg.c + ' to active tab FAIL');
+                remotejs_answ(msg, 508);
             });
         }
         else if (msg.sub == CMD_REMOTEBROWSER_JS_CLOSE) {
             getTabId(msg.id).then((ids) => {
                 browser.tabs.remove(ids).then(() => {
                     console.log(msg.id + ' Tab close ok');
+                    remotejs_answ(msg, 0);
+                }).catch(() => {
+                    console.warn(msg.id + ' Tab close fail 2');
+                    remotejs_answ(msg, 508);
                 });
             }).catch(() => {
-                console.warn(msg.id + ' Tab close fail');
+                console.warn(msg.id + ' Tab close fail 1');
+                remotejs_answ(msg, 508);
             });
         }
         else if (msg.sub == CMD_REMOTEBROWSER_JS_GOTO) {
             if (msg.id == 'New') {
                 browser.tabs.create({url: msg.url, active: msg.act === 'true' || msg.act === 'True' || msg.act === true}).then(() => {
                     console.log(msg.url + ' Tab create ok');
+                    remotejs_answ(msg, 0);
                 }).catch(() => {
                     console.warn(msg.url + ' Tab create fail');
+                    remotejs_answ(msg, 508);
                 });
             } else {
                 browser.tabs.update(msg.id == 'None'?undefined:parseInt(msg.id), {url: msg.url, active: msg.act === 'true' || msg.act === 'True' || msg.act === true}).then(() => {
                     console.log(msg.id + ' Tab update ok');
+                    remotejs_answ(msg, 0);
                 }).catch(() => {
                     console.warn(msg.id + ' Tab update fail');
+                    remotejs_answ(msg, 508);
                 });
             }
+        } else {
+            console.warn('Unknown remotejs command: ' + msg.sub);
+            remotejs_answ(msg, 404);
         }
     }
     catch (e) {
         console.error(e.stack);
+        remotejs_answ(msg, 509);
     }
+}
+
+function remotejs_answ(msg, rv) {
+    let rmsg = {cmd: CMD_REMOTEPLAY, sub: msg.sub, rv: rv, _rr: true};
+    rmsg[CMD_REMOTEPLAY_ID] = msg[CMD_REMOTEPLAY_ID];
+    const el2 = new MainWSQueueElement(rmsg, null, 0, 1, 'remotejs_resp');
     remotejs_enqueue();
+    el2.enqueue();
 }
 
 function remotejs_recog(msg) {
@@ -237,6 +267,29 @@ function remotejs_recog(msg) {
 function remotejs_enqueue() {
     let el2 = new MainWSQueueElement(null, remotejs_recog, 0, 1, 'remotejs');
     el2.enqueue().then(remotejs_process);
+}
+
+function pingjs_recog(msg) {
+    return msg.cmd === CMD_REMOTEPLAY_PING? msg:null;
+}
+
+function pingjs_timeout(err) {
+    let errmsg = 'Exception detected: '+ err + '. Reconnecting';
+    console.log(errmsg);
+    main_ws_reconnect(main_ws_onopen2, main_ws_url);
+}
+
+function pingjs_process(msg) {
+    setTimeout(pingjs_enqueue, 10000);
+}
+
+function pingjs_enqueue() {
+    let qel;
+    if (!(qel = main_ws_qel_exists('pingjs')) && main_ws) {
+        let el2 = new MainWSQueueElement({cmd: CMD_REMOTEPLAY_PING, t: new Date().getTime() / 1000.0}, pingjs_recog, 3000, 1, 'pingjs');
+        el2.enqueue().then(pingjs_process).catch(pingjs_timeout);
+    } else if (qel && !main_ws)
+        main_ws_dequeue(qel);
 }
 
 function logStorageChange(changes) {
@@ -260,6 +313,7 @@ function reconnect_ws_onopen2() {
     return el.enqueue().then((msg) => {
         if (!msg.rv) {
             console.log('Remoteplay ok ' + JSON.stringify(msg.what));
+            pingjs_enqueue();
         }
         else {
             console.log('Remoteplay fail: ' + JSON.stringify(msg));

@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from time import time
 import traceback
 from abc import abstractmethod
 from asyncio import (AbstractEventLoop, Task, TimerHandle, create_task,
@@ -16,7 +17,7 @@ from telegram.ext._utils.types import BD, BT, CD, UD
 from telegram_menu import MenuButton, NavigationHandler
 from tzlocal import get_localzone
 
-from common.const import (CMD_REMOTEPLAY, CMD_REMOTEPLAY_PUSH,
+from common.const import (CMD_REMOTEPLAY, CMD_REMOTEPLAY_PING, CMD_REMOTEPLAY_PUSH,
                           CMD_REMOTEPLAY_PUSH_NOTIFY)
 from common.playlist import PlaylistMessage
 from common.user import User
@@ -71,6 +72,7 @@ class RemoteInfoMessage(StatusTMessage):
         self.s = RemoteInfoMessage.get_string_id_from_class(self.__class__)
         self.S = self.s.capitalize()
         self.sentinel: TimerHandle = None
+        self.pinger: TimerHandle = None
         self.url: str = url
         self.notification_cache_time: float = notify_cache_time
         self.notification_cache_handle: TimerHandle = None
@@ -186,6 +188,21 @@ class RemoteInfoMessage(StatusTMessage):
         _LOGGER.debug(f'{self.label} Sending to {self.my_hex} -> {cmd}')
         await ws.send_str(cmd)
 
+    def ws_ping_send_delayed(self, ws):
+        if self.task and not self.sentinel:
+            self.sentinel = self.loop.call_later(10, create_task, coro_could_safely_not_be_awaited(self.ws_ping_send_now(ws)))
+
+    async def ws_ping_send_now(self, ws):
+        if self.task:
+            try:
+                await self.ws_send(ws, json.dumps(PlaylistMessage(CMD_REMOTEPLAY_PING, t=time()), cls=MyEncoder))
+                self.sentinel = self.loop.call_later(3, create_task, coro_could_safely_not_be_awaited(self.ws_sentinel(ws)))
+            except Exception:
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+
     async def ws_sentinel(self, ws):
         if self.task and self.sentinel:
             _LOGGER.debug(f'{self.label} Sentinel Closing connection {self.my_hex}')
@@ -239,6 +256,10 @@ class RemoteInfoMessage(StatusTMessage):
                                     await self.ws_send(ws, remplay)
                                 else:
                                     self.stop_sentinel()
+                                    await self.ws_ping_send_now(ws)
+                            elif pl.c(CMD_REMOTEPLAY_PING):
+                                self.stop_sentinel()
+                                self.ws_ping_send_delayed(ws)
                             elif pl.c(CMD_REMOTEPLAY_PUSH):
                                 arg = None
                                 if pl.f('exp'):

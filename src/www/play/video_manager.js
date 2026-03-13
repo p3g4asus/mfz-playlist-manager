@@ -743,6 +743,7 @@ class DumpJob {
                     }
                     playlists_arr = msg.playlists;
                     get_remoteplay_link();
+                    pingjs_enqueue();
                 }
             }
             else {
@@ -874,7 +875,7 @@ function remotejs_recog(msg) {
 }
 
 function remotejs_process(msg) {
-    remotejs_enqueue();
+    let rv = 0;
     try {
         if (msg.sub == CMD_REMOTEPLAY_JS_DEL) {
             on_play_finished({dir: 10536});
@@ -939,17 +940,49 @@ function remotejs_process(msg) {
         else if (msg.sub == CMD_REMOTEPLAY_JS_GOTO) {
             window.location.assign(msg.link);
         }
+        else
+            rv = 404;
     }
     catch (e) {
         console.error(e.stack);
+        rv = 509;
     }
+    let rmsg = {cmd: CMD_REMOTEPLAY, sub: msg.sub, rv: rv, _rr: true};
+    rmsg[CMD_REMOTEPLAY_ID] = msg[CMD_REMOTEPLAY_ID];
+    const el2 = new MainWSQueueElement(rmsg, null, 0, 1, 'remotejs_resp');
+    remotejs_enqueue();
+    el2.enqueue();
 }
 
 function remotejs_enqueue() {
     if (!main_ws_qel_exists('remotejs')) {
-        let el2 = new MainWSQueueElement(null, remotejs_recog, 0, 1, 'remotejs');
+        const el2 = new MainWSQueueElement(null, remotejs_recog, 0, 1, 'remotejs');
         el2.enqueue().then(remotejs_process);
     }
+}
+
+function pingjs_recog(msg) {
+    return msg.cmd === CMD_REMOTEPLAY_PING? msg:null;
+}
+
+function pingjs_timeout(err) {
+    console.log(err);
+    let errmsg = 'Exception detected: '+ err + '. Reconnecting';
+    toast_msg(errmsg, 'danger');
+    main_ws_reconnect(get_remoteplay_link, WS_URL);
+}
+
+function pingjs_process(msg) {
+    setTimeout(pingjs_enqueue, 10000);
+}
+
+function pingjs_enqueue() {
+    let qel;
+    if (!(qel = main_ws_qel_exists('pingjs')) && main_ws) {
+        let el2 = new MainWSQueueElement({cmd: CMD_REMOTEPLAY_PING, t: new Date().getTime() / 1000.0}, pingjs_recog, 3000, 1, 'pingjs');
+        el2.enqueue().then(pingjs_process).catch(pingjs_timeout);
+    } else if (qel && !main_ws)
+        main_ws_dequeue(qel);
 }
 
 function get_remoteplay_link() {

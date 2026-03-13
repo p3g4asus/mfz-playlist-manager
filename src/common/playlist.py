@@ -609,6 +609,9 @@ class PlaylistMessage(JSONAble, Fieldable):
     PING_STATUS = 'send_status_with_ping'
     PING_STATUS_CONS = '__c'
 
+    def get(self, key, default=None):
+        return getattr(self, key) if hasattr(self, key) else default
+
     def init_send_status_with_ping(self, **kwargs):
         d = dict(**kwargs)
         self[PlaylistMessage.PING_STATUS] = d
