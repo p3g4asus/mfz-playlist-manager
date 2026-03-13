@@ -974,10 +974,12 @@ function pingjs_timeout(err) {
 }
 
 function pingjs_process(msg, to) {
-    pingjs_th = setTimeout(() => {
-        pingjs_th = null;
-        pingjs_enqueue();
-    }, to || 10000);
+    if (pingjs_th === null) {
+        pingjs_th = setTimeout(() => {
+            pingjs_th = null;
+            pingjs_enqueue();
+        }, to || 10000);
+    }
 }
 
 function pingjs_enqueue() {
