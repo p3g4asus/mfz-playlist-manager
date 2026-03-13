@@ -10,6 +10,7 @@ let players_map = {};
 let playlists_conf_map = {};
 let player_current_state = VIDEO_STATUS_UNSTARTED;
 const playlist_names_lst = [];
+let pingjs_th = null;
 
 let playlist_play_settings_key = '';
 let playlist_play_settings = {};
@@ -743,7 +744,7 @@ class DumpJob {
                     }
                     playlists_arr = msg.playlists;
                     get_remoteplay_link();
-                    pingjs_enqueue();
+                    pingjs_process(0, 5000);
                 }
             }
             else {
@@ -972,15 +973,20 @@ function pingjs_timeout(err) {
     main_ws_reconnect(get_remoteplay_link, WS_URL);
 }
 
-function pingjs_process(msg) {
-    setTimeout(pingjs_enqueue, 10000);
+function pingjs_process(msg, to) {
+    pingjs_th = setTimeout(() => {
+        pingjs_th = null;
+        pingjs_enqueue();
+    }, to || 10000);
 }
 
 function pingjs_enqueue() {
     let qel;
     if (!(qel = main_ws_qel_exists('pingjs')) && main_ws) {
-        let el2 = new MainWSQueueElement({cmd: CMD_REMOTEPLAY_PING, t: new Date().getTime() / 1000.0}, pingjs_recog, 3000, 1, 'pingjs');
-        el2.enqueue().then(pingjs_process).catch(pingjs_timeout);
+        if (pingjs_th === null) {
+            let el2 = new MainWSQueueElement({cmd: CMD_REMOTEPLAY_PING, t: new Date().getTime() / 1000.0}, pingjs_recog, 3000, 1, 'pingjs');
+            el2.enqueue().then(pingjs_process).catch(pingjs_timeout);
+        }
     } else if (qel && !main_ws)
         main_ws_dequeue(qel);
 }
