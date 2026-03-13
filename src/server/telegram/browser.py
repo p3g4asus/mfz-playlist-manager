@@ -59,6 +59,7 @@ class BrowserInfoMessage(RemoteInfoMessage):
         self.activate_tab: bool = True
         self.user: User = user
         self.modification_made: bool = False
+        self.force_active: bool = False
 
     @staticmethod
     def get_my_hex_prefix() -> str:
@@ -114,22 +115,26 @@ class BrowserInfoMessage(RemoteInfoMessage):
     async def close(self, args: tuple):
         t = self.current_tab
         self.set_current_tab(None)
-        await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_CLOSE, id=t.id if t else self.tab.id)
+        await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_CLOSE, id=t.id if t else (self.tab.id if not self.force_active else None))
 
     async def reload(self, args: tuple):
-        await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_RELOAD, id=self.current_tab.id if self.current_tab else self.tab.id)
+        await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_RELOAD, id=self.current_tab.id if self.current_tab else (self.tab.id if not self.force_active else None))
 
     async def toggle_mute(self, args: tuple):
-        await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_MUTE, id=self.current_tab.id if self.current_tab else self.tab.id, yes=1 if args[0] == u'\U0001F507' else 0)
+        if self.force_active:
+            yes = -1
+        else:
+            yes = 1 if args[0] == u'\U0001F507' else 0
+        await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_MUTE, id=self.current_tab.id if self.current_tab else (self.tab.id if not self.force_active else None), yes=yes)
 
     async def key(self, args: tuple):
-        await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_KEY, comp=args[0], id=self.current_tab.id if self.current_tab else self.tab.id)
+        await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_KEY, comp=args[0], id=self.current_tab.id if self.current_tab else (self.tab.id if not self.force_active else None))
 
     async def activate(self, args: tuple):
         await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_ACTIVATE, id=self.current_tab.id if self.current_tab else self.tab.id)
 
     async def goto(self, url: str):
-        await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_GOTO, id=self.current_tab.id if self.current_tab else 'New', url=url, act=self.activate_tab)
+        await self.sendGenericCommand(cmd=CMD_REMOTEBROWSER_JS, sub=CMD_REMOTEBROWSER_JS_GOTO, id=self.current_tab.id if self.current_tab else None if self.force_active == 2 else'New', url=url, act=self.activate_tab)
 
     def get_picture_for_current_tab(self) -> str | BytesIO:
         # self.picture = None
@@ -238,8 +243,10 @@ class BrowserInfoMessage(RemoteInfoMessage):
 
     async def prepare_for_overwrite_tab(self, args: tuple):
         self.activate_tab = True
-        if not self.current_tab:
+        if not self.current_tab and self.tab and not self.force_active:
             self.set_current_tab(self.tab)
+        elif self.force_active:
+            self.force_active = 2
         self.status = NameDurationStatus.DOWNLOADING_WAITING
         await self.remote_send()
 
@@ -251,6 +258,11 @@ class BrowserInfoMessage(RemoteInfoMessage):
     async def toggle_activate(self, args: tuple):
         self.activate_tab = not self.activate_tab
         await self.remote_send()
+
+    async def toggle_force(self, args: tuple):
+        if self.tab:
+            self.force_active = not self.force_active
+            await self.remote_send()
 
     def list_tabs(self, links: int = 0) -> str:
         out = ''
@@ -279,15 +291,19 @@ class BrowserInfoMessage(RemoteInfoMessage):
             self.link_preview = BrowserInfoMessage.DISABLE_LP
             self.picture = None
         if self.status == NameDurationStatus.IDLE:
+            if not self.current_tab and not self.tab:
+                self.force_active = True
             if not self.current_tab:
                 self.add_button(u'\U00002139', self.info, args=tuple())
-            if self.current_tab or self.tab:
+            if self.current_tab or self.tab or self.force_active:
                 self.add_button(u'\U0001F501', self.reload)
                 self.add_button(u'\U0000274C', self.close, new_row=not bool(self.current_tab))
-                btn = u'\U0001F507' if (self.current_tab and not self.current_tab.muted) or (not self.current_tab and not self.tab.muted) else u'\U0001F50A'
+                btn = u'\U0001F507' if (self.current_tab and not self.current_tab.muted) or (not self.current_tab and self.tab and not self.tab.muted) else u'\U0001F50A'
                 self.add_button(btn, self.toggle_mute, args=(btn, ), new_row=bool(self.current_tab))
                 if self.current_tab:
                     self.add_button(u'\U0001F7E9', self.activate)
+                else:
+                    self.add_button((u'\U00002611' if self.force_active else u'\U00002610') + 'Active tab', self.toggle_force, new_row=True)
                 self.add_button(u'\U0001F310', self.prepare_for_overwrite_tab, new_row=True)
             if not self.current_tab:
                 self.add_button(u'\U0001F310\U00002795', self.prepare_for_new_tab)
