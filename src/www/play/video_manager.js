@@ -640,14 +640,19 @@ class DumpJob {
                             playlist_sched.push(pls);
                             const first = pls.conf?.play?.id;
                             const itemstoadd = [];
+                            let endP = false;
                             for (const it of pls.items) {
                                 if (it.uid == first)
                                     itemstoadd.length = 0;
                                 it.conf.rate = get_rate_for_video(it, pls);
                                 itemstoadd.push(it);
-                                if (playlist_endpoints[it.playlist] == it.rowid) break;
+                                if (playlist_endpoints[it.playlist] == it.rowid) {
+                                    endP = true;
+                                    break;
+                                }
                             }
-                            playlist_arr.push(...itemstoadd);
+                            if (endP || !Number.isInteger(playlist_endpoints[pls.rowid]))
+                                playlist_arr.push(...itemstoadd);
                             send_video_info_for_remote_play('ilst', playlist_arr);
                             parse_list(playlist_arr);
                             playlist_adjust_gui(playlist_item_current_idx);
@@ -676,15 +681,19 @@ class DumpJob {
                             playlist_current.conf = {play: {id: this.overwrite_play_id}};
                     }
                     playlist_arr = playlist_current.items;
+                    let endP = false;
                     for (let i = 0; i < playlist_arr.length; i++) {
                         const it = playlist_arr[i];
                         it.conf.rate = get_rate_for_video(it, playlist_current);
                         if (playlist_endpoints[it.playlist] == it.rowid) {
                             if (i + 1 < playlist_arr.length)
                                 playlist_arr.splice(i + 1, playlist_arr.length - i - 1);
+                            endP = true;
                             break;
                         }
                     }
+                    if (!endP && Number.isInteger(playlist_endpoints[playlist_current.rowid]))
+                        playlist_arr = [];
                     send_video_info_for_remote_play('ilst', playlist_arr);
                     parse_list(playlist_arr);
                     page_set_title(playlist_current.name);
