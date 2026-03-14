@@ -2,6 +2,7 @@ let ping_interval = -1;
 let tab_removed_time = 0;
 let tab_removed_window = null;
 let tab_history = {};
+let pingjs_th = null;
 
 function send_video_info_for_remote_play(w, video_info, exp) {
     let o = {cmd: CMD_REMOTEPLAY_PUSH, what: w};
@@ -279,8 +280,13 @@ function pingjs_timeout(err) {
     main_ws_reconnect(main_ws_onopen2, main_ws_url);
 }
 
-function pingjs_process(msg) {
-    setTimeout(pingjs_enqueue, 10000);
+function pingjs_process(msg, to) {
+    if (pingjs_th === null) {
+        pingjs_th = setTimeout(() => {
+            pingjs_enqueue();
+            pingjs_th = null;
+        }, to || 10000);
+    }
 }
 
 function pingjs_enqueue() {
@@ -313,7 +319,7 @@ function reconnect_ws_onopen2() {
     return el.enqueue().then((msg) => {
         if (!msg.rv) {
             console.log('Remoteplay ok ' + JSON.stringify(msg.what));
-            pingjs_enqueue();
+            pingjs_process(0, 3000);
         }
         else {
             console.log('Remoteplay fail: ' + JSON.stringify(msg));

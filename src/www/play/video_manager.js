@@ -976,8 +976,8 @@ function pingjs_timeout(err) {
 function pingjs_process(msg, to) {
     if (pingjs_th === null) {
         pingjs_th = setTimeout(() => {
-            pingjs_th = null;
             pingjs_enqueue();
+            pingjs_th = null;
         }, to || 10000);
     }
 }
@@ -985,10 +985,8 @@ function pingjs_process(msg, to) {
 function pingjs_enqueue() {
     let qel;
     if (!(qel = main_ws_qel_exists('pingjs')) && main_ws) {
-        if (pingjs_th === null) {
-            let el2 = new MainWSQueueElement({cmd: CMD_REMOTEPLAY_PING, t: new Date().getTime() / 1000.0}, pingjs_recog, 3000, 1, 'pingjs');
-            el2.enqueue().then(pingjs_process).catch(pingjs_timeout);
-        }
+        let el2 = new MainWSQueueElement({cmd: CMD_REMOTEPLAY_PING, t: new Date().getTime() / 1000.0}, pingjs_recog, 3000, 1, 'pingjs');
+        el2.enqueue().then(pingjs_process).catch(pingjs_timeout);
     } else if (qel && !main_ws)
         main_ws_dequeue(qel);
 }
