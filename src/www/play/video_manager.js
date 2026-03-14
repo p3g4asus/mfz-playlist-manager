@@ -744,7 +744,6 @@ class DumpJob {
                     }
                     playlists_arr = msg.playlists;
                     get_remoteplay_link();
-                    pingjs_process(0, 5000);
                 }
             }
             else {
@@ -1024,6 +1023,7 @@ function get_remoteplay_link() {
                 });
                 $rpc.empty().append($a);
                 set_telegram_link(msg.telegram);
+                pingjs_process(0, 5000);
             }
         })
             .catch(function(err) {
