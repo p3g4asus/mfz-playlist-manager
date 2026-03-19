@@ -104,7 +104,7 @@ function main_ws_enqueue(el) {
     }
     main_ws_queue.push(el);
     if (main_ws)
-        setTimeout(() => { main_ws_queue_process(); }, 0);
+        setTimeout(() => { main_ws_queue_process(); }, 100);
     return true;
 }
 
