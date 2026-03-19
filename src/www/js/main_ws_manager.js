@@ -123,6 +123,7 @@ function main_ws_queue_process(msg) {
             if (rm) {
                 main_ws_queue.splice(i, 1);
                 i--;
+                el.resolve(jsonobj);
             }
         }
         else if (msg) {
