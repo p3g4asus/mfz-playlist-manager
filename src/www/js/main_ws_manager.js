@@ -104,7 +104,7 @@ function main_ws_enqueue(el) {
     }
     main_ws_queue.push(el);
     if (main_ws)
-        main_ws_queue_process();
+        setTimeout(() => { main_ws_queue_process(); }, 0);
     return true;
 }
 
@@ -123,7 +123,7 @@ function main_ws_queue_process(msg) {
             if (rm) {
                 main_ws_queue.splice(i, 1);
                 i--;
-                el.resolve(jsonobj);
+                setTimeout(() => {el.resolve(jsonobj); }, 0);
             }
         }
         else if (msg) {
