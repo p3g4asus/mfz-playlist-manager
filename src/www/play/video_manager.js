@@ -961,8 +961,9 @@ function remotejs_process(msg) {
     rmsg[CMD_REMOTEPLAY_ID] = msg[CMD_REMOTEPLAY_ID];
     const el2 = new MainWSQueueElement(rmsg, null, 0, 1, 'remotejs_resp');
     remotejs_enqueue();
-    el2.enqueue();
-    if (dopost) dopost();
+    el2.enqueue().finally(function() {
+        if (dopost) dopost();
+    });
 }
 
 function remotejs_enqueue() {
