@@ -885,6 +885,7 @@ function remotejs_recog(msg) {
 
 function remotejs_process(msg) {
     let rv = 0;
+    let dopost = null;
     try {
         if (msg.sub == CMD_REMOTEPLAY_JS_DEL) {
             on_play_finished({dir: 10536});
@@ -947,7 +948,7 @@ function remotejs_process(msg) {
             }
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_GOTO) {
-            window.location.assign(msg.link);
+            dopost = () => window.location.assign(msg.link);
         }
         else
             rv = 404;
@@ -961,6 +962,7 @@ function remotejs_process(msg) {
     const el2 = new MainWSQueueElement(rmsg, null, 0, 1, 'remotejs_resp');
     remotejs_enqueue();
     el2.enqueue();
+    if (dopost) dopost();
 }
 
 function remotejs_enqueue() {
