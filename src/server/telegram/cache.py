@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
-from common.playlist import Playlist, PlaylistItem
+from common.playlist_alc_ses import Playlist, PlaylistItem
 
 if TYPE_CHECKING:
     from server.telegram.playlist import PlaylistTMessage, PlaylistItemTMessage
@@ -130,7 +130,7 @@ def cache_on_item_deleted(useris: int, pids: int):
 def cache_on_item_updated(useris: int, it: PlaylistItem):
     dep: dict = _PLAYLIST_CACHE.get(useris, None)
     if dep:
-        pids = it.playlist
+        pids = it.playlisti
         if pids in dep:
             plTg: PlaylistTg = dep[pids]
             for i, ito in enumerate(plTg.playlist.items):

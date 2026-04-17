@@ -17,8 +17,8 @@ from telegram_menu import BaseMessage, MenuButton, NavigationHandler
 from telegram_menu.models import AttachmentType
 
 from common.const import IMG_NO_THUMB
-from common.playlist import PlaylistItem
-from common.user import User
+from common.playlist_alc_ses import PlaylistItem
+from common.user_alc_ses import User
 
 _LOGGER = logging.getLogger(__name__)
 

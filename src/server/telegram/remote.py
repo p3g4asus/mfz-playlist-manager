@@ -12,6 +12,7 @@ from typing import Any, Coroutine, Dict, List, Optional, Tuple, Union
 from urllib.parse import ParseResult, parse_qs, urlencode, urlparse, urlunparse
 
 from aiohttp import ClientSession, WSMsgType
+from sqlalchemy import delete, select
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 from telegram_menu import MenuButton, NavigationHandler
@@ -19,9 +20,10 @@ from tzlocal import get_localzone
 
 from common.const import (CMD_REMOTEPLAY, CMD_REMOTEPLAY_PING, CMD_REMOTEPLAY_PUSH,
                           CMD_REMOTEPLAY_PUSH_NOTIFY)
-from common.playlist import PlaylistMessage
-from common.user import User
+from common.playlist_alc_ses import PlaylistMessage
+from common.user_alc_ses import User
 from common.utils import MyEncoder, coro_could_safely_not_be_awaited
+from server.db.base import AlchemicBase, AlchemicDB
 from server.telegram.message import (MyNavigationHandler, NameDurationStatus,
                                      ProcessorMessage, StatusTMessage)
 
@@ -48,7 +50,7 @@ class RemoteInfoMessage(StatusTMessage):
         return (parsed_url, dictspar) if parsed_url.scheme and 'name' in dictspar and 'hex' in dictspar and parsed_url.path.endswith(RemoteInfoMessage.END_URL_PATH) else None
 
     @staticmethod
-    def get_string_id_from_class(cls: type[object]):
+    def get_string_id_from_class(cls: type[object]) -> str:
         if mo := re.search(r'^(.+)(List|Info)Message$', strid := cls.__name__):
             strid = mo.group(1)
         return strid.lower()
@@ -328,39 +330,46 @@ class RemoteListMessage(StatusTMessage):
                 await self.edit_or_select()
 
     @classmethod
-    async def set_user_conf_field(cls, remotes_cache: Dict[str, RemoteInfoMessage], proc: ProcessorMessage, field_id: str = None):
-        res = proc.user.conf
-        plrs = dict()
-        if not field_id:
-            field_id = RemoteInfoMessage.get_string_id_from_class(cls)
-        for pin, pi in remotes_cache.items():
-            plrs[pin] = dict(url=pi.url, sel=pi.sel)
-        res[field_id + 's'] = plrs
-        await proc.user.toDB(proc.params.db2)
+    def get_db_class(cls) -> type[AlchemicBase]:
+        strid = RemoteInfoMessage.get_string_id_from_class(cls).capitalize()
+        for c in AlchemicBase.__subclasses__():
+            if c.__name__ == strid:
+                return c
+        raise Exception(f'No db class found for {cls.__name__}')
 
     @classmethod
-    def user_conf_field_to_remotes_dict(cls, navigation: NavigationHandler, proc: ProcessorMessage, sel_only: bool = False, field_id: str = None) -> Dict[str, RemoteInfoMessage]:
+    async def save_to_db(cls, remotes_cache: Dict[str, RemoteInfoMessage], item_name: str, proc: ProcessorMessage):
+        db_class = cls.get_db_class()
+        alc: AlchemicDB = proc.params.db2
+        if item_name in remotes_cache:
+            pi = remotes_cache[item_name]
+            dbitem = await db_class.get_query_result(alc, select(db_class).where(db_class.useri == proc.user.rowid, db_class.name == item_name))
+            if dbitem:
+                dbitem = dbitem[0]
+                dbitem.url = pi.url
+                dbitem.sel = pi.sel
+            else:
+                dbitem = db_class(name=item_name, url=pi.url, sel=pi.sel, useri=proc.user.rowid)
+                await alc.upsert(dbitem)
+        else:
+            await alc.session.execute(delete(db_class).where(db_class.useri == proc.user.rowid, db_class.name == item_name))
+        await alc.commit_and_close_session()
+
+    @classmethod
+    async def get_from_db(cls, navigation: NavigationHandler, proc: ProcessorMessage, sel_only: bool = False) -> Dict[str, RemoteInfoMessage]:
         rid = proc.user.rowid
         if not hasattr(cls, 'remotes_cache_u'):
             cls.remotes_cache_u: Dict[int, Dict[str, RemoteInfoMessage]] = dict()
         if rid not in cls.remotes_cache_u:
             remotes_cache = cls.remotes_cache_u[rid] = dict()
-            if not field_id:
-                field_id = RemoteInfoMessage.get_string_id_from_class(cls)
-            usrconf = proc.user.conf
-            for pin, pid in usrconf.get(field_id + 's', dict()).items():
-                if isinstance(pid, str):
-                    piu = pid
-                    sel = False
-                elif isinstance(pid, dict):
-                    piu = pid['url']
-                    sel = pid['sel']
-                else:
-                    piu = None
-                if piu:
-                    remotes_cache[pin] = pi = cls.build_remote_info_message(pin, piu, sel, navigation, proc.user)
-                    if sel:
-                        pi.start()
+            db_class = cls.get_db_class()
+            alc: AlchemicDB = proc.params.db2
+            all = await AlchemicBase.get_query_result(alc, select(db_class).where(db_class.useri == rid))
+            await alc.close_session()
+            for item in all:
+                remotes_cache[item.name] = pi = cls.build_remote_info_message(item.name, item.url, item.sel, navigation, proc.user)
+                if item.sel:
+                    pi.start()
         else:
             remotes_cache = cls.remotes_cache_u[rid]
         if sel_only:
@@ -373,7 +382,7 @@ class RemoteListMessage(StatusTMessage):
         remotes_cache[pi.name] = pi
         if pi.sel:
             pi.start()
-        await self.set_user_conf_field(remotes_cache, self.proc)
+        await self.save_to_db(remotes_cache, pi.name, self.proc)
         await self.edit_or_select()
 
     async def remote_clicked(self, args: tuple):
@@ -386,7 +395,7 @@ class RemoteListMessage(StatusTMessage):
             pi.stop()
             await pi.navigation._delete_queued_message(pi)
             del remotes_cache[idx]
-            await self.set_user_conf_field(remotes_cache, self.proc)
+            await self.save_to_db(remotes_cache, idx, self.proc)
             await self.switch_to_idle()
         elif self.status == NameDurationStatus.SORTING:
             pi.sel = not pi.sel
@@ -394,7 +403,7 @@ class RemoteListMessage(StatusTMessage):
                 pi.start()
             else:
                 pi.stop()
-            await self.set_user_conf_field(remotes_cache, self.proc)
+            await self.save_to_db(remotes_cache, idx, self.proc)
             await self.switch_to_idle()
         else:
             await remotes_cache[idx].remote_send()
@@ -407,7 +416,7 @@ class RemoteListMessage(StatusTMessage):
         self.input_field = (f'{self.S} Url' if not self.current_url else f'{self.S} alias') + u' or \U0001F559'
         rid = self.proc.user.rowid
         if not hasattr(self, 'remotes_cache_u') or rid not in self.remotes_cache_u:
-            remotes_cache = self.user_conf_field_to_remotes_dict(self.navigation, self.proc)
+            remotes_cache = await self.get_from_db(self.navigation, self.proc)
         else:
             remotes_cache = self.remotes_cache_u[rid]
         self.keyboard: List[List["MenuButton"]] = [[]]

@@ -11,8 +11,9 @@ from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
 from common.const import CMD_TOKEN
-from common.playlist import PlaylistMessage
-from common.user import User
+from common.playlist_alc_ses import PlaylistMessage
+from common.user_alc_ses import User
+from server.db.base import UsesAlchemicDB
 from server.telegram.browser import BrowserListMessage
 from server.telegram.playlist import PlaylistAddTMessage, PlaylistsPagesTMessage
 from server.telegram.cache import cache_del_user
@@ -111,10 +112,12 @@ class StartTMessage(BaseMessage):
         else:
             return None
 
-    async def sign_out(self, context):
+    @UsesAlchemicDB
+    async def sign_out(self, context, **kwargs):
         if self.user:
             self.user.tg = None
-            await self.user.toDB(self.params.db2)
+            db = kwargs.get('db', self.params.db2)
+            await self.user.toDB(db)
         self.user = self.link = None
         await self.navigation.goto_home(context)
 
@@ -125,8 +128,10 @@ class StartTMessage(BaseMessage):
     def cache_clear(self, context: Optional[CallbackContext] = None):
         cache_del_user(self.user.rowid, [])
 
-    async def async_init(self, context: Optional[CallbackContext] = None):
-        res = await self.check_if_username_registred(self.params.db2, self.navigation.user_name)
+    @UsesAlchemicDB
+    async def async_init(self, context: Optional[CallbackContext] = None, **kwargs):
+        db = kwargs.get('db', self.params.db2)
+        res = await self.check_if_username_registred(db, self.navigation.user_name)
         self.keyboard: List[List["MenuButton"]] = [[]]
         if context:
             self.user_data = context.user_data.setdefault('user_data', dict(link=''))
@@ -134,7 +139,7 @@ class StartTMessage(BaseMessage):
                 self.link = self.user_data['link']
         if res and self.link:
             if self.user:
-                self.user.cp(**res.toJSON())
+                self.user.cp(_cp=res)
             else:
                 self.user = res
             self.params.link = self.link

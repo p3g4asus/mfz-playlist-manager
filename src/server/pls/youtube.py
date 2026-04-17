@@ -1,18 +1,21 @@
 import logging
 import re
 import traceback
+from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
 import ffmpeg
 import yt_dlp as youtube_dl
-from datetime import (datetime, timedelta, timezone)
 
-from common.const import (CMD_YT_PLAYLISTCHECK, IMG_NO_THUMB, MSG_YT_INVALID_PLAYLIST,
-                          MSG_BACKEND_ERROR, MSG_NO_VIDEOS, RV_NO_VIDEOS)
-from common.playlist import PlaylistItem
-from common.user import User
+from common.const import (CMD_YT_PLAYLISTCHECK, IMG_NO_THUMB,
+                          MSG_BACKEND_ERROR, MSG_NO_VIDEOS,
+                          MSG_YT_INVALID_PLAYLIST, RV_NO_VIDEOS)
+from common.playlist_alc_ses import PlaylistComponent, PlaylistItem
+from common.user_alc_ses import User
 from common.utils import parse_isoduration
+from server.db.base import AlchemicDB, UsesAlchemicDB
 
 from .refreshmessageprocessor import RefreshMessageProcessor
-from urllib.parse import urlunparse, urlencode, urlparse, parse_qs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,7 +28,7 @@ class MessageProcessor(RefreshMessageProcessor):
     def get_name(self):
         return "youtube"
 
-    def __init__(self, db, **kwargs):
+    def __init__(self, db: AlchemicDB, **kwargs):
         super().__init__(db, **kwargs)
         self.youtube_cache = dict()
 
@@ -44,8 +47,10 @@ class MessageProcessor(RefreshMessageProcessor):
         else:
             return f'https://m.youtube.com/playlist?list={plid}'
 
-    async def youtubeApiBuild(self, userid):
-        apikey = await User.get_settings(self.db, userid, 'youtube_apikey')
+    @UsesAlchemicDB
+    async def youtubeApiBuild(self, userid, **kwargs):
+        db = kwargs.get('db', self.db)
+        apikey = await User.get_settings(db, userid, 'youtube_apikey')
         if apikey and apikey not in self.youtube_cache:
             try:
                 from googleapiclient.discovery import build
@@ -74,11 +79,11 @@ class MessageProcessor(RefreshMessageProcessor):
                 else:
                     urlp = None
                 if urlp.hostname.find('twitch.tv') >= 0 and (mo := re.search(r'^/([^/]+)/?$', urlp.path)):
-                    plinfo = dict(
+                    plinfo = PlaylistComponent(
                         title=f'{mo.group(1)} Live',
-                        params=self.process_filters(params),
-                        channel=mo.group(1),
-                        id='%' + text,
+                        filter=self.process_filters(params),
+                        conf=dict(channel=mo.group(1)),
+                        brand='%' + text,
                         description=f'{mo.group(1)} Live streams'
                     )
                     return msg.ok(playlistinfo=plinfo)
@@ -130,15 +135,14 @@ class MessageProcessor(RefreshMessageProcessor):
                     'extract_flat': True
                 }
                 playlist_dict = dict()
-                plinfo = dict()
                 try:
                     await executor(self.youtube_dl_get_dict, url, ydl_opts, playlist_dict)
                     if '_err' not in playlist_dict:
-                        plinfo = dict(
+                        plinfo = PlaylistComponent(
                             title=playlist_dict['title'],
-                            params=self.process_filters(params),
-                            channel=playlist_dict.get('uploader', playlist_dict['title']),
-                            id=plid if len(plid) > 1 else plid + playlist_dict['id'],
+                            filter=self.process_filters(params),
+                            conf=dict(channel=playlist_dict.get('uploader', playlist_dict['title'])),
+                            brand=plid if len(plid) > 1 else plid + playlist_dict['id'],
                             description=playlist_dict.get('description', playlist_dict['title'])
                         )
                         return msg.ok(playlistinfo=plinfo)
@@ -148,23 +152,23 @@ class MessageProcessor(RefreshMessageProcessor):
                     vinf = dict()
                     await executor(self.ffmpeg_get_dict, url, vinf)
                     if '_err' not in vinf:
-                        plinfo = dict(
+                        plinfo = PlaylistComponent(
                             title=url,
-                            params=self.process_filters(params),
-                            channel=url,
-                            id='>' + url,
+                            filter=self.process_filters(params),
+                            conf=dict(channel=url),
+                            brand='>' + url,
                             description=''
                         )
                         try:
-                            plinfo['title'] = vinf['format']['tags']['title']
+                            plinfo.title = vinf['format']['tags']['title']
                         except Exception:
                             pass
                         try:
-                            plinfo['description'] = vinf['format']['tags']['comment']
+                            plinfo.description = vinf['format']['tags']['comment']
                         except Exception:
                             pass
                         try:
-                            plinfo['channel'] = vinf['format']['tags']['artist']
+                            plinfo.conf = dict(channel=vinf['format']['tags']['artist'])
                         except Exception:
                             pass
                         return msg.ok(playlistinfo=plinfo)
@@ -189,37 +193,6 @@ class MessageProcessor(RefreshMessageProcessor):
             return int(mo.group(1)) * 3600 + int(mo.group(2)) * 60 + int(mo.group(3))
         else:
             return 0
-
-    def entry2Program(self, it, set, playlist):
-        conf = dict(playlist=set,
-                    userid=it['user_id'],
-                    author=it['author'])
-        title = it['title']
-        uid = it['encrypted_id']
-        try:
-            datepubo = datetime.strptime(it['added'] + ' 12:30', '%m/%d/%y %H:%M')
-            datepubi = int(datepubo.timestamp() * 1000)
-        except ValueError:
-            _LOGGER.debug("Invalid added field is %s" % str(it))
-            datepubi = it['time_created']
-            datepubo = datetime.fromtimestamp(datepubi)
-            datepubi = datepubi * 1000
-        datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
-        img = it['thumbnail']
-        if img.endswith('default.jpg'):
-            img = img[0:-11] + 'hqdefault.jpg'
-        dur = self.duration2int(it['duration'])
-        link = f"http://www.youtube.com/watch?v={it['encrypted_id']}&src=plsmanager"
-        return (PlaylistItem(
-            link=link,
-            title=title,
-            datepub=datepub,
-            dur=dur,
-            conf=conf,
-            uid=uid,
-            img=img,
-            playlist=playlist
-        ), datepubi)
 
     def youtube_dl_get_dict(self, current_url, ydl_opts, out_dict):
         try:
@@ -247,12 +220,14 @@ class MessageProcessor(RefreshMessageProcessor):
             _LOGGER.error(f'FFP: {traceback.format_exc()}')
             out_dict.update(dict(_err=401))
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), filter=dict(), playlist=None, userid=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, comps: list[PlaylistComponent] = [], filter=dict(), userid=None, executor=None):
         try:
             sets = []
-            for s in conf['playlists'].values():
-                if not filter or (s['id'] in filter and filter[s['id']]['sel']):
-                    sets.append((s['id'], s['ordered'] if 'ordered' in s else True, s['params'] if 'params' in s else dict(), s['title'] if 'title' in s and s['title'] else s['id']))
+            componentdict = dict()
+            for comp in comps:
+                if not filter or (comp.brand in filter and filter[comp.brand]['sel']):
+                    sets.append((comp.brand, comp.sel, comp.filter, comp.title if comp.title else comp.brand))
+                    componentdict[comp.brand] = comp
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
@@ -292,7 +267,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                 if set[0] == '>':
                                     await executor(self.ffmpeg_get_dict, current_url, playlist_dict)
                                     if '_err' not in playlist_dict:
-                                        datepub = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                                        datepubo = datetime.now()
+                                        datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                         try:
                                             aut = playlist_dict['format']['tags']['artist']
                                         except Exception:
@@ -301,8 +277,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                             pih = playlist_dict['format']['format_name']
                                         except Exception:
                                             pih = None
-                                        conf = dict(playlist=set,
-                                                    extractor='ffmpeg',
+                                        conf = dict(extractor='ffmpeg',
                                                     chapters=None,
                                                     playhint=pih,
                                                     userid=aut,
@@ -310,12 +285,13 @@ class MessageProcessor(RefreshMessageProcessor):
                                         pr = PlaylistItem(
                                             link=current_url,
                                             title=current_url,
-                                            datepub=datepub,
+                                            datepub=datepubo,
                                             dur=0,
                                             conf=conf,
                                             uid=current_url,
                                             img=IMG_NO_THUMB,
-                                            playlist=playlist
+                                            playlisti=componentdict[set].playlisti,
+                                            componenti=componentdict[set].rowid
                                         )
                                         try:
                                             pr.title = playlist_dict['format']['tags']['title']
@@ -513,8 +489,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                     extr = playlist_dict.get('extractor')
                                                                 if not video_priv and (extr.find('youtube') < 0 or 'description' not in video or not video['description'] or re.search(r'(\d{0,2}:?\d{1,2}:\d{2})', video['description'])):
                                                                     await executor(self.youtube_dl_get_dict, current_url, ydl_opts, video_priv)
-                                                                conf = dict(playlist=set,
-                                                                            extractor=extr,
+                                                                conf = dict(extractor=extr,
                                                                             playhint=video.get('playhint'),
                                                                             chapters=video_priv.get('chapters'),
                                                                             userid=video.get('uploader_id'),
@@ -522,12 +497,13 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                 pr = PlaylistItem(
                                                                     link=current_url,
                                                                     title=video['title'],
-                                                                    datepub=datepub,
+                                                                    componenti=componentdict[set].rowid,
+                                                                    datepub=datepubo,
                                                                     dur=video['duration'],
                                                                     conf=conf,
                                                                     uid=video['id'],
                                                                     img=video['thumbnail'],
-                                                                    playlist=playlist
+                                                                    playlisti=componentdict[set].playlisti
                                                                 )
                                                                 programs[video['id']] = pr
                                                                 _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))

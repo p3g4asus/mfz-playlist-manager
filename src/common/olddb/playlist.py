@@ -5,7 +5,7 @@ from datetime import datetime
 from os import remove
 from common.const import LINK_CONV_BIRD_REDIRECT, LINK_CONV_MASK, LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_VIDEO_EMBED, LINK_CONV_REDIRECT, LINK_CONV_TWITCH, LINK_CONV_UNTOUCH, LINK_CONV_YTDL_DICT, LINK_CONV_YTDL_REDIRECT
 
-from .utils import Fieldable, JSONAble, MyEncoder
+from ..utils import Fieldable, JSONAble, MyEncoder
 
 _LOGGER = logging.getLogger(__name__)
 

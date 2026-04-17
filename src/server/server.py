@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import glob
 import logging
 import logging.config
 import os
@@ -9,10 +8,9 @@ import signal
 import traceback
 from datetime import datetime, timedelta
 from functools import partial
-from os.path import basename, dirname, isfile, join, splitext
+from os.path import dirname, join
 
 import aiohttp_cors
-import aiosqlite
 import certifi
 from aiohttp import web
 from aiohttp_security import setup as setup_security
@@ -21,6 +19,7 @@ from redis import asyncio as aioredis
 
 from common.const import COOKIE_LOGIN, COOKIE_SID, COOKIE_USERID
 from common.utils import asyncio_graceful_shutdown
+from server.db import connect_db
 from server.dict_auth_policy import DictAuthorizationPolicy
 from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.redis_storage import RedisKeyStorage
@@ -98,115 +97,11 @@ class Executor:
         return self._loop.run_in_executor(self._ex, partial(f, *args, **kw))
 
 
-CREATE_DB_IF_NOT_EXIST = [
-    '''
-    CREATE TABLE IF NOT EXISTS user(
-        rowid INTEGER PRIMARY KEY,
-        username TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        token TEXT UNIQUE,
-        conf TEXT,
-        tg TEXT
-    )
-    ''',
-    '''
-    CREATE TABLE IF NOT EXISTS type(
-        rowid INTEGER PRIMARY KEY,
-        name TEXT NOT NULL UNIQUE
-    )
-    ''',
-    '''
-    CREATE TABLE IF NOT EXISTS playlist(
-        rowid INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        user INTEGER NOT NULL,
-        type INTEGER NOT NULL,
-        dateupdate INTEGER,
-        autoupdate INTEGER NOT NULL DEFAULT 0,
-        conf TEXT,
-        iorder INTEGER NOT NULL DEFAULT 0,
-        FOREIGN KEY (user)
-            REFERENCES user (rowid)
-            ON UPDATE CASCADE
-            ON DELETE CASCADE,
-        FOREIGN KEY (type)
-            REFERENCES type (rowid)
-            ON UPDATE CASCADE
-            ON DELETE CASCADE,
-        UNIQUE(name,user)
-    )
-    ''',
-    '''
-    CREATE TABLE IF NOT EXISTS playlist_item(
-        rowid INTEGER PRIMARY KEY,
-        title TEXT,
-        img TEXT,
-        datepub DATETIME,
-        link TEXT NOT NULL,
-        uid TEXT NOT NULL,
-        playlist INTEGER NOT NULL,
-        dur INTEGER NOT NULL,
-        conf TEXT,
-        dl TEXT,
-        seen DATETIME,
-        iorder INTEGER NOT NULL,
-        UNIQUE(uid, playlist),
-        UNIQUE(playlist, iorder),
-        FOREIGN KEY (playlist)
-            REFERENCES playlist (rowid)
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-    )
-    ''',
-    '''
-    CREATE INDEX IF NOT EXISTS playlist_item_iorder
-        ON playlist_item (iorder)
-    '''
-]
-
-
-async def _init_db(app, create_db=False):
-    db = await aiosqlite.connect(app.p.args['dbfile'])
-    processors = dict()
-    if not isinstance(db, aiosqlite.Connection):
-        db = None
-    else:
-        db.row_factory = aiosqlite.Row
-        if create_db:
-            for q in CREATE_DB_IF_NOT_EXIST:
-                await db.execute(q)
-            await db.commit()
-        await db.execute("PRAGMA foreign_keys = ON")
-        import importlib
-        modules = glob.glob(join(dirname(__file__), "pls", "*.py*"))
-        pls = [splitext(basename(f))[0] for f in modules if isfile(f)]
-        for x in pls:
-            if x not in processors:
-                try:
-                    m = importlib.import_module("server.pls." + x)
-                    cla = getattr(m, "MessageProcessor")
-                    if cla:
-                        dct = dict()
-                        for k, v in app.p.args.items():
-                            if k.startswith(x + '_'):
-                                k2 = k[len(x) + 1:]
-                                if k2:
-                                    dct[k2] = v
-                            else:
-                                dct[k] = v
-                        processors[x] = cla(db, **dct)
-                        if x != "common" and create_db:
-                            await db.execute("INSERT OR IGNORE INTO type(name) VALUES (?)", (x,))
-                except Exception:
-                    _LOGGER.warning(traceback.format_exc())
-        if create_db:
-            await db.commit()
-    return db, processors
-
-
-async def init_db(app):
-    app.p.db, app.p.processors = await _init_db(app, True)
-    app.p.db2, app.p.processors2 = await _init_db(app, False)
+async def init_db(app, append: str = ''):
+    tplo = await connect_db(app.p.args, append)
+    setattr(app.p, 'db' + append, tplo[0])
+    setattr(app.p, 'processors' + append, tplo[1])
+    setattr(app.p, 'types' + append, tplo[2])
 
 
 async def init_auth(app):
@@ -389,6 +284,7 @@ def main():
         loop.run_until_complete(start_app(app))
         if app.p.args['telegram']:
             loop2 = asyncio.new_event_loop()
+            loop2.run_until_complete(init_db(app, '2'))
             loop2.set_exception_handler(handle_loop_exceptions)
             app.p.telegram_executor = Executor(loop=loop2, nthreads=3)
             app.p.telegram_executor(start_telegram_bot, app.p, loop2)

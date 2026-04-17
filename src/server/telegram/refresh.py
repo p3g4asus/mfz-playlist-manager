@@ -7,8 +7,8 @@ from telegram_menu import NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 from common.const import CMD_REFRESH
-from common.playlist import Playlist, PlaylistMessage
-from common.user import User
+from common.playlist_alc_ses import Playlist, PlaylistMessage
+from common.user_alc_ses import User
 from server.telegram.cache import cache_store
 from server.telegram.message import NameDurationStatus, StatusTMessage
 
@@ -27,20 +27,21 @@ class RefreshingTMessage(StatusTMessage):
         self.playlist = playlist
         if playlist:
             rc = self.refresh_conf
-
-            def select_field(dct, default, *args):
-                for a in args:
-                    if a in dct and dct[a]:
-                        return dct[a]
-                return default
-            plss = select_field(self.playlist.conf, [], 'playlists')
-            if isinstance(plss, dict):
-                plss = list(plss.values())
-            for i, pl in enumerate(plss):
-                rc[pl['id']] = {
-                    'description': f'{i + 1}) ' + select_field(pl, None, 'title', 'id'),
+            noparent = None
+            delparent = False
+            for i, pl in enumerate(self.playlist.components):
+                if not pl.sel:
+                    continue
+                if pl.parenti is not None:
+                    delparent = True
+                else:
+                    noparent = pl.brand
+                rc[str(pl.brand)] = {
+                    'description': f'{i + 1}) ' + (pl.title if pl.title else pl.brand),
                     'sel': True
                 }
+            if delparent and noparent:
+                del rc[str(noparent)]
 
     async def switch_to_status_cond(self, args, context):
         if self.status != NameDurationStatus.UPDATING_RUNNING:

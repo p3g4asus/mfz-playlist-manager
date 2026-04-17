@@ -858,11 +858,11 @@ function playlist_update(playlist) {
 
 function playlist_add(playlist) {
     let tp = $('#pl-add-view-type');
-    if (playlist.type)
-        tp.val(playlist.type);
+    if (playlist?.type?.name)
+        tp.val(playlist.type.name);
     else
         tp.val('');
-    playlist_change_type(playlist, playlist.type || '');
+    playlist_change_type(playlist, playlist.type?.name || '');
     $('#pl-add-view-name').val(playlist.name);
     $('#pl-add-view-autoupdate').prop('checked', playlist.autoupdate);
     
@@ -1176,7 +1176,7 @@ function index_global_init() {
         let form = $('#pl-add-view-form'), type;
         if (form[0].checkValidity() && playlist_types[type = $('#pl-add-view-type').val()].on_add(current_playlist)) {
             current_playlist.name = $('#pl-add-view-name').val();
-            current_playlist.type = type;
+            current_playlist.type.name = type;
             current_playlist.autoupdate = $('#pl-add-view-autoupdate').is(':checked');
             playlist_interface_manage(selected_playlist? 'back-playlist-update': 'back-list-update');
             playlist_update(current_playlist);
@@ -1348,11 +1348,11 @@ function bootstrap_table_info_formatter(value, row, index, field) {
     let d = new Date(0); // The 0 there is the key, which sets the date to the epoch
     d.setUTCSeconds(utcSeconds);
     let tpstr = '';
-    if (row.type == 'youtube')
+    if (row.type.name == 'youtube')
         tpstr += '<span class="badge badge-danger even-larger-badge">youtube</span>&nbsp;&nbsp;';
-    else if (row.type == 'rai')
+    else if (row.type.name == 'rai')
         tpstr += '<span class="badge badge-primary even-larger-badge">rai</span>&nbsp;&nbsp;';
-    else if (row.type == 'mediaset')
+    else if (row.type.name == 'mediaset')
         tpstr += '<span class="badge badge-secondary even-larger-badge">mediaset</span>&nbsp;&nbsp;';
     else
         tpstr += '<span class="badge badge-warning even-larger-badge">localfolder</span>&nbsp;&nbsp;';

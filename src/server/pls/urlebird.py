@@ -7,12 +7,13 @@ from datetime import datetime, timedelta
 import aiohttp
 
 from common.const import (CMD_TT_PLAYLISTCHECK, MSG_BACKEND_ERROR, MSG_NO_VIDEOS, MSG_TT_INVALID_PLAYLIST, RV_NO_VIDEOS)
-from common.playlist import PlaylistItem
+from common.playlist_alc_ses import PlaylistComponent, PlaylistItem
 from common.utils import parse_isoduration
 
 from dateparser import parse as dateparser_parse
 from dateutil.parser import parse as dateutil_parse
 from pyquery import PyQuery as pq
+
 from .refreshmessageprocessor import RefreshMessageProcessor
 from urllib.parse import urlunparse, urlencode, urlparse, parse_qs
 
@@ -127,10 +128,10 @@ class MessageProcessor(RefreshMessageProcessor):
                     if isinstance(playlist_dict, int):
                         return msg.err(playlist_dict, MSG_TT_INVALID_PLAYLIST)
                     author = playlist_dict.get('creator', dict(name=text)).get('name', text)
-                    plinfo = dict(
+                    plinfo = PlaylistComponent(
                         title=author,
-                        params=self.process_filters(params),
-                        id=text,
+                        filter=self.process_filters(params),
+                        brand=text,
                         description=f'Videos from {author}',
                     )
                     return msg.ok(playlistinfo=plinfo)
@@ -146,9 +147,8 @@ class MessageProcessor(RefreshMessageProcessor):
             return False
         return RefreshMessageProcessor.video_is_not_filtered_out(video, filters)
 
-    def entry2Program(self, it, alternate_date: datetime | None, set, playlist):
-        conf = dict(playlist=set,
-                    userid=it.get('creator', dict(alternateName=set))['alternateName'])
+    def entry2Program(self, it, alternate_date: datetime | None, comp: PlaylistComponent):
+        conf = dict(userid=it.get('creator', comp.title))
         try:
             datepubo = dateutil_parse(it['uploadDate'])
             if alternate_date:
@@ -157,8 +157,8 @@ class MessageProcessor(RefreshMessageProcessor):
         except ValueError:
             _LOGGER.debug("Invalid added field is %s" % str(it))
             datepubo = alternate_date if alternate_date else datetime.now()
+        datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S')
         datepubi = int(datepubo.replace(hour=0, minute=0, second=0).timestamp() * 1000)
-        datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
         img = it['thumbnailURL']
         if mo := re.search(r'\-(\d{5,})/?$', it['url']):
             uid = mo.group(1)
@@ -168,20 +168,23 @@ class MessageProcessor(RefreshMessageProcessor):
         return (PlaylistItem(
             link=it['url'],
             title=it['name'],
-            datepub=datepub,
+            datepub=datepubo,
             dur=dur,
             conf=conf,
             uid=uid,
             img=img,
-            playlist=playlist
-        ), datepubi)
+            playlisti=comp.playlisti,
+            componenti=comp.rowid
+        ), datepubi, datepub)
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), filter=dict(), playlist=None, userid=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, comps: list[PlaylistComponent] = [], filter=dict(), userid=None, executor=None):
         try:
             sets = []
-            for s in conf['playlists'].values():
-                if not filter or (s['id'] in filter and filter[s['id']]['sel']):
-                    sets.append((s['id'], s['params'], s['title']))
+            componentdict = dict()
+            for comp in comps:
+                if not filter or (comp.brand in filter and filter[comp.brand]['sel']):
+                    sets.append((comp.brand, comp.filter, comp.title))
+                    componentdict[comp.brand] = comp
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
@@ -224,7 +227,7 @@ class MessageProcessor(RefreshMessageProcessor):
                                 try:
                                     rel_base = rel_base - timedelta(seconds=rel_s)
                                     rel_s += 1
-                                    when = dateparser_parse(when, settings=dict(RELATIVE_BASE=rel_base))
+                                    when = dateparser_parse(when, settings=dict(RELATIVE_BASE=rel_base, TIMEZONE='UTC', RETURN_AS_TIMEZONE_AWARE=True)) if when else None
                                 except Exception:
                                     _LOGGER.debug(f"[urlebird] Invalid date field is {when}")
                                     when = None
@@ -232,12 +235,13 @@ class MessageProcessor(RefreshMessageProcessor):
                                 if isinstance(vidinfo, int):
                                     self.record_status(sta, f'\U000026A0 Error Set {title}: {vurl} [{vidinfo}]', 'ss')
                                 else:
-                                    pr, datepubi_conf = self.entry2Program(vidinfo, when, set, playlist)
+                                    pr, datepubi_conf, datepub = self.entry2Program(vidinfo, when, componentdict[set])
+                                    self.record_status(sta, f'\U0001F50D Found {pr.title} [{datepub}]', 'ss')
                                     if datepubi_conf >= datefrom:
                                         if (datepubi_conf <= dateto or dateto < datefrom) and self.video_is_not_filtered_out(dict(title=pr.title, duration=pr.dur), filters):
                                             programs[pr.uid] = pr
                                             _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
-                                            self.record_status(sta, f'\U00002795 Added {pr.title} [{pr.datepub}]', 'ss')
+                                            self.record_status(sta, f'\U00002795 Added {pr.title} [{datepub}]', 'ss')
                                     elif page >= 3:
                                         page = 0
                                         break

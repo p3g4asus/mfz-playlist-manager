@@ -9,8 +9,8 @@ from telegram_menu import MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 
 from common.const import CMD_USER_SETTINGS
-from common.playlist import PlaylistMessage
-from common.user import User
+from common.playlist_alc_ses import PlaylistMessage
+from common.user_alc_ses import User
 from server.telegram.message import CookieFileProcessTMessage, NameDurationStatus, StatusTMessage
 
 
@@ -72,11 +72,13 @@ class CookieSetting(GenericSetting):
 class UserSettingsMessage(CookieFileProcessTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, **argw) -> None:
         super().__init__(navigation, label=f'{self.__class__.__name__}{id(self)}', inlined=True, expiry_period=timedelta(minutes=10), user=user, params=params, **argw)
-        self.user = User(self.proc.user.toJSON())
+        self.user = User(_cp=self.proc.user)
         self.re: re.Pattern = None
         self.current_setting: str = ''
         self.changed = False
         cnf = self.user.conf
+        if not isinstance(cnf, dict):
+            cnf = dict()
         if 'settings' not in cnf:
             cnf['settings'] = dict()
         cnf = deepcopy(cnf['settings'])

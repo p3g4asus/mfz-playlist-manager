@@ -18,8 +18,10 @@ from common.const import (CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
                           MSG_MEDIASET_INVALID_BRAND, MSG_NO_VIDEOS,
                           MSG_PLAYLISTITEM_NOT_FOUND, MSG_UNAUTHORIZED,
                           RV_NO_VIDEOS)
-from common.playlist import LOAD_ITEMS_NO, Playlist, PlaylistItem
-from common.user import User
+from common.playlist_alc_ses import LOAD_ITEMS_NO, Playlist, PlaylistItem, PlaylistComponent
+from common.user_alc_ses import User
+from server.db.base import AlchemicDB, UsesAlchemicDB
+
 
 from .refreshmessageprocessor import RefreshMessageProcessor
 
@@ -144,7 +146,7 @@ if (login_needed == 5000) {
 } else callback(0);
 """
 
-    def __init__(self, db, d1=4, d2=4, d3=65, drmurl='http://127.0.0.1:1337/api/decrypt', getsmil='selenium', **kwargs):
+    def __init__(self, db: AlchemicDB, d1=4, d2=4, d3=65, drmurl='http://127.0.0.1:1337/api/decrypt', getsmil='selenium', **kwargs):
         self.d1 = d1
         self.d2 = d2
         self.d3 = d3
@@ -178,11 +180,13 @@ if (login_needed == 5000) {
     def isLastPage(self, jsond):
         return jsond['entryCount'] < jsond['itemsPerPage']
 
-    async def get_user_credentials(self, userid):
-        setts = await User.get_settings(self.db, userid, 'mediaset_user', 'mediaset_password')
+    @UsesAlchemicDB
+    async def get_user_credentials(self, userid, **kwargs):
+        db = kwargs.get('db', self.db)
+        setts = await User.get_settings(db, userid, 'mediaset_user', 'mediaset_password')
         return None if not setts or not setts[0] or not setts[1] else setts
 
-    def processGetSMILSeleniumInner(self, url, resp, userid, loop):
+    def processGetSMILSeleniumInner(self, url, resp, userid, loop, **kwargs):
         resp['sta'] = 'N/A'
         driver = None
         try:
@@ -244,7 +248,7 @@ if (login_needed == 5000) {
                             scriptload = True
                             waitdone = 1
                         if waitdone >= 0 and driver.execute_async_script(self.INOCULATE_SCR2):
-                            fut = run_coroutine_threadsafe(self.get_user_credentials(userid), loop)
+                            fut = run_coroutine_threadsafe(self.get_user_credentials(userid, **kwargs), loop)
                             uspw = fut.result()
                             if uspw:
                                 rv = driver.execute_async_script(self.INOCULATE_SCR3 % (int(self.d1 * 1000), int(self.d2 * 1000), *uspw))
@@ -266,13 +270,13 @@ if (login_needed == 5000) {
         except Exception:
             pass
 
-    async def processGetSMILSelenium(self, url, userid, executor):
+    async def processGetSMILSelenium(self, url, userid, executor, **kwargs):
         out_resp = dict()
-        await executor(self.processGetSMILSeleniumInner, url, out_resp, userid, get_event_loop())
+        await executor(self.processGetSMILSeleniumInner, url, out_resp, userid, get_event_loop(), **kwargs)
         _LOGGER.info(f'[mediaset] SMIL get sta={out_resp["sta"]} err={out_resp["err"]}')
         return out_resp['err'] if 'err' in out_resp and out_resp['err'] else out_resp['link']
 
-    async def processGetSMILPlaywrightInner(self, playwright, *, url: str, userid: int) -> dict:
+    async def processGetSMILPlaywrightInner(self, playwright, *, url: str, userid: int, **kwargs) -> dict:
         from playwright.async_api import Playwright
         playwright: Playwright = playwright
         intercepted = EventUrl()
@@ -329,7 +333,7 @@ if (login_needed == 5000) {
                         # await page.get_by_text(re.compile("^Accedi con email"), exact=False).click(timeout=self.d1 * 1000 + 10000)
                         # exit_value |= 4
                         # await sleep(3)
-                        uspw = await self.get_user_credentials(userid)
+                        uspw = await self.get_user_credentials(userid, **kwargs)
                         if uspw:
                             await page.get_by_placeholder("Password *").fill(uspw[1], timeout=self.d2 * 1000 + 10000)
                             exit_value |= 8
@@ -361,26 +365,28 @@ if (login_needed == 5000) {
         # Return the page's URL and title as a dictionary.
         return {'url': url, 'title': title, 'smilurl': smilurl, 'exit_value': exit_value}
 
-    async def processGetSMILPlaywright(self, url, userid, executor):
+    async def processGetSMILPlaywright(self, url, userid, executor, **kwargs):
         from playwright.async_api import async_playwright
         result = None
         async with async_playwright() as playwright:
-            result = await self.processGetSMILPlaywrightInner(playwright, url=url, userid=userid)
+            result = await self.processGetSMILPlaywrightInner(playwright, url=url, userid=userid, **kwargs)
             _LOGGER.info(f'[mediaset] SMIL get sta={result["exit_value"]}')
         return result['exit_value'] if not (result['exit_value'] & 64) else result['smilurl']
 
-    async def processKeyGet(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processKeyGet(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistItemId()
-        it = await PlaylistItem.loadbyid(self.db, rowid=x)
+        it = await PlaylistItem.loadbyid(db, rowid=x)
         if it:
-            pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                 try:
                     msg.smil = None if len(msg.smil) < 10 else msg.smil
-                    if not msg.smil and 'pageurl' in it.conf:
-                        rv = await self.getsmil(it.conf['pageurl'], userid, executor)
+                    if not msg.smil and it.conf and 'pageurl' in it.conf:
+                        rv = await self.getsmil(it.conf['pageurl'], userid, executor, **kwargs)
                         if isinstance(rv, int):
                             return msg.err(rv, MSG_BACKEND_ERROR)
                         else:
@@ -425,16 +431,19 @@ if (login_needed == 5000) {
                                 pssh = re.findall(r'<cenc:pssh>(.{20,170})</cenc:pssh>', response)[0].strip()
                             else:
                                 return msg.err(10, MSG_BACKEND_ERROR)
+                    if not it.conf:
+                        it.conf = {}
                     it.conf['_drm_p'] = pid
                     it.conf['_drm_a'] = aid
                     it.conf['_drm_t'] = token
                     it.conf['_drm_m'] = mpd
-                    drmi = it.conf['_drm_i'] = f'b{it.conf["brand"]}s{it.conf["playlist"]}'
-                    plc = pls[0].conf
+                    drmi = it.conf['_drm_i'] = f'b{it.component.parenti}s{it.component.brand}' if it.component else f'pl{it.playlisti}'
+                    plc = pls[0].conf if pls[0].conf else {}
+                    pls[0].conf = plc
                     if '_drm_i' not in plc or drmi not in plc['_drm_i']:
                         plc['_drm_i'] = plc.get('_drm_i', [])
                         plc['_drm_i'].append(drmi)
-                        await pls[0].toDB(self.db, commit=False)
+                        await pls[0].toDB(db, commit=False)
                     try:
                         headers_clone = {
                             'Connection': 'keep-alive',
@@ -464,12 +473,12 @@ if (login_needed == 5000) {
                                         it.conf['_drm_k'] = keys
                     except Exception:
                         _LOGGER.warning(f'[mediaset] Get key failed: {traceback.format_exc()}')
-                    if await it.toDB(self.db, commit=True):
+                    if it := await it.toDB(db, commit=True):
                         return msg.ok(playlistitem=it)
                     else:
                         return msg.err(9, MSG_BACKEND_ERROR)
                 except Exception:
-                    _LOGGER.warning(f'[Mediaset key get] Error grtting key {traceback.format_exc()}')
+                    _LOGGER.warning(f'[Mediaset key get] Error getting key {traceback.format_exc()}')
                     return msg.err(12, MSG_BACKEND_ERROR)
             else:
                 return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
@@ -576,9 +585,9 @@ if (login_needed == 5000) {
         else:
             return msg.err(14, MSG_INVALID_DATE)
 
-    def entry2Program(self, e, brand, subbrand, playlist):
+    def entry2Program(self, e, comp: PlaylistComponent):
         lnk = e.get('mediasetprogram$videoPageUrl')
-        conf = dict(playlist=subbrand, brand=brand, pageurl=f'https:{lnk}' if lnk else None)
+        conf = dict(pageurl=f'https:{lnk}' if lnk else None)
         title = e['title']
         uid = e['guid']
         img = None
@@ -600,28 +609,35 @@ if (login_needed == 5000) {
                 img = imgo['url']
         datepubi = e["mediasetprogram$publishInfo_lastPublished"]
         datepubo = datetime.fromtimestamp(datepubi / 1000)
-        datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+        datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S')
         dur = e["mediasetprogram$duration"]
         link = e["media"][0]["publicUrl"]
         return (PlaylistItem(
             link=link,
             title=title,
-            datepub=datepub,
+            datepub=datepubo,
             dur=dur,
             conf=conf,
             uid=uid,
             img=img,
-            playlist=playlist
-        ), datepubi)
+            playlisti=comp.playlisti,
+            componenti=comp.rowid
+        ), datepubi, datepub)
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), filter=dict(), playlist=None, userid=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, comps: list[PlaylistComponent] = [], filter=dict(), userid=None, executor=None):
         try:
-            brand = conf['brand']['id']
-            brandt = conf['brand']['title'] if 'title' in conf['brand'] else brand
             subbrands = []
-            for s in conf['playlists'].values():
-                if not filter or (s['id'] in filter and filter[s['id']]['sel']):
-                    subbrands.append((s['id'], s['desc'] if 'desc' in s and s['desc'] else s['title']))
+            componentdict = dict()
+            brand = 0
+            brandt = ''
+            for comp in comps:
+                ibr = int(comp.brand)
+                if comp.parenti is None:
+                    brand = ibr
+                    brandt = comp.title
+                elif comp.sel and (not filter or (comp.brand in filter and filter[comp.brand]['sel'])):
+                    subbrands.append((ibr, comp.description if comp.description else comp.title))
+                    componentdict[ibr] = comp
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
@@ -640,13 +656,13 @@ if (login_needed == 5000) {
                                     js = await resp.json()
                                     for e in js['entries']:
                                         try:
-                                            (pr, datepubi) = self.entry2Program(e, brand, subbrand, playlist)
+                                            (pr, datepubi, datepub) = self.entry2Program(e, componentdict[subbrand])
                                             _LOGGER.debug("Found [%s] = %s" % (pr.uid, str(pr)))
-                                            self.record_status(sta, f'\U0001F50D Found {pr.title} [{pr.datepub}]', 'ss')
+                                            self.record_status(sta, f'\U0001F50D Found {pr.title} [{datepub}]', 'ss')
                                             if pr.uid not in programs and datepubi >= datefrom and\
                                                (datepubi <= dateto or dateto < datefrom):
                                                 programs[pr.uid] = pr
-                                                self.record_status(sta, f'\U00002795 Added {pr.title} [{pr.datepub}]', 'ss')
+                                                self.record_status(sta, f'\U00002795 Added {pr.title} [{datepub}]', 'ss')
                                                 _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
                                         except Exception as ex:
                                             self.record_status(sta, f'\U000026A0 Error 0: {repr(ex)}', 'ss')

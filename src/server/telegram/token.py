@@ -6,8 +6,8 @@ from typing import List, Optional
 from telegram_menu import MenuButton, NavigationHandler
 from telegram.ext._callbackcontext import CallbackContext
 from common.const import CMD_TOKEN
-from common.playlist import PlaylistMessage
-from common.user import User
+from common.playlist_alc_ses import PlaylistMessage
+from common.user_alc_ses import User
 from server.telegram.message import NameDurationStatus, StatusTMessage
 
 

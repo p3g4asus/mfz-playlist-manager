@@ -10,8 +10,8 @@ from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 
 from common.const import CMD_REMOTEPLAY_JS, CMD_REMOTEPLAY_JS_DEL, CMD_REMOTEPLAY_JS_F5PL, CMD_REMOTEPLAY_JS_FFW, CMD_REMOTEPLAY_JS_GOTO, CMD_REMOTEPLAY_JS_INFO, CMD_REMOTEPLAY_JS_ITEM, CMD_REMOTEPLAY_JS_NEXT, CMD_REMOTEPLAY_JS_PAUSE, CMD_REMOTEPLAY_JS_PREV, CMD_REMOTEPLAY_JS_RATE, CMD_REMOTEPLAY_JS_REW, CMD_REMOTEPLAY_JS_SCHED, CMD_REMOTEPLAY_JS_SEC, PLAYER_VIDEO_STATUS_BUFFERING, PLAYER_VIDEO_STATUS_CUED, PLAYER_VIDEO_STATUS_ENDED, PLAYER_VIDEO_STATUS_PAUSED, PLAYER_VIDEO_STATUS_PLAYING, PLAYER_VIDEO_STATUS_UNSTARTED, PLAYLIST_SCHED_AT_THE_END, PLAYLIST_SCHED_REPLACE
-from common.playlist import PlaylistItem
-from common.user import User
+from common.playlist_alc_ses import PlaylistItem
+from common.user_alc_ses import User
 from server.telegram.message import ChangeTimeTMessage, NameDurationStatus, duration2string
 from server.telegram.remote import RemoteInfoMessage, RemoteListMessage
 
@@ -295,7 +295,7 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
             await ChangeTimeTMessage.update(self, context)
         plitems = self.plitems
         vinfo = self.vinfo
-        rate = vinfo["rate"]
+        rate = vinfo.get("ratec", vinfo.get("rate", 1))
         if 'title' not in vinfo:
             rv += '<b>No more video in playlist</b>'
             idx = -1
@@ -328,8 +328,9 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
                     updown_i += 1
             else:
                 it = self.plitems[ci]
-                if 'rate' in it.conf:
-                    rate = it.conf['rate']
+                if it.title is None:
+                    break
+                rate = it.ratec if it.ratec else 1
                 a2 = f'\n<b>/I{self.ns}_{ci:06d}</b> <a href="{it.link}">{escape(it.title)}</a> ({duration2string(round(it.dur / rate))})'
                 if updown_s == 1:
                     add += a2

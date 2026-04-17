@@ -24,18 +24,23 @@ from aiosqlite import Connection
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import AsyncIOOSCUDPServer
 from pythonosc.udp_client import SimpleUDPClient
+from sqlalchemy import and_, delete, select, update
+from sqlalchemy.orm import make_transient
+from sqlalchemy.util.concurrency import greenlet_spawn
 
 from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DEL, CMD_DL_SETTINGS, CMD_DOWNLOAD,
                           CMD_DUMP, CMD_FREESPACE, CMD_INDEX, CMD_IORDER, CMD_ITEMDUMP, CMD_MOVE,
                           CMD_PLAYID, CMD_PLAYTIME, CMD_PLAYITSETT, CMD_PLAYSETT, CMD_REN,
-                          CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TOKEN, CMD_USER_SETTINGS, DOWNLOADED_SUFFIX,
+                          CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TOKEN, CMD_USER_SETTINGS,
                           MSG_BACKEND_ERROR, MSG_INVALID_PARAM, MSG_NAME_TAKEN,
                           MSG_PLAYLIST_NOT_FOUND, MSG_PLAYLISTITEM_NOT_FOUND,
                           MSG_TASK_ABORT, MSG_UNAUTHORIZED)
-from common.playlist import (LOAD_ITEMS_ALL, LOAD_ITEMS_NO, LOAD_ITEMS_UNSEEN,
-                             Playlist, PlaylistItem, PlaylistMessage)
-from common.user import User
-from common.utils import AbstractMessageProcessor, MyEncoder
+from common.playlist_alc_ses import (LOAD_ITEMS_ALL, LOAD_ITEMS_NO, LOAD_ITEMS_UNSEEN,
+                                     Playlist, PlaylistComponent, PlaylistItem, PlaylistMessage, ViewConf)
+from common.user_alc_ses import User
+from common.utils import MyEncoder
+from server.db.base import AlchemicDB, UsesAlchemicDB
+from server.pls import AbstractMessageProcessor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +48,7 @@ DUMP_LIMIT = 50
 
 
 class MessageProcessor(AbstractMessageProcessor):
-    def __init__(self, db, dldir='', **kwargs):
+    def __init__(self, db: AlchemicDB, dldir='', **kwargs):
         super().__init__(db, **kwargs)
         self.dl_dir = dldir
         self.dl_q = OrderedDict()
@@ -57,21 +62,23 @@ class MessageProcessor(AbstractMessageProcessor):
             msg.c(CMD_CLEAR) or msg.c(CMD_FREESPACE) or msg.c(CMD_TOKEN) or msg.c(CMD_USER_SETTINGS) or\
             msg.c(CMD_ITEMDUMP)
 
-    async def processMove(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processMove(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         pdst = msg.playlistId()
         itx = msg.playlistItemId()
         if pdst and itx:
-            pdst = await Playlist.loadbyid(self.db, rowid=pdst, loaditems=LOAD_ITEMS_NO)
+            pdst = await Playlist.loadbyid(db, rowid=pdst, loaditems=LOAD_ITEMS_NO)
             if not pdst:
                 return msg.err(10, MSG_PLAYLIST_NOT_FOUND, playlist=None)
             else:
                 pdst = pdst[0]
             if pdst.useri != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-            it = await PlaylistItem.loadbyid(self.db, itx)
+            it = await PlaylistItem.loadbyid(db, itx)
             if not it:
                 return msg.err(14, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-            psrc = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            psrc = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
             if not psrc:
                 return msg.err(16, MSG_PLAYLIST_NOT_FOUND, playlist=None)
             else:
@@ -79,63 +86,77 @@ class MessageProcessor(AbstractMessageProcessor):
             if psrc.useri != userid:
                 return msg.err(502, MSG_UNAUTHORIZED, playlist=None)
             if not pdst.rowid:
-                rv = await pdst.toDB(self.db)
+                rv = await pdst.toDB(db)
                 if not rv:
                     return msg.err(2, MSG_NAME_TAKEN, playlist=None)
-            rv = await it.move_to(pdst.rowid, self.db)
+            rv = await it.move_to(pdst.rowid, db)
             if rv:
-                pdst = await Playlist.loadbyid(self.db, rowid=pdst.rowid)
+                make_transient(pdst)
+                pdst = await Playlist.loadbyid(db, rowid=pdst.rowid)
                 return msg.ok(playlist=pdst[0])
             else:
                 return msg.err(4, MSG_BACKEND_ERROR, playlist=None)
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processAdd(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processAdd(self, msg, userid, executor, **kwargs):
         x = msg.playlistObj()
         if x:
+            db = kwargs.get('db', self.db)
             if x.useri != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-            rv = await x.toDB(self.db)
-            if rv:
+            x = await x.toDB(db)
+            if x:
                 return msg.ok(playlist=x)
             else:
                 return msg.err(2, MSG_NAME_TAKEN, playlist=None)
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processTokenRefresh(self, userid):
-        users: list[User] = await User.loadbyid(self.db, rowid=userid)
+    @UsesAlchemicDB
+    async def processTokenRefresh(self, userid, **kwargs):
+        db = kwargs.get('db', self.db)
+        users: list[User] = await User.loadbyid(db, rowid=userid)
         if users:
-            return await users[0].refreshToken(self.db)
+            return await users[0].refreshToken(db)
         else:
             return None
 
-    async def processTokenGet(self, userid):
-        users: list[User] = await User.loadbyid(self.db, rowid=userid)
+    @UsesAlchemicDB
+    async def processTokenGet(self, userid, **kwargs):
+        db = kwargs.get('db', self.db)
+        users: list[User] = await User.loadbyid(db, rowid=userid)
         if users:
             return users[0].token
         else:
             return None
 
-    async def processToken(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processToken(self, msg, userid, executor, **kwargs):
         refresh = msg.f('refresh')
         token = None
-        if refresh or not (token := await self.processTokenGet(userid)):
-            token = await self.processTokenRefresh(userid)
+        if refresh or not (token := await self.processTokenGet(userid, **kwargs)):
+            token = await self.processTokenRefresh(userid, **kwargs)
         return msg.ok(token=token)
 
-    async def processUserSettings(self, msg, userid, executor):
-        users: list[User] = await User.loadbyid(self.db, rowid=userid)
+    @UsesAlchemicDB
+    async def processUserSettings(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
+        users: list[User] = await User.loadbyid(db, rowid=userid)
         if users:
             u = users[0]
+            if u.conf is None:
+                u.conf = {}
             u.conf['settings'] = msg.settings
-            rv = await u.toDB(self.db)
+            rv = await u.toDB(db)
             return msg.ok() if rv else msg.err(5, MSG_BACKEND_ERROR)
         else:
             return msg.err(501, MSG_UNAUTHORIZED)
 
-    async def processDump(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processDump(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         u = msg.f("useri", (int,))
         if u:
             if u != userid:
@@ -150,7 +171,7 @@ class MessageProcessor(AbstractMessageProcessor):
                 all = int(msg.f('load_all'))
             except Exception:
                 all = 0
-            pl = await Playlist.loadbyid(self.db, rowid=msg.playlistId(), name=msg.playlistName(), useri=u, offset=vidx, limit=DUMP_LIMIT, loaditems=LOAD_ITEMS_UNSEEN if not all else LOAD_ITEMS_ALL if all > 0 else LOAD_ITEMS_NO)
+            pl = await Playlist.loadbyid(db, rowid=msg.playlistId(), name=msg.playlistName(), useri=u, offset=vidx, limit=DUMP_LIMIT, loaditems=LOAD_ITEMS_UNSEEN if not all else LOAD_ITEMS_ALL if all > 0 else LOAD_ITEMS_NO)
             _LOGGER.debug("Playlists are %s" % str(pl))
             if len(pl):
                 if msg.f('index', (int,)):
@@ -161,15 +182,17 @@ class MessageProcessor(AbstractMessageProcessor):
                 return msg.ok(playlist=None, playlists=pl, fast_videoidx=vidx, fast_videostep=DUMP_LIMIT if vidx is not None else None)
         return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processRen(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processRen(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                 pls[0].name = msg.f("to")
-                rv = await pls[0].toDB(self.db)
+                rv = await pls[0].toDB(db)
                 if rv:
                     return msg.ok(playlist=x, name=pls[0].name)
                 else:
@@ -179,7 +202,9 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processSeen(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processSeen(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         llx = msg.playlistItemId()
         if llx is not None:
             lx = llx if isinstance(llx, list) else [llx]
@@ -190,20 +215,20 @@ class MessageProcessor(AbstractMessageProcessor):
                 seen = [seen] * len(lx)
             nmod = 0
             for i, x in enumerate(lx):
-                it = await PlaylistItem.loadbyid(self.db, rowid=x)
+                it = await PlaylistItem.loadbyid(db, rowid=x)
                 if it:
-                    pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+                    pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
                     if pls:
                         if pls[0].useri != userid:
                             return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                         todb = False
-                        if isinstance(it.conf, dict) and 'sec' in it.conf:
-                            del it.conf['sec']
+                        if it.timeplayed is not None:
+                            it.timeplayed = None
                             todb = True
                         if todb:
                             it.seen = None if not seen[i] else datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                            await it.toDB(self.db, commit=False)
-                        elif not await it.setSeen(self.db, seen[i], commit=False):
+                            await it.toDB(db, commit=False)
+                        elif not await it.setSeen(db, seen[i], commit=False):
                             return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                         nmod += 1
                     else:
@@ -211,21 +236,24 @@ class MessageProcessor(AbstractMessageProcessor):
                 else:
                     return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
             if nmod:
-                await self.db.commit()
+                await db.commit()
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         return msg.ok(playlistitem=llx)
 
-    async def processSeenPrev(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processSeenPrev(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistItemId()
+        pls = None
         if x is not None:
-            it = await PlaylistItem.loadbyid(self.db, rowid=x)
+            it = await PlaylistItem.loadbyid(db, rowid=x)
             if it:
-                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+                pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
                 if pls:
                     if pls[0].useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                    if not await it.setSeen(self.db, True, commit=True, previous=True):
+                    if not await it.setSeen(db, True, commit=True, previous=True):
                         return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                 else:
                     return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
@@ -233,36 +261,44 @@ class MessageProcessor(AbstractMessageProcessor):
                 return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-        pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_ALL)
+        if pls:
+            make_transient(pls[0])
+        pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_ALL)
         return msg.ok(playlistitem=x, playlist=pls[0])
 
-    async def processPlayItSett(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processPlayItSett(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistItemId()
-        it = await PlaylistItem.loadbyid(self.db, rowid=x)
+        it: PlaylistItem = await PlaylistItem.loadbyid(db, rowid=x)
         if it:
-            pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                 if msg.f('over'):
-                    it.conf = msg.conf
+                    conf = msg.conf
                     if isinstance(it.conf, str):
-                        it.conf = json.loads(it.conf)
+                        conf = json.loads(it.conf)
                 else:
-                    it.conf.update(msg.conf)
-                if not await it.toDB(self.db):
-                    return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                    conf = msg.conf
+                if 'sec' in conf:
+                    it.timeplayed = conf['sec']
+                    if not await it.toDB(db):
+                        return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
             else:
                 return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
         else:
             return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         return msg.ok(playlistitem=x)
 
-    async def processItemDump(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processItemDump(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistItemId()
-        it = await PlaylistItem.loadbyid(self.db, rowid=x)
+        it = await PlaylistItem.loadbyid(db, rowid=x)
         if it:
-            pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
@@ -404,7 +440,9 @@ class MessageProcessor(AbstractMessageProcessor):
             if self.p:
                 self.p.send_signal(signal.CTRL_C_EVENT if os.name == 'nt' else signal.SIGINT)
 
-        async def dl(self, status, executor):
+        @UsesAlchemicDB
+        async def dl(self, status, executor, **kwargs):
+            db = kwargs.get('db', self.db)
             msg = self.msg
             format = msg.f('fmt')
             # conv = msg.f('conv')
@@ -431,7 +469,7 @@ class MessageProcessor(AbstractMessageProcessor):
                 self.safe_del(dest)
                 move(join(sd, f'{self.it.rowid}.mp4'), dest)
                 self.it.dl = dest
-                if not await self.it.toDB(self.db):
+                if not await self.it.toDB(db):
                     msg = msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                 else:
                     msg = msg.ok(playlistitem=self.it)
@@ -457,7 +495,9 @@ class MessageProcessor(AbstractMessageProcessor):
                     pass
             return dict()
 
-        async def dl(self, status, executor):
+        @UsesAlchemicDB
+        async def dl(self, status, executor, **kwargs):
+            db = kwargs.get('db', self.db)
             msg = self.msg
             format = msg.f('fmt')
             conv = msg.f('conv')
@@ -490,10 +530,10 @@ class MessageProcessor(AbstractMessageProcessor):
             else:
                 kw = dict()
                 post.pop(1)
-            cookie = await User.get_settings(self.db, self.userid, 'cookie')
+            cookie = await User.get_settings(db, self.userid, 'cookie')
             dctadd = self.additional_ytdl_opts()
             kw.update(dctadd)
-            if (co := self.pls.conf.get('dl', dict()).get('cookie')) or (co := cookie):
+            if (self.pls.conf and (co := self.pls.conf.get('dl', dict()).get('cookie'))) or (co := cookie):
                 tmp = NamedTemporaryFile(delete=False)
                 try:
                     tmp.write(co.encode('utf-8'))
@@ -533,7 +573,7 @@ class MessageProcessor(AbstractMessageProcessor):
                 _, ext = splitext(fromfile)
                 self.it.dl = join(self.dl_dir, f'{self.it.rowid}{ext}')
                 rename(fromfile, self.it.dl)
-                if not await self.it.toDB(self.db):
+                if not await self.it.toDB(db):
                     msg = msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                 else:
                     msg = msg.ok(playlistitem=self.it)
@@ -585,16 +625,18 @@ class MessageProcessor(AbstractMessageProcessor):
             self.osc_c = SimpleUDPClient('127.0.0.1', hisport)
             return (str(hisport), str(myport))
 
-    async def processDl(self, msg: PlaylistMessage, userid, executor):
+    @UsesAlchemicDB
+    async def processDl(self, msg: PlaylistMessage, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistItemId()
         if x:
-            it = await PlaylistItem.loadbyid(self.db, rowid=x)
+            it = await PlaylistItem.loadbyid(db, rowid=x)
             if it:
-                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+                pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
                 if pls:
                     drm = '_drm_k' in it.conf and it.conf['_drm_k'] and '_drm_m' in it.conf and it.conf['_drm_m']
                     sp = msg.init_send_status_with_ping()
-                    downloader = self.DRMDownloader(it, pls[0], msg, self.db, self.dl_dir) if drm else self.YTDLDownloader(it, pls[0], msg, self.db, self.dl_dir, userid)
+                    downloader = self.DRMDownloader(it, pls[0], msg, db, self.dl_dir) if drm else self.YTDLDownloader(it, pls[0], msg, db, self.dl_dir, userid)
                     if pls[0].useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                     elif self.downloader:
@@ -618,7 +660,7 @@ class MessageProcessor(AbstractMessageProcessor):
                         sp['que'] = False
                         self.status['dl'] = sp
                         self.status['dlx'] = dict()
-                        msg = await downloader.dl(self.status, executor)
+                        msg = await downloader.dl(self.status, executor, **kwargs)
                         self.status['dlid'] = -1
                         self.downloader = None
                     else:
@@ -636,17 +678,19 @@ class MessageProcessor(AbstractMessageProcessor):
             self.downloader.halt()
             return msg.ok()
 
-    async def processFreeSpace(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processFreeSpace(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistItemId()
         if x:
-            it = await PlaylistItem.loadbyid(self.db, rowid=x)
+            it = await PlaylistItem.loadbyid(db, rowid=x)
             if it:
-                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+                pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
                 if pls:
                     if pls[0].useri != userid:
                         return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                     else:
-                        todel = await it.clean(self.db, True)
+                        todel = await it.clean(db, True)
                         return msg.ok(playlistitem=it, deleted=todel)
                 else:
                     msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
@@ -655,12 +699,14 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
 
-    async def processIOrder(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processIOrder(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistItemId()
         if x is not None:
-            it = await PlaylistItem.loadbyid(self.db, rowid=x)
+            it = await PlaylistItem.loadbyid(db, rowid=x)
             if it:
-                pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_ALL)
+                pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_ALL)
                 if pls:
                     pl = pls[0]
                     items = pl.items
@@ -669,7 +715,7 @@ class MessageProcessor(AbstractMessageProcessor):
                     dest_iorder = msg.f("iorder")
                     round_iorder = dest_iorder if (dest_iorder % 10) == 0 else (dest_iorder // 10 + 1) * 10
                     plus_idx = -1
-                    # await pl.cleanItems(self.db, commit=False)
+                    # await pl.cleanItems(db, commit=False)
                     foundme = False
                     for idx, other_it in enumerate(items):
                         if other_it.rowid != x:
@@ -686,48 +732,52 @@ class MessageProcessor(AbstractMessageProcessor):
                         cur_iorder = round_iorder + (len(items) - plus_idx) * 10
                         for idx in range(len(items) - 1, plus_idx - 1, -1):
                             _LOGGER.debug(f"SetIorder {items[idx]} -> {cur_iorder}")
-                            if not await items[idx].setIOrder(self.db, -cur_iorder, commit=False):
+                            if not await items[idx].setIOrder(db, -cur_iorder, commit=False):
                                 return msg.err(5, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-                            items[idx].iorder = -items[idx].iorder
+                            # items[idx].iorder = -items[idx].iorder
                             cur_iorder -= 10
                         fix_order = True
-                    if await it.setIOrder(self.db, round_iorder, commit=not fix_order):
-                        if fix_order and not await pl.fix_iorder(self.db, commit=fix_order):
+                    if await it.setIOrder(db, round_iorder, commit=not fix_order):
+                        if fix_order and not await pl.fix_iorder(db, commit=fix_order):
                             return msg.err(6, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                         else:
-                            pl.items.sort(key=lambda x: x.iorder)
+                            await greenlet_spawn(lambda pl: pl.items.sort(key=lambda x: x.iorder), pl)
                             return msg.ok(playlistitem=it, playlist=pl)
                     else:
                         return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
                 else:
-                    msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+                    return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
             else:
                 return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
 
-    async def processDel(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processDel(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                res = await pls[0].delete(self.db, commit=False)
+                res = await pls[0].delete(db, commit=False)
                 if res:
-                    await Playlist.reset_index(self.db, useri=userid, commit=True)
+                    await Playlist.reset_index(db, useri=userid, commit=True)
                     return msg.ok(playlist=x)
                 else:
-                    msg.err(2, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                    return msg.err(2, MSG_PLAYLIST_NOT_FOUND, playlist=None)
             else:
-                msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processDlSettings(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processDlSettings(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
             if pls:
                 pl = pls[0]
                 if pl.useri != userid:
@@ -735,56 +785,62 @@ class MessageProcessor(AbstractMessageProcessor):
                 confdl = msg.f('dl')
                 mod = False
                 if not isinstance(confdl, dict) or not confdl:
-                    if 'dl' in pl.conf:
+                    if pl.conf and 'dl' in pl.conf:
                         del pl.conf['dl']
                         mod = True
                 else:
+                    if not pl.conf:
+                        pl.conf = {}
                     pl.conf['dl'] = confdl
                     mod = True
                 if mod:
-                    res = await pl.toDB(self.db, commit=True)
+                    res = await pl.toDB(db, commit=True)
                     if not res:
                         return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlist=None)
                 return msg.ok()
             else:
-                msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
+                return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processSort(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processSort(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_ALL, sort_item_field='datepub')
+            pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_ALL, sort_item_field='datepub')
             if pls:
                 pl = pls[0]
                 if pl.useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                # await pl.cleanItems(self.db, commit=False)
+                # await pl.cleanItems(db, commit=False)
                 cur_iorder = 10
                 for other_it in pl.items:
-                    if not await other_it.setIOrder(self.db, -cur_iorder, commit=False):
+                    if not await other_it.setIOrder(db, -cur_iorder, commit=False):
                         return msg.err(5, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-                    other_it.iorder = -other_it.iorder
+                    # other_it.iorder = -other_it.iorder
                     cur_iorder += 10
                 if pl.items:
-                    if not await pl.fix_iorder(self.db, commit=True):
+                    if not await pl.fix_iorder(db, commit=True):
                         return msg.err(2, MSG_PLAYLIST_NOT_FOUND, playlist=None)
-                    pl.items.sort(key=lambda x: x.iorder)
+                    await greenlet_spawn(lambda pl: pl.items.sort(key=lambda x: x.iorder), pl)
                 return msg.ok(playlist=pl)
             else:
                 return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processIndex(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processIndex(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
             if pls:
                 pl = pls[0]
                 if pl.useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                plss = await Playlist.loadbyid(self.db, useri=userid, loaditems=LOAD_ITEMS_NO)
+                plss = await Playlist.loadbyid(db, useri=userid, loaditems=LOAD_ITEMS_NO)
                 index = msg.f('index') + 0.5
                 for i, pl in enumerate(plss):
                     if pl.rowid == x:
@@ -794,23 +850,25 @@ class MessageProcessor(AbstractMessageProcessor):
                 plss.sort(key=lambda x: x.iorder)
                 for i, pl in enumerate(plss):
                     pl.iorder = i + 1
-                    await pl.toDB(self.db, commit=False)
-                await self.db.commit()
+                    await pl.toDB(db, commit=False)
+                await db.commit()
                 return msg.ok(sort=plss)
             else:
                 return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processClear(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processClear(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
             if pls:
                 pl: Playlist = pls[0]
                 if pl.useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                if not await pl.clear(self.db):
+                if not await pl.clear(db):
                     return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlist=None)
                 else:
                     return msg.ok(playlist=pl)
@@ -819,123 +877,117 @@ class MessageProcessor(AbstractMessageProcessor):
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processPlayId(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processPlayId(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
             if pls:
                 pl = pls[0]
                 if pl.useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                # await pl.cleanItems(self.db, commit=False)
-                play = pl.conf.get('play', dict())
-                pl.conf['play'] = play
+                # await pl.cleanItems(db, commit=False)
+                # play = pl.conf.get('play', dict())
+                # pl.conf['play'] = play
 
-                def manage_play_dict(play_dict, message, source_field, dest_field):
+                def manage_play_dict(pl, message, source_field, dest_field):
                     try:
                         newid = getattr(message, source_field)
-                        if not newid and dest_field in play_dict:
-                            del play_dict[dest_field]
+                        if not newid and getattr(pl, dest_field, None):
+                            pl[dest_field] = None
                         elif newid:
-                            play_dict[dest_field] = newid
+                            pl[dest_field] = newid
                     except Exception:
                         pass
-                manage_play_dict(play, msg, 'playid', 'id')
-                manage_play_dict(play, msg, 'playrate', 'rate')
+                manage_play_dict(pl, msg, 'playid', 'playstate')
+                manage_play_dict(pl, msg, 'playrate', 'rate')
                 if hasattr(msg, 'rates'):
-                    rates = play['rates'] = play.get('rates', dict())
-                    manage_play_dict(rates, msg, 'rates', str(msg.f('key')))
-
-                rv = await pl.toDB(self.db)
-                if not rv:
-                    return msg.err(20, MSG_INVALID_PARAM, playlist=None)
-                return msg.ok(playlist=pl)
+                    if key := msg.f('key'):
+                        rr = None if not msg.rates else msg.rates
+                        updateq = update(PlaylistComponent).where(PlaylistComponent.rowid == int(key)).values(rate=rr)
+                        await db.session.execute(updateq)
+                await db.session.commit()
+                make_transient(pl)
+                pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_UNSEEN)
+                return msg.ok(playlist=pls[0])
             else:
                 return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
         else:
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
-    async def processPlayTime(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processPlayTime(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistItemId()
-        it = await PlaylistItem.loadbyid(self.db, rowid=x)
+        it = await PlaylistItem.loadbyid(db, rowid=x)
         if it:
-            pls = await Playlist.loadbyid(self.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
             if pls:
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                mod = True
-                key = msg.f('key')
                 if not (key := msg.f('key')):
                     key = 'sec'
-                if (tm := msg.f(key)) is not None:
-                    it.conf[key] = tm
-                elif key in it.conf:
-                    del it.conf[key]
+                tm = msg.f(key)
+                if key == 'sec':
+                    it.timeplayed = tm
+                elif key == 'rate':
+                    it.rate = tm
                 else:
-                    mod = False
-                if mod:
-                    rv = await it.toDB(self.db)
-                    if not rv:
-                        return msg.err(20, MSG_INVALID_PARAM, playlistitem=None)
+                    return msg.err(30, MSG_INVALID_PARAM, playlistitem=None)
+                await db.session.commit()
                 return msg.ok()
             else:
                 return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
 
-    async def processPlaySett(self, msg, userid, executor):
+    @UsesAlchemicDB
+    async def processPlaySett(self, msg, userid, executor, **kwargs):
+        db = kwargs.get('db', self.db)
         x = msg.playlistId()
         if x is not None:
-            pls = await Playlist.loadbyid(self.db, rowid=x, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
             if pls:
                 pl = pls[0]
                 if pl.useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
-                # await pl.cleanItems(self.db, commit=False)
+                # await pl.cleanItems(db, commit=False)
                 try:
-                    play = pl.conf.get('play', dict())
-                    pl.conf['play'] = play
-                    play['id'] = msg.f('playid')
+                    pl.playstate = msg.f('playid')
                     keys = msg.f('key')
                     oldkeys = msg.f('oldkey')
                     cont = msg.f('content')
                     if cont:
-                        key = play.get(keys if not oldkeys else oldkeys, dict())
-                        if oldkeys and oldkeys in play and keys != oldkeys:
-                            del play[oldkeys]
-                        play[keys] = key
-                        default_key = msg.f('default')
-                        if default_key:
-                            key[default_key] = cont
-                        else:
-                            if 'default' not in key:
-                                key['default'] = cont
-                            if f'default{DOWNLOADED_SUFFIX}' not in key:
-                                key[f'default{DOWNLOADED_SUFFIX}'] = cont
-                        key[msg.f('set')] = cont
+                        if oldkeys and keys != oldkeys:
+                            deleteq = delete(ViewConf).where(and_(ViewConf.playlisti == pl.rowid, ViewConf.name == oldkeys))
+                            await db.session.execute(deleteq)
+                            subq = select(Playlist.rowid).where(Playlist.useri == userid)
+                            updateq = update(ViewConf).where(and_(ViewConf.name == oldkeys, ViewConf.playlisti.in_(subq))).values(name=keys)
+                            await db.session.execute(updateq)
+                        defaultv = msg.f('default')
+                        dl = msg.f('dl')
+                        comp = msg.f('comp')
+                        if comp < 0 or defaultv:
+                            comp = None
+                        vc = ViewConf(playlisti=pl.rowid,
+                                      name=keys,
+                                      type=(ViewConf.VIEW_CONF_TYPE_DEFAULT if defaultv else 0) | (ViewConf.VIEW_CONF_TYPE_DOWNLOAD if dl else 0),
+                                      componenti=comp,
+                                      **cont)
+                        vch = vc.hash
+                        if vch in pl.views:
+                            vc.rowid = pl.views[vch].rowid
+                        await db.upsert(vc)
                     elif cont is not None:
-                        play[keys] = dict()
-                    elif keys in play:
-                        del play[keys]
-                    pls = await Playlist.loadbyid(self.db, useri=userid, loaditems=LOAD_ITEMS_NO)
-                    for plt in pls:
-                        if plt.rowid != x:
-                            play = plt.conf.get('play', dict())
-                            plt.conf['play'] = play
-                            if cont is None:
-                                if keys in play:
-                                    del play[keys]
-                                    await plt.toDB(self.db, commit=False)
-                            elif keys not in play or (oldkeys and oldkeys in play and keys != oldkeys):
-                                newconf = dict()
-                                if oldkeys and oldkeys in play:
-                                    newconf = play[oldkeys]
-                                    del play[oldkeys]
-                                play[keys] = newconf
-                                await plt.toDB(self.db, commit=False)
-                    rv = await pl.toDB(self.db)
-                    if not rv:
-                        return msg.err(20, MSG_INVALID_PARAM, playlist=None)
+                        deleteq = delete(ViewConf).where(and_(ViewConf.playlisti == pl.rowid, ViewConf.name == keys))
+                        await db.session.execute(deleteq)
+                    else:
+                        subq = select(Playlist.rowid).where(Playlist.useri == userid)
+                        deleteq = delete(ViewConf).where(and_(ViewConf.name == keys, ViewConf.playlisti.in_(subq)))
+                        await db.session.execute(deleteq)
+                    await db.commit_session()
+                    await db.session.refresh(pl)
                     return msg.ok(playlist=pl)
                 except Exception:
                     _LOGGER.error(traceback.format_exc())

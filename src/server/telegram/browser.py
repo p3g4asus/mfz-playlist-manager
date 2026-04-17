@@ -20,7 +20,7 @@ from common.const import (CMD_REMOTEBROWSER_JS, CMD_REMOTEBROWSER_JS_ACTIVATE,
                           CMD_REMOTEBROWSER_JS_GOTO, CMD_REMOTEBROWSER_JS_KEY,
                           CMD_REMOTEBROWSER_JS_MUTE,
                           CMD_REMOTEBROWSER_JS_RELOAD)
-from common.user import User
+from common.user_alc_ses import User
 from common.utils import Fieldable
 from server.telegram.message import NameDurationStatus, ProcessorMessage
 from server.telegram.remote import RemoteInfoMessage, RemoteListMessage
@@ -358,7 +358,7 @@ class BrowserListMessage(RemoteListMessage):
         return BrowserInfoMessage(name, url, sel, navigation, remoteid, redis=BrowserListMessage.redis, user=user)
 
     @classmethod
-    def user_conf_field_to_remotes_dict(cls, navigation: NavigationHandler, proc: ProcessorMessage, sel_only: bool = False, field_id: str = None) -> Dict[str, RemoteInfoMessage]:
+    async def get_from_db(cls, navigation: NavigationHandler, proc: ProcessorMessage, sel_only: bool = False) -> Dict[str, RemoteInfoMessage]:
         if not BrowserListMessage.redis:
             BrowserListMessage.redis = aioredis.from_url(proc.params.args["redis"], encoding="utf-8", decode_responses=False)
-        return super(BrowserListMessage, cls).user_conf_field_to_remotes_dict(navigation, proc, sel_only, field_id)
+        return await super(BrowserListMessage, cls).get_from_db(navigation, proc, sel_only)

@@ -1,13 +1,11 @@
-import abc
-import datetime
-import json
 import asyncio
+import json
+from datetime import datetime, timedelta
 from typing import Coroutine
 from weakref import finalize
 
 
-class JSONAble(abc.ABC):
-    @abc.abstractmethod
+class JSONAble():
     def toJSON(self, **kwargs):
         pass
 
@@ -15,6 +13,9 @@ class JSONAble(abc.ABC):
 class Fieldable:
     def __str__(self):
         return str(vars(self))
+
+    def __repr__(self):
+        return self.__str__()
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -39,6 +40,8 @@ class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, JSONAble):
             return obj.toJSON(** self.args if hasattr(self, "args") else dict())
+        elif isinstance(obj, datetime):
+            return obj.strftime('%Y-%m-%d %H:%M:%S.%f')
         else:
             return super().default(obj)
 
@@ -71,22 +74,8 @@ def parse_isoduration(s):
     seconds, s = get_isosplit(s, 'S')
 
     # Convert all to seconds
-    dt = datetime.timedelta(days=int(days), hours=int(hours), minutes=int(minutes), seconds=int(seconds))
+    dt = timedelta(days=int(days), hours=int(hours), minutes=int(minutes), seconds=int(seconds))
     return int(dt.total_seconds())
-
-
-class AbstractMessageProcessor(abc.ABC):
-    def __init__(self, db, **kwargs):
-        self.db = db
-        self.status = dict()
-
-    @abc.abstractmethod
-    def interested(self, msg):
-        pass
-
-    @abc.abstractmethod
-    async def process(self, ws, msg, userid, executor):
-        pass
 
 
 async def asyncio_graceful_shutdown(loop, logger, perform_loop_stop=True):

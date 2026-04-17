@@ -7,8 +7,8 @@ from typing import Any, Coroutine, Dict, List, Optional, Union
 from telegram_menu import BaseMessage, MenuButton
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
-from common.playlist import Playlist, PlaylistItem
-from common.user import User
+from common.playlist_alc_ses import Playlist, PlaylistItem
+from common.user_alc_ses import User
 from server.telegram.browser import BrowserInfoMessage, BrowserListMessage
 from server.telegram.message import MyNavigationHandler, NameDurationTMessage, ProcessorMessage, duration2string
 from server.telegram.player import PlayerInfoMessage, PlayerListMessage
@@ -233,12 +233,12 @@ class ListPagesTMessage(BaseMessage):
         else:
             self.input_field = u'\U00002205'
         if self.sel_players is None:
-            self.sel_players = PlayerListMessage.user_conf_field_to_remotes_dict(
+            self.sel_players = await PlayerListMessage.get_from_db(
                 self.navigation,
                 self.pagegen.proc,
                 True)
         if self.sel_browsers is None:
-            self.sel_browsers = BrowserListMessage.user_conf_field_to_remotes_dict(
+            self.sel_browsers = await BrowserListMessage.get_from_db(
                 self.navigation,
                 self.pagegen.proc,
                 True)

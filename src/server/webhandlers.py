@@ -28,11 +28,12 @@ from common.const import (CMD_PING, CMD_REMOTEBROWSER_JS, CMD_REMOTEPLAY, CMD_RE
                           LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_ASYNCH_TWITCH,
                           LINK_CONV_OPTION_MASK, INVALID_SID, LINK_CONV_TWITCH,
                           MSG_UNAUTHORIZED)
-from common.playlist import LOAD_ITEMS_NO, Playlist, PlaylistItem, PlaylistMessage
+from common.playlist_alc_ses import LOAD_ITEMS_NO, Playlist, PlaylistItem, PlaylistMessage
 from common.timer import Timer
-from common.user import User
+from common.user_alc_ses import User
 from common.utils import MyEncoder, coro_could_safely_not_be_awaited, get_json_encoder
 from multidict import CIMultiDict
+from server.db.base import UsesAlchemicDB
 from server.dict_auth_policy import check_credentials, identity2username
 from server.twitch_vod_id import vod_get_id
 
@@ -342,7 +343,9 @@ index_template = dedent("""
 """)
 
 
-async def auth_for_item(request):
+@UsesAlchemicDB
+async def auth_for_item(request, **kwargs):
+    db = kwargs.get('db')
     if (auid := await user_check_token(request)) is None:
         auid, _, _ = await authorized_userid(request)
         if not isinstance(auid, int):
@@ -353,9 +356,9 @@ async def auth_for_item(request):
         userid = auid
     rowid = int(request.match_info['rowid'])
     if userid and rowid:
-        it = await PlaylistItem.loadbyid(request.app.p.db, rowid=rowid)
+        it = await PlaylistItem.loadbyid(db, rowid=rowid)
         if it:
-            pls = await Playlist.loadbyid(request.app.p.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
             if pls:
                 args = request.app.p.args
                 dl = get_local_play_file(it)
@@ -372,7 +375,9 @@ async def auth_for_item(request):
     return web.HTTPNotAcceptable(body="You don't seem to be allowed to go here")
 
 
-async def index(request, item_id: int = None):
+@UsesAlchemicDB
+async def index(request, item_id: int = None, **kwargs):
+    db = kwargs.get('db')
     auid, _, _ = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
@@ -382,14 +387,14 @@ async def index(request, item_id: int = None):
     if identity:
         uid = None
         if item_id is not None:
-            users: list[User] = await User.loadbyid(request.app.p.db, item_id=item_id)
+            users: list[User] = await User.loadbyid(db, item_id=item_id)
             uid = -1
             if users:
                 u = users[0]
                 uid = u.rowid
         if uid is None or uid == identity:
             template = index_template.format(
-                message='Hello, {username}!'.format(username=await identity2username(request.app.p.db, identity)))
+                message='Hello, {username}!'.format(username=await identity2username(db, identity)))
             resp = web.Response(
                 text=template,
                 content_type='text/html',
@@ -413,7 +418,9 @@ async def index(request, item_id: int = None):
         return resp
 
 
-async def modify_pw(request):
+@UsesAlchemicDB
+async def modify_pw(request, **kwargs):
+    db = kwargs.get('db')
     auid, hextoken, _ = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
@@ -421,17 +428,17 @@ async def modify_pw(request):
         identity = None
     if identity:
         form = await request.post()
-        username = await identity2username(request.app.p.db, identity)
+        username = await identity2username(db, identity)
         passedusername = form.get('username')
         if username != passedusername:
             return web.HTTPUnauthorized(body='Invalid username provided')
         password = form.get('password')
         if password and len(password) >= 5:
-            users: list[User] = await User.loadbyid(request.app.p.db, rowid=identity)
+            users: list[User] = await User.loadbyid(db, rowid=identity)
             if users:
                 u = users[0]
                 u.password = password
-                await u.toDB(request.app.p.db)
+                await u.toDB(db)
                 resp = web.HTTPFound('/')
                 if identity and not hextoken:
                     await remember(request, resp, INVALID_SID)
@@ -441,10 +448,12 @@ async def modify_pw(request):
     return web.HTTPUnauthorized(body='Invalid username / password combination')
 
 
-async def user_check_token(request):
+@UsesAlchemicDB
+async def user_check_token(request, **kwargs):
+    db = kwargs.get('db')
     if 'token' in request.match_info and request.match_info['token'] and request.match_info['token'] != '/0':
         try:
-            users: list[User] = await User.loadbyid(request.app.p.db, token=request.match_info['token'][1:])
+            users: list[User] = await User.loadbyid(db, token=request.match_info['token'][1:])
             if users:
                 u = users[0]
                 return u.rowid
@@ -462,7 +471,9 @@ async def user_check_call(request, method=None):
         return rv
 
 
-async def get_playlist_and_item_from_request(request, userid=None):
+@UsesAlchemicDB
+async def get_playlist_and_item_from_request(request, userid=None, **kwargs):
+    db = kwargs.get('db')
     if not userid:
         auid, _, _ = await authorized_userid(request)
         if not isinstance(auid, int):
@@ -471,9 +482,9 @@ async def get_playlist_and_item_from_request(request, userid=None):
             userid = auid
     rowid = int(request.match_info['rowid'])
     if userid and rowid:
-        it = await PlaylistItem.loadbyid(request.app.p.db, rowid=rowid)
+        it = await PlaylistItem.loadbyid(db, rowid=rowid)
         if it:
-            pls = await Playlist.loadbyid(request.app.p.db, rowid=it.playlist, loaditems=LOAD_ITEMS_NO)
+            pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_NO)
             if pls:
                 if pls[0].useri != userid:
                     return web.HTTPUnauthorized(body='Invalid user id')
@@ -495,11 +506,12 @@ JWPLAYER_TEMPLATE = """
 
 
 def it2jwplayer(it: PlaylistItem, url: str, type: str = 'video/mp4', additional: dict = dict(), host: str | None = None) -> dict:
-    rv = dict(channel=it.conf.get('author', it.conf.get('userid', 'N/A')),
+    cnf = it.conf if it.conf else dict()
+    rv = dict(channel=cnf.get('author', cnf.get('userid', 'N/A')),
               title=it.title if 'lim' not in additional else sanitize_filename(it.title[:int(additional['lim'])]),
               duration=it.dur,
               image=PlaylistItem.convert_img_url(it.img, host),
-              pubdate=int(datetime.strptime(it.datepub, '%Y-%m-%d %H:%M:%S.%f').timestamp()))
+              pubdate=int((datetime.strptime(it.datepub, '%Y-%m-%d %H:%M:%S.%f') if isinstance(it.datepub, str) else it.datepub).timestamp()))
     if isinstance(url, dict):
         rv['sources'] = sources = []
         for k, v in url.items():
@@ -514,7 +526,9 @@ def jwplayer_html(pls: list | dict) -> str:
     return JWPLAYER_TEMPLATE % json.dumps(dict(playlist=pls if isinstance(pls, list) else [pls]))
 
 
-async def playlist_m3u(request, userid=None):
+@UsesAlchemicDB
+async def playlist_m3u(request, userid=None, **kwargs):
+    db = kwargs.get('db')
     _LOGGER.debug("host is %s" % str(request.host))
     identity = None
     hextoken = None
@@ -531,7 +545,7 @@ async def playlist_m3u(request, userid=None):
     if 'name' in request.query:
         login_token = None
         host = request.query['host'] if 'host' in request.query else f"{request.scheme}://{request.host}"
-        pl = await Playlist.loadbyid(request.app.p.db, useri=userid, name=request.query['name'])
+        pl = await Playlist.loadbyid(db, useri=userid, name=request.query['name'])
         asconv = (conv >> LINK_CONV_OPTION_SHIFT) & LINK_CONV_OPTION_MASK
         if asconv & LINK_CONV_OPTION_ASYNCH_TWITCH:
             for it in pl[0].items:
@@ -541,7 +555,7 @@ async def playlist_m3u(request, userid=None):
             mi = request.match_info
             login_token = mi['token'][1:] if 'token' in mi and mi['token'] else None
 
-        if pl[0].type == 'localfolder':
+        if pl[0].type.name == 'localfolder':
             for it in pl[0].items:
                 it.link = f'{host}/dl/{it.rowid}'
         if pl:
@@ -872,7 +886,9 @@ async def youtube_redir_do(request):
     return web.HTTPBadRequest(body='Link not found in URL')
 
 
-async def login_g(request):
+@UsesAlchemicDB
+async def login_g(request, **kwargs):
+    db = kwargs.get('db')
     form = await request.post()
     token = form.get('idtoken')
     # (Receive token by HTTPS POST)
@@ -900,7 +916,6 @@ async def login_g(request):
         password = idinfo['sub']
         username = idinfo['email']
         _LOGGER.debug(f"token is {idinfo}")
-        db = request.app.p.db
         users: list[User] = await User.loadbyid(db, username=username, password=password)
         if users:
             userid = users[0].rowid
@@ -924,7 +939,9 @@ async def login_g(request):
     return web.HTTPUnauthorized(body='Invalid Google Token')
 
 
-async def login(request):
+@UsesAlchemicDB
+async def login(request, **kwargs):
+    db = kwargs.get('db')
     response = web.HTTPNoContent()
     auid, _, _ = await authorized_userid(request)
     form = await request.post()
@@ -934,7 +951,7 @@ async def login(request):
     username = form.get('username')
     password = form.get('password')
 
-    verified = await check_credentials(request.app.p.db, username, password)
+    verified = await check_credentials(db, username, password)
     _LOGGER.debug("Ver = " + str(verified))
     if verified:
         if isinstance(auid, str):
@@ -968,6 +985,8 @@ async def send_ping(ws, control_dict):
                 delay = 3
             else:
                 delay = 30
+            if pd := msg.f(PlaylistMessage.PING_DELAY):
+                delay = pd
             _LOGGER.debug(f"Sending ping for {waiting}")
             await ws.send_str(json.dumps(PlaylistMessage(CMD_PING, dict(waiting=waiting, **kwargs)), cls=MyEncoder))
             if not ws.closed and not ws.exception():
@@ -1032,11 +1051,12 @@ async def download(request, userid=None):
         return rv
 
 
-async def telegram_command(request):
+@UsesAlchemicDB
+async def telegram_command(request, **kwargs):
+    db: Connection = kwargs.get('db')
     rv = await RemoteItem.on_telegram_command(request.match_info['hex'], q := request.query)
     if isinstance(rv, int):
         if rv >= 0:
-            db: Connection = request.app.p.db
             users: list[User] = await User.loadbyid(db, tg=q['username'])
             for u in users:
                 u.tg = None
@@ -1156,7 +1176,8 @@ async def pls_h(request):
                     _LOGGER.debug(f'Checking {k}')
                     if p.interested(pl):
                         control_dict = dict(end=False, msg=pl)
-                        Timer(8, partial(send_ping, ws, control_dict))
+                        pd = pl.f(PlaylistMessage.PING_DELAY)
+                        Timer(pd if pd else 8, partial(send_ping, ws, control_dict))
                         out = await p.process(ws, pl, userid, request.app.p.executor)
                         control_dict["end"] = True
                         if out:
@@ -1170,7 +1191,9 @@ async def pls_h(request):
     return ws
 
 
-async def register(request):
+@UsesAlchemicDB
+async def register(request, **kwargs):
+    db = kwargs.get('db')
     auid, _, _ = await authorized_userid(request)
     if isinstance(auid, int):
         response = web.HTTPFound('/')
@@ -1181,7 +1204,6 @@ async def register(request):
     password = form.get('password')
     _LOGGER.debug("Usermame=%s Password=%s" % (username, password))
     if username and len(username) >= 5 and password and len(password) >= 5:
-        db = request.app.p.db
         user = User(username=username, password=password)
         if await user.toDB(db):
             return web.HTTPNoContent()

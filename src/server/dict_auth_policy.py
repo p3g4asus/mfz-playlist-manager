@@ -1,6 +1,8 @@
 from aiohttp_security.abc import AbstractAuthorizationPolicy
 import hashlib
 
+from common.user_alc_ses import User
+
 
 class DictAuthorizationPolicy(AbstractAuthorizationPolicy):
     def __init__(self):
@@ -41,17 +43,11 @@ class DictAuthorizationPolicy(AbstractAuthorizationPolicy):
 
 
 async def check_credentials(db, username, password):
-    async with db.execute(
-        '''
-        SELECT U.rowid as rowid,
-               U.username as username,
-               U.password as password from user as U WHERE username=?
-        ''', (username,)
-    ) as cursor:
-        row = await cursor.fetchone()
-        if row and row['password'] == password:
-            return row['rowid']
-    return None
+    uss = await User.loadbyid(db, username=username, password=password)
+    if uss and uss[0]:
+        return uss[0].rowid
+    else:
+        return None
 
 
 async def identity2username(db, identity):

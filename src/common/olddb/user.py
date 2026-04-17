@@ -73,7 +73,8 @@ class User(Fieldable, JSONAble):
             where = ' K.user=P.rowid AND K.rowid=Z.playlist AND Z.rowid=?'
             pars = (item_id, )
         else:
-            return list()
+            where = ' 1=?'
+            pars = (1, )
         cursor = await db.execute(
             commontxt + where, pars
         )

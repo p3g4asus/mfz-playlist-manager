@@ -12,7 +12,7 @@ from urllib.parse import (urlencode)
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
 from telegram_menu import (BaseMessage, ButtonType, NavigationHandler)
-from telegram_menu.models import AttachmentType, MenuButton
+from telegram_menu.models import MenuButton
 
 from common.brand import DEFAULT_TITLE, Brand
 from common.const import (CMD_CLEAR, CMD_DEL, CMD_DL_SETTINGS, CMD_DOWNLOAD, CMD_DUMP,
@@ -20,8 +20,8 @@ from common.const import (CMD_CLEAR, CMD_DEL, CMD_DL_SETTINGS, CMD_DOWNLOAD, CMD
                           CMD_MEDIASET_BRANDS, CMD_MEDIASET_KEYS,
                           CMD_MEDIASET_LISTINGS, CMD_MOVE, CMD_PLAYID, CMD_PLAYTIME, CMD_RAI_CONTENTSET,
                           CMD_RAI_LISTINGS, CMD_REN, CMD_SEEN, CMD_SEEN_PREV, CMD_SORT, CMD_TT_PLAYLISTCHECK, CMD_YT_PLAYLISTCHECK, IMG_NO_VIDEO, LINK_CONV_BIRD_REDIRECT, LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_VIDEO_EMBED, LINK_CONV_TWITCH, LINK_CONV_UNTOUCH, LINK_CONV_YTDL_REDIRECT)
-from common.playlist import Playlist, PlaylistItem, PlaylistMessage
-from common.user import User
+from common.playlist_alc_ses import Playlist, PlaylistComponent, PlaylistItem, PlaylistMessage
+from common.user_alc_ses import User
 from server.telegram.cache import PlaylistTg, cache_del, cache_del_user, cache_get, cache_get_item, cache_get_items, cache_on_item_deleted, cache_on_item_updated, cache_sort, cache_store
 from server.telegram.pages import ListPagesTMessage, PageGenerator
 from server.telegram.message import ChangeTimeTMessage, CookieFileProcessTMessage, DeletingTMessage, MyNavigationHandler, NameDurationStatus, NameDurationTMessage, SetRateTMessage, StatusTMessage, duration2string
@@ -38,19 +38,22 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
             self.obj = obj.item
             obj.message = self
             p = cache_get(self.proc.user.rowid, self.pid)
-            self.type = p.playlist.type
+            self.type = p.playlist.type.name
             self.playlist_name = p.playlist.name
             self.index = obj.index
             self.name = self.obj.title
             self.secs = self.obj.dur
             self.thumb = self.obj.img
             self.deleted = self.obj.seen
-            self.is_playing = p.playlist.conf.get('play', dict()).get('id') == self.obj.uid
-            self.rate = self.obj.conf.get('rate', None)
-            if not self.rate and (vcp := self.obj.conf.get('playlist', None)):
-                self.rate = p.playlist.conf["play"]["rates"][vcp] if "play" in p.playlist.conf and "rates" in p.playlist.conf["play"] and vcp in p.playlist.conf["play"]["rates"] else None
-            if not self.rate:
-                self.rate = p.playlist.conf["play"]["rate"] if "play" in p.playlist.conf and "rate" in p.playlist.conf["play"] else 1.0
+            self.is_playing = p.playlist.playstate == self.obj.uid
+            if self.obj.rate:
+                self.rate = self.obj.rate
+            elif self.obj.component and self.obj.component.rate:
+                self.rate = self.obj.component.rate
+            elif p.playlist.rate:
+                self.rate = p.playlist.rate
+            else:
+                self.rate = 1.0
             return True
         else:
             return False
@@ -205,7 +208,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             plTg = cache_get(self.proc.user.rowid, self.pid)
-            plTg.playlist.conf.update(pl.playlist.conf)
+            plTg.playlist.playstate = pl.playlist.playstate
             if plTg.message:
                 await plTg.message.edit_or_select_items()
 
@@ -240,12 +243,13 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
 
     async def modding_rate_send(self):
         secs = self.modding_rate_float()
-        if not self.rate_for_single_video and (vcp := self.obj.conf.get('playlist', None)):
+        if not self.rate_for_single_video and self.obj.component and (vcp := self.obj.component.rowid) is not None:
             pl = PlaylistMessage(CMD_PLAYID, playlist=self.pid, rates=secs, key=vcp)
             pl = await self.proc.process(pl)
             if pl.rv == 0:
                 plTg = cache_get(self.proc.user.rowid, self.pid)
-                plTg.playlist.conf.update(pl.playlist.conf)
+                plTg.playlist.components = pl.playlist.components
+                self.obj.component.rate = secs
                 if plTg.message:
                     await plTg.message.edit_or_select_items()
                 self.return_msg = 'Set rate OK :thumbs_up:'
@@ -256,9 +260,9 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
             pl = await self.proc.process(pl)
             if pl.rv == 0:
                 if secs is not None:
-                    self.obj.conf['rate'] = secs
-                elif 'rate' in self.obj.conf:
-                    del self.obj.conf['rate']
+                    self.obj.rate = secs
+                else:
+                    self.obj.rate = None
                 self.return_msg = 'Set rate OK :thumbs_up:'
             else:
                 self.return_msg = f'Error {pl.rv} setting rate :thumbs_down:'
@@ -271,9 +275,9 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             if secs is not None:
-                self.obj.conf['sec'] = secs
-            elif 'sec' in self.obj.conf:
-                del self.obj.conf['sec']
+                self.obj.timeplayed = secs
+            else:
+                self.obj.timeplayed = None
             self.return_msg = 'Set time OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} setting time :thumbs_down:'
@@ -305,7 +309,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
                     self.add_button(u'\U0001F4A3', self.delete_item_pre_pre, args=(CMD_FREESPACE, ))
                 self.add_button('F5', self.dump_item)
             elif self.status == NameDurationStatus.UPDATING_INIT:
-                self.set_init_secs(self.obj.conf.get('sec', None))
+                self.set_init_secs(self.obj.timeplayed)
                 await ChangeTimeTMessage.update(self, context)
             elif self.status == NameDurationStatus.UPDATING_START:
                 self.add_button(u'\U0001F7E3For this' if self.rate_for_single_video else u'\U0001F7E2For playlist', self.toggle_rate_for_single_video, new_row=True)
@@ -319,9 +323,9 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
             elif self.status == NameDurationStatus.MOVING:
                 self.input_field = u'\U0001F449'
                 pps: List[PlaylistTg] = cache_get(self.proc.user.rowid)
-                myself: PlaylistTg = cache_get(self.proc.user.rowid, self.obj.playlist)
+                myself: PlaylistTg = cache_get(self.proc.user.rowid, self.obj.playlisti)
                 for pp in pps:
-                    if pp.playlist.rowid != self.obj.playlist:
+                    if pp.playlist.rowid != self.obj.playlisti:
                         self.add_button(pp.playlist.name, self.move_to_do, args=(pp, myself))
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
             elif self.status == NameDurationStatus.DOWNLOADING_WAITING:
@@ -385,7 +389,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
         upd = await NameDurationTMessage.update(self, context)
         if upd:
             return upd
-        upd += f'<a href="{self.obj.link}">{self.index + 1})<b> {escape(self.name)}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub[0:19]}\n'
+        upd += f'<a href="{self.obj.link}">{self.index + 1})<b> {escape(self.name)}</b> - <i>Id {self.id}</i></a> :memo: {self.playlist_name}\n\U000023F1 {duration2string(self.secs)}\n\U000023F3: {self.obj.datepub[0:19] if isinstance(self.obj.datepub, str) else self.obj.datepub.strftime("%Y-%m-%d %H:%M:%S")}\n'
         if self.obj.conf and 'author' in self.obj.conf and self.obj.conf['author']:
             upd += f'\U0001F64B: {self.obj.conf["author"]}\n'
         upd += f'\U00002211: {self.obj.iorder}  '
@@ -403,10 +407,10 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
                 upd += u'\U0001F511'
         if not self.obj.dl and self.obj.conf and isinstance(self.obj.conf, dict) and 'todel' in self.obj.conf and self.obj.conf['todel']:
             self.obj.dl = self.obj.conf['todel'][0]
-        if (isinstance(self.obj.conf, dict) and (sec := 'sec' in self.obj.conf)) or self.is_playing:
+        if (sec := self.obj.timeplayed) is not None or self.is_playing:
             upd += '\n'
             if sec:
-                upd += f'\U000023F2 {duration2string(int(self.obj.conf["sec"]))}'
+                upd += f'\U000023F2 {duration2string(int(sec))}'
             if self.is_playing:
                 if not sec:
                     upd += '0s'
@@ -491,6 +495,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
             obj.message = self
             self.index = obj.index
             self.name = self.obj.name
+            self.type = self.obj.type.name
             img = None
             self.unseen = 0
             for pli in self.obj.items:
@@ -519,12 +524,14 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
 
     async def process_received_cookie(self, file_text: str, delkey: bool) -> str:
         try:
-            confdl = self.obj.conf.get('dl', {})
+            confdl = self.obj.conf.get('dl', {}) if self.obj.conf and isinstance(self.obj.conf, dict) else {}
             if delkey:
                 if 'cookie' in confdl:
                     del confdl['cookie']
             else:
                 confdl['cookie'] = file_text
+            if not self.obj.conf:
+                self.obj.conf = {}
             self.obj.conf['dl'] = confdl
             pl = PlaylistMessage(CMD_DL_SETTINGS, playlist=self.id, dl=confdl)
             pl = await self.proc.process(pl)
@@ -702,15 +709,15 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
 
     async def edit_me(self, context=None):
         cls = None
-        if self.obj.type == 'youtube':
+        if self.type == 'youtube':
             cls = YoutubeDLPlaylistTMessage
-        if self.obj.type == 'urlebird':
+        if self.type == 'urlebird':
             cls = UrlebirdPlaylistTMessage
-        elif self.obj.type == 'mediaset':
+        elif self.type == 'mediaset':
             cls = MediasetPlaylistTMessage
-        elif self.obj.type == 'rai':
+        elif self.type == 'rai':
             cls = RaiPlaylistTMessage
-        elif self.obj.type == 'localfolder':
+        elif self.type == 'localfolder':
             cls = LocalFolderPlaylistTMessage
 
         if cls:
@@ -731,11 +738,11 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
         uprefix: str = f'{lnk}/m3u/{self.proc.user.token}?{par}&'
         namesfx = f'c{conv}' if conv else ''
         linksfx = f'&conv={conv}' if conv else ''
-        typesfx = r'&type=video%2Furl' if self.obj.type != 'urlebird' else r'&type=video%2Fmp4'
+        typesfx = r'&type=video%2Furl' if self.type != 'urlebird' else r'&type=video%2Fmp4'
         return f'<a href="{uprefix}fmt=m3u{linksfx}">M3U8{namesfx}</a>, <a href="{uprefix}fmt=ely{linksfx}">ELY{namesfx}</a>, <a href="{uprefix}fmt=jwp{linksfx}{typesfx}">JWP{namesfx}</a>\n'
 
     def get_m3u8_links(self) -> str:
-        if self.obj.type == 'youtube':
+        if self.type == 'youtube':
             youtwipres = 0
             it: PlaylistItem
             conv = [None]
@@ -750,7 +757,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
                 conv.append(LINK_CONV_TWITCH)
             if youtwipres & 1:
                 conv.append(LINK_CONV_YTDL_REDIRECT)
-        elif self.obj.type == 'urlebird':
+        elif self.type == 'urlebird':
             conv = [LINK_CONV_BIRD_REDIRECT]
         else:
             conv = [None]
@@ -790,11 +797,10 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             plTg = cache_get(self.proc.user.rowid, self.id)
-            plTg.playlist.conf.update(pl.playlist.conf)
+            plTg.playlist.rate = pl.playlist.rate
             if plTg.message:
                 await plTg.message.edit_or_select_items()
-            play = plTg.playlist.conf.get('play', {})
-            self.obj.conf['play'] = play
+            self.obj.rate = pl.playlist.rate
             self.return_msg = 'Set rate OK :thumbs_up:'
         else:
             self.return_msg = f'Error {pl.rv} setting rate :thumbs_down:'
@@ -827,7 +833,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
                 return f'Enter new name for <b>{self.name}</b>'
             elif self.status == NameDurationStatus.MOVING:
-                self.set_init_rate(self.obj.conf["play"]["rate"] if "play" in self.obj.conf and "rate" in self.obj.conf["play"] else None)
+                self.set_init_rate(self.obj.rate)
                 await SetRateTMessage.update(self, context)
             elif self.status == NameDurationStatus.DELETING_CONFIRM:
                 self.input_field = u'\U0001F449'
@@ -854,21 +860,21 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
                     return updt
         datepubo = datetime.fromtimestamp(int(self.obj.dateupdate / 1000))
         upd = f'{self.index + 1}) <b>{self.name}</b> - <i>Id {self.id}</i>'
-        if self.obj.type == 'youtube':
+        if self.type == 'youtube':
             upd += '\U0001F534'
-        elif self.obj.type == 'rai':
+        elif self.type == 'rai':
             upd += '\U0001F535'
-        elif self.obj.type == 'mediaset':
+        elif self.type == 'mediaset':
             upd += '\U00002B24'
-        elif self.obj.type == 'urlebird':
+        elif self.type == 'urlebird':
             upd += '\U000026AB'
-        elif self.obj.type == 'localfolder':
+        elif self.type == 'localfolder':
             upd += '\U0001F4C2'
         upd += f'\nLength: {self.unseen} \U000023F1 {duration2string(self.obj.get_duration())}\n'
         upd += f':eye: {len(self.obj.items)} \U000023F1 {duration2string(self.obj.get_duration(True))}\n'
         upd += f'Update \U000023F3: {datepubo.strftime("%Y-%m-%d %H:%M:%S")} ' + ("\U00002705" if self.obj.autoupdate else "") + '\n'
         upd += self.get_m3u8_links()
-        upd += f'Playback Rate {self.obj.conf["play"]["rate"] if "play" in self.obj.conf and "rate" in self.obj.conf["play"] else 1.0:.2f}\U0000274E'
+        upd += f'Playback Rate {self.obj.rate if self.obj.rate is not None else 1.0:.2f}\U0000274E'
         # upd += f'<tg-spoiler><pre>{json.dumps(self.obj.conf, indent=4)}</pre></tg-spoiler>'
         if self.return_msg:
             upd += f'\n<b>{self.return_msg}</b>'
@@ -971,32 +977,33 @@ class PlaylistItemsPagesTMessage(ListPagesTMessage):
 
 
 class ChangeOrderedOrDeleteOrCancelTMessage(BaseMessage):
-    def __init__(self, navigation: NavigationHandler, playlist: Playlist, plinfo: object, sortable: bool = True) -> None:
+    def __init__(self, navigation: NavigationHandler, playlist: Playlist, plinfo: PlaylistComponent, sortable: bool = True, components: Optional[List[PlaylistComponent]] = None) -> None:
         super().__init__(
             navigation,
             self.__class__.__name__,
-            input_field=plinfo["title"])
+            input_field=plinfo.title)
         self.playlist = playlist
         self.plinfo = plinfo
         self.ordered_present = sortable
+        self.components = components if components is not None else playlist.components
 
     async def toggle_ordered(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
-        self.plinfo["ordered"] = not self.plinfo["ordered"]
+        self.plinfo.sel = not self.plinfo.sel
         await self.navigation.goto_menu(self, context, add_if_present=False)
 
     async def remove(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None):
-        if (ids := self.plinfo["id"]) in self.playlist.conf['playlists']:
-            del self.playlist.conf['playlists'][ids]
+        if self.plinfo in self.components:
+            self.components.remove(self.plinfo)
         await self.navigation.goto_back()
 
     async def update(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
         self.keyboard: List[List["MenuButton"]] = [[]]
-        self.input_field = self.plinfo["title"]
+        self.input_field = self.plinfo.title
         if self.ordered_present:
-            self.add_button('Ordered: ' + ("\U00002611" if self.plinfo["ordered"] else "\U00002610"), self.toggle_ordered, new_row=True)
+            self.add_button('Ordered: ' + ("\U00002611" if self.plinfo.sel else "\U00002610"), self.toggle_ordered, new_row=True)
         self.add_button('Remove: \U0001F5D1', self.remove, new_row=True)
         self.add_button('OK: \U0001F197', self.navigation.goto_back, new_row=True)
-        return f'{self.plinfo["title"]} modify'
+        return f'{self.plinfo.title} modify'
 
 
 class PlaylistNamingTMessage(StatusTMessage):
@@ -1050,7 +1057,7 @@ class CheckPlaylistTMessage(PlaylistNamingTMessage):
         pass
 
     @abstractmethod
-    def add_playlist_button(self, pls: dict) -> None:
+    def add_playlist_button(self, pls: PlaylistComponent) -> None:
         pass
 
     def init_inner_playlist(self) -> None:
@@ -1059,13 +1066,15 @@ class CheckPlaylistTMessage(PlaylistNamingTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, playlist: Playlist = None) -> None:
         if not playlist:
             playlist = Playlist(
-                type=self.get_playlist_type(),
+                type=params.types2[self.get_playlist_type()],
                 useri=user.rowid,
                 autoupdate=False,
                 dateupdate=0,
-                conf=dict(playlists=dict(), play=dict()))
+                components=[],
+                conf=dict())
         self.checking_playlist = ''
         super().__init__(navigation, user, params, playlist)
+        self.components = list(playlist.components)
         self.init_inner_playlist()
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
@@ -1094,15 +1103,31 @@ class CheckPlaylistTMessage(PlaylistNamingTMessage):
         pl = await self.proc.process(pl)
         if pl.rv == 0:
             plinfo = pl.playlistinfo
-            if plinfo["id"] in self.playlist.conf['playlists']:
-                self.return_msg = f'\U0001F7E1 {plinfo["title"]} already present!'
+            equal = False
+            for comp in self.components:
+                if comp.brand == plinfo.brand:
+                    equal = True
+                    break
+
+            if equal:
+                self.return_msg = f'\U0001F7E1 {plinfo.title} already present!'
             else:
-                plinfo["ordered"] = True
-                self.return_msg = f':thumbs_up: ({plinfo["title"]} - {plinfo["id"]})'
-                self.playlist.conf['playlists'][plinfo['id']] = plinfo
+                plinfo.sel = True
+                plinfo.playlisti = self.playlist.rowid
+                self.return_msg = f':thumbs_up: ({plinfo.title} - {plinfo.brand})'
+                self.components.append(plinfo)
         else:
             self.return_msg = f'Error {pl.rv} with playlist {text} :thumbs_down:'
         await self.switch_to_idle()
+
+    async def open_refreshing_message(self, args, context: Optional[CallbackContext] = None):
+        self.playlist.components = self.components
+        await self.navigation.goto_menu(RefreshNewPlaylistTMessage(
+            self.navigation,
+            user=self.proc.user,
+            params=self.proc.params,
+            playlist=self.playlist
+        ), context)
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         upd = ''
@@ -1112,18 +1137,10 @@ class CheckPlaylistTMessage(PlaylistNamingTMessage):
             self.input_field = '\U0001F50D Playlist link or id /idadd $link'
             self.add_button(f'Name: {self.playlist.name}', self.switch_to_status, args=(NameDurationStatus.NAMING, ), new_row=True)
             self.add_autoupdate_button()
-            new_row = True
-            if self.playlist.conf['playlists']:
-                for p in self.playlist.conf['playlists'].values():
-                    self.add_playlist_button(p)
-                self.add_button(u'\U0001F501', RefreshNewPlaylistTMessage(
-                    self.navigation,
-                    user=self.proc.user,
-                    params=self.proc.params,
-                    playlist=self.playlist
-                ), new_row=True)
-                new_row = False
-            self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=new_row)
+            for comp in self.components:
+                self.add_playlist_button(comp)
+            self.add_button(u'\U0001F501', self.open_refreshing_message, new_row=True)
+            self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=False)
         elif self.status == NameDurationStatus.DOWNLOADING:
             self.input_field = u'\U0001F570'
             upd = f'{escape(self.checking_playlist)} finding playlist info {"." * (self.sub_status & 0xFF)}'
@@ -1139,16 +1156,11 @@ class YoutubeDLPlaylistTMessage(CheckPlaylistTMessage):
     def get_playlist_type(self):
         return 'youtube'
 
-    def init_inner_playlist(self):
-        plss = self.playlist.conf['playlists']
-        for p in plss.values():
-            p['ordered'] = p.get('ordered', True)
-
     def get_check_command_message(self, text: str) -> PlaylistMessage:
         return PlaylistMessage(CMD_YT_PLAYLISTCHECK, text=text)
 
-    def add_playlist_button(self, p: dict) -> None:
-        self.add_button(('\U00002B83 ' if p["ordered"] else '') + p["title"], ChangeOrderedOrDeleteOrCancelTMessage(self.navigation, playlist=self.playlist, plinfo=p), new_row=True)
+    def add_playlist_button(self, p: PlaylistComponent) -> None:
+        self.add_button(('\U00002B83 ' if p.sel else '') + p.title, ChangeOrderedOrDeleteOrCancelTMessage(self.navigation, playlist=self.playlist, plinfo=p, components=self.components), new_row=True)
 
 
 class UrlebirdPlaylistTMessage(CheckPlaylistTMessage):
@@ -1158,26 +1170,41 @@ class UrlebirdPlaylistTMessage(CheckPlaylistTMessage):
     def get_check_command_message(self, text: str) -> PlaylistMessage:
         return PlaylistMessage(CMD_TT_PLAYLISTCHECK, text=text)
 
-    def add_playlist_button(self, p: dict) -> None:
-        self.add_button(p["title"], ChangeOrderedOrDeleteOrCancelTMessage(self.navigation, playlist=self.playlist, plinfo=p, sortable=False), new_row=True)
+    def add_playlist_button(self, p: PlaylistComponent) -> None:
+        self.add_button(p.title, ChangeOrderedOrDeleteOrCancelTMessage(self.navigation, playlist=self.playlist, plinfo=p, sortable=False, components=self.components), new_row=True)
 
 
 class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, playlist: Playlist = None) -> None:
         if not playlist:
             playlist = Playlist(
-                type='localfolder',
+                type=params.types2['localfolder'],
                 useri=user.rowid,
                 autoupdate=False,
                 dateupdate=0,
                 conf=dict(playlists=dict(), folders=dict(), play=dict()))
+            comps = []
+        else:
+            comps = list(playlist.components)
         super().__init__(
             navigation,
             user=user,
             params=params,
             playlist=playlist)
+        self.components = comps
+        self.build_par_out_dict(comps)
         self.listings_changed = False
         self.listings_done = False
+
+    def build_par_out_dict(self, comps: Optional[list[PlaylistComponent]] = None):
+        if comps is None:
+            comps = self.components
+        self.par_out = dict(folders=dict(), playlists=dict())
+        for comp in comps:
+            if comp.sel:
+                self.par_out['playlists'][comp.brand] = comp
+            self.par_out['folders'][comp.brand] = comp
+        self.par_out_o = dict(**self.par_out)
 
     def get_listings_command(self):
         return PlaylistMessage(CMD_FOLDER_LIST)
@@ -1195,7 +1222,7 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
         )
         pl = await self.proc.process(cmd)
         if pl.rv == 0:
-            self.playlist.conf['folders'] = pl.folders
+            self.par_out['folders'] = pl.folders
             self.listings_changed = True
             self.return_msg = ''
         else:
@@ -1204,17 +1231,54 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
 
     async def listings_refresh(self, context: Optional[CallbackContext] = None):
         if self.status == NameDurationStatus.IDLE:
-            self.playlist.conf['folders'] = dict()
+            self.par_out['folders'] = dict()
             cmd = self.get_listings_command()
             asyncio.create_task(self.listing_refresh_1(cmd, context))
 
     async def toggle_playlist(self, args, context: Optional[CallbackContext] = None):
         pid = args[0]
-        if pid in self.playlist.conf['playlists']:
-            del self.playlist.conf['playlists'][pid]
+        if pid in self.par_out['playlists']:
+            del self.par_out['playlists'][pid]
         else:
-            self.playlist.conf['playlists'][pid] = self.playlist.conf['folders'][pid]
+            self.par_out['playlists'][pid] = self.par_out['folders'][pid]
         await self.edit_or_select(context)
+
+    def get_modified_playlist(self):
+        comps = []
+        for fid, f in self.par_out['playlists'].items():
+            if fid in self.par_out_o['folders']:
+                cc = self.par_out_o['folders'][fid]
+                cc.sel = True
+                cc.title = f['title']
+                cc.description = f['description']
+                cc.brand = fid
+                comps.append(cc)
+            else:
+                comps.append(PlaylistComponent(brand=fid, title=f['title'], sel=True, rowid=None, description=f['description'], playlisti=self.playlist.rowid))
+        for fid, f in self.par_out['folders'].items():
+            if fid not in self.par_out['playlists']:
+                if fid in self.par_out_o['folders']:
+                    cc = self.par_out_o['folders'][fid]
+                    cc.sel = False
+                    cc.title = f['title']
+                    cc.description = f['description']
+                    cc.brand = fid
+                    comps.append(cc)
+                else:
+                    comps.append(PlaylistComponent(brand=fid, title=f['title'], sel=False, rowid=None, description=f['description'], playlisti=self.playlist.rowid))
+        self.components = comps
+        return self.playlist
+
+    async def open_refreshing_message(self, args, context: Optional[CallbackContext] = None):
+        self.playlist = self.get_modified_playlist()
+        self.build_par_out_dict()
+        self.playlist.components = self.components
+        await self.navigation.goto_menu(RefreshNewPlaylistTMessage(
+            self.navigation,
+            user=self.proc.user,
+            params=self.proc.params,
+            playlist=self.playlist
+        ), context)
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         upd = ''
@@ -1226,8 +1290,8 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
             self.add_autoupdate_button()
             self.add_button('Refresh Listings', self.listings_refresh)
             new_row = True
-            foldd = self.playlist.conf['folders']
-            playd = self.playlist.conf['playlists']
+            foldd = self.par_out['folders']
+            playd = self.par_out['playlists']
             if foldd:
                 n_ok: int = 0
                 for pid, p in playd.copy().items():
@@ -1240,12 +1304,7 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
                     if sel:
                         n_ok += 1
                 if n_ok:
-                    self.add_button(u'\U0001F501', RefreshNewPlaylistTMessage(
-                        self.navigation,
-                        user=self.proc.user,
-                        params=self.proc.params,
-                        playlist=self.playlist
-                    ), new_row=True)
+                    self.add_button(u'\U0001F501', self.open_refreshing_message, new_row=True)
                     new_row = False
             elif not self.listings_done:
                 self.listings_done = True
@@ -1254,7 +1313,7 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
             if self.listings_changed:
                 upd = 'Available folders:\n'
                 self.listings_changed = False
-                for f in self.playlist.conf['folders']:
+                for f in self.par_out['folders'].values():
                     upd += f['title'] + '\r\n'
         elif self.status == NameDurationStatus.LISTING:
             self.input_field = u'\U0001F570'
@@ -1265,18 +1324,18 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
 
 
 class SubBrandSelectTMessage(BaseMessage):
-    def __init__(self, navigation: NavigationHandler, playlist: Playlist = None) -> None:
-        self.playlist = playlist
+    def __init__(self, navigation: NavigationHandler, par_out: dict = dict()) -> None:
+        self.par_out = par_out
         super().__init__(
             navigation,
             label=self.__class__.__name__,
-            input_field=f'Select content for {playlist.conf["brand"].title}')
+            input_field=f'Select content for {par_out["brand"].title}')
         self.compute_id_map()
 
     def compute_id_map(self):
         self.id_map = dict()
         i = 0
-        for bid, _ in self.playlist.conf['playlists_all'].items():
+        for bid, _ in self.par_out['playlists_all'].items():
             self.id_map[bid] = i + 1
             i += 1
 
@@ -1286,26 +1345,26 @@ class SubBrandSelectTMessage(BaseMessage):
     async def toggle_selected(self, args, context):
         subid, = args
         dk = str(subid)
-        if dk in (plss := self.playlist.conf['playlists']):
+        if dk in (plss := self.par_out['playlists']):
             del plss[dk]
         else:
-            plss[dk] = self.playlist.conf['playlists_all'][dk]
+            plss[dk] = self.par_out['playlists_all'][dk]
         await self.navigation.goto_menu(self, context, add_if_present=False)
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         self.keyboard: List[List["MenuButton"]] = [[]]
-        self.input_field = f'Select content for {self.playlist.conf["brand"].title}'
-        for b in self.playlist.conf['playlists_all'].values():
+        self.input_field = f'Select content for {self.par_out["brand"].title}'
+        for b in self.par_out['playlists_all'].values():
             b: Brand
-            subchk = str(b.id) in self.playlist.conf['playlists']
+            subchk = str(b.id) in self.par_out['playlists']
             self.add_button(f"[{self.get_brand_index(b)}] {b.title} - {b.desc}" + (" \U00002611" if subchk else " \U00002610"), self.toggle_selected, args=(b.id, ), new_row=True)
         self.add_button('OK: \U0001F197', self.navigation.goto_back, new_row=True)
         return self.input_field
 
 
 class SelectDayTMessage(BaseMessage):
-    def __init__(self, navigation: NavigationHandler, playlist: Playlist = None) -> None:
-        self.playlist = playlist
+    def __init__(self, navigation: NavigationHandler, par_out: dict = dict()) -> None:
+        self.par_out = par_out
         super().__init__(
             navigation,
             label=self.__class__.__name__,
@@ -1326,7 +1385,7 @@ class SelectDayTMessage(BaseMessage):
 
     async def select_day(self, args, context):
         day, = args
-        self.playlist.conf['listings_command'] = dict(datestart=int(self.nearest_weekday(day).replace(hour=0, minute=0, second=1).timestamp() * 1000))
+        self.par_out['datestart'] = int(self.nearest_weekday(day).replace(hour=0, minute=0, second=1).timestamp() * 1000)
         await self.navigation.goto_back()
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
@@ -1343,33 +1402,45 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, playlist: Playlist = None, playlist_type: str = None) -> None:
         if not playlist:
             playlist = Playlist(
-                type=playlist_type,
+                type=params.types2[playlist_type],
                 useri=user.rowid,
                 autoupdate=False,
                 dateupdate=0,
-                conf=dict(brand=None, playlists=dict(), playlists_all=dict(), listings_command=None, play=dict()))
-            plsc = playlist.conf
+                conf=dict())
+            comps = []
         else:
-            plsc = playlist.conf
-            if 'playlists_all' not in plsc:
-                plsc['playlists_all'] = dict()
-            plsc['listings_command'] = None
-        plsc['playlists_all'] = Brand.get_dict_from_json(plsc['playlists_all'])
-        plsc['playlists'] = Brand.get_dict_from_json(plsc['playlists'])
-        if not plsc['playlists_all'] and plsc['playlists']:
-            plsc['playlists_all'] = plsc['playlists'].copy()
-        if isinstance(br := plsc['brand'], dict):
-            plsc['brand'] = br = Brand(**br)
-        if br and br.title == DEFAULT_TITLE and plsc['playlists']:
-            br.title = plsc['playlists'][next(iter(plsc['playlists']))].title
+            comps = list(playlist.components)
         super().__init__(
             navigation,
             user=user,
             params=params,
             playlist=playlist)
+        self.components = comps
+        self.build_par_out_dict(comps)
         self.listings_cache = []
         self.listings_filter = ''
         self.listings_changed = False
+        self.listings_command_params = dict()
+
+    def build_par_out_dict(self, comps: Optional[list[PlaylistComponent]] = None):
+        if comps is None:
+            comps = self.components
+        self.par_out = dict(brand=None, playlists=dict(), playlists_all=dict())
+        self.par_out_o = dict(brand=None, playlists=dict(), playlists_all=dict())
+        br = None
+        for comp in comps:
+            if comp.parenti is None:
+                br = self.par_out['brand'] = Brand(id=comp.brand, title=comp.title, desc=comp.description)
+                self.par_out_o['brand'] = comp
+            else:
+                sbrand = str(comp.brand)
+                sbr = self.par_out['playlists_all'][sbrand] = Brand(id=comp.brand, title=comp.title, desc=comp.description)
+                self.par_out_o['playlists_all'][sbrand] = comp
+                if comp.sel:
+                    self.par_out['playlists'][sbrand] = sbr
+                    self.par_out_o['playlists'][sbrand] = comp
+        if br and br.title == DEFAULT_TITLE and (selpls := self.par_out['playlists']):
+            br.title = selpls[next(iter(selpls))].title
 
     @abstractmethod
     def get_listings_command(self):
@@ -1405,10 +1476,10 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
     async def listings_refresh(self, context: Optional[CallbackContext] = None):
         if self.status == NameDurationStatus.IDLE:
             self.listings_cache: List[Brand] = []
-            self.playlist.conf['brand'] = None
-            self.playlist.conf['playlists'] = dict()
+            self.par_out['brand'] = None
+            self.par_out['playlists'] = dict()
             cmd = self.get_listings_command()
-            self.playlist.conf['listings_command'] = None
+            self.listings_command_params = dict()
             if not cmd:
                 await self.get_listings_command_params()
                 return
@@ -1454,15 +1525,15 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         )
         pl = await self.proc.process(self.get_subbrand_command())
         if pl.rv == 0:
-            self.playlist.conf['playlists_all'] = Brand.get_dict_from_json(pl.brands)
-            self.playlist.conf['playlists'] = dict()
-            if (brand := self.playlist.conf['brand']).title == DEFAULT_TITLE and (ttl := pl.f('title')):
+            self.par_out['playlists_all'] = Brand.get_dict_from_json(pl.brands)
+            self.par_out['playlists'] = dict()
+            if (brand := self.par_out['brand']).title == DEFAULT_TITLE and (ttl := pl.f('title')):
                 brand.title = ttl
             if not brand.desc and (ttl := pl.f('desc')):
                 brand.desc = ttl
             self.return_msg = ''
             if pl.brands:
-                await self.navigation.goto_menu(SubBrandSelectTMessage(self.navigation, playlist=self.playlist))
+                await self.navigation.goto_menu(SubBrandSelectTMessage(self.navigation, par_out=self.par_out))
             else:
                 self.return_msg = 'No subbrand found'
         else:
@@ -1477,10 +1548,10 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         if self.status == NameDurationStatus.IDLE:
             if self.listings_cache:
                 if (mo := re.search(r'^/brand_([0-9]+)$', text)):
-                    self.playlist.conf['brand'] = self.listings_cache[int(mo.group(1))]
+                    self.par_out['brand'] = self.listings_cache[int(mo.group(1))]
                     self.download_subbrand()
                 elif (mo := re.search(r'^/brandid ([0-9a-zA-Z_\-]+)$', text)):
-                    self.playlist.conf['brand'] = Brand(mo.group(1))
+                    self.par_out['brand'] = Brand(mo.group(1))
                     self.download_subbrand()
                 else:
                     if mo := re.search(r'^/filtbrand (.+)$', text):
@@ -1490,6 +1561,67 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
                 await self.edit_or_select()
         else:
             await super().text_input(text, context)
+
+    def get_modified_playlist(self) -> Playlist:
+        if not self.par_out_o['brand']:
+            self.par_out_o['brand'] = PlaylistComponent(
+                rowid='m',
+                brand=self.par_out['brand'].id,
+                title=self.par_out['brand'].title,
+                description=self.par_out['brand'].desc,
+                playlisti=self.playlist.rowid,
+                sel=True)
+        else:
+            self.par_out_o['brand'].sel = True
+            self.par_out_o['brand'].title = self.par_out['brand'].title
+            self.par_out_o['brand'].description = self.par_out['brand'].desc
+        components = [self.par_out_o['brand']]
+        for kk, vv in self.par_out['playlists'].items():
+            if kk in self.par_out_o['playlists_all']:
+                vvo = self.par_out_o['playlists_all'][kk]
+                vvo.sel = True
+                vvo.title = vv.title
+                vvo.description = vv.desc
+                components.append(vvo)
+            else:
+                components.append(PlaylistComponent(
+                    rowid=None,
+                    brand=vv.id,
+                    title=vv.title,
+                    description=vv.desc,
+                    sel=True,
+                    parenti=self.par_out_o['brand'].rowid,
+                    playlisti=self.playlist.rowid
+                ))
+        for kk, vv in self.par_out['playlists_all'].items():
+            if kk not in self.par_out['playlists']:
+                if kk in self.par_out_o['playlists_all']:
+                    vvo = self.par_out_o['playlists_all'][kk]
+                    vvo.sel = False
+                    components.append(vvo)
+                else:
+                    components.append(PlaylistComponent(
+                        rowid=None,
+                        brand=vv.id,
+                        title=vv.title,
+                        description=vv.desc,
+                        sel=False,
+                        parenti=self.par_out_o['brand'].rowid,
+                        playlisti=self.playlist.rowid
+                    ))
+        self.components = components
+        return self.playlist
+
+    async def open_refreshing_message(self, context: Optional[CallbackContext] = None):
+        self.playlist = self.get_modified_playlist()
+        self.build_par_out_dict()
+        self.playlist.components = self.components
+        await self.navigation.goto_menu(RefreshNewPlaylistTMessage(
+            self.navigation,
+            user=self.proc.user,
+            params=self.proc.params,
+            playlist=self.playlist
+        ), context)
 
     async def update(self, context: Optional[CallbackContext] = None) -> Coroutine[Any, Any, str]:
         upd = ''
@@ -1501,23 +1633,18 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
                 self.input_field = f'\U0001F53B {self.listings_filter}' if self.listings_filter else '\U0001F53B Filter Listings'
             else:
                 self.input_field = 'Please Click a Button'
-                if not self.playlist.conf['brand'] and self.get_listings_command():
+                if not self.par_out['brand'] and self.get_listings_command():
                     await self.listings_refresh()
             self.add_button(f'Name: {self.playlist.name}', self.switch_to_status, args=(NameDurationStatus.NAMING, ), new_row=True)
             self.add_button('Refresh Listings', self.listings_refresh)
             new_row = True
-            if self.playlist.conf['brand']:
+            if self.par_out['brand']:
                 self.add_autoupdate_button()
-                if self.playlist.conf['playlists_all']:
-                    self.add_button(f'{self.playlist.conf["brand"].title} ({self.playlist.conf["brand"].id})' + ('\U00002757' if not self.playlist.conf["playlists"] else '\U00002714'),
-                                    SubBrandSelectTMessage(self.navigation, playlist=self.playlist))
-                    if self.playlist.conf["playlists"]:
-                        self.add_button(u'\U0001F501', RefreshNewPlaylistTMessage(
-                                        self.navigation,
-                                        user=self.proc.user,
-                                        params=self.proc.params,
-                                        playlist=self.playlist
-                                        ), new_row=True)
+                if self.par_out['playlists_all']:
+                    self.add_button(f'{self.par_out["brand"].title} ({self.par_out["brand"].id})' + ('\U00002757' if not self.par_out["playlists"] else '\U00002714'),
+                                    SubBrandSelectTMessage(self.navigation, par_out=self.par_out))
+                    if self.par_out["playlists"]:
+                        self.add_button(u'\U0001F501', self.open_refreshing_message, new_row=True)
                         new_row = False
             self.add_button(':cross_mark: Abort', self.navigation.goto_back, new_row=new_row)
             if self.listings_changed:
@@ -1528,7 +1655,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
             return f'Downloading listings {"." * (self.sub_status & 0xFF)}'
         elif self.status == NameDurationStatus.DOWNLOADING:
             self.input_field = u'\U0001F570'
-            return f'Downloading brand content for {self.playlist.conf["brand"].title} {"." * (self.sub_status & 0xFF)}'
+            return f'Downloading brand content for {self.par_out["brand"].title} {"." * (self.sub_status & 0xFF)}'
         if self.return_msg:
             upd = f'\n<b>{self.return_msg}</b>'
         return upd if upd else self.input_field
@@ -1539,16 +1666,16 @@ class MediasetPlaylistTMessage(MedRaiPlaylistTMessage):
         super().__init__(navigation, user, params, playlist, playlist_type='mediaset')
 
     def get_listings_command(self):
-        if self.playlist.conf['listings_command']:
-            return PlaylistMessage(CMD_MEDIASET_LISTINGS, **self.playlist.conf['listings_command'])
+        if self.listings_command_params:
+            return PlaylistMessage(CMD_MEDIASET_LISTINGS, **self.listings_command_params)
         else:
             return None
 
     async def get_listings_command_params(self):
-        await self.navigation.goto_menu(SelectDayTMessage(self.navigation, playlist=self.playlist))
+        await self.navigation.goto_menu(SelectDayTMessage(self.navigation, par_out=self.listings_command_params))
 
     def get_subbrand_command(self):
-        return PlaylistMessage(CMD_MEDIASET_BRANDS, brand=int(self.playlist.conf['brand'].id))
+        return PlaylistMessage(CMD_MEDIASET_BRANDS, brand=int(self.par_out['brand'].id))
 
 
 class RaiPlaylistTMessage(MedRaiPlaylistTMessage):
@@ -1559,7 +1686,7 @@ class RaiPlaylistTMessage(MedRaiPlaylistTMessage):
         return PlaylistMessage(CMD_RAI_LISTINGS)
 
     def get_subbrand_command(self):
-        return PlaylistMessage(CMD_RAI_CONTENTSET, brand=self.playlist.conf['brand'].id)
+        return PlaylistMessage(CMD_RAI_CONTENTSET, brand=self.par_out['brand'].id)
 
 
 class RefreshNewPlaylistTMessage(RefreshingTMessage):

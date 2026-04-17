@@ -2,7 +2,8 @@ from aiohttp_security.abc import AbstractAuthorizationPolicy
 import json
 from time import time
 
-from common.user import User
+from common.user_alc_ses import User
+from server.db.base import UsesAlchemicDB
 
 
 class SqliteAuthorizationPolicy(AbstractAuthorizationPolicy):
@@ -10,14 +11,16 @@ class SqliteAuthorizationPolicy(AbstractAuthorizationPolicy):
         super().__init__()
         self.db = sqlitedb
 
-    async def authorized_userid(self, identity):
+    @UsesAlchemicDB
+    async def authorized_userid(self, identity, **kwargs):
+        db = kwargs.get('db', self.db)
         """Retrieve authorized user id.
         Return the user_id of the user identified by the identity
         or 'None' if no user exists related to the identity.
         """
         try:
             dct = json.loads(identity)
-            users: list[User] = await User.loadbyid(self.db, rowid=dct['rowid'])
+            users: list[User] = await User.loadbyid(db, rowid=dct['rowid'])
             if users and users[0].username == dct['username']:
                 return identity
         except Exception:

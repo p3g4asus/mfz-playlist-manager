@@ -12,7 +12,7 @@ from common.brand import Brand
 from common.const import (CMD_RAI_CONTENTSET, CMD_RAI_LISTINGS, MSG_BACKEND_ERROR,
                           MSG_RAI_INVALID_CONTENTSET, MSG_RAI_INVALID_PROGID,
                           MSG_NO_VIDEOS, RV_NO_VIDEOS)
-from common.playlist import PlaylistItem
+from common.playlist_alc_ses import PlaylistComponent, PlaylistItem
 
 from .refreshmessageprocessor import RefreshMessageProcessor
 
@@ -134,17 +134,15 @@ class MessageProcessor(RefreshMessageProcessor):
         datepubo = datetime.strptime(datepubs, fmt)
         datepubi = int(datepubo.timestamp() * 1000)
         datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
-        return (datepub, datepubi)
+        return (datepub, datepubi, datepubo)
 
-    async def entry2Program(self, it, session, progid, set, playlist):
+    async def entry2Program(self, it, session, comp: PlaylistComponent):
         order = -1
         if 'season' in it and re.search(r'^[0-9]+$', it['season']) and\
            'episode' in it and re.search(r'^[0-9]+$', it['episode']):
             order = int(it['season']) * 100 + int(it['episode'])
         lnk = it.get('weblink')
-        conf = dict(progid=progid,
-                    playlist=set,
-                    pageurl=MessageProcessor.relativeUrl(lnk) if lnk else None,
+        conf = dict(pageurl=MessageProcessor.relativeUrl(lnk) if lnk else None,
                     path=it["path_id"] if "path_id" in it else '',
                     order=order)
         title = it['name'] if 'name' in it else it['episode_title']
@@ -167,25 +165,29 @@ class MessageProcessor(RefreshMessageProcessor):
             img = None
         dur = self.duration2int(await self.get_duration_string(it, session))
         link = it['video_url']
-        (datepub, datepubi) = await self.get_datepub(it, session)
+        (datepub, datepubi, datepubo) = await self.get_datepub(it, session)
         return (PlaylistItem(
             link=link,
             title=title,
-            datepub=datepub,
+            datepub=datepubo,
             dur=dur,
             conf=conf,
             uid=uid,
             img=f'?{urlencode(dict(link=img))}',
-            playlist=playlist
-        ), datepubi)
+            componenti=comp.rowid,
+            playlisti=comp.playlisti
+        ), datepubi, datepub)
 
-    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, conf=dict(), filter=dict(), playlist=None, userid=None, executor=None):
+    async def processPrograms(self, msg, datefrom=0, dateto=33134094791000, comps: list[PlaylistComponent] = [], filter=dict(), userid=None, executor=None):
         try:
-            progid = conf['brand']['id']
             sets = []
-            for s in conf['playlists'].values():
-                if not filter or (s['id'] in filter and filter[s['id']]['sel']):
-                    sets.append((s['id'], s['desc'] if 'desc' in s and s['desc'] else s['title']))
+            componentdict = dict()
+            for comp in comps:
+                if comp.parenti is None:
+                    progid = comp.brand
+                elif comp.sel and (not filter or (comp.brand in filter and filter[comp.brand]['sel'])):
+                    sets.append((comp.brand, comp.description if comp.description else comp.title))
+                    componentdict[comp.brand] = comp
         except (KeyError, AttributeError):
             _LOGGER.error(traceback.format_exc())
             return msg.err(11, MSG_BACKEND_ERROR)
@@ -203,13 +205,13 @@ class MessageProcessor(RefreshMessageProcessor):
                                 js = await resp.json()
                                 for it in js['items']:
                                     try:
-                                        (pr, datepubi) = await self.entry2Program(it, session, progid, set, playlist)
+                                        (pr, datepubi, datepub) = await self.entry2Program(it, session, componentdict[set])
                                         _LOGGER.debug("Found [%s] = %s" % (pr.uid, str(pr)))
-                                        self.record_status(sta, f'\U0001F50D Found {pr.title} [{pr.datepub}]', 'ss')
+                                        self.record_status(sta, f'\U0001F50D Found {pr.title} [{datepub}]', 'ss')
                                         if pr.uid not in programs and datepubi >= datefrom and\
                                                 (datepubi <= dateto or dateto < datefrom):
                                             programs[pr.uid] = pr
-                                            self.record_status(sta, f'\U00002795 Added {pr.title} [{pr.datepub}]', 'ss')
+                                            self.record_status(sta, f'\U00002795 Added {pr.title} [{datepub}]', 'ss')
                                             _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
                                     except Exception as ex:
                                         self.record_status(sta, f'\U000026A0 Error 0: {repr(ex)}', 'ss')

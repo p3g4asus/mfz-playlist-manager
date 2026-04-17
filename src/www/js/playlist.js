@@ -1,7 +1,7 @@
 class Playlist {
     constructor(type, useri) {
         this.rowid = null;
-        this.type = type;
+        this.type = {name: type};
         this.conf = {
             playlists: []
         };
