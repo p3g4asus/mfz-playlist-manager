@@ -254,8 +254,14 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
         dcts = vars(self)
         dctd = dict()
         for key in varskeys:
-            if key in dcts:
-                dctd[key] = dcts[key]
+            if key in dcts and dcts[key] is not None:  # optimization for javascript/json serialization, skip None values
+                if isinstance(dcts[key], dict):
+                    dd = dctd[key] = dict()
+                    for k, v in dcts[key].items():
+                        if v is not None:  # optimization for javascript/json serialization, skip None values
+                            dd[k] = v
+                else:
+                    dctd[key] = dcts[key]
 
         # del dct['typei']
         # del dct['useri']

@@ -290,8 +290,9 @@ function on_player_state_changed(player, event) {
                 let qel = new MainWSQueueElement(cmd, function (msg) {
                     if (msg.cmd == CMD_PING)
                         return 0;
-                    return msg.cmd === CMD_MEDIASET_KEYS ? msg : null;
-                }, 40000, 1, 'keys');
+                    else
+                        return msg.cmd === CMD_MEDIASET_KEYS ? msg : null;
+                }, 6000, 1, 'keys');
                 pingjs_disable();
                 qel.enqueue().then(function (msg) {
                     if (!manage_errors(msg)) {
@@ -569,13 +570,22 @@ class DumpJob {
         }
     }
     _run() {
+        const cmd = this.plid ? { cmd: CMD_DUMP, useri: this.useri, name: this.plid } : { cmd: CMD_DUMP, useri: this.useri, load_all: -1 };
+        cmd[PING_STATUS] = { txt: 'Detecting Mediaset keys' };
+        cmd[PING_DELAY] = 2;
         const el = new MainWSQueueElement(
-            this.plid ? { cmd: CMD_DUMP, useri: this.useri, name: this.plid } : { cmd: CMD_DUMP, useri: this.useri, load_all: -1 },
+            cmd,
             function (msg) {
-                return msg.cmd === CMD_DUMP ? msg : null;
-            }, 30000, 1, 'dump ' + this.plid);
+                if (msg.cmd === CMD_PING)
+                    return 0;
+                else
+                    return msg.cmd === CMD_DUMP ? msg : null;
+            }, 6000, 1, 'dump ' + this.plid);
+        pingjs_disable();
         el.enqueue().then(this.resolve.bind(this))
-            .catch(this.reject.bind(this));
+            .catch(this.reject.bind(this)).finally(function () {
+                pingjs_process();
+            });
     }
     run() {
         if (!playlist_dump_jobs.cur) {

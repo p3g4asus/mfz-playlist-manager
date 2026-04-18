@@ -415,6 +415,8 @@ class PlaylistItem(AlchemicBase):
                     kwargs['playlist'] = Playlist(dbitem=val)
                 elif key == 'component' and isinstance(val, dict):
                     kwargs['component'] = PlaylistComponent(dbitem=val)
+                elif key == 'ratec':
+                    self.ratec = val
                 else:
                     kwargs[key] = val
             del kwargs['dbitem']
