@@ -87,9 +87,9 @@ class SignUpTMessage(BaseMessage):
 
                     await self.navigation.send_message(emoji_replace(content), keyboard)
                     if finished:
-                        idmsg = await self.navigation.goto_home(sync=True)
                         await self.navigation.delete_message(self.message_id)
-                        await self.navigation.delete_message(idmsg)
+                        await self.navigation.goto_home(context, sync=True)
+                        # await self.navigation.delete_message(idmsg)
             _LOGGER.info(f"Handle for {text}")
 
 

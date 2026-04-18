@@ -106,7 +106,7 @@ class MyNavigationHandler(NavigationHandler):
         if sync:
             return await sched.wait()
 
-    async def goto_back_wrap(self, level: int = 1) -> int:
+    async def goto_back_wrap(self, level: int = 1, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> int:
         if not self._menu_queue:
             return -1
         elif len(self._menu_queue) == 1:
@@ -119,14 +119,14 @@ class MyNavigationHandler(NavigationHandler):
             lev += 1
             if lev == level:
                 break
-        return await self.goto_menu(menu_previous, going_home=True)
+        return await self.goto_menu(menu_previous, going_home=True, context=context)
 
-    async def goto_back(self, sync: bool = False) -> int:
+    async def goto_back(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None, sync: bool = False) -> int:
         """Do Go Back logic."""
-        return await self.navigation_schedule_wrapper(self.goto_back_wrap(), sync)
+        return await self.navigation_schedule_wrapper(self.goto_back_wrap(context=context), sync)
 
     async def goto_home(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None, sync: bool = False):
-        return await self.navigation_schedule_wrapper(self.goto_back_wrap(-1), sync)
+        return await self.navigation_schedule_wrapper(self.goto_back_wrap(-1, context=context), sync)
 
     async def goto_menu(self, menu_message: BaseMessage, context: Optional[CallbackContext[BT, UD, CD, BD]] = None, add_if_present: bool = True, sync: bool = False, going_home: bool = False):
         coro = super().goto_menu(menu_message, context, add_if_present=add_if_present)
