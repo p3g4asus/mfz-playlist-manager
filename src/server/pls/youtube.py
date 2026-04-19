@@ -50,6 +50,7 @@ class MessageProcessor(RefreshMessageProcessor):
     @UsesAlchemicDB
     async def youtubeApiBuild(self, userid, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', None)
         apikey = await User.get_settings(db, userid, 'youtube_apikey')
         if apikey and apikey not in self.youtube_cache:
             try:

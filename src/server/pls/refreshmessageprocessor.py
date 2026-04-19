@@ -5,10 +5,9 @@ import re
 import traceback
 from datetime import datetime
 
-from sqlalchemy import delete, insert, update
-from sqlalchemy.orm import make_transient
+from sqlalchemy import delete
 
-from common.const import (CMD_REFRESH, CMD_SYNC, MSG_DB_ERROR, MSG_PLAYLIST_NOT_FOUND,
+from common.const import (CMD_REFRESH, CMD_SYNC, MSG_BACKEND_ERROR, MSG_DB_ERROR, MSG_PLAYLIST_NOT_FOUND,
                           MSG_UNAUTHORIZED, RV_NO_VIDEOS)
 from common.playlist_alc_ses import PlaylistComponent, PlaylistItem, PlaylistMessage, LOAD_ITEMS_ALL, LOAD_ITEMS_NO, Playlist
 from common.utils import MyEncoder
@@ -109,6 +108,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
         x = msg.playlistObj()
         if x:
             db = kwargs.get('db', self.db)
+            db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
             if x.useri != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
             datefrom = 0
@@ -155,6 +155,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processAutoRefresh(self, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', None)
         pls = await Playlist.loadbyid(db, loaditems=LOAD_ITEMS_NO)
         for p in pls:
             if p.autoupdate:
@@ -174,6 +175,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
         x: Playlist = msg.playlistObj()
         if x:
             db: AlchemicDB = kwargs.get('db', self.db)
+            db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
             if x.useri != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
             datefrom = msg.f('datefrom')
@@ -195,7 +197,6 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                 if x.useri != userid:
                     return msg.err(502, MSG_UNAUTHORIZED, playlist=None)
                 else:
-                    make_transient(x)
                     xold = x
                 newcomps = dict()
                 parenti = None
@@ -221,6 +222,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                         await db.session.execute(delete(PlaylistComponent).where(PlaylistComponent.rowid.in_(deletes)))
                     await db.commit_session()
                     x = (await Playlist.loadbyid(db, rowid=x.rowid, loaditems=LOAD_ITEMS_ALL))[0]
+                    await db.session.refresh(x)
                     x.name = n
                     x.autoupdate = u
                     if not datefrom and len(x.items):

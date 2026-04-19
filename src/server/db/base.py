@@ -6,6 +6,7 @@ from typing import Annotated, Type, Union, get_args, get_origin
 
 from common.utils import Fieldable, JSONAble, MyEncoder
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.sql import operators, Select
@@ -42,15 +43,27 @@ JSONMutableEncodedDict = MutableDict.as_mutable(JSONEncodedDict)
 
 
 class AlchemicDB:
+    def set_engine(self, engine: AsyncEngine):
+        self.engine = engine
+        if engine:
+            self.sm = async_sessionmaker(engine, expire_on_commit=False)
+
     def __init__(self, engine: Union["AsyncEngine", "AlchemicDB", None] = None):
+        self.sm: async_sessionmaker = None
         if isinstance(engine, AsyncEngine):
-            self.engine = engine
+            self.set_engine(engine)
         elif isinstance(engine, AlchemicDB):
             self.engine = engine.engine
+            self.sm = engine.sm
         else:
             self.engine = None
         self._connection = None
         self._session = None
+        self.rv = dict()
+
+    def sk(self, key: str, value: object):
+        self.rv[key] = value
+        return self
 
     def __repr__(self):
         return f"AlchemicDB(engine={self.engine}, connection={self._connection}, session={self._session})"
@@ -59,7 +72,7 @@ class AlchemicDB:
         return self.__repr__()
 
     def __call__(self):
-        return AlchemicDB(self.engine)
+        return AlchemicDB(self)
 
     @property
     def connection(self):
@@ -124,14 +137,14 @@ class AlchemicDB:
 
     def initialize_session(self):
         if not self._session:
-            self._session = AlchemicDB.get_session(self.engine)
+            self._session = self.sm()
         return self._session
 
     async def initialize(self, engine: AsyncEngine | None = None):
         if engine:
             if self.engine and self.engine is not engine:
                 await self.dispose()
-            self.engine = engine
+            self.set_engine(engine)
         await self.initialize_connection()
         self.initialize_session()
 
@@ -173,6 +186,12 @@ class UsesAlchemicDB:
             kwargs['db'] = (db := db())
         try:
             result = await self.func(*args, **kwargs)
+        except SQLAlchemyError as e:
+            _LOGGER.error(f"Database error: {e}")
+            if '_err' in db.rv:
+                return db.rv['_err']
+            else:
+                raise
         finally:
             if db:
                 await db.close_session()
@@ -187,6 +206,18 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
     type_annotation_map = {
         dict: JSONMutableEncodedDict,
     }
+
+    def get_mapped_field(self, nm: str, ann: Type) -> tuple[bool, object]:
+        if (orig := get_origin(ann)) is Mapped or (orig is Annotated and (aargs := get_args(ann)) and get_origin(aargs[0]) is Mapped):
+            return True, getattr(self, nm)
+        else:
+            return False, None
+
+    def get_all_mapped_fields(self, mapped_fields: dict = None) -> dict:
+        for nm, ann in self.__annotations__.items():
+            if (mf := self.get_mapped_field(nm, ann))[0] and mapped_fields is not None:
+                mapped_fields[nm] = mf[1]
+        return mapped_fields
 
     @staticmethod
     def get_deep_copy(it: object, objmap: dict) -> object:
@@ -204,9 +235,8 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
             else:
                 kwargs = dict()
                 for nm, ann in it.__annotations__.items():
-                    if (orig := get_origin(ann)) is Mapped or (orig is Annotated and (args := get_args(ann)) and get_origin(args[0]) is Mapped):
-                        val = getattr(it, nm)
-                        kwargs[nm] = AlchemicBase.get_deep_copy(val, objmap)
+                    if (mf := it.get_mapped_field(nm, ann))[0]:
+                        kwargs[nm] = AlchemicBase.get_deep_copy(mf[1], objmap)
                 rv = it.__class__(**kwargs)
                 objmap[id(it)] = rv
             return rv
@@ -218,8 +248,8 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
             objmap = dict()
             objmap[id(cp)] = self
             for nm, ann in self.__annotations__.items():
-                if (orig := get_origin(ann)) is Mapped or (orig is Annotated and (aargs := get_args(ann)) and get_origin(aargs[0]) is Mapped):
-                    kwargs[nm] = AlchemicBase.get_deep_copy(getattr(cp, nm), objmap)
+                if (mf := cp.get_mapped_field(nm, ann))[0]:
+                    kwargs[nm] = AlchemicBase.get_deep_copy(mf[1], objmap)
             del kwargs['_cp']
         self.registry.constructor(self, *args, **kwargs)
 
@@ -228,8 +258,8 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
             objmap = dict()
             objmap[id(cp)] = self
             for nm, ann in self.__annotations__.items():
-                if (orig := get_origin(ann)) is Mapped or (orig is Annotated and (args := get_args(ann)) and get_origin(args[0]) is Mapped):
-                    setattr(self, nm, AlchemicBase.get_deep_copy(getattr(cp, nm), objmap))
+                if (mf := cp.get_mapped_field(nm, ann))[0]:
+                    setattr(self, nm, AlchemicBase.get_deep_copy(mf[1], objmap))
         else:
             for key, value in kwargs.items():
                 if hasattr(self, key):

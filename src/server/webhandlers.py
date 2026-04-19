@@ -14,7 +14,6 @@ from urllib.parse import quote, urlencode
 from uuid import uuid4
 
 import yt_dlp as youtube_dl
-from aiosqlite import Connection
 from aiohttp import ClientSession, WSMsgType, streamer, web, hdrs
 from aiohttp.web_response import Response
 from aiohttp_security import (authorized_userid, check_authorized, forget,
@@ -346,6 +345,7 @@ index_template = dedent("""
 @UsesAlchemicDB
 async def auth_for_item(request, **kwargs):
     db = kwargs.get('db')
+    db.sk('_err', web.HTTPInternalServerError(body='Internal server error during authentication'))
     if (auid := await user_check_token(request)) is None:
         auid, _, _ = await authorized_userid(request)
         if not isinstance(auid, int):
@@ -378,6 +378,7 @@ async def auth_for_item(request, **kwargs):
 @UsesAlchemicDB
 async def index(request, item_id: int = None, **kwargs):
     db = kwargs.get('db')
+    db.sk('_err', web.HTTPInternalServerError(body='Internal server error during user load'))
     auid, _, _ = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
@@ -421,6 +422,7 @@ async def index(request, item_id: int = None, **kwargs):
 @UsesAlchemicDB
 async def modify_pw(request, **kwargs):
     db = kwargs.get('db')
+    db.sk('_err', web.HTTPInternalServerError(body='Internal server error during password modification'))
     auid, hextoken, _ = await authorized_userid(request)
     if isinstance(auid, int):
         identity = auid
@@ -451,6 +453,7 @@ async def modify_pw(request, **kwargs):
 @UsesAlchemicDB
 async def user_check_token(request, **kwargs):
     db = kwargs.get('db')
+    db.sk('_err', web.HTTPInternalServerError(body='Internal server error during token authentication'))
     if 'token' in request.match_info and request.match_info['token'] and request.match_info['token'] != '/0':
         try:
             users: list[User] = await User.loadbyid(db, token=request.match_info['token'][1:])
@@ -474,6 +477,7 @@ async def user_check_call(request, method=None):
 @UsesAlchemicDB
 async def get_playlist_and_item_from_request(request, userid=None, **kwargs):
     db = kwargs.get('db')
+    db.sk('_err', web.HTTPInternalServerError(body='Internal server error during playlist load'))
     if not userid:
         auid, _, _ = await authorized_userid(request)
         if not isinstance(auid, int):
@@ -529,6 +533,8 @@ def jwplayer_html(pls: list | dict) -> str:
 @UsesAlchemicDB
 async def playlist_m3u(request, userid=None, **kwargs):
     db = kwargs.get('db')
+    db.sk('_err', web.HTTPInternalServerError(body='Internal server error during playlist load'))
+
     _LOGGER.debug("host is %s" % str(request.host))
     identity = None
     hextoken = None
@@ -889,6 +895,7 @@ async def youtube_redir_do(request):
 @UsesAlchemicDB
 async def login_g(request, **kwargs):
     db = kwargs.get('db')
+    db.sk('_err', web.HTTPInternalServerError(body='Internal server error during Google authentication'))
     form = await request.post()
     token = form.get('idtoken')
     # (Receive token by HTTPS POST)
@@ -942,6 +949,7 @@ async def login_g(request, **kwargs):
 @UsesAlchemicDB
 async def login(request, **kwargs):
     db = kwargs.get('db')
+    db.sk('_err', web.HTTPInternalServerError(body='Internal server error during authentication'))
     response = web.HTTPNoContent()
     auid, _, _ = await authorized_userid(request)
     form = await request.post()
@@ -1053,7 +1061,9 @@ async def download(request, userid=None):
 
 @UsesAlchemicDB
 async def telegram_command(request, **kwargs):
-    db: Connection = kwargs.get('db')
+    db = kwargs.get('db')
+    db.sk('_err', web.HTTPInternalServerError(body='Internal server error during Telegram command processing'))
+
     rv = await RemoteItem.on_telegram_command(request.match_info['hex'], q := request.query)
     if isinstance(rv, int):
         if rv >= 0:
@@ -1194,6 +1204,7 @@ async def pls_h(request):
 @UsesAlchemicDB
 async def register(request, **kwargs):
     db = kwargs.get('db')
+    db.sk('_err', web.HTTPInternalServerError(body='Internal server error during registration'))
     auid, _, _ = await authorized_userid(request)
     if isinstance(auid, int):
         response = web.HTTPFound('/')

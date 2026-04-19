@@ -188,6 +188,8 @@ class Playlist(AlchemicBase):
             plsel = plsel.options(subqueryload(Playlist.items.and_(PlaylistItem.seen.is_(None))))
         elif loaditems == LOAD_ITEMS_SEEN:
             plsel = plsel.options(subqueryload(Playlist.items.and_(PlaylistItem.seen.is_not(None))))
+        elif loaditems == LOAD_ITEMS_ALL:
+            plsel = plsel.options(subqueryload(Playlist.items))
         andargs = []
         if isinstance(rowid, int):
             andargs.append(Playlist.rowid == rowid)
@@ -325,10 +327,7 @@ class Playlist(AlchemicBase):
             for item in it:
                 Playlist._dont_be_lazy(item)
         else:
-            if it.components:
-                pass
-            if it.user:
-                pass
+            it.get_all_mapped_fields()
             PlaylistItem._dont_be_lazy(it.items)
         return it
 
@@ -358,7 +357,7 @@ class Playlist(AlchemicBase):
                 out = await AlchemicBase.get_query_result(db, maxorder, get_first=True)
                 self.iorder = (out if out else 0) + 1
                 rv = await db.upsert(self)
-                await greenlet_spawn(Playlist._dont_be_lazy, self)
+            await greenlet_spawn(Playlist._dont_be_lazy, self)
             if commit:
                 await db.session.commit()
         return rv
@@ -495,6 +494,7 @@ class PlaylistItem(AlchemicBase):
             andargs.append(or_(PlaylistItem.dl.is_not(None), and_(PlaylistItem.conf.is_not(None), func.instr(PlaylistItem.conf, '"todel"') > 0)))
         if user:
             plisel = plisel.join(Playlist).join(User).where(User.username == user)
+        plisel = plisel.options(joinedload(PlaylistItem.component)).options(joinedload(PlaylistItem.playlist))
         plisel = plisel.where(and_(*andargs)).order_by(getattr(PlaylistItem, sortby))
         if limit is not None and offset is not None:
             plisel = plisel.offset(offset).limit(limit)
@@ -596,11 +596,7 @@ class PlaylistItem(AlchemicBase):
             for item in it:
                 PlaylistItem._dont_be_lazy(item)
         else:
-            if it.component:
-                if it.component.parent:
-                    pass
-            if it.playlist:
-                pass
+            it.get_all_mapped_fields()
         return it
 
     async def toDB(self, db: AlcTp, commit: bool = True):
@@ -616,8 +612,8 @@ class PlaylistItem(AlchemicBase):
             if (self.rowid and ((stt := inspect(self)).transient or stt.detached)) or self.rowid is None:
                 rv = await db.upsert(self)
 
-                await greenlet_spawn(PlaylistItem._dont_be_lazy, self)
-                # await db.session.execute(update(PlaylistItem), [self.get_update_dict()])
+            await greenlet_spawn(PlaylistItem._dont_be_lazy, self)
+            # await db.session.execute(update(PlaylistItem), [self.get_update_dict()])
             if commit:
                 await db.session.commit()
         return rv

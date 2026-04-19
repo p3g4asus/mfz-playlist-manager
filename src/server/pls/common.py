@@ -25,7 +25,6 @@ from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import AsyncIOOSCUDPServer
 from pythonosc.udp_client import SimpleUDPClient
 from sqlalchemy import and_, delete, select, update
-from sqlalchemy.orm import make_transient
 from sqlalchemy.util.concurrency import greenlet_spawn
 
 from common.const import (CMD_ADD, CMD_CLEAR, CMD_CLOSE, CMD_DEL, CMD_DL_SETTINGS, CMD_DOWNLOAD,
@@ -65,6 +64,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processMove(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(47, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         pdst = msg.playlistId()
         itx = msg.playlistItemId()
         if pdst and itx:
@@ -91,8 +91,8 @@ class MessageProcessor(AbstractMessageProcessor):
                     return msg.err(2, MSG_NAME_TAKEN, playlist=None)
             rv = await it.move_to(pdst.rowid, db)
             if rv:
-                make_transient(pdst)
                 pdst = await Playlist.loadbyid(db, rowid=pdst.rowid)
+                await db.session.refresh(pdst[0])
                 return msg.ok(playlist=pdst[0])
             else:
                 return msg.err(4, MSG_BACKEND_ERROR, playlist=None)
@@ -104,6 +104,7 @@ class MessageProcessor(AbstractMessageProcessor):
         x = msg.playlistObj()
         if x:
             db = kwargs.get('db', self.db)
+            db.sk('_err', msg.err(48, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
             if x.useri != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
             x = await x.toDB(db)
@@ -117,6 +118,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processTokenRefresh(self, userid, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', None)
         users: list[User] = await User.loadbyid(db, rowid=userid)
         if users:
             return await users[0].refreshToken(db)
@@ -126,6 +128,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processTokenGet(self, userid, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', None)
         users: list[User] = await User.loadbyid(db, rowid=userid)
         if users:
             return users[0].token
@@ -143,6 +146,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processUserSettings(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(49, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         users: list[User] = await User.loadbyid(db, rowid=userid)
         if users:
             u = users[0]
@@ -157,6 +161,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processDump(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         u = msg.f("useri", (int,))
         if u:
             if u != userid:
@@ -185,6 +190,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processRen(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(45, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
@@ -205,6 +211,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processSeen(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         llx = msg.playlistItemId()
         if llx is not None:
             lx = llx if isinstance(llx, list) else [llx]
@@ -244,6 +251,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processSeenPrev(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistItemId()
         pls = None
         if x is not None:
@@ -261,14 +269,14 @@ class MessageProcessor(AbstractMessageProcessor):
                 return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-        if pls:
-            make_transient(pls[0])
         pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_ALL)
+        await db.session.refresh(pls[0])
         return msg.ok(playlistitem=x, playlist=pls[0])
 
     @UsesAlchemicDB
     async def processPlayItSett(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistItemId()
         it: PlaylistItem = await PlaylistItem.loadbyid(db, rowid=x)
         if it:
@@ -295,6 +303,8 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processItemDump(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
+
         x = msg.playlistItemId()
         it = await PlaylistItem.loadbyid(db, rowid=x)
         if it:
@@ -443,6 +453,7 @@ class MessageProcessor(AbstractMessageProcessor):
         @UsesAlchemicDB
         async def dl(self, status, executor, **kwargs):
             db = kwargs.get('db', self.db)
+            db.sk('_err', self.msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
             msg = self.msg
             format = msg.f('fmt')
             # conv = msg.f('conv')
@@ -498,6 +509,7 @@ class MessageProcessor(AbstractMessageProcessor):
         @UsesAlchemicDB
         async def dl(self, status, executor, **kwargs):
             db = kwargs.get('db', self.db)
+            db.sk('_err', self.msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
             msg = self.msg
             format = msg.f('fmt')
             conv = msg.f('conv')
@@ -628,6 +640,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processDl(self, msg: PlaylistMessage, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistItemId()
         if x:
             it = await PlaylistItem.loadbyid(db, rowid=x)
@@ -681,6 +694,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processFreeSpace(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistItemId()
         if x:
             it = await PlaylistItem.loadbyid(db, rowid=x)
@@ -693,7 +707,7 @@ class MessageProcessor(AbstractMessageProcessor):
                         todel = await it.clean(db, True)
                         return msg.ok(playlistitem=it, deleted=todel)
                 else:
-                    msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
+                    return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
             else:
                 return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         else:
@@ -702,6 +716,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processIOrder(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistItemId()
         if x is not None:
             it = await PlaylistItem.loadbyid(db, rowid=x)
@@ -755,6 +770,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processDel(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
@@ -775,6 +791,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processDlSettings(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
@@ -806,6 +823,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processSort(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_ALL, sort_item_field='datepub')
@@ -833,6 +851,8 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processIndex(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
+
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
@@ -861,6 +881,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processClear(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
@@ -880,6 +901,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processPlayId(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)
@@ -908,8 +930,8 @@ class MessageProcessor(AbstractMessageProcessor):
                         updateq = update(PlaylistComponent).where(PlaylistComponent.rowid == int(key)).values(rate=rr)
                         await db.session.execute(updateq)
                 await db.session.commit()
-                make_transient(pl)
                 pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_UNSEEN)
+                await db.session.refresh(pls[0])
                 return msg.ok(playlist=pls[0])
             else:
                 return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
@@ -919,6 +941,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processPlayTime(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistItemId()
         it = await PlaylistItem.loadbyid(db, rowid=x)
         if it:
@@ -945,6 +968,7 @@ class MessageProcessor(AbstractMessageProcessor):
     @UsesAlchemicDB
     async def processPlaySett(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
         x = msg.playlistId()
         if x is not None:
             pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_NO)

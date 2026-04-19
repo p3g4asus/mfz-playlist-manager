@@ -183,6 +183,7 @@ if (login_needed == 5000) {
     @UsesAlchemicDB
     async def get_user_credentials(self, userid, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', None)
         setts = await User.get_settings(db, userid, 'mediaset_user', 'mediaset_password')
         return None if not setts or not setts[0] or not setts[1] else setts
 
@@ -376,6 +377,8 @@ if (login_needed == 5000) {
     @UsesAlchemicDB
     async def processKeyGet(self, msg, userid, executor, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', msg.err(46, MSG_BACKEND_ERROR))
+
         x = msg.playlistItemId()
         it = await PlaylistItem.loadbyid(db, rowid=x)
         if it:

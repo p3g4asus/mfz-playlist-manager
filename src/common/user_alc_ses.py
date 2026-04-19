@@ -5,6 +5,7 @@ from uuid import uuid4
 from sqlalchemy import ForeignKey, UniqueConstraint, func, inspect, or_, select, and_
 from sqlalchemy.orm import Mapped, make_transient
 from sqlalchemy.orm import mapped_column
+from sqlalchemy.util.concurrency import greenlet_spawn
 
 from server.db.base import AlcTp, AlchemicBase
 
@@ -98,6 +99,7 @@ class User(AlchemicBase):
             if out:
                 return None
             rv = await db.upsert(self)
+        await greenlet_spawn(self.get_all_mapped_fields)
         if commit:
             await db.session.commit()
         return rv

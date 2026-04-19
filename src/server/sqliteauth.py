@@ -14,6 +14,7 @@ class SqliteAuthorizationPolicy(AbstractAuthorizationPolicy):
     @UsesAlchemicDB
     async def authorized_userid(self, identity, **kwargs):
         db = kwargs.get('db', self.db)
+        db.sk('_err', None)
         """Retrieve authorized user id.
         Return the user_id of the user identified by the identity
         or 'None' if no user exists related to the identity.
