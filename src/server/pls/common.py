@@ -91,8 +91,8 @@ class MessageProcessor(AbstractMessageProcessor):
                     return msg.err(2, MSG_NAME_TAKEN, playlist=None)
             rv = await it.move_to(pdst.rowid, db)
             if rv:
+                db.session.expunge(pdst)
                 pdst = await Playlist.loadbyid(db, rowid=pdst.rowid)
-                await db.session.refresh(pdst[0])
                 return msg.ok(playlist=pdst[0])
             else:
                 return msg.err(4, MSG_BACKEND_ERROR, playlist=None)
@@ -269,8 +269,8 @@ class MessageProcessor(AbstractMessageProcessor):
                 return msg.err(3, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
         else:
             return msg.err(1, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+        db.session.expunge(pls[0])
         pls = await Playlist.loadbyid(db, rowid=it.playlisti, loaditems=LOAD_ITEMS_ALL)
-        await db.session.refresh(pls[0])
         return msg.ok(playlistitem=x, playlist=pls[0])
 
     @UsesAlchemicDB
@@ -930,8 +930,8 @@ class MessageProcessor(AbstractMessageProcessor):
                         updateq = update(PlaylistComponent).where(PlaylistComponent.rowid == int(key)).values(rate=rr)
                         await db.session.execute(updateq)
                 await db.session.commit()
+                db.session.expunge(pl)
                 pls = await Playlist.loadbyid(db, rowid=x, loaditems=LOAD_ITEMS_UNSEEN)
-                await db.session.refresh(pls[0])
                 return msg.ok(playlist=pls[0])
             else:
                 return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
