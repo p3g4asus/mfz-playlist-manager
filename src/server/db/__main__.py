@@ -416,16 +416,31 @@ def parse_args():
     )
     parser.add_argument(
         "--echo",
-        default=True,
+        default=False,
         action="store_true",
         help="Abilita log SQLAlchemy",
+    )
+    parser.add_argument(
+        "--yes",
+        default=False,
+        action="store_true",
+        help="Conferma operazione senza prompt",
     )
     return parser.parse_args()
 
 
 async def main():
     args = parse_args()
-
+    if not args.yes:
+        print(f"Operazione: {args.operation}")
+        print(f"DB sorgente: {args.source_url}")
+        print(f"DB target: {args.target_url}")
+        print(f"Chunk size: {args.chunk_size}")
+        print(f"Echo SQL: {args.echo}")
+        confirm = input("Procedere? (y/N): ").strip().lower()
+        if confirm != 'y':
+            print("Operazione annullata.")
+            return
     if args.operation == "convert":
         await convert_db1(dict(dbfile=args.source_url.split("///")[-1], to=args.target_url.split("///")[-1]))
     elif args.operation == "copy":
