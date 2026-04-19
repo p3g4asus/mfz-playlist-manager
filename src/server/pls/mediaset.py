@@ -440,7 +440,8 @@ if (login_needed == 5000) {
                     it.conf['_drm_a'] = aid
                     it.conf['_drm_t'] = token
                     it.conf['_drm_m'] = mpd
-                    drmi = it.conf['_drm_i'] = f'b{it.component.parenti}s{it.component.brand}' if it.component else f'pl{it.playlisti}'
+                    comp = pls[0].get_component(it.componenti)
+                    drmi = it.conf['_drm_i'] = f'b{comp.parenti}s{comp.brand}' if comp is not None else f'pl{it.playlisti}'
                     plc = pls[0].conf if pls[0].conf else {}
                     pls[0].conf = plc
                     if '_drm_i' not in plc or drmi not in plc['_drm_i']:

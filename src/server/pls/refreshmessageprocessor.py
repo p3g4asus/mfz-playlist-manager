@@ -172,11 +172,11 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
 
     @UsesAlchemicDB
     async def processRefresh(self, msg, userid, executor, **kwargs):
-        x: Playlist = msg.playlistObj()
-        if x:
+        given: Playlist = msg.playlistObj()
+        if given:
             db: AlchemicDB = kwargs.get('db', self.db)
             db.sk('_err', msg.err(46, MSG_BACKEND_ERROR, playlist=None, playlistitem=None))
-            if x.useri != userid:
+            if given.useri != userid:
                 return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
             datefrom = msg.f('datefrom')
             if datefrom is None:
@@ -185,11 +185,11 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             if dateto is None:
                 dateto = 33134094791000
             # dateto = min(dateto, int(datetime.now().timestamp() * 1000))
-            if x.rowid is not None:
-                comps: list[PlaylistComponent] = list(x.components)
-                n = x.name
-                u = x.autoupdate
-                x = await Playlist.loadbyid(db, rowid=x.rowid, loaditems=LOAD_ITEMS_NO)
+            if given.rowid is not None:
+                comps: list[PlaylistComponent] = list(given.components)
+                n = given.name
+                u = given.autoupdate
+                x = await Playlist.loadbyid(db, rowid=given.rowid, loaditems=LOAD_ITEMS_NO)
                 if x and len(x):
                     x = x[0]
                 else:
@@ -221,8 +221,9 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                     if deletes:
                         await db.session.execute(delete(PlaylistComponent).where(PlaylistComponent.rowid.in_(deletes)))
                     await db.commit_session()
+                    db.session.expunge(xold)
                     x = (await Playlist.loadbyid(db, rowid=x.rowid, loaditems=LOAD_ITEMS_ALL))[0]
-                    await db.session.refresh(x)
+                    # await db.session.refresh(x)
                     x.name = n
                     x.autoupdate = u
                     if not datefrom and len(x.items):

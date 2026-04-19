@@ -32,6 +32,18 @@ _LOGGER = logging.getLogger(__name__)
 
 class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMessage):
 
+    def compute_rate(self, playlist: Playlist | None = None):
+        if not playlist:
+            playlist = cache_get(self.proc.user.rowid, self.pid).playlist
+        if self.obj.rate:
+            return self.obj.rate
+        elif (comp := playlist.get_component(self.obj.componenti)) and (rate := comp.rate):
+            return rate
+        elif playlist.rate:
+            return playlist.rate
+        else:
+            return 1.0
+
     def refresh_from_cache(self):
         obj = cache_get_item(self.proc.user.rowid, self.pid, self.id)
         if obj:
@@ -46,14 +58,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
             self.thumb = self.obj.img
             self.deleted = self.obj.seen
             self.is_playing = p.playlist.playstate == self.obj.uid
-            if self.obj.rate:
-                self.rate = self.obj.rate
-            elif self.obj.component and self.obj.component.rate:
-                self.rate = self.obj.component.rate
-            elif p.playlist.rate:
-                self.rate = p.playlist.rate
-            else:
-                self.rate = 1.0
+            self.rate = self.compute_rate(p.playlist)
             return True
         else:
             return False
@@ -243,13 +248,13 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
 
     async def modding_rate_send(self):
         secs = self.modding_rate_float()
-        if not self.rate_for_single_video and self.obj.component and (vcp := self.obj.component.rowid) is not None:
+        if not self.rate_for_single_video and (vcp := self.obj.componenti) is not None:
             pl = PlaylistMessage(CMD_PLAYID, playlist=self.pid, rates=secs, key=vcp)
             pl = await self.proc.process(pl)
             if pl.rv == 0:
                 plTg = cache_get(self.proc.user.rowid, self.pid)
                 plTg.playlist.components = pl.playlist.components
-                self.obj.component.rate = secs
+                self.rate = self.compute_rate(pl.playlist)
                 if plTg.message:
                     await plTg.message.edit_or_select_items()
                 self.return_msg = 'Set rate OK :thumbs_up:'
@@ -263,6 +268,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
                     self.obj.rate = secs
                 else:
                     self.obj.rate = None
+                self.rate = self.compute_rate()
                 self.return_msg = 'Set rate OK :thumbs_up:'
             else:
                 self.return_msg = f'Error {pl.rv} setting rate :thumbs_down:'

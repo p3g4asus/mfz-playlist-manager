@@ -33,7 +33,6 @@ class PlaylistComponent(AlchemicBase):
     __tablename__ = "playlist_component"
     rowid: Annotated[Mapped[int], 'JU'] = mapped_column(primary_key=True, autoincrement=True)
     playlisti: Annotated[Mapped[int], 'JU'] = mapped_column('playlist', ForeignKey("playlist.rowid", ondelete="CASCADE"), nullable=False)
-    playlist: Mapped["Playlist"] = relationship("Playlist", back_populates="components")
     brand: Annotated[Mapped[str], 'JU'] = mapped_column(nullable=False)
     parenti: Annotated[Mapped[int], 'JU'] = mapped_column('parent', ForeignKey("playlist_component.rowid"), nullable=True)
     parent: Mapped["PlaylistComponent"] = relationship("PlaylistComponent", remote_side=[rowid], lazy="joined", join_depth=1)
@@ -43,7 +42,6 @@ class PlaylistComponent(AlchemicBase):
     description: Annotated[Mapped[str], 'JU'] = mapped_column()
     filter: Annotated[Mapped[dict], 'JU'] = mapped_column()
     conf: Annotated[Mapped[dict], 'JU'] = mapped_column()
-    views: Mapped[Dict[str, "ViewConf"]] = relationship("ViewConf", cascade="all, delete-orphan", back_populates="component", passive_deletes=True, lazy='selectin', collection_class=attribute_keyed_dict("hash"))
     __table_args__ = (UniqueConstraint('brand', 'playlist', 'parent', name='uix_brand_playlist_parent'),)
 
     def __init__(self, *args, **kwargs):
@@ -83,9 +81,7 @@ class ViewConf(AlchemicBase):
     rowid: Annotated[Mapped[int], 'JU'] = mapped_column(primary_key=True, autoincrement=True)
     name: Annotated[Mapped[str], 'JU'] = mapped_column(nullable=False)
     playlisti: Annotated[Mapped[int], 'JU'] = mapped_column('playlist', ForeignKey("playlist.rowid", ondelete="CASCADE"), nullable=False)
-    playlist: Mapped["Playlist"] = relationship("Playlist", lazy='joined', back_populates="views")
     componenti: Annotated[Mapped[int], 'JU'] = mapped_column('component', ForeignKey("playlist_component.rowid", ondelete="CASCADE"), nullable=True)
-    component: Mapped["PlaylistComponent"] = relationship("PlaylistComponent", lazy='joined', back_populates="views")
     width: Annotated[Mapped[int], 'JU'] = mapped_column(nullable=False)
     height: Annotated[Mapped[int], 'JU'] = mapped_column(nullable=False)
     mime: Annotated[Mapped[str], 'JU'] = mapped_column(nullable=True)
@@ -129,8 +125,8 @@ LOAD_ITEMS_SEEN = 3
 class Playlist(AlchemicBase):
     __tablename__ = "playlist"
     rowid: Annotated[Mapped[int], 'JU'] = mapped_column(primary_key=True, autoincrement=True)
-    components: Annotated[Mapped[list["PlaylistComponent"]], 'J'] = relationship("PlaylistComponent", cascade="all, delete-orphan", back_populates="playlist", passive_deletes=True, lazy='selectin')
-    views: Annotated[Mapped[Dict[str, "ViewConf"]], 'J'] = relationship("ViewConf", cascade="all, delete-orphan", back_populates="playlist", passive_deletes=True, lazy='selectin', collection_class=attribute_keyed_dict("hash"))
+    components: Annotated[Mapped[list["PlaylistComponent"]], 'J'] = relationship("PlaylistComponent", cascade="all, delete-orphan", passive_deletes=True, lazy='selectin')
+    views: Annotated[Mapped[Dict[str, "ViewConf"]], 'J'] = relationship("ViewConf", cascade="all, delete-orphan", passive_deletes=True, lazy='selectin', collection_class=attribute_keyed_dict("hash"))
     name: Annotated[Mapped[str], 'JU'] = mapped_column()
     typei: Annotated[Mapped[int], 'JU'] = mapped_column('type', ForeignKey("type.rowid"), nullable=False)
     type: Annotated[Mapped["Type"], 'J'] = relationship("Type", lazy="joined")
@@ -140,7 +136,7 @@ class Playlist(AlchemicBase):
     rate: Annotated[Mapped[float], 'JU'] = mapped_column()
     playstate: Annotated[Mapped[str], 'JU'] = mapped_column()
     iorder: Annotated[Mapped[int], 'JU'] = mapped_column(nullable=False, default=0)
-    items: Annotated[Mapped[list["PlaylistItem"]], 'J'] = relationship("PlaylistItem", cascade="all, delete-orphan", back_populates="playlist", passive_deletes=True, lazy='selectin')
+    items: Annotated[Mapped[list["PlaylistItem"]], 'J'] = relationship("PlaylistItem", cascade="all, delete-orphan", passive_deletes=True, lazy='selectin')
     dateupdate: Annotated[Mapped[int], 'JU'] = mapped_column()
     autoupdate: Annotated[Mapped[bool], 'JU'] = mapped_column()
 
@@ -212,6 +208,13 @@ class Playlist(AlchemicBase):
                         pl.items = pl.items[offset:offset + limit]
             await greenlet_spawn(sort_items, out, sort_item_field, offset, limit)
         return out
+
+    def get_component(self, rowid: int) -> PlaylistComponent:
+        if rowid is not None:
+            for comp in self.components:
+                if comp.rowid == rowid:
+                    return comp
+        return None
 
     @staticmethod
     async def test_db(dbfile: str, **kwargs):
@@ -377,7 +380,6 @@ class PlaylistItem(AlchemicBase):
     link: Annotated[Mapped[str], 'JU'] = mapped_column(nullable=False)
     title: Annotated[Mapped[str], 'JU'] = mapped_column()
     playlisti: Annotated[Mapped[int], 'JU'] = mapped_column('playlist', ForeignKey("playlist.rowid", ondelete="CASCADE"), nullable=False)
-    playlist: Mapped["Playlist"] = relationship("Playlist", back_populates="items", lazy="joined")
     conf: Annotated[Mapped[dict], 'JU'] = mapped_column()
     datepub: Annotated[Mapped[datetime], 'JU'] = mapped_column()
     img: Annotated[Mapped[str], 'JU'] = mapped_column()
@@ -386,7 +388,6 @@ class PlaylistItem(AlchemicBase):
     iorder: Annotated[Mapped[int], 'JU'] = mapped_column(nullable=False)
     dl: Annotated[Mapped[str], 'JU'] = mapped_column()
     componenti: Annotated[Mapped[int], 'JU'] = mapped_column('component', ForeignKey("playlist_component.rowid"), nullable=True)
-    component: Mapped["PlaylistComponent"] = relationship("PlaylistComponent", lazy="joined")
     timeplayed: Annotated[Mapped[float], 'JU'] = mapped_column()
     rate: Annotated[Mapped[float], 'JU'] = mapped_column()
     __table_args__ = (UniqueConstraint("playlist", "iorder", name="playlist_iorder_key"),
@@ -494,7 +495,6 @@ class PlaylistItem(AlchemicBase):
             andargs.append(or_(PlaylistItem.dl.is_not(None), and_(PlaylistItem.conf.is_not(None), func.instr(PlaylistItem.conf, '"todel"') > 0)))
         if user:
             plisel = plisel.join(Playlist).join(User).where(User.username == user)
-        plisel = plisel.options(joinedload(PlaylistItem.component)).options(joinedload(PlaylistItem.playlist))
         plisel = plisel.where(and_(*andargs)).order_by(getattr(PlaylistItem, sortby))
         if limit is not None and offset is not None:
             plisel = plisel.offset(offset).limit(limit)
