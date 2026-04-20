@@ -5,7 +5,7 @@ from time import time
 import traceback
 from abc import abstractmethod
 from asyncio import (AbstractEventLoop, Task, TimerHandle, create_task,
-                     get_event_loop)
+                     get_event_loop, sleep as asleep)
 from datetime import datetime, timedelta
 from os import urandom
 from typing import Any, Coroutine, Dict, List, Optional, Tuple, Union
@@ -276,6 +276,8 @@ class RemoteInfoMessage(StatusTMessage):
                 _LOGGER.debug(f'{self.label} Closing connection for {self.my_hex} -> {exc}')
                 pass
             self.stop_sentinel()
+            if not self.stopped:
+                await asleep(5)
 
     async def sendGenericCommand(self, **cmdo: dict) -> Dict[str, Any]:
         urlp = self.base_cmd._replace(query=urlencode(cmdo, doseq=True))

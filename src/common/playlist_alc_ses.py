@@ -55,9 +55,7 @@ class PlaylistComponent(AlchemicBase):
                 raise ValueError("Positional argument must be a dictionary")
         if 'dbitem' in kwargs and isinstance(kwargs['dbitem'], dict):
             for key, val in kwargs['dbitem'].items():
-                if key == 'playlist' and isinstance(val, dict):
-                    kwargs['playlist'] = Playlist(dbitem=val)
-                elif key == 'parent' and isinstance(val, dict):
+                if key == 'parent' and isinstance(val, dict):
                     kwargs['parent'] = PlaylistComponent(dbitem=val)
                 elif key == 'views' and isinstance(val, dict):
                     kwargs['views'] = {vk: ViewConf(dbitem=vv) if isinstance(vv, dict) else vv for vk, vv in val.items()}
@@ -100,10 +98,8 @@ class ViewConf(AlchemicBase):
                 raise ValueError("Positional argument must be a dictionary")
         if 'dbitem' in kwargs and isinstance(kwargs['dbitem'], dict):
             for key, val in kwargs['dbitem'].items():
-                if key == 'playlist' and isinstance(val, dict):
-                    kwargs['playlist'] = Playlist(dbitem=val)
-                elif key == 'component' and isinstance(val, dict):
-                    kwargs['component'] = PlaylistComponent(dbitem=val)
+                if key == 'component':
+                    pass
                 else:
                     kwargs[key] = val
             del kwargs['dbitem']
@@ -411,10 +407,8 @@ class PlaylistItem(AlchemicBase):
                 raise ValueError("Positional argument must be a dictionary")
         if 'dbitem' in kwargs and isinstance(kwargs['dbitem'], dict):
             for key, val in kwargs['dbitem'].items():
-                if key == 'playlist' and isinstance(val, dict):
-                    kwargs['playlist'] = Playlist(dbitem=val)
-                elif key == 'component' and isinstance(val, dict):
-                    kwargs['component'] = PlaylistComponent(dbitem=val)
+                if key == 'component':
+                    pass
                 elif key == 'ratec':
                     self.ratec = val
                 else:
