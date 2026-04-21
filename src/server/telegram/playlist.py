@@ -545,7 +545,7 @@ class PlaylistTMessage(NameDurationTMessage, RefreshingTMessage, SetRateTMessage
                 return f'Cookie file for {self.name}[{self.id}] store OK :thumbs_up:'
             else:
                 return f'Error {pl.rv} storing cookie file for {self.name}[{self.id}] :thumbs_down:'
-        except UnicodeDecodeError | ValueError:
+        except (UnicodeDecodeError, ValueError):
             return 'Invalid cookie file :thumbs_down:'
 
     async def remove_from_sort(self) -> None:
