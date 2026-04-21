@@ -136,7 +136,7 @@ class Playlist(AlchemicBase):
     dateupdate: Annotated[Mapped[int], 'JU'] = mapped_column()
     autoupdate: Annotated[Mapped[bool], 'JU'] = mapped_column()
 
-    __table_args__ = (UniqueConstraint("name", "user", name="name_useri_key"),)
+    __table_args__ = (UniqueConstraint("name", "user", name="name_useri_key"), UniqueConstraint("iorder", "user", name="iorder_useri_key"),)
 
     def __init__(self, *args, **kwargs):
         if args:

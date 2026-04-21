@@ -54,7 +54,9 @@ CREATE TABLE playlist (
         playstate TEXT,
         PRIMARY KEY (rowid),
         FOREIGN KEY(user) REFERENCES user (rowid) ON UPDATE CASCADE ON DELETE CASCADE,
-        FOREIGN KEY(type) REFERENCES type (rowid) ON UPDATE CASCADE ON DELETE CASCADE
+        FOREIGN KEY(type) REFERENCES type (rowid) ON UPDATE CASCADE ON DELETE CASCADE,
+        UNIQUE (name, user),
+        UNIQUE (iorder, user)
 );
 CREATE TABLE browser (
         rowid BIGINT AUTO_INCREMENT,
@@ -64,7 +66,8 @@ CREATE TABLE browser (
         sel BOOLEAN DEFAULT 0 NOT NULL,
         PRIMARY KEY (rowid),
         FOREIGN KEY(user) REFERENCES user (rowid)
-            ON UPDATE CASCADE ON DELETE CASCADE
+            ON UPDATE CASCADE ON DELETE CASCADE,
+        UNIQUE (name, user)
 );
 CREATE TABLE player (
         rowid BIGINT AUTO_INCREMENT,
@@ -74,7 +77,8 @@ CREATE TABLE player (
         sel BOOLEAN DEFAULT 0 NOT NULL,
         PRIMARY KEY (rowid),
         FOREIGN KEY(user) REFERENCES user (rowid)
-            ON UPDATE CASCADE ON DELETE CASCADE
+            ON UPDATE CASCADE ON DELETE CASCADE,
+        UNIQUE (name, user)
 );
 CREATE TABLE playlist_component (
         rowid BIGINT AUTO_INCREMENT,
