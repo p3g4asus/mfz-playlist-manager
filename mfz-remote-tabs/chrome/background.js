@@ -55,14 +55,23 @@ function getTabId(msgid) {
         } else {
             const iid = parseInt(msgid);
             if (isNaN(iid)) {
-                browser.tabs.query({currentWindow: true}).then((tabs) => {
-                    const ids = [];
-                    for (let tab of tabs) {
-                        if (tab.title == msgid || '"' + tab.title + '"' == msgid)
-                            ids.push(tab.id);
-                    }
-                    ok(ids);
-                }).catch(ko);
+                const params = new URLSearchParams(msgid);
+                const rexpurl = params.get('url');
+                const rexpurl2 = rexpurl?new RegExp(rexpurl):null;
+                const rexptitle = params.get('title');
+                const rexptitle2 = rexptitle?new RegExp(rexptitle):null;
+                if (!rexpurl2 && !rexptitle2)
+                    return Promise.reject('Invalid msgid: ' + msgid);
+                else {
+                    browser.tabs.query({currentWindow: true}).then((tabs) => {
+                        const ids = [];
+                        for (let tab of tabs) {
+                            if ((!rexpurl2 || rexpurl2.test(tab.url)) && (!rexptitle2 || rexptitle2.test(tab.title)))
+                                ids.push(tab.id);
+                        }
+                        ok(ids);
+                    }).catch(ko);
+                }
                 return p;
             }
             else
@@ -114,9 +123,11 @@ function remotejs_process(msg) {
     console.log('Remotejs command received: ' + msg.sub + ' with id ' + idv);
     try {
         if (msg.sub == CMD_REMOTEBROWSER_JS_ACTIVATE) {
-            browser.tabs.update(parseInt(msg.id), {active: true}).then(() => {
-                console.log(msg.id + ' Tab activate ok');
-                remotejs_answ(msg, 0);
+            getTabId(msg.id).then((ids) => {
+                browser.tabs.update(ids[0], {active: true}).then(() => {
+                    console.log(msg.id + ' Tab activate ok');
+                    remotejs_answ(msg, 0);
+                });
             }).catch(() => {
                 console.warn(msg.id + ' Tab activate fail');
                 remotejs_answ(msg, 508);
