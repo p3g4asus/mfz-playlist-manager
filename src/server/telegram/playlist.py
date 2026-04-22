@@ -901,8 +901,11 @@ class PlaylistsPagesGenerator(PageGenerator):
 
     async def get_items_list(self, deleted=False, pid=None):
         plout = await self.proc.process(self.get_playlist_message(pid, deleted))
-        cache_del_user(self.proc.user.rowid, plout.playlists)
-        return plout.playlists
+        if plout.rv == 0:
+            cache_del_user(self.proc.user.rowid, plout.playlists)
+            return plout.playlists
+        else:
+            return plout
 
 
 class PlaylistItemsPagesGenerator(PageGenerator):

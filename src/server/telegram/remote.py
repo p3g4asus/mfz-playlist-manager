@@ -365,9 +365,13 @@ class RemoteListMessage(StatusTMessage):
         if rid not in cls.remotes_cache_u:
             remotes_cache = cls.remotes_cache_u[rid] = dict()
             db_class = cls.get_db_class()
-            alc: AlchemicDB = proc.params.db2
-            all = await AlchemicBase.get_query_result(alc, select(db_class).where(db_class.useri == rid))
-            await alc.close_session()
+            try:
+                alc: AlchemicDB = proc.params.db2
+                all = await AlchemicBase.get_query_result(alc, select(db_class).where(db_class.useri == rid))
+                await alc.close_session()
+            except Exception:
+                _LOGGER.warning(traceback.format_exc())
+                all = []
             for item in all:
                 remotes_cache[item.name] = pi = cls.build_remote_info_message(item.name, item.url, item.sel, navigation, proc.user)
                 if item.sel:

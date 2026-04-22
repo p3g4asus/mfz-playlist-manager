@@ -130,9 +130,10 @@ class StartTMessage(BaseMessage):
 
     @UsesAlchemicDB
     async def async_init(self, context: Optional[CallbackContext] = None, **kwargs):
-        db = kwargs.get('db', self.params.db2)
-        res = await self.check_if_username_registred(db, self.navigation.user_name)
         self.keyboard: List[List["MenuButton"]] = [[]]
+        db = kwargs.get('db', self.params.db2)
+        db.sk('_err', ':thumbs_down: Error 46: Backend error')
+        res = await self.check_if_username_registred(db, self.navigation.user_name)
         if context:
             self.user_data = context.user_data.setdefault('user_data', dict(link=''))
             if 'link' in self.user_data:
@@ -191,13 +192,19 @@ class StartTMessage(BaseMessage):
 
         # define menu buttons
 
+    async def refresh(self, args, context: Optional[CallbackContext] = None):
+        await self.navigation.goto_menu(self, args[0], add_if_present=False)
+
     async def update(self, context: Optional[CallbackContext] = None):
-        await self.async_init(context)
-        if self.user:
+        res = await self.async_init(context)
+        if isinstance(res, str):
+            self.add_button(label=u"\U0001F3E0 Restart", callback=self.refresh, args=(context, ), new_row=True)
+            return res + '\nPlease restart the bot pressing the Home button'
+        elif self.user:
             content = f'Hello <b>{self.user.username}</b> :musical_note:'
             self.input_field = emoji_replace(f'Hello {self.user.username} :musical_note:')
         else:
-            content = self.input_field = emoji_replace('Hello: please click :writing_hand: Sign Up')
+            content = self.input_field = emoji_replace('Hello: please click :writing_hand: èSign Up')
         return content
 
     @staticmethod

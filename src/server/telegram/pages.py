@@ -7,7 +7,7 @@ from typing import Any, Coroutine, Dict, List, Optional, Union
 from telegram_menu import BaseMessage, MenuButton
 from telegram.ext._callbackcontext import CallbackContext
 from telegram.ext._utils.types import BD, BT, CD, UD
-from common.playlist_alc_ses import Playlist, PlaylistItem
+from common.playlist_alc_ses import Playlist, PlaylistItem, PlaylistMessage
 from common.user_alc_ses import User
 from server.telegram.browser import BrowserInfoMessage, BrowserListMessage
 from server.telegram.message import MyNavigationHandler, NameDurationTMessage, ProcessorMessage, duration2string
@@ -123,6 +123,8 @@ class ListPagesTMessage(BaseMessage):
     async def put_items_in_pages(self):
         try:
             items = await self.pagegen.get_items_list(self.deleted)
+            if isinstance(items, PlaylistMessage):
+                return items
             nitems = len(items)
             self.first_page = thispage = MultipleGroupsOfItems()
             if nitems:
@@ -214,8 +216,12 @@ class ListPagesTMessage(BaseMessage):
         return True
 
     async def update(self, context: Optional[CallbackContext] = None) -> str:
+        updstr = self.update_str
         if not self.first_page or not self.soft_refresh():
-            await self.put_items_in_pages()
+            if isinstance(rv := await self.put_items_in_pages(), PlaylistMessage):
+                updstr += f'\n:thumbs_down: Error {rv.rv}: {rv.err}'
+                await self.navigation.goto_home(context)
+                return updstr
         self.keyboard: List[List["MenuButton"]] = [[]]
         if self.first_page:
             self.input_field = f'{self.first_page.first_item_index + 1} - {self.first_page.last_item_index + 1}'\
@@ -250,4 +256,4 @@ class ListPagesTMessage(BaseMessage):
         for pi, pim in self.sel_browsers.items():
             self.add_button(label=u"\U0001F4D9 " + pi, callback=pim, new_row=new_row)
             new_row = False
-        return self.update_str
+        return updstr
