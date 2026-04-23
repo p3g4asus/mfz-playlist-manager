@@ -306,9 +306,9 @@ def main():
             for r in app.p.myrunners:
                 loop.run_until_complete(r.cleanup())
             if app.p.db:
-                loop.run_until_complete(app.p.db.close())
+                loop.run_until_complete(app.p.db.dispose())
             if app.p.db2:
-                loop.run_until_complete(app.p.db2.close())
+                loop.run_until_complete(app.p.db2.dispose())
             if app.p.executor:
                 app.p.executor.halt()
             if app.p.redis:
