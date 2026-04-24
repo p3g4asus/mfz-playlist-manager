@@ -139,14 +139,16 @@ function main_ws_queue_process(msg) {
 function main_ws_reconnect(onopen2, url) {
     if (main_ws) {
         console.log('Asked to reconnect to url=' + url + ' old was ' + main_ws_url);
-        main_ws_url = url;
-        main_ws_onopen2 = onopen2;
+        if (main_ws_timer) {
+            clearTimeout(main_ws_timer);
+            main_ws_timer = null;
+        }
+        main_ws.onclose = function() {};
+        main_ws.onerror = function() {};
         main_ws.close();
         main_ws = null;
     }
-    else {
-        main_ws_connect(onopen2, url);
-    }
+    main_ws_connect(onopen2, url);
 }
 
 
