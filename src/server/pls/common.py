@@ -731,6 +731,7 @@ class MessageProcessor(AbstractMessageProcessor):
                     round_iorder = dest_iorder if (dest_iorder % 10) == 0 else (dest_iorder // 10 + 1) * 10
                     plus_idx = -1
                     # await pl.cleanItems(db, commit=False)
+                    db.session.expunge(pl)
                     foundme = False
                     for idx, other_it in enumerate(items):
                         if other_it.rowid != x:
@@ -742,24 +743,24 @@ class MessageProcessor(AbstractMessageProcessor):
                         if foundme and plus_idx >= 0:
                             break
                     fix_order = False
+                    updates = []
                     if plus_idx >= 0:
                         _LOGGER.debug(f"PlusIdx {plus_idx}")
                         cur_iorder = round_iorder + (len(items) - plus_idx) * 10
                         for idx in range(len(items) - 1, plus_idx - 1, -1):
                             _LOGGER.debug(f"SetIorder {items[idx]} -> {cur_iorder}")
-                            if not await items[idx].setIOrder(db, -cur_iorder, commit=False):
-                                return msg.err(5, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-                            # items[idx].iorder = -items[idx].iorder
+                            items[idx].iorder = cur_iorder
+                            updates.append(dict(rowid=items[idx].rowid, iorder=-cur_iorder))
                             cur_iorder -= 10
                         fix_order = True
-                    if await it.setIOrder(db, round_iorder, commit=not fix_order):
-                        if fix_order and not await pl.fix_iorder(db, commit=fix_order):
-                            return msg.err(6, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
-                        else:
-                            await greenlet_spawn(lambda pl: pl.items.sort(key=lambda x: x.iorder), pl)
-                            return msg.ok(playlistitem=it, playlist=pl)
-                    else:
-                        return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                    it.iorder = round_iorder
+                    updates.append(dict(rowid=it.rowid, iorder=round_iorder))
+                    await db.session.execute(update(PlaylistItem), updates)
+                    if fix_order and not await pl.fix_iorder(db, commit=False):
+                        return msg.err(6, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                    await db.session.commit()
+                    pl.items.sort(key=lambda x: x.iorder)
+                    return msg.ok(playlistitem=it, playlist=pl)
                 else:
                     return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
             else:
@@ -832,16 +833,19 @@ class MessageProcessor(AbstractMessageProcessor):
                 if pl.useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                 # await pl.cleanItems(db, commit=False)
+                db.session.expunge(pl)
                 cur_iorder = 10
+                updates = []
                 for other_it in pl.items:
-                    if not await other_it.setIOrder(db, -cur_iorder, commit=False):
-                        return msg.err(5, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                    other_it.iorder = cur_iorder
+                    updates.append(dict(rowid=other_it.rowid, iorder=-cur_iorder))
                     # other_it.iorder = -other_it.iorder
                     cur_iorder += 10
                 if pl.items:
+                    await db.session.execute(update(PlaylistItem), updates)
                     if not await pl.fix_iorder(db, commit=True):
                         return msg.err(2, MSG_PLAYLIST_NOT_FOUND, playlist=None)
-                    await greenlet_spawn(lambda pl: pl.items.sort(key=lambda x: x.iorder), pl)
+                    pl.items.sort(key=lambda x: x.iorder)
                 return msg.ok(playlist=pl)
             else:
                 return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
