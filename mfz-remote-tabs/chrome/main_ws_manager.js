@@ -2,6 +2,7 @@ let main_ws = null;
 let main_ws_timer = null;
 let main_ws_url = null;
 let main_ws_onopen2 = null;
+let main_ws_onclose2 = null;
 let main_ws_queue = [];
 
 class MainWSQueueElement {
@@ -136,26 +137,51 @@ function main_ws_queue_process(msg) {
     }
 }
 
-function main_ws_reconnect(onopen2, url) {
+function main_ws_reconnect(url, onopen2, onclose2) {
     if (main_ws) {
-        console.log('Asked to reconnect to url=' + url + ' old was ' + main_ws_url);
+        console.log('Asked to reconnect to url=' + (url_is_ok(url)?url:main_ws_url) + ' old was ' + main_ws_url);
         if (main_ws_timer) {
             clearTimeout(main_ws_timer);
             main_ws_timer = null;
         }
-        main_ws.onclose = function() {};
-        main_ws.onerror = function() {};
+        const fnclose = () => {
+            return function() {
+                main_ws_onclose_do(main_ws_onclose2);
+            };
+        };
+        main_ws.onclose = fnclose();
+        main_ws.onerror = fnclose();
         main_ws.close();
         main_ws = null;
     }
-    main_ws_connect(onopen2, url);
+    main_ws_connect(url, onopen2, onclose2);
 }
 
 
-function main_ws_connect(onopen2, url) {
-    console.log('Connecting to url ' + url);
-    let socket = new WebSocket(main_ws_url = url);
-    main_ws_onopen2 = onopen2;
+function url_is_ok(url) {
+    return typeof url == 'string' && (url.startsWith('ws://') || url.startsWith('wss://'));
+}
+
+function main_ws_onclose_do(close2) {
+    if (typeof close2 !== 'function')
+        close2 = main_ws_onclose2;
+    if (main_ws) {
+        main_ws = null;
+        if (close2)
+            close2();
+    }
+}
+
+function main_ws_connect(url, onopen2, onclose2) {
+    let socket;
+    if (url_is_ok(url))
+        main_ws_url = url;
+    if (typeof onopen2 == 'function')
+        main_ws_onopen2 = onopen2;
+    if (typeof onclose2 == 'function')
+        main_ws_onclose2 = onclose2;
+    console.log('Connecting to url ' + main_ws_url);
+    socket = new WebSocket(main_ws_url);
     socket.onopen = function (event) {
         console.log('Upgrade HTTP connection OK');
         main_ws = socket;
@@ -164,11 +190,11 @@ function main_ws_connect(onopen2, url) {
             main_ws_onopen2();
     };
     socket.onclose = function(e) {
-        main_ws = null;
+        main_ws_onclose_do();
         if (main_ws_timer === null) {
             console.log('Socket is closed. Reconnect will be attempted in 10 second.');
             main_ws_timer = setTimeout(() => {
-                main_ws_connect(main_ws_onopen2, main_ws_url);
+                main_ws_connect();
                 main_ws_timer = null;
             }, 10000);
         }

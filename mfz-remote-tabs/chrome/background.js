@@ -3,6 +3,7 @@ let tab_removed_time = 0;
 let tab_removed_window = null;
 let tab_history = {};
 let pingjs_th = null;
+let ready_for_remote_play = false;
 
 function send_video_info_for_remote_play(w, video_info, exp) {
     let o = {cmd: CMD_REMOTEPLAY_PUSH, what: w};
@@ -288,7 +289,7 @@ function pingjs_recog(msg) {
 function pingjs_timeout(err) {
     let errmsg = 'Exception detected: '+ err + '. Reconnecting';
     console.log(errmsg);
-    main_ws_reconnect(main_ws_onopen2, main_ws_url);
+    main_ws_reconnect();
 }
 
 function pingjs_process(msg, to) {
@@ -321,7 +322,14 @@ function reconnect_ws_onopen2() {
     remotejs_enqueue();
     if (ping_interval < 0)
         ping_interval = setInterval(() => {
-            send_video_info_for_remote_play('ping', new Date().getTime());
+            if (ready_for_remote_play) {
+                if (!pingjs_th && !main_ws_qel_exists('pingjs')) {
+                    console.warn('Unexpectedly not pinging: no pingjs in queue and no pingjs timeout. Reconnecting.');
+                    main_ws_reconnect();
+                }
+                else
+                    send_video_info_for_remote_play('ping', new Date().getTime());
+            }
         }, 15000);
     let o = {cmd: CMD_REMOTEPLAY};
     let el = new MainWSQueueElement(o, ((msg) => {
@@ -329,6 +337,7 @@ function reconnect_ws_onopen2() {
     }), 3000, 1, 'remoteplay');
     return el.enqueue().then((msg) => {
         if (!msg.rv) {
+            ready_for_remote_play = true;
             console.log('Remoteplay ok ' + JSON.stringify(msg.what));
             pingjs_process(0, 3000);
         }
@@ -348,7 +357,10 @@ function reconnect_ws(tc) {
     if (tc?.url && (res = (new RegExp('https://([^/]+)/([^\\-]+)-s/play/player_remote_commands\\.htm\\?hex=([a-f0-9]+)')).exec(tc.url))) {
         const urlws = `wss://${res[1]}/${res[2]}-ws/g${res[3]}`;
         console.log('Asking to reconnect with websocket url ' + urlws);
-        main_ws_reconnect(reconnect_ws_onopen2,urlws);
+        main_ws_reconnect(urlws, reconnect_ws_onopen2, () => {
+            ready_for_remote_play = false;
+            console.warn('Websocket connection closed, ping stopped');
+        });
     } else {
         console.log('Invalid url detected: ' + tc?.url);
     }

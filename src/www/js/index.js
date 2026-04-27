@@ -1303,7 +1303,7 @@ function playlists_dump(params, fast_videoidx, fast_videostep) {
 function bootstrap_table_get_data_ws(params) {
     find_user_cookie().then(function(useri) {
         playlist_user = useri;
-        main_ws_reconnect(null, WS_URL);
+        main_ws_reconnect(WS_URL);
         playlists_all = [];
         playlists_dump(params);
     }).catch(function(err) {

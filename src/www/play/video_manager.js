@@ -1000,7 +1000,7 @@ function pingjs_timeout(err) {
     console.log(err);
     let errmsg = 'Exception detected: ' + err + '. Reconnecting';
     toast_msg(errmsg, 'danger');
-    main_ws_reconnect(get_remoteplay_link, WS_URL);
+    main_ws_reconnect();
 }
 
 function pingjs_process(msg, to) {
@@ -1088,7 +1088,7 @@ function get_startup_settings() {
     if (orig_up.has('name') && (plnames = orig_up.getAll('name')).length) {
         DumpJob.init_link_arg();
         find_user_cookie().then(function (useri) {
-            main_ws_reconnect(get_remoteplay_link, WS_URL);
+            main_ws_reconnect(WS_URL, get_remoteplay_link);
             playlist_current_userid = useri;
             playlist_dump(useri);
             playlist_dump(useri, plnames[0]);
