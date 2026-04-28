@@ -144,14 +144,10 @@ function main_ws_reconnect(url, onopen2, onclose2) {
             clearTimeout(main_ws_timer);
             main_ws_timer = null;
         }
-        const fnclose = () => {
-            return function() {
-                main_ws_onclose_do(main_ws, main_ws_onclose2);
-            };
-        };
-        main_ws.onclose = fnclose();
-        main_ws.onerror = fnclose();
+        main_ws.onclose = () => {};
+        main_ws.onerror = () => {};
         main_ws.close();
+        main_ws_onclose_do(main_ws, main_ws_onclose2);
         main_ws = null;
     }
     main_ws_connect(url, onopen2, onclose2);
@@ -171,9 +167,9 @@ function main_ws_connect(url, onopen2, onclose2) {
     let socket;
     if (url_is_ok(url))
         main_ws_url = url;
-    if (typeof onopen2 == 'function')
+    if (typeof onopen2 == 'function' || onopen2 === null)
         main_ws_onopen2 = onopen2;
-    if (typeof onclose2 == 'function')
+    if (typeof onclose2 == 'function' || onclose2 === null)
         main_ws_onclose2 = onclose2;
     console.log('Connecting to url ' + main_ws_url);
     socket = new WebSocket(main_ws_url);
