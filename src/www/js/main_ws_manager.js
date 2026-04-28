@@ -146,7 +146,7 @@ function main_ws_reconnect(url, onopen2, onclose2) {
         }
         const fnclose = () => {
             return function() {
-                main_ws_onclose_do(main_ws_onclose2);
+                main_ws_onclose_do(main_ws, main_ws_onclose2);
             };
         };
         main_ws.onclose = fnclose();
@@ -162,14 +162,9 @@ function url_is_ok(url) {
     return typeof url == 'string' && (url.startsWith('ws://') || url.startsWith('wss://'));
 }
 
-function main_ws_onclose_do(close2) {
-    if (typeof close2 !== 'function')
-        close2 = main_ws_onclose2;
-    if (main_ws) {
-        main_ws = null;
-        if (close2)
-            close2();
-    }
+function main_ws_onclose_do(ws, close2) {
+    if (ws && close2)
+        close2();
 }
 
 function main_ws_connect(url, onopen2, onclose2) {
@@ -190,7 +185,8 @@ function main_ws_connect(url, onopen2, onclose2) {
             main_ws_onopen2();
     };
     socket.onclose = function(e) {
-        main_ws_onclose_do();
+        main_ws_onclose_do(main_ws, main_ws_onclose2);
+        main_ws = null;
         if (main_ws_timer === null) {
             console.log('Socket is closed. Reconnect will be attempted in 10 second.');
             main_ws_timer = setTimeout(() => {
