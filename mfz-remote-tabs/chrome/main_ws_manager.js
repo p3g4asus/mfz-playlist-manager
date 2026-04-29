@@ -194,6 +194,7 @@ function main_ws_connect(url, onopen2, onclose2) {
 
     socket.onerror = function(err) {
         if (main_ws) {
+            main_ws_onclose_do(main_ws, main_ws_onclose2);
             main_ws = null;
             console.error('Socket encountered error: ', err.message, 'Closing socket');
             socket.close();
