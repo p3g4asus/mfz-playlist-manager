@@ -832,10 +832,7 @@ function playlist_process_rate(v, for_me_i) {
     const rate = parseFloat(v);
     const for_me = parseInt(for_me_i);
     const videokey = playlist_item_current?.component?.rowid;
-    if (isNaN(for_me) || !for_me || (for_me == 1 && !videokey)) {
-        playlist_item_current.rate = rate;
-        save_playlist_item_settings({ rate: rate });
-    } else if (for_me == 2) {
+    if (for_me == 2) {
         if (video_playlist_has_custom_rate(playlist_item_current, playlist_current)) {
             save_playlist_settings(null, 'rates', { 'key': videokey });
             if (playlist_item_current && playlist_item_current.component) {
@@ -847,8 +844,10 @@ function playlist_process_rate(v, for_me_i) {
     } else if (for_me == 1 && videokey) {
         save_playlist_settings(rate, 'rates', { 'key': videokey });
         playlist_item_current.component.rate = rate;
-    } else
-        return;
+    } else {
+        playlist_item_current.rate = rate;
+        save_playlist_item_settings({ rate: rate });
+    }
     video_manager_obj.rate(rate);
     playlist_item_current.ratec = rate;
     on_video_info_change(playlist_item_current_idx, video_manager_obj.currenttime());
