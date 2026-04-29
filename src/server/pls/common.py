@@ -289,10 +289,15 @@ class MessageProcessor(AbstractMessageProcessor):
                         conf = json.loads(it.conf)
                 else:
                     conf = msg.conf
+                modified = False
                 if 'sec' in conf:
                     it.timeplayed = conf['sec']
-                    if not await it.toDB(db):
-                        return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
+                    modified = True
+                if 'rate' in conf:
+                    it.rate = conf['rate']
+                    modified = True
+                if modified and not await it.toDB(db):
+                    return msg.err(2, MSG_PLAYLISTITEM_NOT_FOUND, playlistitem=None)
             else:
                 return msg.err(4, MSG_PLAYLIST_NOT_FOUND, playlistitem=None)
         else:

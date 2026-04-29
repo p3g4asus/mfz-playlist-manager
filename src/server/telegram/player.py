@@ -49,7 +49,7 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
         self.last_pinfo: float = 0.0
         self.default_vinfo: int = 1
         self.default_pstat: int = 1
-        self.rate_for_single_video = False
+        self.rate_for_single_video = 2
         self.rel_abs: int = 0
         self.sched_type: int = PLAYLIST_SCHED_REPLACE
 
@@ -206,7 +206,7 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
             return u'\U000026A0'
 
     async def toggle_rate_for_single_video(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
-        self.rate_for_single_video = not self.rate_for_single_video
+        self.rate_for_single_video = (self.rate_for_single_video + 1) % 3
         await self.edit_or_select()
 
     async def cycle_rel_abs(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
@@ -265,7 +265,13 @@ class PlayerInfoMessage(RemoteInfoMessage, ChangeTimeTMessage):
             self.add_button(u'\U000021C5', self.sync_changes, args=(), new_row=True)
             self.add_button(u'\U0001F4C5', self.sched_prepare, args=(PLAYLIST_SCHED_AT_THE_END,))
             self.add_button(u'\U0001F51C', self.sched_prepare, args=(PLAYLIST_SCHED_REPLACE, ))
-            self.add_button(u'\U0001F7E3For this' if self.rate_for_single_video else u'\U0001F7E2For playlist', self.toggle_rate_for_single_video, new_row=True)
+            if self.rate_for_single_video == 1:
+                txt = u'\U0001F7E2For component'
+            elif self.rate_for_single_video == 2:
+                txt = u'\U0001F7E3For playlist'
+            else:
+                txt = u'\U0001F7E1For this'
+            self.add_button(txt, self.toggle_rate_for_single_video, new_row=True)
             self.add_button(u'\U000025B61x', self.rate, args=(1.0, ), new_row=True)
             self.add_button(u'\U000025B61.5x', self.rate, args=(1.5, ))
             self.add_button(u'\U000025B61.8x', self.rate, args=(1.8, ), new_row=True)

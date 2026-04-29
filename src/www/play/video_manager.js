@@ -828,10 +828,14 @@ function playlist_prrocess_key(ke) {
     }
 }
 
-function playlist_process_rate(v, for_me) {
+function playlist_process_rate(v, for_me_i) {
     const rate = parseFloat(v);
+    const for_me = parseInt(for_me_i);
     const videokey = playlist_item_current?.component?.rowid;
-    if (!for_me || !videokey) {
+    if (isNaN(for_me) || !for_me || (for_me == 1 && !videokey)) {
+        playlist_item_current.rate = rate;
+        save_playlist_item_settings({ rate: rate });
+    } else if (for_me == 2) {
         if (video_playlist_has_custom_rate(playlist_item_current, playlist_current)) {
             save_playlist_settings(null, 'rates', { 'key': videokey });
             if (playlist_item_current && playlist_item_current.component) {
@@ -840,10 +844,11 @@ function playlist_process_rate(v, for_me) {
         }
         save_playlist_settings(playlist_rate = rate, 'playrate');
         playlist_current.rate = rate;
-    } else {
+    } else if (for_me == 1 && videokey) {
         save_playlist_settings(rate, 'rates', { 'key': videokey });
         playlist_item_current.component.rate = rate;
-    }
+    } else
+        return;
     video_manager_obj.rate(rate);
     playlist_item_current.ratec = rate;
     on_video_info_change(playlist_item_current_idx, video_manager_obj.currenttime());
@@ -919,7 +924,7 @@ function remotejs_process(msg) {
             on_play_finished({ dir: null });
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_RATE) {
-            playlist_process_rate(msg.n, msg.for_me == 'False' || !msg.for_me ? 0 : 1);
+            playlist_process_rate(msg.n, msg.for_me);
         }
         else if (msg.sub == CMD_REMOTEPLAY_JS_F5PL) {
             if (!msg.n) msg.n = '';

@@ -318,7 +318,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
                 self.set_init_secs(self.obj.timeplayed)
                 await ChangeTimeTMessage.update(self, context)
             elif self.status == NameDurationStatus.UPDATING_START:
-                self.add_button(u'\U0001F7E3For this' if self.rate_for_single_video else u'\U0001F7E2For playlist', self.toggle_rate_for_single_video, new_row=True)
+                self.add_button(u'\U0001F7E1For this' if self.rate_for_single_video else u'\U0001F7E2For component', self.toggle_rate_for_single_video, new_row=True)
                 self.set_init_rate(self.rate)
                 await SetRateTMessage.update(self, context)
             elif self.status == NameDurationStatus.UPDATING_WAITING:
