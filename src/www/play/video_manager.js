@@ -849,7 +849,7 @@ function playlist_process_rate(v, for_me_i) {
         save_playlist_item_settings({ rate: rate });
     }
     video_manager_obj.rate(rate);
-    playlist_item_current.ratec = rate;
+    playlist_item_current.ratec = get_rate_for_video(playlist_item_current, playlist_current);
     on_video_info_change(playlist_item_current_idx, video_manager_obj.currenttime());
 }
 
