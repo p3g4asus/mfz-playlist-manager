@@ -96,7 +96,7 @@ class TwitchPlayer {
     rate(v) {
         try {
             const num = parseInt((v - 1) / 0.1 + 0.5);
-            let s_all = '?id=' + encodeURIComponent('"' + document.title + '"') + '&cmd=' + CMD_REMOTEBROWSER_JS + '&sub=' + CMD_REMOTEBROWSER_JS_KEY + '&comp=g';
+            let s_all = '?id=' + encodeURIComponent('url=^' + RegExp.escape(window.location.href) + '$') + '&cmd=' + CMD_REMOTEBROWSER_JS + '&sub=' + CMD_REMOTEBROWSER_JS_KEY + '&comp=g';
             for (let i = 0; i < num; i++) s_all += 'd';
             const lnk = MAIN_PATH + 'rcmd/g' + playlist_playerid + s_all;
             console.log('Getting ' + lnk);
