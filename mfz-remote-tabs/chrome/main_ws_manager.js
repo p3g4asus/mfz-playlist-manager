@@ -6,7 +6,7 @@ let main_ws_onclose2 = null;
 let main_ws_queue = [];
 
 class MainWSQueueElement {
-    constructor(msg_to_send, _inner_process, timeout, retry_num, name) {
+    constructor(msg_to_send, _inner_process, timeout, retry_num, name, resolve_sync) {
         this.msg_to_send = msg_to_send;
         this.needs_to_send = msg_to_send != null;
         this.timeout = timeout;
@@ -16,6 +16,7 @@ class MainWSQueueElement {
         this.resolve = null;
         this.reject = null;
         this._inner_process = _inner_process;
+        this.resolve_sync = resolve_sync;
     }
 
     inner_process_msg(msg) {
@@ -35,8 +36,12 @@ class MainWSQueueElement {
                 this.timer = null;
                 rearm = true;
             }
-            if (this.resolve && out)
-                setTimeout(() => { this.resolve(out); }, 0);
+            if (this.resolve && out) {
+                if (this.resolve_sync)
+                    this.resolve(out);
+                else
+                    setTimeout(() => { this.resolve(out); }, 0);
+            }
             else if (!out && rearm && this.timeout)
                 this.timer = setTimeout(this.timeout_action.bind(this), this.timeout);
         }
@@ -124,7 +129,10 @@ function main_ws_queue_process(msg) {
             if (rm) {
                 main_ws_queue.splice(i, 1);
                 i--;
-                setTimeout(() => {el.resolve(jsonobj); }, 0);
+                if (el.resolve_sync)
+                    el.resolve(jsonobj);
+                else
+                    setTimeout(() => {el.resolve(jsonobj); }, 0);
             }
         }
         else if (msg) {

@@ -304,7 +304,7 @@ function pingjs_process(msg, to) {
 function pingjs_enqueue() {
     let qel;
     if (!(qel = main_ws_qel_exists('pingjs')) && main_ws) {
-        let el2 = new MainWSQueueElement({cmd: CMD_REMOTEPLAY_PING, t: new Date().getTime() / 1000.0}, pingjs_recog, 3000, 1, 'pingjs');
+        let el2 = new MainWSQueueElement({cmd: CMD_REMOTEPLAY_PING, t: new Date().getTime() / 1000.0}, pingjs_recog, 3000, 1, 'pingjs', true);
         el2.enqueue().then(pingjs_process).catch(pingjs_timeout);
     } else if (qel && !main_ws)
         main_ws_dequeue(qel);
