@@ -343,11 +343,13 @@ function reconnect_ws_onopen2() {
         }
         else {
             console.log('Remoteplay fail: ' + JSON.stringify(msg));
+            main_ws_reconnect();
         }
         return msg;
     })
         .catch((err) => {
             console.log('Remoteplay fail ' + err);
+            main_ws_reconnect();
             return err;
         });
 }
