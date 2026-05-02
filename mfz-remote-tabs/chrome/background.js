@@ -40,54 +40,91 @@ function sendListTabs(tabs) {
     send_video_info_for_remote_play('imgs', imgs, true);
 }
 
-function getTabId(msgid) {
-    let ok,ko;
-    const p = new Promise((resolve, reject) => {
-        ok = resolve;
-        ko = reject;
-    });
-    if (msgid && msgid !== 'None') {
-        if (Array.isArray(msgid)) {
-            const out = [];
-            for (let i of msgid) {
-                out.push(parseInt(i));
-            }
-            msgid = out;
+
+function getTabIdResp(newval, inarr, curridx, outarr, outp) {
+    if (typeof newval != 'number' && !Array.isArray(newval)) {
+        console.warn('Tab ' + inarr[curridx] + ' not found: ' + newval);
+    } else {
+        if (Array.isArray(newval)) {
+            outarr.push(...newval);
         } else {
-            const iid = parseInt(msgid);
-            if (isNaN(iid)) {
-                const params = new URLSearchParams(msgid);
-                const rexpurl = params.get('url');
-                const rexpurl2 = rexpurl?new RegExp(rexpurl):null;
-                const rexptitle = params.get('title');
-                const rexptitle2 = rexptitle?new RegExp(rexptitle):null;
-                if (!rexpurl2 && !rexptitle2)
-                    return Promise.reject('Invalid msgid: ' + msgid);
-                else {
-                    browser.tabs.query({currentWindow: true}).then((tabs) => {
-                        const ids = [];
-                        for (let tab of tabs) {
-                            if ((!rexpurl2 || rexpurl2.test(tab.url)) && (!rexptitle2 || rexptitle2.test(tab.title)))
-                                ids.push(tab.id);
-                        }
-                        ok(ids);
-                    }).catch(ko);
-                }
-                return p;
-            }
-            else
-                msgid = [iid];
+            outarr.push(newval);
         }
-        return Promise.resolve(msgid);
     }
-    browser.tabs.query({currentWindow: true, active: true}).then((tabs) => {
-        const ids = [];
-        for (let tab of tabs) {
-            ids.push(tab.id);
-        }
-        ok(ids);
-    }).catch(ko);
+    if (curridx >= inarr.length - 1) {
+        if (outarr.length)
+            outp.resolve(outarr);
+        else
+            outp.reject([]);
+    } else {
+        getTabId2(inarr, curridx + 1, outarr, outp);
+    }
+}
+
+function getTabId(msgid) {
+    const outarr = [];
+    const outp = {};
+    const p = new Promise((resolve, reject) => {
+        outp.resolve = resolve;
+        outp.reject = reject;
+    });
+    getTabId2(!Array.isArray(msgid)? [msgid]:msgid, 0, outarr, outp);
     return p;
+}
+
+function getTabId2(inarr, curridx, outarr, outp) {
+    const msgid = inarr[curridx];
+
+    if (!msgid || msgid == 'None') {
+        browser.tabs.query({currentWindow: true, active: true}).then((tabs) => {
+            const ids = [];
+            for (let tab of tabs) {
+                ids.push(tab.id);
+            }
+            getTabIdResp(ids, inarr, curridx, outarr, outp);
+        }).catch((err) => {
+            getTabIdResp('Cannot find active tab: ' + err, inarr, curridx, outarr, outp);
+        });
+    } else {
+        const iid = parseInt(msgid);
+        if (isNaN(iid)) {
+            const params = new URLSearchParams(msgid);
+            const rexpurl = params.get('url');
+            const rexpurl2 = rexpurl?new RegExp(rexpurl):null;
+            const rexptitle = params.get('title');
+            const rexptitle2 = rexptitle?new RegExp(rexptitle):null;
+            if (!rexpurl2 && !rexptitle2)
+                getTabIdResp('Cannot find tab by string: invaalid format', inarr, curridx, outarr, outp);
+            else {
+                browser.tabs.query({currentWindow: true}).then((tabs) => {
+                    const ids = [];
+                    for (let tab of tabs) {
+                        if ((!rexpurl2 || rexpurl2.test(tab.url)) && (!rexptitle2 || rexptitle2.test(tab.title)))
+                            ids.push(tab.id);
+                    }
+                    getTabIdResp(ids, inarr, curridx, outarr, outp);
+                }).catch((err) => {
+                    getTabIdResp('Cannot find tab by string: ' + err, inarr, curridx, outarr, outp);
+                });
+            }
+        }
+        else if (iid >= 0) {
+            getTabIdResp(iid, inarr, curridx, outarr, outp);
+        } else {
+            browser.windows.getCurrent({windowTypes: ['normal']}).then((win) => {
+                const wid = win.id;
+                const tab_history_idx = -iid-1;
+                let tabIdx;
+                if (tab_history[wid] && (tabIdx = tab_history[wid].length - tab_history_idx - 1) >= 0) {
+                    getTabIdResp(tab_history[wid][tabIdx], inarr, curridx, outarr, outp);
+                } else {
+                    getTabIdResp('Cannot find tab by history index: out of range', inarr, curridx, outarr, outp);
+                }
+            }).catch((err) => {
+                getTabIdResp('Cannot find tab by history index: ' + err, inarr, curridx, outarr, outp);
+            });
+        }
+    }
 }
 
 function updateCount(tabId, isOnRemoved) {
