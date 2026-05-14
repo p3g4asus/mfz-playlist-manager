@@ -519,8 +519,10 @@ if (login_needed == 5000) {
                                     else:
                                         _LOGGER.debug("Brands found %s" % str(brands))
                                         return msg.ok(brands=brands, **bdetails)
+                                elif len(js['entries']) > 0:
+                                    startFrom += len(js['entries'])
                                 else:
-                                    startFrom += js['itemsPerPage']
+                                    break
                             else:
                                 return msg.err(12, MSG_BACKEND_ERROR)
                 return msg.err(19, MSG_MEDIASET_INVALID_BRAND)
@@ -573,8 +575,10 @@ if (login_needed == 5000) {
 
                                         if self.isLastPage(js):
                                             break
+                                        elif len(js['entries']) > 0:
+                                            startFrom += len(js['entries'])
                                         else:
-                                            startFrom += js['itemsPerPage']
+                                            break
                                     else:
                                         return msg.err(12, MSG_BACKEND_ERROR)
                         except Exception:
@@ -673,8 +677,10 @@ if (login_needed == 5000) {
                                             _LOGGER.error(traceback.format_exc())
                                     if self.isLastPage(js):
                                         break
+                                    elif len(js['entries']) > 0:
+                                        startFrom += len(js['entries'])
                                     else:
-                                        startFrom += js['itemsPerPage']
+                                        break
                                 else:
                                     self.record_status(sta, '\U000026A0 Error 12', 'ss')
                                     return msg.err(12, MSG_BACKEND_ERROR)
