@@ -1583,6 +1583,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
         else:
             self.par_out_o['brand'].sel = True
             self.par_out_o['brand'].title = self.par_out['brand'].title
+            self.par_out_o['brand'].brand = str(self.par_out['brand'].id)
             self.par_out_o['brand'].description = self.par_out['brand'].desc
         components = [self.par_out_o['brand']]
         for kk, vv in self.par_out['playlists'].items():
