@@ -352,7 +352,7 @@ function get_video_info(idx) {
         let sdur = video?.length || video?.dur || 0;
         const rate = get_rate_for_video(video, playlist_current);
         if (i == idx && playlist_item_current) {
-            if (typeof (playlist_item_current_duration) == 'number')
+            if (typeof (playlist_item_current_duration) == 'number' && !Number.isNaN(playlist_item_current_duration) && Number.isFinite(playlist_item_current_duration))
                 sdur = Math.max(sdur, playlist_item_current_duration) / rate;
             main_rate = rate;
             video_info.duri = sdur;
