@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import ffmpeg
 import yt_dlp as youtube_dl
 
+from kickapi import KickAPI
 from common.const import (CMD_YT_PLAYLISTCHECK, IMG_NO_THUMB,
                           MSG_BACKEND_ERROR, MSG_NO_VIDEOS,
                           MSG_YT_INVALID_PLAYLIST, RV_NO_VIDEOS)
@@ -31,12 +32,13 @@ class MessageProcessor(RefreshMessageProcessor):
     def __init__(self, db: AlchemicDB, **kwargs):
         super().__init__(db, **kwargs)
         self.youtube_cache = dict()
+        self.kickapi = KickAPI()
 
     @staticmethod
     def programsUrl(plid):
         if plid[0] == '&':
             return f'https://m.youtube.com/watch?v={plid[1:]}'
-        elif plid[0] in ('%', '>'):
+        elif plid[0] in ('%', '>', '-'):
             return plid[1:]
         elif plid[0] == '|':
             return f'https://www.youtube.com/{plid[1:]}' if plid[1] == '@' else f'https://www.youtube.com/channel/{plid[1:]}/videos'
@@ -79,6 +81,19 @@ class MessageProcessor(RefreshMessageProcessor):
                     text = urlunparse(urlp)
                 else:
                     urlp = None
+                if urlp.hostname.find('kick.com') >= 0 and (mo := re.search(r'^/([^/]+)/?$', urlp.path)):
+                    playlist_dict = dict()
+                    await executor(self.kick_get_channel_dict, mo.group(1), None, None, playlist_dict)
+                    if '_err' in playlist_dict:
+                        return msg.err(15, MSG_YT_INVALID_PLAYLIST)
+                    plinfo = PlaylistComponent(
+                        title=f'Videos from {playlist_dict.get("title", mo.group(1))}',
+                        filter=self.process_filters(params),
+                        conf=dict(channel=playlist_dict.get("id", mo.group(1))),
+                        brand='-' + mo.group(1),
+                        description=f'{playlist_dict.get("description", mo.group(1) + " Live streams")}'
+                    )
+                    return msg.ok(playlistinfo=plinfo)
                 if urlp.hostname.find('twitch.tv') >= 0 and (mo := re.search(r'^/([^/]+)/?$', urlp.path)):
                     plinfo = PlaylistComponent(
                         title=f'{mo.group(1)} Live',
@@ -194,6 +209,41 @@ class MessageProcessor(RefreshMessageProcessor):
             return int(mo.group(1)) * 3600 + int(mo.group(2)) * 60 + int(mo.group(3))
         else:
             return 0
+
+    def kick_get_channel_dict(self, channel_name, min_date, max_date, out_dict):
+        try:
+            channel = self.kickapi.channel(channel_name)
+            if channel:
+                out_dict.update(dict(
+                    title=channel.username,
+                    description=channel.bio,
+                    id=channel.id
+                ))
+                if min_date:
+                    out_dict['entries'] = []
+                    for video in channel.videos:
+                        vd = datetime.strptime(ds := video.start_time if video.start_time else video.created_at, '%Y-%m-%d %H:%M:%S')
+                        if vd and (ts := int(vd.timestamp() * 1000)) >= min_date and (not max_date or (max_date >= min_date and ts <= max_date)):
+                            out_dict['entries'].append(dict(
+                                extractor='kick',
+                                chapters=[],
+                                uploader_id=channel.id,
+                                uploader=channel.username,
+                                id=video.uuid,
+                                url=video.stream,
+                                title=video.title,
+                                thumbnail=video.thumbnail.get('src', IMG_NO_THUMB),
+                                datepubo=vd,
+                                upload_date=ds,
+                                duration=int(round(video.duration / 1000)),
+                                timestamp=ts,
+                                conf=dict(pageurl=f'https://kick.com/{channel.username}/videos/{video.uuid}')
+                            ))
+            else:
+                out_dict.update(dict(_err=404))
+        except Exception:
+            _LOGGER.error(f'KickAPI error: {traceback.format_exc()}')
+            out_dict.update(dict(_err=401))
 
     def youtube_dl_get_dict(self, current_url, ydl_opts, out_dict):
         try:
@@ -315,7 +365,10 @@ class MessageProcessor(RefreshMessageProcessor):
                                         if cont_n >= 3:
                                             startFrom = 0
                                 else:
-                                    await executor(self.youtube_dl_get_dict, current_url, ydl_opts, playlist_dict)
+                                    if set[0] == '-':
+                                        await executor(self.kick_get_channel_dict, current_url, datefrom, dateto, playlist_dict)
+                                    else:
+                                        await executor(self.youtube_dl_get_dict, current_url, ydl_opts, playlist_dict)
                                     # self.youtube_dl_get_dict(current_url, ydl_opts, playlist_dict)
                                     if '_err' not in playlist_dict:
                                         if set[0] == '&' or 'entries' not in playlist_dict:
@@ -427,6 +480,11 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                 except Exception:
                                                                     pass
                                                             video['upload_date'] = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
+                                                    elif set[0] == '-':
+                                                        datepubo = datepubo_conf = video['datepubo']
+                                                        video_priv = video
+                                                        startFrom = 0
+                                                        current_url = video['url']
                                                     else:
                                                         if video['id'].startswith('PL') and video['url'].find('playlist?list=PL') > 0:
                                                             if self.video_is_not_filtered_out(video, filters):
@@ -494,7 +552,8 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                             playhint=video.get('playhint'),
                                                                             chapters=video_priv.get('chapters'),
                                                                             userid=video.get('uploader_id'),
-                                                                            author=video.get('uploader'))
+                                                                            author=video.get('uploader'),
+                                                                            **video.get('conf', dict()))
                                                                 pr = PlaylistItem(
                                                                     link=current_url,
                                                                     title=video['title'],

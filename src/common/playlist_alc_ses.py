@@ -11,7 +11,7 @@ from sqlalchemy.orm import (Mapped, attribute_keyed_dict, joinedload, make_trans
                             relationship, subqueryload)
 
 from common.const import (LINK_CONV_BIRD_REDIRECT, LINK_CONV_MASK,
-                          LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_VIDEO_EMBED,
+                          LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_VIDEO_EMBED, LINK_CONV_PAGEURL,
                           LINK_CONV_REDIRECT, LINK_CONV_TWITCH,
                           LINK_CONV_UNTOUCH, LINK_CONV_YTDL_DICT,
                           LINK_CONV_YTDL_REDIRECT)
@@ -430,6 +430,8 @@ class PlaylistItem(AlchemicBase):
                 piece = 'twi'
             else:
                 return self.link
+        elif conv == LINK_CONV_PAGEURL:
+            return self.conf['pageurl'] if self.conf and 'pageurl' in self.conf else self.link
         elif conv == LINK_CONV_YTDL_DICT:
             piece = 'ytdl'
         elif conv == LINK_CONV_YTDL_REDIRECT:
