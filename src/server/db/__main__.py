@@ -100,7 +100,7 @@ CREATE TABLE playlist_component (
 );
 CREATE TABLE playlist_item (
         rowid BIGINT AUTO_INCREMENT,
-        title TEXT,
+        title TEXT NOT NULL DEFAULT 'N/A',
         img TEXT,
         datepub DATETIME,
         link TEXT NOT NULL,
