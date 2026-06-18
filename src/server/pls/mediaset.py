@@ -404,7 +404,10 @@ if (login_needed == 5000) {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36',
                     }
                     url = smil
-                    token = re.findall(r'auth=(.*?)&', url)[0].strip()
+                    try:
+                        token = re.findall(r'auth=(.*?)&', url)[0].strip()
+                    except Exception:
+                        token = None
 
                     headers = {
                         'Accept': 'application/json, text/plain, */*',
@@ -424,7 +427,7 @@ if (login_needed == 5000) {
                                 # pgid = re.findall(r'\|pgid=(.*?)\|', response)[0].strip()
                             else:
                                 return msg.err(7, MSG_BACKEND_ERROR)
-                    lic_url = f'https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid={pid}&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F{aid}&schema=1.0&token={token}'
+                    lic_url = f'https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid={pid}&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F{aid}&schema=1.0{"&token=" + token if token else ""}'
                     async with aiohttp.ClientSession(headers=headers) as session:
                         url = mpd
                         _LOGGER.debug("Mediaset: Getting mhd from " + url)
