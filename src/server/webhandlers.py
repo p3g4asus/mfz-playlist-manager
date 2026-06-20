@@ -665,13 +665,22 @@ async def post_proxy(request):
         link = rq['link']
     elif 't' in rq and 'a' in rq and 'p' in rq:
         # https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid={pid}&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F{aid}&schema=1.0&token={token}
-        link = f'https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid={rq["p"]}&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F{rq["a"]}&schema=1.0&token={rq["t"]}'
+        token = rq['t']
+        if token == 'undefined' or token == 'null':
+            token = None
+        elif token and token.startswith('Bearer ') or token.startswith('Basic '):
+            auth = token
+            token = None
+        link = f'https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid={rq["p"]}&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F{rq["a"]}&schema=1.0{"&token=" + token if token else ""}'
     else:
         link = None
     if link:
         body = await request.read()
         _LOGGER.debug('[proxy] url = ' + link + ' req headers = ' + str(request.headers) + " dt = " + str(body))
-        async with ClientSession(headers=request.headers) as session:
+        headers = dict(request.headers)
+        if auth:
+            headers['authorization'] = auth
+        async with ClientSession(headers=headers) as session:
             resp = await session.post(link, data=body)
             body = await resp.read()
             rh = CIMultiDict(resp.headers)

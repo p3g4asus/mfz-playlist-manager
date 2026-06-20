@@ -32,14 +32,16 @@ class EventUrl(object):
     def __init__(self):
         self.evt = Event()
         self.url = None
+        self.headers = None
 
     async def wait(self, timeout):
         with contextlib.suppress(TimeoutError):
             await wait_for(self.evt.wait(), timeout)
         return self.url
 
-    def set(self, url):
+    def set(self, url, headers=None):
         self.url = url
+        self.headers = headers
         self.evt.set()
 
 
@@ -287,7 +289,7 @@ if (login_needed == 5000) {
             _LOGGER.debug("Intercepted: ", route)
             await route.continue_()
             if 'intercepted' in kwargs:
-                kwargs['intercepted'].set(route.request.url)
+                kwargs['intercepted'].set(route.request.url, headers=route.request.headers)
 
         browser = await playwright.chromium.launch(
             headless=False,
@@ -356,6 +358,9 @@ if (login_needed == 5000) {
         smilurl = await intercepted.wait(self.d3)
         if smilurl is not None:
             exit_value |= 64
+            auth = intercepted.headers.get('authorization', None)
+            if auth:
+                smilurl = auth + '|' + smilurl
 
         # Retrieve the title of the page.
         title = await page.title()
@@ -403,7 +408,9 @@ if (login_needed == 5000) {
                         'Connection': 'keep-alive',
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36',
                     }
-                    url = smil
+                    splt = smil.split('|')
+                    url = splt[-1]
+                    auth = splt[0] if len(splt) > 1 else None
                     try:
                         token = re.findall(r'auth=(.*?)&', url)[0].strip()
                     except Exception:
@@ -415,6 +422,8 @@ if (login_needed == 5000) {
                         'Referer': 'https://mediasetinfinity.mediaset.it/',
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
                     }
+                    if auth:
+                        headers['authorization'] = auth
 
                     async with aiohttp.ClientSession(headers=headers) as session:
                         _LOGGER.debug("Mediaset: Getting SMIL from " + url)
@@ -441,7 +450,7 @@ if (login_needed == 5000) {
                         it.conf = {}
                     it.conf['_drm_p'] = pid
                     it.conf['_drm_a'] = aid
-                    it.conf['_drm_t'] = token
+                    it.conf['_drm_t'] = token if token else auth
                     it.conf['_drm_m'] = mpd
                     comp = pls[0].get_component(it.componenti)
                     drmi = it.conf['_drm_i'] = f'b{comp.parenti}s{comp.brand}' if comp is not None else f'pl{it.playlisti}'
