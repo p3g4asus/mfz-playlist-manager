@@ -666,9 +666,10 @@ async def post_proxy(request):
     elif 't' in rq and 'a' in rq and 'p' in rq:
         # https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid={pid}&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F{aid}&schema=1.0&token={token}
         token = rq['t']
+        auth = None
         if token == 'undefined' or token == 'null':
             token = None
-        elif token and token.startswith('Bearer ') or token.startswith('Basic '):
+        elif token and (token.startswith('Bearer ') or token.startswith('Basic ')):
             auth = token
             token = None
         link = f'https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid={rq["p"]}&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F{rq["a"]}&schema=1.0{"&token=" + token if token else ""}'

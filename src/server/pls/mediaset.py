@@ -468,15 +468,18 @@ if (login_needed == 5000) {
                             'Referer': 'https://wvclone.fly.dev/',
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36',
                         }
+                        dest_headers = {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0',
+                            'Accept': '*/*',
+                            'Connection': 'keep-alive',
+                            'Accept-Language': 'en-US,en;q=0.5',
+                        }
+                        if auth:
+                            dest_headers['authorization'] = auth
                         json_data_clone = {
                             'pssh': pssh,
                             'licurl': lic_url,
-                            'headers': str({
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0',
-                                'Accept': '*/*',
-                                'Connection': 'keep-alive',
-                                'Accept-Language': 'en-US,en;q=0.5',
-                            })
+                            'headers': str(dest_headers)
                         }
                         async with aiohttp.ClientSession(headers=headers_clone) as session:
                             url = self.drmurl
