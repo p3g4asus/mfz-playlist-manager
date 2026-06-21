@@ -477,7 +477,9 @@ class MessageProcessor(AbstractMessageProcessor):
                        '--tmp-dir', sd,
                        '--save-name', f'{self.it.rowid}',
                        self.it.conf['_drm_m']])
-            [kw.extend(['--key', k]) for k in self.it.conf['_drm_k']]
+            keys = self.it.conf.get('_drm_k', [])
+            for i in range(0, len(keys), 2):
+                kw.extend(['--key', keys[i] + ((':' + keys[i + 1]) if i + 1 < len(keys) else '')])
             rv = await executor(self.popen_do, kw, status, sd)
             if not rv:
                 dest = join(self.dl_dir, f'{self.it.rowid}.mp4')
