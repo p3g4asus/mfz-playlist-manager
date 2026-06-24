@@ -21,6 +21,11 @@ function add_video_to_button(item) {
     $('#playlist_items_cont > .dropdown-menu').append(li);
 }
 
+function progress_button_set_p(id, raw) {
+    let p = Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 0;
+    $('#' + id).css('--p', p);
+}
+
 function set_playlist_button_enabled(enabled) {
     if (!enabled)
         $('#playlist_items').addClass('disabled');

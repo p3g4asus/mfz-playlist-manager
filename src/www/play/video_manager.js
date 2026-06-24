@@ -20,6 +20,7 @@ let playlist_item_current = null;
 let playlist_item_current_oldrowid = -2;
 let playlist_item_current_wasplaying = 0;
 let playlist_item_current_time_timer = null;
+let playlist_item_current_time_timer_idx = 2;
 let playlist_item_current_idx = -1;
 let playlist_item_current_duration = -1;
 let playlist_current_userid = -1;
@@ -322,10 +323,16 @@ function on_player_state_changed(player, event) {
         if (playlist_item_current_time_timer == null) {
             playlist_item_current_time_timer = setInterval(function () {
                 let tm = video_manager_obj.currenttime();
-                if (tm >= 5)
-                    save_playlist_item_settings({ sec: playlist_item_current.timeplayed = tm }, 'pinfo');
+                if (tm >= 5) {
+                    playlist_item_current_time_timer_idx++;
+                    if  (playlist_item_current_time_timer_idx == 3) {
+                        save_playlist_item_settings({ sec: playlist_item_current.timeplayed = tm }, 'pinfo');
+                        playlist_item_current_time_timer_idx = 0;
+                    }
+                }
                 playlist_item_current_duration = get_duration_from_video_manager();
-            }, 30000);
+                on_video_info_change(playlist_item_current_idx, tm, null, 1);
+            }, 10000);
         }
         return;
     }
@@ -334,6 +341,7 @@ function on_player_state_changed(player, event) {
     if (playlist_item_current_time_timer !== null) {
         clearInterval(playlist_item_current_time_timer);
         playlist_item_current_time_timer = null;
+        playlist_item_current_time_timer_idx = 2;
         let tm = video_manager_obj.currenttime();
         if (tm >= 5 && new Date().getTime() - playlist_item_current_wasplaying >= 5000)
             save_playlist_item_settings({ sec: playlist_item_current.timeplayed = tm }, 'pinfo');
@@ -341,79 +349,105 @@ function on_player_state_changed(player, event) {
 }
 
 function get_video_info(idx) {
+    let tot_dur_prev_and_after = 0;
+    let tot_played_prev_and_after = 0;
     let tot_dur = 0;
     let tot_played = 0;
     let tot_n = 0;
     let video_info = { tot_n: 0 };
     let main_rate = playlist_rate;
-    for (let i = idx < 0 ? 0 : idx; i < playlist_arr.length; i++) {
+    for (let i = 0; i < playlist_arr.length; i++) {
         let video = playlist_arr[i];
         if (!video || video.playlisti != playlist_current.rowid) break;
         let sdur = video?.length || video?.dur || 0;
         const rate = get_rate_for_video(video, playlist_current);
+        let splayed = (video?.timeplayed || 0) / rate;
+        if (i == idx && playlist_item_current && typeof (playlist_item_current_duration) == 'number' && !Number.isNaN(playlist_item_current_duration) && Number.isFinite(playlist_item_current_duration))
+            sdur = Math.max(sdur, playlist_item_current_duration);
+        sdur = sdur / rate;
+        if (splayed > sdur) splayed = sdur;
         if (i == idx && playlist_item_current) {
-            if (typeof (playlist_item_current_duration) == 'number' && !Number.isNaN(playlist_item_current_duration) && Number.isFinite(playlist_item_current_duration))
-                sdur = Math.max(sdur, playlist_item_current_duration) / rate;
             main_rate = rate;
             video_info.duri = sdur;
             video_info.durs = format_duration(sdur);
             video_info.idx = idx;
             video_info.title = video?.title || 'N/A';
             video_info.chapters = video?.conf?.chapters || [];
-        } else {
-            sdur = sdur / rate;
-            let splayed = (video?.timeplayed || 0) / rate;
-            if (splayed > sdur) splayed = sdur;
+            splayed = 0;
+        } else if (i > idx || !playlist_item_current) {
             tot_played += splayed;
         }
-        tot_dur += sdur;
+        if (i >= idx) {
+            tot_dur += sdur;
+        }
+        tot_dur_prev_and_after += sdur;
+        tot_played_prev_and_after += (i < idx ? sdur: splayed);
     }
     tot_n = playlist_arr.length - idx;
     for (const pls of playlist_sched) {
         let rate;
         const first = pls.playstate;
         let tdur = 0;
+        let tdur_prev_and_after = 0;
         let tplay = 0;
+        let tplay_prev_and_after = 0;
         let nvid = 0;
         for (const it of pls.items) {
             if (it.uid == first) {
                 tdur = 0;
                 tplay = 0;
                 nvid = 0;
+                tplay_prev_and_after = tdur_prev_and_after;
             }
             rate = get_rate_for_video(it, pls);
-            const sdur = it?.length || it?.dur || 0;
-            tdur += sdur / rate;
-            let splayed = it?.timeplayed || 0;
+            const sdur = (it?.length || it?.dur || 0) / rate;
+            tdur += sdur;
+            tdur_prev_and_after += sdur;
+            let splayed = (it?.timeplayed || 0) / rate;
             if (splayed > sdur) splayed = sdur;
-            tplay += splayed / rate;
+            tplay += splayed;
+            tplay_prev_and_after += splayed;
             nvid++;
         }
         tot_n += nvid;
         tot_dur += tdur;
+        tot_dur_prev_and_after += tdur_prev_and_after;
         tot_played += tplay;
+        tot_played_prev_and_after += tplay_prev_and_after;
     }
     video_info.tot_n = tot_n;
     video_info.ratec = main_rate;
     video_info.tot_played = tot_played;
     video_info.tot_dur = tot_dur;
     video_info.tot_durs = format_duration(tot_dur);
+    video_info.tot_dur_prev_and_after = tot_dur_prev_and_after;
+    video_info.tot_played_prev_and_after = tot_played_prev_and_after;
     return video_info;
 }
 
-function on_video_info_change(idx, isat, objstart) {
+function on_video_info_change(idx, isat, objstart, silent) {
     let video_info = get_video_info(idx);
     if (video_info.title) {
         isat = (isat || 0) / video_info.ratec;
-        toast_msg('Video duration is ' + video_info.durs + ' (' + format_duration(video_info.duri - isat) + '). Remaining videos are ' + video_info.tot_n + ' [' + video_info.tot_durs + ' (' + format_duration(video_info.tot_dur - isat - video_info.tot_played) + ')] @ ' + video_info.ratec.toFixed(2) + 'x.', 'info');
+        let durme = video_info.duri - isat;
+        let perme = durme / video_info.duri * 100;
+        progress_button_set_p('pause_button', 100 - perme);
+        let durall = video_info.tot_dur_prev_and_after - isat - video_info.tot_played_prev_and_after;
+        let perall = durall / video_info.tot_dur_prev_and_after * 100;
+        progress_button_set_p('prev_button', 100 - perall);
+        progress_button_set_p('next_button', 100 - perall);
+        if (!silent)
+            toast_msg('Video duration is ' + video_info.durs + ' (' + format_duration(video_info.duri - isat) + '). Remaining videos are ' + video_info.tot_n + ' [' + video_info.tot_durs + ' (' + format_duration(video_info.tot_dur - isat - video_info.tot_played) + ')] @ ' + video_info.ratec.toFixed(2) + 'x.', 'info');
     }
-    const exp = objstart ? 1 : 0;
-    if (objstart)
-        objstart.vinfo = video_info;
-    else
-        objstart = video_info;
+    if (!silent) {
+        const exp = objstart ? 1 : 0;
+        if (objstart)
+            objstart.vinfo = video_info;
+        else
+            objstart = video_info;
 
-    send_video_info_for_remote_play('vinfo', objstart, exp);
+        send_video_info_for_remote_play('vinfo', objstart, exp);
+    }
 }
 
 function on_player_load(name, manager_obj) {
@@ -1203,6 +1237,7 @@ function playlist_start_playing(idx, forceuid_if_reload) {
         else {
             playlist_rebuild_reconstruct_player();
             set_video_title('No video loaded');
+            progress_button_set_p('pause_button', 100);
             toast_msg('No more video in playlist', 'warning');
             on_video_info_change(playlist_item_current_idx);
         }

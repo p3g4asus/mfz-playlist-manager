@@ -48,6 +48,7 @@ export default [
                 'COOKIE_PLAYSETT': true,
                 'CMD_MEDIASET_LISTINGS': true,
                 'set_next_button_enabled': true,
+                'progress_button_set_p': true,
                 'set_pause_button_enabled': true,
                 'is_pause_function_active': true,
                 'get_url_without_file': true,

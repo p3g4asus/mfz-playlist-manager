@@ -99,6 +99,7 @@ module.exports = {
         'set_save_conf_button_enabled': true,
         'set_remove_button_enabled': true,
         'get_spinner_value': true,
+        'progress_button_set_p': true,
         'set_spinner_value': true,
         'get_default_check': true,
         'get_remove_check': true,
