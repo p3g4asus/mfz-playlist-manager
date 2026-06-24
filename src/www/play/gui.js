@@ -75,10 +75,13 @@ function set_save_conf_button_enabled(enabled) {
 }
 
 function set_remove_button_enabled(enabled) {
-    if (!enabled)
+    if (!enabled) {
         $('#remove_button').addClass('disabled');
-    else
+        progress_button_set_p('remove_button', 0);
+    } else {
         $('#remove_button').removeClass('disabled');
+        progress_button_set_p('remove_button', 100);
+    }
 }
 
 function set_reset_conf_button_enabled(enabled) {

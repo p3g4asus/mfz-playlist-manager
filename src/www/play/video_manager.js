@@ -351,6 +351,8 @@ function on_player_state_changed(player, event) {
 function get_video_info(idx) {
     let tot_dur_prev_and_after = 0;
     let tot_played_prev_and_after = 0;
+    let tot_dur_prev_and_after_curr_pls = 0;
+    let tot_played_prev_and_after_curr_pls = 0;
     let tot_dur = 0;
     let tot_played = 0;
     let tot_n = 0;
@@ -383,6 +385,8 @@ function get_video_info(idx) {
         tot_dur_prev_and_after += sdur;
         tot_played_prev_and_after += (i < idx ? sdur: splayed);
     }
+    tot_dur_prev_and_after_curr_pls = tot_dur_prev_and_after;
+    tot_played_prev_and_after_curr_pls = tot_played_prev_and_after;
     tot_n = playlist_arr.length - idx;
     for (const pls of playlist_sched) {
         let rate;
@@ -422,6 +426,8 @@ function get_video_info(idx) {
     video_info.tot_durs = format_duration(tot_dur);
     video_info.tot_dur_prev_and_after = tot_dur_prev_and_after;
     video_info.tot_played_prev_and_after = tot_played_prev_and_after;
+    video_info.tot_dur_prev_and_after_curr_pls = tot_dur_prev_and_after_curr_pls;
+    video_info.tot_played_prev_and_after_curr_pls = tot_played_prev_and_after_curr_pls;
     return video_info;
 }
 
@@ -429,12 +435,14 @@ function on_video_info_change(idx, isat, objstart, silent) {
     let video_info = get_video_info(idx);
     if (video_info.title) {
         isat = (isat || 0) / video_info.ratec;
-        let durme = video_info.duri - isat;
-        let perme = durme / video_info.duri * 100;
+        const durme = video_info.duri - isat;
+        const perme = durme / video_info.duri * 100;
         progress_button_set_p('pause_button', 100 - perme);
-        let durall = video_info.tot_dur_prev_and_after - isat - video_info.tot_played_prev_and_after;
-        let perall = durall / video_info.tot_dur_prev_and_after * 100;
-        progress_button_set_p('prev_button', 100 - perall);
+        const durpls = video_info.tot_dur_prev_and_after_curr_pls - isat - video_info.tot_played_prev_and_after_curr_pls;
+        const perpls = durpls / video_info.tot_dur_prev_and_after_curr_pls * 100;
+        progress_button_set_p('prev_button', 100 - perpls);
+        const durall = video_info.tot_dur_prev_and_after - isat - video_info.tot_played_prev_and_after;
+        const perall = durall / video_info.tot_dur_prev_and_after * 100;
         progress_button_set_p('next_button', 100 - perall);
         if (!silent)
             toast_msg('Video duration is ' + video_info.durs + ' (' + format_duration(video_info.duri - isat) + '). Remaining videos are ' + video_info.tot_n + ' [' + video_info.tot_durs + ' (' + format_duration(video_info.tot_dur - isat - video_info.tot_played) + ')] @ ' + video_info.ratec.toFixed(2) + 'x.', 'info');

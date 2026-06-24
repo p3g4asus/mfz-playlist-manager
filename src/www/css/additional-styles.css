@@ -523,3 +523,8 @@ td.bs-checkbox input {
     --fill: #198754;
     --track: #d1e7dd;
 }
+
+.btn-progress.btn-secondary {
+    --fill: #Ff6800;
+    --track: #dedda9;
+}
