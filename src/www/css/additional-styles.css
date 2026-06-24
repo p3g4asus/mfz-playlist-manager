@@ -525,6 +525,6 @@ td.bs-checkbox input {
 }
 
 .btn-progress.btn-secondary {
-    --fill: #fba767;
-    --track: #dafccc;
+    --fill: #dafccc;
+    --track: #fba767;
 }
