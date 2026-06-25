@@ -258,6 +258,13 @@ class Playlist(AlchemicBase):
         else:
             return False
 
+    async def setIOrder(self, db: AlcTp, iorder: int, commit=True):
+        updateq = update(Playlist).where(Playlist.rowid == self.rowid).values(iorder=iorder)
+        await db.session.execute(updateq)
+        self.iorder = iorder
+        if commit:
+            await db.commit_session()
+
     async def fix_iorder(self, db: AlcTp, commit=True):
         # faccio cosi per problemi vari con sqlalchemy
         # (a volte fallisce il vincolo di unicità, a volte fallisce il reflect delle modifiche del db sugli oggetti)
