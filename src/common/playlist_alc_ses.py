@@ -236,11 +236,18 @@ class Playlist(AlchemicBase):
         return True
 
     @staticmethod
-    async def reset_index(db: AlcTp, useri=None, commit=True):
-        pls = await Playlist.loadbyid(db, None, useri=useri, loaditems=LOAD_ITEMS_NO)
+    async def reset_index(db: AlcTp, useri=None, commit=True, playlist_list=None):
+        if not playlist_list:
+            pls = await Playlist.loadbyid(db, None, useri=useri, loaditems=LOAD_ITEMS_NO)
+        else:
+            pls = playlist_list
         for i, pl in enumerate(pls):
+            if pl in db.session:
+                db.session.expunge(pl)
+            await pl.setIOrder(db, -(i + 1), commit=False)
             pl.iorder = i + 1
-            await pl.toDB(db, commit=False)
+        updateq = update(Playlist).where(Playlist.useri == useri).values(iorder=-(Playlist.iorder))
+        await db.session.execute(updateq)
         if commit:
             await db.commit()
         if not isinstance(db, (AsyncConnection, AlchemicDB)):

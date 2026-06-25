@@ -879,12 +879,7 @@ class MessageProcessor(AbstractMessageProcessor):
                     else:
                         pl.iorder = i + 1
                 plss.sort(key=lambda x: x.iorder)
-                for i, pl in enumerate(plss):
-                    await pl.setIOrder(db, -(i + 1), commit=False)
-                    pl.iorder = i + 1
-                updateq = update(Playlist).where(Playlist.useri == userid).values(iorder=-(Playlist.iorder))
-                await db.session.execute(updateq)
-                await db.session.commit()
+                await Playlist.reset_index(db, useri=userid, commit=True, playlist_list=plss)
                 return msg.ok(sort=plss)
             else:
                 return msg.err(3, MSG_PLAYLIST_NOT_FOUND, playlist=None)
