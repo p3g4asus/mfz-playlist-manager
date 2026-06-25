@@ -234,6 +234,7 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                         else:
                             datefrom = 0
             else:
+                x = given
                 if x.items is None:
                     x.items = []
                 comps = x.components

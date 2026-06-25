@@ -1075,7 +1075,7 @@ class CheckPlaylistTMessage(PlaylistNamingTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, playlist: Playlist = None) -> None:
         if not playlist:
             playlist = Playlist(
-                type=params.types2[self.get_playlist_type()],
+                type=params.types[self.get_playlist_type()],
                 useri=user.rowid,
                 autoupdate=False,
                 dateupdate=0,
@@ -1187,7 +1187,7 @@ class LocalFolderPlaylistTMessage(PlaylistNamingTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, playlist: Playlist = None) -> None:
         if not playlist:
             playlist = Playlist(
-                type=params.types2['localfolder'],
+                type=params.types['localfolder'],
                 useri=user.rowid,
                 autoupdate=False,
                 dateupdate=0,
@@ -1411,7 +1411,7 @@ class MedRaiPlaylistTMessage(PlaylistNamingTMessage):
     def __init__(self, navigation: NavigationHandler, user: User = None, params: object = None, playlist: Playlist = None, playlist_type: str = None) -> None:
         if not playlist:
             playlist = Playlist(
-                type=params.types2[playlist_type],
+                type=params.types[playlist_type],
                 useri=user.rowid,
                 autoupdate=False,
                 dateupdate=0,
