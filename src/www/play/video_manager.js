@@ -401,7 +401,8 @@ function get_video_info(idx) {
                 tdur = 0;
                 tplay = 0;
                 nvid = 0;
-                tplay_prev_and_after = tdur_prev_and_after;
+                //nelle playlist diverse da quella corrente, non considero i video precedenti a quello corrente
+                tplay_prev_and_after = tdur_prev_and_after = 0;
             }
             rate = get_rate_for_video(it, pls);
             const sdur = (it?.length || it?.dur || 0) / rate;
