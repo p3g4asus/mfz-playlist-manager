@@ -22,7 +22,7 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 from pathvalidate import sanitize_filename
 
-from common.const import (CMD_PING, CMD_REMOTEBROWSER_JS, CMD_REMOTEPLAY, CMD_REMOTEPLAY_ID, CMD_REMOTEPLAY_JS,
+from common.const import (CMD_PING, CMD_REMOTEBROWSER_JS, CMD_REMOTEDESKTOP_JS, CMD_REMOTEPLAY, CMD_REMOTEPLAY_ID, CMD_REMOTEPLAY_JS,
                           CMD_REMOTEPLAY_JS_TELEGRAM, CMD_REMOTEPLAY_PING, CMD_REMOTEPLAY_PUSH, CMD_REMOTEPLAY_PUSH_NOTIFY, LINK_CONV_MASK, LINK_CONV_OPTION_VIDEO_EMBED,
                           LINK_CONV_OPTION_SHIFT, LINK_CONV_OPTION_ASYNCH_TWITCH,
                           LINK_CONV_OPTION_MASK, INVALID_SID, LINK_CONV_TWITCH,
@@ -111,7 +111,7 @@ class RemoteItem(object):
 
     async def queue_append(self, cmd: Optional[str] = None):
         if cmd:
-            if not isinstance(cmd, str) and ((cmdc := cmd.get('cmd')) == CMD_REMOTEPLAY_JS or cmdc == CMD_REMOTEBROWSER_JS):
+            if not isinstance(cmd, str) and ((cmdc := cmd.get('cmd')) == CMD_REMOTEPLAY_JS or cmdc == CMD_REMOTEBROWSER_JS or cmdc == CMD_REMOTEDESKTOP_JS):
                 cmd[CMD_REMOTEPLAY_ID] = self.queue_pop_id()
         if (self.cmdqueue and cmd) or self.ws is None:
             if cmd:

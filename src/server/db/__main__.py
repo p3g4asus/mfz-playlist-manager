@@ -18,6 +18,7 @@ TABLE_ORDER = [
     "playlist",
     "browser",
     "player",
+	"desktop",
     "playlist_component",
     "playlist_item",
     "view_conf"
@@ -70,6 +71,17 @@ CREATE TABLE browser (
         UNIQUE (name, user)
 );
 CREATE TABLE player (
+        rowid BIGINT AUTO_INCREMENT,
+        name TEXT NOT NULL,
+        url TEXT NOT NULL,
+        user BIGINT NOT NULL,
+        sel BOOLEAN DEFAULT 0 NOT NULL,
+        PRIMARY KEY (rowid),
+        FOREIGN KEY(user) REFERENCES user (rowid)
+            ON UPDATE CASCADE ON DELETE CASCADE,
+        UNIQUE (name, user)
+);
+CREATE TABLE desktop (
         rowid BIGINT AUTO_INCREMENT,
         name TEXT NOT NULL,
         url TEXT NOT NULL,

@@ -110,6 +110,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+test/
+.mfz-remote-desktop.json
+main.sqlite
 
 # Spyder project settings
 .spyderproject
@@ -135,7 +138,7 @@ dmypy.json
 node_modules/
 logs/
 src/www/dl/
-src/www/dl
+src/www/dl*
 src/www/telegram_web.htm
 src/www/dash.html
 src/www/js/telegram_web.js
@@ -149,3 +152,4 @@ mfz-remote-tabs/chrome.crx
 mfz-remote-tabs/chrome.pem
 mfz-remote-tabs/firefox/web-ext-artifacts/
 mfz-remote-tabs/firefox/.web-extension-id
+mfz-remote-tabs/firefox/.amo-upload-uuid

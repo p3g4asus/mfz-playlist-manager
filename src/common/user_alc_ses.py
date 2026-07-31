@@ -23,6 +23,16 @@ class Player(AlchemicBase):
     __table_args__ = (UniqueConstraint('name', 'user', name='uix_name_user'),)
 
 
+class Desktop(AlchemicBase):
+    __tablename__ = "desktop"
+    rowid: Annotated[Mapped[int], 'U'] = mapped_column(primary_key=True, autoincrement=True)
+    name: Annotated[Mapped[str], 'U'] = mapped_column(nullable=False)
+    url: Annotated[Mapped[str], 'U'] = mapped_column(nullable=False)
+    useri: Annotated[Mapped[int], 'U'] = mapped_column('user', ForeignKey("user.rowid", ondelete="CASCADE"), nullable=False)
+    sel: Annotated[Mapped[bool], 'U'] = mapped_column(nullable=False, default=False)
+    __table_args__ = (UniqueConstraint('name', 'user', name='uix_name_user'),)
+
+
 class Browser(AlchemicBase):
     __tablename__ = "browser"
     rowid: Annotated[Mapped[int], 'U'] = mapped_column(primary_key=True, autoincrement=True)

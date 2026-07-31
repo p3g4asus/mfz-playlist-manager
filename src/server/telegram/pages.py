@@ -10,6 +10,7 @@ from telegram.ext._utils.types import BD, BT, CD, UD
 from common.playlist_alc_ses import Playlist, PlaylistItem, PlaylistMessage
 from common.user_alc_ses import User
 from server.telegram.browser import BrowserInfoMessage, BrowserListMessage
+from server.telegram.desktop import DesktopInfoMessage, DesktopListMessage
 from server.telegram.message import MyNavigationHandler, NameDurationTMessage, ProcessorMessage, duration2string
 from server.telegram.player import PlayerInfoMessage, PlayerListMessage
 
@@ -116,6 +117,7 @@ class ListPagesTMessage(BaseMessage):
         self.pagegen = pagegen
         self.sel_players: Dict[str, PlayerInfoMessage] = None
         self.sel_browsers: Dict[str, BrowserInfoMessage] = None
+        self.sel_desktops: Dict[str, DesktopInfoMessage] = None
 
     def get_label_addition(self):
         return ''
@@ -248,6 +250,11 @@ class ListPagesTMessage(BaseMessage):
                 self.navigation,
                 self.pagegen.proc,
                 True)
+        if self.sel_desktops is None:
+            self.sel_desktops = await DesktopListMessage.get_from_db(
+                self.navigation,
+                self.pagegen.proc,
+                True)
         new_row = True
         for pi, pim in self.sel_players.items():
             self.add_button(label=u"\U0001F3A6 " + pi, callback=pim, new_row=new_row)
@@ -255,5 +262,9 @@ class ListPagesTMessage(BaseMessage):
         new_row = True
         for pi, pim in self.sel_browsers.items():
             self.add_button(label=u"\U0001F4D9 " + pi, callback=pim, new_row=new_row)
+            new_row = False
+        new_row = True
+        for pi, pim in self.sel_desktops.items():
+            self.add_button(label=u"\U0001F5A5 " + pi, callback=pim, new_row=new_row)
             new_row = False
         return updstr

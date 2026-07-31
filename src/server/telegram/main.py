@@ -15,6 +15,7 @@ from common.playlist_alc_ses import PlaylistMessage
 from common.user_alc_ses import User
 from server.db.base import UsesAlchemicDB
 from server.telegram.browser import BrowserListMessage
+from server.telegram.desktop import DesktopListMessage
 from server.telegram.playlist import PlaylistAddTMessage, PlaylistsPagesTMessage
 from server.telegram.cache import cache_del_user
 from server.telegram.message import MyNavigationHandler, ProcessorMessage, YesNoTMessage
@@ -165,10 +166,11 @@ class StartTMessage(BaseMessage):
                 user=self.user)
             self.add_button(label=":memo: List", callback=self.playlists_lister)
             self.add_button(label=":eye: All", callback=listall)
+            self.add_button(label="\U00002795 Add", callback=PlaylistAddTMessage(self.navigation, user=self.user, params=self.params), new_row=True)
             self.add_button(label="\U0001F3A7 Player", callback=PlayerListMessage(self.navigation, user=self.user, params=self.params))
             self.add_button(label="\U0001F4D9 Browser", callback=BrowserListMessage(self.navigation, user=self.user, params=self.params))
-            self.add_button(label="\U00002795 Add", callback=PlaylistAddTMessage(self.navigation, user=self.user, params=self.params))
-            self.add_button(label="\U000026D7 Token", callback=TokenMessage(self.navigation, user=self.user, params=self.params))
+            self.add_button(label="\U0001F5A5 Desktop", callback=DesktopListMessage(self.navigation, user=self.user, params=self.params))
+            self.add_button(label="\U000026D7 Token", callback=TokenMessage(self.navigation, user=self.user, params=self.params), new_row=True)
             self.add_button(label='\U00002699 Settings', callback=UserSettingsMessage(self.navigation, user=self.user, params=self.params))
             self.add_button(label="\U00002B55 Message Cache Clear", callback=self.cache_clear)
             self.add_button(label="\U0001F6AA Sign Out", callback=SignOutTMessage(self.navigation))
