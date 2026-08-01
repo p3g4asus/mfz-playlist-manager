@@ -117,6 +117,20 @@ def create_app_icon() -> Any:
     return image
 
 
+def close_on_escape(window: tk.Misc, close_action: Callable[[], None]) -> None:
+    """Make Escape perform the exact same action as the window close button."""
+    window.protocol("WM_DELETE_WINDOW", close_action)
+    window.bind("<Escape>", lambda _: close_action())
+
+
+def activate_window(window: tk.Toplevel) -> None:
+    """Raise a newly-created dialog and give it keyboard focus."""
+    def activate() -> None:
+        window.lift()
+        window.focus_force()
+    window.after(0, activate)
+
+
 class CommandHandler:
     """Extension point for ``cmd: remd`` commands, selected by ``sub``."""
 
@@ -527,7 +541,7 @@ class Application:
         self.status_var = tk.StringVar(value="In attesa dell'URL")
         self.connection_state = "idle"
         self._build_ui()
-        self.root.protocol("WM_DELETE_WINDOW", self.hide)
+        close_on_escape(self.root, self.hide)
         self.root.after(100, self._drain_events)
         self._install_tray()
         if self.url_var.get() and websocket_url(self.url_var.get()):
@@ -583,6 +597,8 @@ class Application:
         window.title("Comandi remd")
         window.geometry("570x340")
         window.transient(self.root)
+        close_on_escape(window, window.destroy)
+        activate_window(window)
         tree = ttk.Treeview(window, columns=("name", "type", "parameters"), show="headings")
         tree.heading("name", text="Nome (sub)")
         tree.heading("type", text="Tipo")
@@ -636,6 +652,8 @@ class Application:
         window.title("Modifica comando" if existing else "Nuovo comando")
         window.geometry("600x390")
         window.transient(self.root)
+        close_on_escape(window, window.destroy)
+        activate_window(window)
         content = ttk.Frame(window, padding=10)
         content.pack(fill=tk.BOTH, expand=True)
         name_var = tk.StringVar(value=existing["name"] if existing else "")
@@ -663,6 +681,8 @@ class Application:
             dialog.title("Modifica parametro" if index is not None else "Nuovo parametro")
             dialog.transient(window)
             dialog.grab_set()
+            close_on_escape(dialog, dialog.destroy)
+            activate_window(dialog)
             body = ttk.Frame(dialog, padding=10)
             body.pack(fill=tk.BOTH, expand=True)
             p_name = tk.StringVar(value=item["name"])
@@ -696,10 +716,16 @@ class Application:
 
             ttk.Button(body, text="Salva", command=save_parameter).grid(row=3, column=1, sticky=tk.E, pady=(8, 0))
 
+        def edit_selected_parameter(_: Any = None) -> None:
+            if tree.selection():
+                parameter_editor(int(tree.selection()[0]))
+
+        tree.bind("<Double-1>", edit_selected_parameter)
+
         buttons = ttk.Frame(content)
         buttons.pack(fill=tk.X, pady=(6, 0))
         ttk.Button(buttons, text="Aggiungi parametro", command=parameter_editor).pack(side=tk.LEFT)
-        ttk.Button(buttons, text="Modifica parametro", command=lambda: parameter_editor(int(tree.selection()[0])) if tree.selection() else None).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons, text="Modifica parametro", command=edit_selected_parameter).pack(side=tk.LEFT, padx=5)
 
         def remove_parameter() -> None:
             if tree.selection():
