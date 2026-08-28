@@ -286,8 +286,8 @@ if (login_needed == 5000) {
         exit_value = 0
 
         async def handle(route, *_, **kwargs):
-            _LOGGER.debug("Intercepted: ", route)
             await route.continue_()
+            _LOGGER.debug(f"Intercepted: url={route.request.url}, headers={route.request.headers}")
             if 'intercepted' in kwargs:
                 kwargs['intercepted'].set(route.request.url, headers=route.request.headers)
 
@@ -437,7 +437,7 @@ if (login_needed == 5000) {
                             else:
                                 return msg.err(7, MSG_BACKEND_ERROR)
                     lic_url = f'https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid={pid}&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F{aid}&schema=1.0{"&token=" + token if token else ""}'
-                    async with aiohttp.ClientSession(headers=headers) as session:
+                    async with aiohttp.ClientSession(headers=headers, connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
                         url = mpd
                         _LOGGER.debug("Mediaset: Getting mhd from " + url)
                         async with session.get(url) as resp:
