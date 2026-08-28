@@ -404,26 +404,24 @@ if (login_needed == 5000) {
                     else:
                         smil = msg.smil
                     headers = {
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-                        'Connection': 'keep-alive',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36',
-                    }
-                    splt = smil.split('|')
-                    url = splt[-1]
-                    auth = splt[0] if len(splt) > 1 else None
-                    try:
-                        token = re.findall(r'auth=(.*?)&', url)[0].strip()
-                    except Exception:
-                        token = None
-
-                    headers = {
                         'Accept': 'application/json, text/plain, */*',
                         'Origin': 'https://mediasetinfinity.mediaset.it',
                         'Referer': 'https://mediasetinfinity.mediaset.it/',
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
                     }
-                    if auth:
+                    idx = smil.find('|https://')
+                    if idx > 0:
+                        auth = smil[:idx]
+                        smil = smil[idx + 1:]
                         headers['authorization'] = auth
+                    else:
+                        auth = None
+                    url = smil
+                    # auth is already set from the previous code
+                    try:
+                        token = re.findall(r'auth=(.*?)&', url)[0].strip()
+                    except Exception:
+                        token = None
 
                     async with aiohttp.ClientSession(headers=headers) as session:
                         _LOGGER.debug("Mediaset: Getting SMIL from " + url)

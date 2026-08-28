@@ -85,7 +85,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
             text = text.strip()
             if text == '/autodetect':
                 text = '0'
-            if len(text) == 1 or re.match(r'^https://link', text) and text.find('format=SMIL'):
+            if len(text) == 1 or ((re.match(r'^https://link', text) or text.find('|https://link') != -1) and text.find('format=SMIL') != -1):
                 await self.get_keys(text)
 
     async def get_keys(self, smil):
