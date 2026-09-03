@@ -677,17 +677,26 @@ async def post_proxy(request):
         link = None
     if link:
         body = await request.read()
-        _LOGGER.debug('[proxy] url = ' + link + ' req headers = ' + str(request.headers) + " dt = " + str(body))
         headers = dict(request.headers)
         if auth:
             headers['authorization'] = auth
+        _LOGGER.debug('[proxy] url = ' + link + ' req headers = ' + str(headers) + " dt = " + str(body))
         async with ClientSession(headers=headers) as session:
             resp = await session.post(link, data=body)
             body = await resp.read()
             rh = CIMultiDict(resp.headers)
-            del rh[hdrs.ACCESS_CONTROL_ALLOW_ORIGIN]
-            del rh[hdrs.ACCESS_CONTROL_ALLOW_CREDENTIALS]
-            del rh[hdrs.ACCESS_CONTROL_EXPOSE_HEADERS]
+            try:
+                del rh[hdrs.ACCESS_CONTROL_ALLOW_ORIGIN]
+            except KeyError:
+                pass
+            try:
+                del rh[hdrs.ACCESS_CONTROL_ALLOW_CREDENTIALS]
+            except KeyError:
+                pass
+            try:
+                del rh[hdrs.ACCESS_CONTROL_EXPOSE_HEADERS]
+            except KeyError:
+                pass
             _LOGGER.debug('[proxy] resp headers = ' + str(rh) + " dt = " + str(body) + " sta = " + str(resp.status))
             return Response(body=body, status=resp.status, headers=rh)
     return web.HTTPBadRequest(body='Link not found in URL')

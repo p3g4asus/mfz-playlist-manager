@@ -1,6 +1,7 @@
 import json
 import logging
 
+from inspect import get_annotations
 from sqlalchemy.orm import DeclarativeBase, Mapped
 from typing import Annotated, Type, Union, get_args, get_origin
 
@@ -214,7 +215,7 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
             return False, None
 
     def get_all_mapped_fields(self, mapped_fields: dict = None) -> dict:
-        for nm, ann in self.__annotations__.items():
+        for nm, ann in get_annotations(self.__class__).items():
             if (mf := self.get_mapped_field(nm, ann))[0] and mapped_fields is not None:
                 mapped_fields[nm] = mf[1]
         return mapped_fields
@@ -234,7 +235,7 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
                 return objmap[id(it)]
             else:
                 kwargs = dict()
-                for nm, ann in it.__annotations__.items():
+                for nm, ann in get_annotations(it.__class__).items():
                     if (mf := it.get_mapped_field(nm, ann))[0]:
                         kwargs[nm] = AlchemicBase.get_deep_copy(mf[1], objmap)
                 rv = it.__class__(**kwargs)
@@ -247,7 +248,7 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
         if (cp := kwargs.get('_cp')) and isinstance(cp, self.__class__):
             objmap = dict()
             objmap[id(cp)] = self
-            for nm, ann in self.__annotations__.items():
+            for nm, ann in get_annotations(self.__class__).items():
                 if (mf := cp.get_mapped_field(nm, ann))[0]:
                     kwargs[nm] = AlchemicBase.get_deep_copy(mf[1], objmap)
             del kwargs['_cp']
@@ -257,7 +258,7 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
         if (cp := kwargs.get('_cp')) and isinstance(cp, self.__class__):
             objmap = dict()
             objmap[id(cp)] = self
-            for nm, ann in self.__annotations__.items():
+            for nm, ann in get_annotations(self.__class__).items():
                 if (mf := cp.get_mapped_field(nm, ann))[0]:
                     setattr(self, nm, AlchemicBase.get_deep_copy(mf[1], objmap))
         else:
@@ -267,7 +268,7 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
 
     def get_update_dict(self):
         varskeys = []
-        for nm, ann in self.__annotations__.items():
+        for nm, ann in get_annotations(self.__class__).items():
             if get_origin(ann) is Annotated:
                 args = get_args(ann)
                 if len(args) > 1 and 'U' in args[1]:
@@ -276,7 +277,7 @@ class AlchemicBase(DeclarativeBase, Fieldable, JSONAble):
 
     def toJSON(self, **kwargs) -> dict:
         varskeys = []
-        for nm, ann in self.__annotations__.items():
+        for nm, ann in get_annotations(self.__class__).items():
             if get_origin(ann) is Annotated:
                 args = get_args(ann)
                 if len(args) > 1 and 'J' in args[1]:

@@ -271,7 +271,9 @@ def main():
         logging.basicConfig(level=logging.DEBUG)
     logging.config.dictConfig(LOGGING)
     app.p.args = args
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    # Lo assegni a questo thread
+    asyncio.set_event_loop(loop)
     loop.set_exception_handler(handle_loop_exceptions)
     app.p.loop = loop
     _LOGGER.info(f"Starting server main loop is {loop}, args is {args}")

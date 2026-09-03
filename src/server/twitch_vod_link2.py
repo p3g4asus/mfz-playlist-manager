@@ -91,5 +91,7 @@ if __name__ == "__main__":
     import asyncio
 
     os.environ['SSL_CERT_FILE'] = certifi.where()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    # Lo assegni a questo thread
+    asyncio.set_event_loop(loop)
     loop.run_until_complete(get_vod_link(1762458143))

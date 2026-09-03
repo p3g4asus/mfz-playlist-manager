@@ -55,7 +55,7 @@ class DashPlayer {
                             this.can_play_timer = null;
                             if (this.play_done == 2)
                                 this.on_state_changed(this, this.state = VIDEO_STATUS_CANNOT_PLAY);
-                        }).bind(this), 3000);
+                        }).bind(this), 10000);
                     }
                 } else if (event.type == 'playbackPlaying') {
                     this.state = VIDEO_STATUS_PLAYING;
@@ -100,11 +100,15 @@ class DashPlayer {
             let a = conf._drm_a;
             let t = conf._drm_t;
             url = conf._drm_m;
-            const lurl = location.origin + MAIN_PATH + 'proxy?p=' + encodeURIComponent(p) + '&a=' + encodeURIComponent(a) + '&t=' + encodeURIComponent(t);
-            console.log(lurl + ' ' +lurl.length);
+            const lnkS = 'https://widevine.entitlement.theplatform.eu/wv/web/ModularDrm/getRawWidevineLicense?releasePid='+p+'&account=http%3A%2F%2Faccess.auth.theplatform.com%2Fdata%2FAccount%2F'+a+'&schema=1.0'
+            console.log('[dash] drm url = ' + url + ' lnkS = ' + lnkS + ' t = ' + t);
             protData = {
                 'com.widevine.alpha': {
-                    'serverURL': lurl
+                    'serverURL': lnkS,
+                    "httpRequestHeaders": {
+                        "authorization": t
+                    },
+                    priority: 0
                 }
             };
         }
