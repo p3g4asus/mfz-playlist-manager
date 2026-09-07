@@ -73,7 +73,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
         NameDurationTMessage.__init__(self, navigation, myid, user, params)
 
     def slash_message_processed(self, text: str) -> bool:
-        return NameDurationTMessage.slash_message_processed(self, text) or (self.status == NameDurationStatus.UPDATING_WAITING and text == '/autodetect')
+        return NameDurationTMessage.slash_message_processed(self, text) or (self.status == NameDurationStatus.UPDATING_WAITING and (text == '/autodetect_headless' or text == '/autodetect_headed'))
 
     async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> Coroutine[Any, Any, None]:
         if self.status == NameDurationStatus.SORTING:
@@ -83,7 +83,9 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
                 await self.switch_to_idle()
         elif self.status == NameDurationStatus.UPDATING_WAITING:
             text = text.strip()
-            if text == '/autodetect':
+            if text == '/autodetect_headed':
+                text = '1'
+            elif text == '/autodetect_headless':
                 text = '0'
             if len(text) == 1 or ((re.match(r'^https://link', text) or text.find('|https://link') != -1) and text.find('format=SMIL') != -1):
                 await self.get_keys(text)
@@ -323,7 +325,7 @@ class PlaylistItemTMessage(NameDurationTMessage, ChangeTimeTMessage, SetRateTMes
                 await SetRateTMessage.update(self, context)
             elif self.status == NameDurationStatus.UPDATING_WAITING:
                 self.add_button(':cross_mark: Abort', self.switch_to_idle)
-                return 'Enter network filter ' + ("<a href=\"" + self.obj.conf["pageurl"] + "\">here</a> " if "pageurl" in self.obj.conf else "") + '<u>SMIL</u> or /autodetect'
+                return 'Enter network filter ' + ("<a href=\"" + self.obj.conf["pageurl"] + "\">here</a> " if "pageurl" in self.obj.conf else "") + '<u>SMIL</u> or /autodetect_headless or  /autodetect_headed'
             elif self.status == NameDurationStatus.UPDATING_RUNNING:
                 return f'Getting keys {"." * (self.sub_status & 0xFF)}'
             elif self.status == NameDurationStatus.MOVING:

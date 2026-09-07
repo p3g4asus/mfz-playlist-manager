@@ -1,8 +1,10 @@
 from asyncio import Event, get_event_loop, run_coroutine_threadsafe, sleep, wait_for, TimeoutError
 import contextlib
 from functools import partial
+from os.path import join
 import json
 import logging
+import os
 import re
 import time
 import traceback
@@ -148,11 +150,12 @@ if (login_needed == 5000) {
 } else callback(0);
 """
 
-    def __init__(self, db: AlchemicDB, d1=4, d2=4, d3=65, drmurl='http://127.0.0.1:1337/api/decrypt', getsmil='selenium', **kwargs):
+    def __init__(self, db: AlchemicDB, d1=4, d2=4, d3=65, drmurl='http://127.0.0.1:1337/api/decrypt', getsmil='selenium', profiledir='/tmp/chrome-profile', **kwargs):
         self.d1 = d1
         self.d2 = d2
         self.d3 = d3
         self.drmurl = drmurl
+        self.profiledir = profiledir
         self.getsmil = self.processGetSMILSelenium if getsmil == 'selenium' else self.processGetSMILPlaywright
         super().__init__(db, **kwargs)
 
@@ -171,7 +174,7 @@ if (login_needed == 5000) {
 
     @staticmethod
     def listingsUrl(startmillis: int, cs: str, startFrom: int):
-        return f'https://api-ott-prod-fe.mediaset.net/PROD/play/feed/allListingFeedEpg/v2.0?byListingTime={startmillis}~{startmillis + 86400000-60000}&byCallSign={cs}&startIndex={startFrom}'
+        return f'https://api-ott-prod-fe.mediaset.net/PROD/play/feed/allListingFeedEpg/v2.0?byListingTime={startmillis}~{startmillis + 86400000 - 60000}&byCallSign={cs}&startIndex={startFrom}'
 
     def interested_plus(self, msg):
         return msg.c(CMD_MEDIASET_BRANDS) or msg.c(CMD_MEDIASET_LISTINGS) or msg.c(CMD_MEDIASET_KEYS)
@@ -284,19 +287,31 @@ if (login_needed == 5000) {
         playwright: Playwright = playwright
         intercepted = EventUrl()
         exit_value = 0
+        profile_dir = join(self.profiledir, f'u{userid}')
+        is_headless = not kwargs.get('headed')
 
         async def handle(route, *_, **kwargs):
             await route.continue_()
             _LOGGER.debug(f"Intercepted: url={route.request.url}, headers={route.request.headers}")
             if 'intercepted' in kwargs:
                 kwargs['intercepted'].set(route.request.url, headers=route.request.headers)
-
-        browser = await playwright.chromium.launch(
-            headless=False,
-            ignore_default_args=["--headless"],
-            args=["--headless=new"],
+        custom_env = os.environ.copy()
+        custom_args = [
+            "--disable-crash-reporter",
+            "--no-crashpad"
+        ]
+        if is_headless:
+            custom_args.append("--headless=new")
+        # Diciamo a Chrome di salvare la sua cache e config in /tmp
+        custom_env["XDG_CONFIG_HOME"] = "/tmp/.chromium"
+        custom_env["XDG_CACHE_HOME"] = "/tmp/.chromium"
+        context = await playwright.chromium.launch_persistent_context(
+            user_data_dir=profile_dir,
+            headless=is_headless,
+            env=custom_env,
+            args=custom_args
         )
-        context = await browser.new_context(**playwright.devices['Pixel 7'])
+        # context = await browser.new_context(**playwright.devices['Pixel 7'])
 
         # Open a new browser page.
         for _ in range(3):
@@ -307,7 +322,7 @@ if (login_needed == 5000) {
             except TimeoutError as ex0:
                 _LOGGER.debug(f"[mediaset-get-smil] Timeout! 0({exit_value}) -> {ex0}")
         if not page:
-            await browser.close()
+            await context.close()
             return {'url': url, 'title': None, 'smilurl': None, 'exit_value': exit_value}
         await context.route(re.compile(r"format=SMIL"), partial(handle, intercepted=intercepted))
 
@@ -366,7 +381,7 @@ if (login_needed == 5000) {
         title = await page.title()
 
         # Close the browser.
-        await browser.close()
+        await context.close()
 
         # Return the page's URL and title as a dictionary.
         return {'url': url, 'title': title, 'smilurl': smilurl, 'exit_value': exit_value}
@@ -392,9 +407,10 @@ if (login_needed == 5000) {
                 if pls[0].useri != userid:
                     return msg.err(501, MSG_UNAUTHORIZED, playlist=None)
                 try:
+                    headed = msg.smil == '1'
                     msg.smil = None if len(msg.smil) < 10 else msg.smil
                     if not msg.smil and it.conf and 'pageurl' in it.conf:
-                        rv = await self.getsmil(it.conf['pageurl'], userid, executor, **kwargs)
+                        rv = await self.getsmil(it.conf['pageurl'], userid, executor, headed=headed, **kwargs)
                         if isinstance(rv, int):
                             return msg.err(rv, MSG_BACKEND_ERROR)
                         else:
