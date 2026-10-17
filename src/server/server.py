@@ -24,6 +24,7 @@ from server.dict_auth_policy import DictAuthorizationPolicy
 from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
+from server.memory_monitor import MemoryMonitor
 from server.telegram.main import start_telegram_bot, stop_telegram_bot
 from server.webhandlers import (auth_for_item, download, img_link, index, login, login_g, logout,
                                 modify_pw, playlist_m3u, pls_h_2, post_proxy,
@@ -265,6 +266,13 @@ def main():
     parser.add_argument('--localfolder-basedir', required=False, default=None)
     parser.add_argument('--host', required=False, default="0.0.0.0")
     parser.add_argument('--dbfile', required=False, help='DB file path', default=join(dirname(__file__), '..', 'maindb.db'))
+    parser.add_argument('--memory-log', required=False,
+                        default=join(dirname(__file__), '..', '..', 'logs', 'memory-usage.csv'),
+                        help='CSV file for periodic process memory samples')
+    parser.add_argument('--memory-interval', type=int, default=300,
+                        help='seconds between memory samples (minimum 10)')
+    parser.add_argument('--memory-tracemalloc', action='store_true',
+                        help='also track Python allocations with tracemalloc')
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
                         action="store_true")
     args = vars(parser.parse_args())
@@ -283,6 +291,7 @@ def main():
             f.write(str(os.getpid()))
     try:
         loop2 = None
+        memory_task = None
         loop.run_until_complete(init_db(app))
         loop.run_until_complete(start_app(app))
         if app.p.args['telegram']:
@@ -295,6 +304,8 @@ def main():
             stop_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGABRT)
             for sig in stop_signals:
                 loop.add_signal_handler(sig, raise_system_exit)
+        monitor = MemoryMonitor(args['memory_log'], args['memory_interval'], args['memory_tracemalloc'])
+        memory_task = loop.create_task(monitor.run(loop))
         loop.run_forever()
     except (KeyboardInterrupt, SystemExit):
         pass
@@ -302,6 +313,9 @@ def main():
         try:
             # loop.run_forever()
             _LOGGER.debug("I am in finally branch")
+            if memory_task:
+                memory_task.cancel()
+                loop.run_until_complete(asyncio.gather(memory_task, return_exceptions=True))
             loop.run_until_complete(asyncio_graceful_shutdown(loop, _LOGGER, False))
             if loop2 and app.p.args['telegram']:
                 loop2.create_task(stop_telegram_bot())
