@@ -271,6 +271,8 @@ def main():
                         help='CSV file for periodic process memory samples')
     parser.add_argument('--memory-interval', type=int, default=300,
                         help='seconds between memory samples (minimum 10)')
+    parser.add_argument('--memory-monitor', action='store_true',
+                        help='enable periodic memory sampling to CSV')
     parser.add_argument('--memory-tracemalloc', action='store_true',
                         help='also track Python allocations with tracemalloc')
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
@@ -304,8 +306,9 @@ def main():
             stop_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGABRT)
             for sig in stop_signals:
                 loop.add_signal_handler(sig, raise_system_exit)
-        monitor = MemoryMonitor(args['memory_log'], args['memory_interval'], args['memory_tracemalloc'])
-        memory_task = loop.create_task(monitor.run(loop))
+        if args['memory_monitor']:
+            monitor = MemoryMonitor(args['memory_log'], args['memory_interval'], args['memory_tracemalloc'])
+            memory_task = loop.create_task(monitor.run(loop))
         loop.run_forever()
     except (KeyboardInterrupt, SystemExit):
         pass

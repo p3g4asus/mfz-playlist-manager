@@ -9,6 +9,12 @@ memoria virtuale/privata del processo, task asyncio, thread e dimensioni della
 cache Telegram (utenti, playlist ed elementi). I campioni vengono aggiunti al
 file a ogni intervallo.
 
+Il monitor è disattivato per impostazione predefinita. Per abilitarlo con
+`server.sh`, imposta `memory_monitor=true` nel file locale `server.conf`; il
+percorso, l'intervallo in secondi e il tracciamento Python si configurano
+rispettivamente con `memory_log`, `memory_interval` e `memory_tracemalloc`
+(`true` o `false`). Da riga di comando si abilita con `--memory-monitor`.
+
 Per cambiare frequenza o percorso del file:
 
 ```sh
