@@ -539,9 +539,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                                     self.record_status(sta, f'\U0001F50D Found {video.get("title")} [{video.get("upload_date")}]', 'ss')
                                                     # datepubi = int(datepubo.timestamp() * 1000)
                                                     datepubi_conf = int(datepubo_conf.timestamp() * 1000)
-                                                    if video['id'] not in programs and self.video_is_not_filtered_out(video, filters):
-                                                        if datepubi_conf >= datefrom:
-                                                            if datepubi_conf <= dateto or dateto < datefrom:
+                                                    if datepubi_conf >= datefrom:
+                                                        if datepubi_conf <= dateto or dateto < datefrom:
+                                                            if video['id'] not in programs and self.video_is_not_filtered_out(video, filters):
                                                                 datepub = datepubo.strftime('%Y-%m-%d %H:%M:%S.%f')
                                                                 extr = video.get('extractor')
                                                                 if not extr:
@@ -568,9 +568,9 @@ class MessageProcessor(RefreshMessageProcessor):
                                                                 programs[video['id']] = pr
                                                                 _LOGGER.debug("Added [%s] = %s" % (pr.uid, str(pr)))
                                                                 self.record_status(sta, f'\U00002795 Added {video.get("title")} [{datepub}]', 'ss')
-                                                        elif ordered:
-                                                            startFrom = 0
-                                                            break
+                                                    elif ordered:
+                                                        startFrom = 0
+                                                        break
                                                 except Exception as ex:
                                                     self.record_status(sta, f'\U000026A0 Error 0: {repr(ex)}', 'ss')
                                                     _LOGGER.error(f'YTDLPM0 {traceback.format_exc()}')
