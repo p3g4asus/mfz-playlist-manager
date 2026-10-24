@@ -5,6 +5,7 @@ import logging.config
 import os
 import platform
 import signal
+import time
 import traceback
 from datetime import datetime, timedelta
 from functools import partial
@@ -25,6 +26,7 @@ from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
 from server.memory_monitor import MemoryMonitor
+from server.refresh_diagnostics import RefreshDiagnostics
 from server.telegram.main import start_telegram_bot, stop_telegram_bot
 from server.webhandlers import (auth_for_item, download, img_link, index, login, login_g, logout,
                                 modify_pw, playlist_m3u, pls_h_2, post_proxy,
@@ -133,10 +135,29 @@ async def run_at(dt, coro):
 
 
 async def do_auto_refresh(app):
-    for k, p in app.p.processors.items():
-        _LOGGER.debug(f'Checking {k}')
-        if isinstance(p, RefreshMessageProcessor):
-            await p.processAutoRefresh(app.p.executor)
+    diagnostics = app.p.refresh_diagnostics
+    run_started = time.monotonic()
+    run_id = diagnostics.start_run() if diagnostics else None
+    outcome = 'ok'
+    try:
+        for k, p in app.p.processors.items():
+            _LOGGER.debug(f'Checking {k}')
+            if isinstance(p, RefreshMessageProcessor):
+                token = diagnostics.start_processor(run_id, k) if diagnostics else None
+                processor_outcome = 'error'
+                try:
+                    await p.processAutoRefresh(app.p.executor, diagnostics=diagnostics,
+                                               run_id=run_id, processor_key=k)
+                    processor_outcome = 'ok'
+                finally:
+                    if diagnostics:
+                        diagnostics.end_processor(run_id, k, token, processor_outcome)
+    except Exception as exc:
+        outcome = f'error_{type(exc).__name__}'
+        raise
+    finally:
+        if diagnostics:
+            diagnostics.end_run(run_id, run_started, outcome)
 
 
 async def start_app(app):
@@ -275,6 +296,13 @@ def main():
                         help='enable periodic memory sampling to CSV')
     parser.add_argument('--memory-tracemalloc', action='store_true',
                         help='also track Python allocations with tracemalloc')
+    parser.add_argument('--refresh-diagnostics', action='store_true',
+                        help='write detailed scheduled playlist refresh metrics to CSV')
+    parser.add_argument('--refresh-diagnostics-log', required=False,
+                        default=join(dirname(__file__), '..', '..', 'logs', 'refresh-diagnostics.csv'),
+                        help='CSV file for scheduled refresh diagnostics')
+    parser.add_argument('--refresh-tracemalloc-snapshot', action='store_true',
+                        help='compare allocation snapshots before and after each scheduled refresh')
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
                         action="store_true")
     args = vars(parser.parse_args())
@@ -294,6 +322,7 @@ def main():
     try:
         loop2 = None
         memory_task = None
+        app.p.refresh_diagnostics = None
         loop.run_until_complete(init_db(app))
         loop.run_until_complete(start_app(app))
         if app.p.args['telegram']:
@@ -309,6 +338,9 @@ def main():
         if args['memory_monitor']:
             monitor = MemoryMonitor(args['memory_log'], args['memory_interval'], args['memory_tracemalloc'])
             memory_task = loop.create_task(monitor.run(loop))
+        if args['refresh_diagnostics']:
+            app.p.refresh_diagnostics = RefreshDiagnostics(args['refresh_diagnostics_log'],
+                                                          args['refresh_tracemalloc_snapshot'])
         loop.run_forever()
     except (KeyboardInterrupt, SystemExit):
         pass
@@ -319,6 +351,8 @@ def main():
             if memory_task:
                 memory_task.cancel()
                 loop.run_until_complete(asyncio.gather(memory_task, return_exceptions=True))
+            if app.p.refresh_diagnostics:
+                app.p.refresh_diagnostics.close()
             loop.run_until_complete(asyncio_graceful_shutdown(loop, _LOGGER, False))
             if loop2 and app.p.args['telegram']:
                 loop2.create_task(stop_telegram_bot())

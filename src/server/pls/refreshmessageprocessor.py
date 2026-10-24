@@ -153,7 +153,8 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
             return msg.err(1, MSG_PLAYLIST_NOT_FOUND, playlist=None)
 
     @UsesAlchemicDB
-    async def processAutoRefresh(self, executor, **kwargs):
+    async def processAutoRefresh(self, executor, diagnostics=None, run_id=None,
+                                 processor_key=None, **kwargs):
         db = kwargs.get('db', self.db)
         db.sk('_err', None)
         pls = await Playlist.loadbyid(db, loaditems=LOAD_ITEMS_NO)
@@ -165,8 +166,17 @@ class RefreshMessageProcessor(AbstractMessageProcessor):
                                      dateto=None)
                 _LOGGER.debug(f"Msg {self.get_name()} = {pm}")
                 if self.interested(pm):
-                    outmsg = await self.processRefresh(pm, p.useri, executor, **kwargs)
-                    _LOGGER.debug(f"OutMsg {self.get_name()} = {outmsg}")
+                    token = diagnostics.start_playlist(run_id, processor_key or self.get_name(), p) if diagnostics else None
+                    outcome = 'error'
+                    try:
+                        outmsg = await self.processRefresh(pm, p.useri, executor, **kwargs)
+                        rv = getattr(outmsg, 'rv', None)
+                        outcome = 'ok' if rv in (None, 0) else f'rv_{rv}'
+                        _LOGGER.debug(f"OutMsg {self.get_name()} = {outmsg}")
+                    finally:
+                        if diagnostics:
+                            diagnostics.end_playlist(run_id, processor_key or self.get_name(), p,
+                                                     token, outcome)
                 else:
                     _LOGGER.debug("Ignored")
 

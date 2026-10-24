@@ -25,6 +25,9 @@ memory_interval=${memory_interval:-300}
 memory_log=${memory_log:-$PTH/logs/memory-usage.csv}
 memory_monitor=${memory_monitor:-false}
 memory_tracemalloc=${memory_tracemalloc:-false}
+refresh_diagnostics=${refresh_diagnostics:-false}
+refresh_diagnostics_log=${refresh_diagnostics_log:-$PTH/logs/refresh-diagnostics.csv}
+refresh_tracemalloc_snapshot=${refresh_tracemalloc_snapshot:-false}
 cd "$PTH/src"
 DT=`date "+%Y%m%d"`
 mkdir -p "$log_dir"
@@ -56,6 +59,12 @@ if [ "$memory_monitor" = true ]; then
     args+=(--memory-monitor --memory-interval "$memory_interval" --memory-log "$memory_log")
     if [ "$memory_tracemalloc" = true ]; then
         args+=(--memory-tracemalloc)
+    fi
+fi
+if [ "$refresh_diagnostics" = true ]; then
+    args+=(--refresh-diagnostics --refresh-diagnostics-log "$refresh_diagnostics_log")
+    if [ "$refresh_tracemalloc_snapshot" = true ]; then
+        args+=(--refresh-tracemalloc-snapshot)
     fi
 fi
 if [ "${async}" = true ]; then
