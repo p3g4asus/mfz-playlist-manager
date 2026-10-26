@@ -11,23 +11,28 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from server.memory_monitor import _cache_counts, _process_memory_bytes
+from server.memory_monitor import _cache_counts, _process_memory_bytes, allocation_diff_records
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class RefreshDiagnostics:
     FIELDS = (
-        "run_id", "timestamp", "event", "processor", "playlist_id", "user_id",
+        "run_id", "timestamp", "event", "processor", "playlist_id", "playlist_name", "user_id",
         "autoupdate", "elapsed_seconds", "outcome", "rss_bytes", "rss_delta_bytes",
         "virtual_bytes", "python_current_bytes", "python_delta_bytes", "asyncio_tasks",
         "task_delta", "asyncio_task_types", "threads", "cache_users", "cached_playlists", "cached_items",
-        "allocation_location", "allocation_size_diff_bytes", "allocation_count_diff",
+        "allocation_location", "allocation_traceback", "allocation_size_diff_bytes",
+        "allocation_count_diff",
     )
 
-    def __init__(self, path, allocation_snapshots=False):
+    def __init__(self, path, allocation_snapshots=False, playlist_snapshot_ids=""):
         self.path = Path(path)
         self.allocation_snapshots = allocation_snapshots
+        if isinstance(playlist_snapshot_ids, str):
+            playlist_snapshot_ids = playlist_snapshot_ids.split(",")
+        self.playlist_snapshot_ids = {int(str(pid).strip()) for pid in playlist_snapshot_ids
+                                      if str(pid).strip()}
         self._file = None
         self._writer = None
         self._snapshot_before = None
@@ -37,6 +42,15 @@ class RefreshDiagnostics:
         if self._file is None:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             is_new = not self.path.exists() or self.path.stat().st_size == 0
+            if not is_new:
+                with self.path.open("r", newline="", encoding="utf-8") as existing:
+                    old_fields = next(csv.reader(existing), [])
+                if old_fields != list(self.FIELDS):
+                    old_path = self.path
+                    self.path = self.path.with_name(f"{self.path.stem}-v2{self.path.suffix}")
+                    is_new = not self.path.exists() or self.path.stat().st_size == 0
+                    _LOGGER.warning("Refresh diagnostics schema changed; writing to %s instead of %s",
+                                    self.path, old_path)
             self._file = self.path.open("a", newline="", encoding="utf-8")
             self._writer = csv.DictWriter(self._file, fieldnames=self.FIELDS)
             if is_new:
@@ -83,6 +97,7 @@ class RefreshDiagnostics:
                 "event": event,
                 "processor": processor,
                 "playlist_id": getattr(playlist, "rowid", ""),
+                "playlist_name": getattr(playlist, "name", ""),
                 "user_id": getattr(playlist, "useri", ""),
                 "autoupdate": getattr(playlist, "autoupdate", ""),
                 "elapsed_seconds": round(time.monotonic() - started, 3) if started else "",
@@ -121,13 +136,13 @@ class RefreshDiagnostics:
         try:
             if self.allocation_snapshots and self._snapshot_before is not None:
                 after = tracemalloc.take_snapshot()
-                stats = after.compare_to(self._snapshot_before, "lineno")
-                for stat in stats[:20]:
+                records = allocation_diff_records(self._snapshot_before, after)
+                self._snapshot_before = None
+                del after
+                for record in records:
                     self._write(
                         run_id, "allocation_diff", outcome=outcome,
-                        allocation_location=str(stat.traceback[0]),
-                        allocation_size_diff_bytes=stat.size_diff,
-                        allocation_count_diff=stat.count_diff,
+                        **record,
                     )
         except Exception:
             _LOGGER.exception("Could not compare tracemalloc snapshots after refresh")
@@ -151,14 +166,49 @@ class RefreshDiagnostics:
 
     def start_playlist(self, run_id, processor, playlist):
         started = time.monotonic()
+        started_tracemalloc = False
+        before_snapshot = None
+        if getattr(playlist, "rowid", None) in self.playlist_snapshot_ids:
+            if not tracemalloc.is_tracing():
+                tracemalloc.start(10)
+                started_tracemalloc = True
+            try:
+                before_snapshot = tracemalloc.take_snapshot()
+            except Exception:
+                _LOGGER.exception("Could not take tracemalloc snapshot before playlist %s",
+                                  getattr(playlist, "rowid", None))
         before = self._sample()
         self._write(run_id, "playlist_start", processor=processor, playlist=playlist)
-        return started, before
+        return {
+            "started": started,
+            "before": before,
+            "snapshot": before_snapshot,
+            "started_tracemalloc": started_tracemalloc,
+        }
 
     def end_playlist(self, run_id, processor, playlist, token, outcome):
-        started, before = token
+        started = token["started"]
+        before = token["before"]
+        before_snapshot = token.pop("snapshot", None)
+        started_tracemalloc = token["started_tracemalloc"]
+        records = []
+        if before_snapshot is not None:
+            try:
+                after = tracemalloc.take_snapshot()
+                records = allocation_diff_records(before_snapshot, after)
+                del after
+            except Exception:
+                _LOGGER.exception("Could not compare tracemalloc snapshots for playlist %s",
+                                  getattr(playlist, "rowid", None))
+            finally:
+                del before_snapshot
         self._write(run_id, "playlist_end", processor=processor, playlist=playlist,
                     started=started, before=before, outcome=outcome)
+        for record in records:
+            self._write(run_id, "playlist_allocation_diff", processor=processor,
+                        playlist=playlist, outcome=outcome, **record)
+        if started_tracemalloc:
+            tracemalloc.stop()
 
     def close(self):
         if self._file:

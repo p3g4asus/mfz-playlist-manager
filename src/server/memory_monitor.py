@@ -6,11 +6,27 @@ import logging
 import os
 import sys
 import threading
+import time
+import traceback
 import tracemalloc
 from datetime import datetime
 from pathlib import Path
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def allocation_diff_records(before, after, limit=20):
+    """Format allocation deltas, retaining the full traceback for each site."""
+    stats = after.compare_to(before, "lineno")
+    return [
+        {
+            "allocation_location": str(stat.traceback[0]),
+            "allocation_traceback": "".join(traceback.format_list(stat.traceback)),
+            "allocation_size_diff_bytes": stat.size_diff,
+            "allocation_count_diff": stat.count_diff,
+        }
+        for stat in stats[:limit]
+    ]
 
 
 def _process_memory_bytes():
@@ -92,12 +108,26 @@ class MemoryMonitor:
               "python_peak_bytes", "asyncio_tasks", "threads", "cache_users",
               "cached_playlists", "cached_items")
 
-    def __init__(self, path, interval=300, trace_python=False):
+    SNAPSHOT_FIELDS = (
+        "period_start", "period_end", "period_seconds", "python_current_bytes",
+        "allocation_location", "allocation_traceback", "allocation_size_diff_bytes",
+        "allocation_count_diff",
+    )
+
+    def __init__(self, path, interval=300, trace_python=False,
+                 snapshot_interval=0, snapshot_path=None):
         self.path = Path(path)
         self.interval = max(10, interval)
-        self.trace_python = trace_python
+        self.snapshot_interval = max(0, snapshot_interval)
+        self.snapshot_path = Path(snapshot_path) if snapshot_path else self.path.with_name("memory-allocation-diffs.csv")
+        self.trace_python = trace_python or self.snapshot_interval > 0
         self._file = None
         self._writer = None
+        self._snapshot_file = None
+        self._snapshot_writer = None
+        self._snapshot = None
+        self._snapshot_time = None
+        self._snapshot_timestamp = None
 
     def _write_sample(self, loop):
         rss, virtual = _process_memory_bytes()
@@ -114,6 +144,36 @@ class MemoryMonitor:
         _LOGGER.info("Memory sample: RSS=%s virtual=%s Python=%s tasks=%d threads=%d cache=%s/%s/%s",
                      rss, virtual, py_current, sample[5], sample[6], users, playlists, items)
 
+    def _write_allocation_diffs_if_due(self):
+        if not self.snapshot_interval or self._snapshot is None:
+            return
+        now = time.monotonic()
+        if now - self._snapshot_time < self.snapshot_interval:
+            return
+        try:
+            after = tracemalloc.take_snapshot()
+            records = allocation_diff_records(self._snapshot, after)
+            period_end = datetime.now().astimezone().isoformat(timespec="seconds")
+            period_seconds = round(now - self._snapshot_time, 1)
+            old_snapshot = self._snapshot
+            self._snapshot = after
+            self._snapshot_time = now
+            self._snapshot_timestamp = period_end
+            del old_snapshot
+            current_bytes = tracemalloc.get_traced_memory()[0]
+            for record in records:
+                self._snapshot_writer.writerow({
+                    "period_start": self._previous_snapshot_timestamp,
+                    "period_end": period_end,
+                    "period_seconds": period_seconds,
+                    "python_current_bytes": current_bytes,
+                    **record,
+                })
+            self._snapshot_file.flush()
+            self._previous_snapshot_timestamp = period_end
+        except Exception:
+            _LOGGER.exception("Periodic tracemalloc snapshot comparison failed")
+
     async def run(self, loop):
         if self.trace_python and not tracemalloc.is_tracing():
             tracemalloc.start()
@@ -123,15 +183,31 @@ class MemoryMonitor:
         if self._file.tell() == 0:
             self._writer.writerow(self.FIELDS)
             self._file.flush()
-        _LOGGER.info("Memory monitoring enabled: CSV=%s interval=%ss tracemalloc=%s",
-                     self.path.resolve(), self.interval, self.trace_python)
+        if self.snapshot_interval:
+            self.snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+            self._snapshot_file = self.snapshot_path.open("a", newline="", encoding="utf-8")
+            self._snapshot_writer = csv.DictWriter(self._snapshot_file,
+                                                  fieldnames=self.SNAPSHOT_FIELDS)
+            if self._snapshot_file.tell() == 0:
+                self._snapshot_writer.writeheader()
+                self._snapshot_file.flush()
+            self._snapshot = tracemalloc.take_snapshot()
+            self._snapshot_time = time.monotonic()
+            self._snapshot_timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
+            self._previous_snapshot_timestamp = self._snapshot_timestamp
+        _LOGGER.info("Memory monitoring enabled: CSV=%s interval=%ss tracemalloc=%s snapshot_interval=%ss",
+                     self.path.resolve(), self.interval, self.trace_python, self.snapshot_interval)
         try:
             while True:
                 try:
                     self._write_sample(loop)
+                    self._write_allocation_diffs_if_due()
                 except Exception:
                     _LOGGER.exception("Memory monitoring sample failed")
                 await asyncio.sleep(self.interval)
         finally:
             self._file.close()
+            self._snapshot = None
+            if self._snapshot_file:
+                self._snapshot_file.close()
 

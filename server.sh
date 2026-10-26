@@ -25,9 +25,12 @@ memory_interval=${memory_interval:-300}
 memory_log=${memory_log:-$PTH/logs/memory-usage.csv}
 memory_monitor=${memory_monitor:-false}
 memory_tracemalloc=${memory_tracemalloc:-false}
+memory_snapshot_interval=${memory_snapshot_interval:-0}
+memory_snapshot_log=${memory_snapshot_log:-$PTH/logs/memory-allocation-diffs.csv}
 refresh_diagnostics=${refresh_diagnostics:-false}
-refresh_diagnostics_log=${refresh_diagnostics_log:-$PTH/logs/refresh-diagnostics.csv}
+refresh_diagnostics_log=${refresh_diagnostics_log:-$PTH/logs/refresh-diagnostics-detailed.csv}
 refresh_tracemalloc_snapshot=${refresh_tracemalloc_snapshot:-false}
+refresh_snapshot_playlist_ids=${refresh_snapshot_playlist_ids:-}
 cd "$PTH/src"
 DT=`date "+%Y%m%d"`
 mkdir -p "$log_dir"
@@ -55,16 +58,22 @@ args=(
     --redirect-files
     -v
 )
-if [ "$memory_monitor" = true ]; then
+if [ "$memory_monitor" = true ] || [ "$memory_snapshot_interval" -gt 0 ]; then
     args+=(--memory-monitor --memory-interval "$memory_interval" --memory-log "$memory_log")
     if [ "$memory_tracemalloc" = true ]; then
         args+=(--memory-tracemalloc)
+    fi
+    if [ "$memory_snapshot_interval" -gt 0 ]; then
+        args+=(--memory-snapshot-interval "$memory_snapshot_interval" --memory-snapshot-log "$memory_snapshot_log")
     fi
 fi
 if [ "$refresh_diagnostics" = true ]; then
     args+=(--refresh-diagnostics --refresh-diagnostics-log "$refresh_diagnostics_log")
     if [ "$refresh_tracemalloc_snapshot" = true ]; then
         args+=(--refresh-tracemalloc-snapshot)
+    fi
+    if [ -n "$refresh_snapshot_playlist_ids" ]; then
+        args+=(--refresh-snapshot-playlist-ids "$refresh_snapshot_playlist_ids")
     fi
 fi
 if [ "${async}" = true ]; then

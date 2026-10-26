@@ -296,13 +296,20 @@ def main():
                         help='enable periodic memory sampling to CSV')
     parser.add_argument('--memory-tracemalloc', action='store_true',
                         help='also track Python allocations with tracemalloc')
+    parser.add_argument('--memory-snapshot-interval', type=int, default=0,
+                        help='seconds between allocation snapshot comparisons (0 disables them)')
+    parser.add_argument('--memory-snapshot-log', required=False,
+                        default=join(dirname(__file__), '..', '..', 'logs', 'memory-allocation-diffs.csv'),
+                        help='CSV file for periodic allocation snapshot differences')
     parser.add_argument('--refresh-diagnostics', action='store_true',
                         help='write detailed scheduled playlist refresh metrics to CSV')
     parser.add_argument('--refresh-diagnostics-log', required=False,
-                        default=join(dirname(__file__), '..', '..', 'logs', 'refresh-diagnostics.csv'),
+                        default=join(dirname(__file__), '..', '..', 'logs', 'refresh-diagnostics-detailed.csv'),
                         help='CSV file for scheduled refresh diagnostics')
     parser.add_argument('--refresh-tracemalloc-snapshot', action='store_true',
                         help='compare allocation snapshots before and after each scheduled refresh')
+    parser.add_argument('--refresh-snapshot-playlist-ids', default='',
+                        help='comma-separated playlist IDs to snapshot before and after refresh')
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
                         action="store_true")
     args = vars(parser.parse_args())
@@ -335,12 +342,14 @@ def main():
             stop_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGABRT)
             for sig in stop_signals:
                 loop.add_signal_handler(sig, raise_system_exit)
-        if args['memory_monitor']:
-            monitor = MemoryMonitor(args['memory_log'], args['memory_interval'], args['memory_tracemalloc'])
+        if args['memory_monitor'] or args['memory_snapshot_interval'] > 0:
+            monitor = MemoryMonitor(args['memory_log'], args['memory_interval'], args['memory_tracemalloc'],
+                                    args['memory_snapshot_interval'], args['memory_snapshot_log'])
             memory_task = loop.create_task(monitor.run(loop))
         if args['refresh_diagnostics']:
             app.p.refresh_diagnostics = RefreshDiagnostics(args['refresh_diagnostics_log'],
-                                                          args['refresh_tracemalloc_snapshot'])
+                                                          args['refresh_tracemalloc_snapshot'],
+                                                          args['refresh_snapshot_playlist_ids'])
         loop.run_forever()
     except (KeyboardInterrupt, SystemExit):
         pass
