@@ -7,7 +7,6 @@ import os
 import sys
 import threading
 import time
-import traceback
 import tracemalloc
 from datetime import datetime
 from pathlib import Path
@@ -16,12 +15,17 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def allocation_diff_records(before, after, limit=20):
-    """Format allocation deltas, retaining the full traceback for each site."""
+    """Format allocation deltas, retaining each tracemalloc frame for each site."""
     stats = after.compare_to(before, "lineno")
     return [
         {
             "allocation_location": str(stat.traceback[0]),
-            "allocation_traceback": "".join(traceback.format_list(stat.traceback)),
+            # tracemalloc.Frame is not a traceback.FrameSummary, so
+            # traceback.format_list() cannot format it directly.
+            "allocation_traceback": "".join(
+                f'  File "{frame.filename}", line {frame.lineno}\n'
+                for frame in stat.traceback
+            ),
             "allocation_size_diff_bytes": stat.size_diff,
             "allocation_count_diff": stat.count_diff,
         }
