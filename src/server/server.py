@@ -27,6 +27,7 @@ from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
 from server.memory_monitor import MemoryMonitor
 from server.refresh_diagnostics import RefreshDiagnostics
+from server.task_diagnostics import TaskDiagnostics
 from server.telegram.main import start_telegram_bot, stop_telegram_bot
 from server.webhandlers import (auth_for_item, download, img_link, index, login, login_g, logout,
                                 modify_pw, playlist_m3u, pls_h_2, post_proxy,
@@ -296,6 +297,8 @@ def main():
                         help='enable periodic memory sampling to CSV')
     parser.add_argument('--memory-tracemalloc', action='store_true',
                         help='also track Python allocations with tracemalloc')
+    parser.add_argument('--memory-tracemalloc-frames', type=int, default=1,
+                        help='maximum traceback frames stored per allocation (1-25)')
     parser.add_argument('--memory-snapshot-interval', type=int, default=0,
                         help='seconds between allocation snapshot comparisons (0 disables them)')
     parser.add_argument('--memory-snapshot-log', required=False,
@@ -310,6 +313,16 @@ def main():
                         help='compare allocation snapshots before and after each scheduled refresh')
     parser.add_argument('--refresh-snapshot-playlist-ids', default='',
                         help='comma-separated playlist IDs to snapshot before and after refresh')
+    parser.add_argument('--task-diagnostics', action='store_true',
+                        help='periodically record asyncio task stacks and WebSocket lifetimes')
+    parser.add_argument('--task-diagnostics-interval', type=int, default=300,
+                        help='seconds between asyncio task censuses (minimum 30)')
+    parser.add_argument('--task-diagnostics-log', required=False,
+                        default=join(dirname(__file__), '..', '..', 'logs', 'asyncio-task-census.csv'),
+                        help='CSV file for periodic asyncio task censuses')
+    parser.add_argument('--websocket-diagnostics-log', required=False,
+                        default=join(dirname(__file__), '..', '..', 'logs', 'websocket-connections.csv'),
+                        help='CSV file for WebSocket open and close events')
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
                         action="store_true")
     args = vars(parser.parse_args())
@@ -329,7 +342,9 @@ def main():
     try:
         loop2 = None
         memory_task = None
+        task_diagnostics_task = None
         app.p.refresh_diagnostics = None
+        app.p.task_diagnostics = None
         loop.run_until_complete(init_db(app))
         loop.run_until_complete(start_app(app))
         if app.p.args['telegram']:
@@ -344,8 +359,14 @@ def main():
                 loop.add_signal_handler(sig, raise_system_exit)
         if args['memory_monitor'] or args['memory_snapshot_interval'] > 0:
             monitor = MemoryMonitor(args['memory_log'], args['memory_interval'], args['memory_tracemalloc'],
-                                    args['memory_snapshot_interval'], args['memory_snapshot_log'])
+                                    args['memory_snapshot_interval'], args['memory_snapshot_log'],
+                                    args['memory_tracemalloc_frames'])
             memory_task = loop.create_task(monitor.run(loop))
+        if args['task_diagnostics']:
+            app.p.task_diagnostics = TaskDiagnostics(
+                args['task_diagnostics_log'], args['websocket_diagnostics_log'],
+                args['task_diagnostics_interval'])
+            task_diagnostics_task = loop.create_task(app.p.task_diagnostics.run(loop))
         if args['refresh_diagnostics']:
             app.p.refresh_diagnostics = RefreshDiagnostics(args['refresh_diagnostics_log'],
                                                           args['refresh_tracemalloc_snapshot'],
@@ -360,6 +381,9 @@ def main():
             if memory_task:
                 memory_task.cancel()
                 loop.run_until_complete(asyncio.gather(memory_task, return_exceptions=True))
+            if task_diagnostics_task:
+                task_diagnostics_task.cancel()
+                loop.run_until_complete(asyncio.gather(task_diagnostics_task, return_exceptions=True))
             if app.p.refresh_diagnostics:
                 app.p.refresh_diagnostics.close()
             loop.run_until_complete(asyncio_graceful_shutdown(loop, _LOGGER, False))

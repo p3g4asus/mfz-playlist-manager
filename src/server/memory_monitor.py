@@ -119,12 +119,13 @@ class MemoryMonitor:
     )
 
     def __init__(self, path, interval=300, trace_python=False,
-                 snapshot_interval=0, snapshot_path=None):
+                 snapshot_interval=0, snapshot_path=None, traceback_frames=1):
         self.path = Path(path)
         self.interval = max(10, interval)
         self.snapshot_interval = max(0, snapshot_interval)
         self.snapshot_path = Path(snapshot_path) if snapshot_path else self.path.with_name("memory-allocation-diffs.csv")
         self.trace_python = trace_python or self.snapshot_interval > 0
+        self.traceback_frames = max(1, min(25, traceback_frames))
         self._file = None
         self._writer = None
         self._snapshot_file = None
@@ -180,7 +181,7 @@ class MemoryMonitor:
 
     async def run(self, loop):
         if self.trace_python and not tracemalloc.is_tracing():
-            tracemalloc.start()
+            tracemalloc.start(self.traceback_frames)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._file = self.path.open("a", newline="", encoding="utf-8")
         self._writer = csv.writer(self._file)

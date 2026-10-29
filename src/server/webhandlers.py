@@ -1,4 +1,5 @@
 from asyncio import TimerHandle, create_task, get_running_loop
+from contextlib import asynccontextmanager
 from datetime import datetime
 import hashlib
 import json
@@ -1144,30 +1145,54 @@ async def remote_command(request):
         return web.HTTPUnauthorized(body='Invalid hex link')
 
 
+@asynccontextmanager
+async def _tracked_websocket(request, ws, kind):
+    await ws.prepare(request)
+    diagnostics = getattr(request.app.p, 'task_diagnostics', None)
+    connection_id = None
+    if diagnostics:
+        try:
+            connection_id = diagnostics.websocket_opened(request, kind)
+        except Exception:
+            _LOGGER.exception('Could not record WebSocket open event')
+    caught_exception = None
+    try:
+        yield
+    except BaseException as exc:
+        caught_exception = exc
+        raise
+    finally:
+        if diagnostics and connection_id:
+            try:
+                diagnostics.websocket_closed(connection_id, kind, ws, caught_exception)
+            except Exception:
+                _LOGGER.exception('Could not record WebSocket close event')
+
+
 async def pls_h_2(request):
     if 'hex' in request.match_info and (phex := request.match_info['hex']):
         ws = web.WebSocketResponse(autoping=True, heartbeat=None, timeout=45, autoclose=False)
-        await ws.prepare(request)
-        async for msg in ws:
-            if msg.type == WSMsgType.TEXT:
-                try:
-                    pl = PlaylistMessage(None, msg.json())
-                    player_hex = phex[1:]
-                    rv = None
-                    if pl.c(CMD_REMOTEPLAY) and pl.f(CMD_REMOTEPLAY_ID):
-                        rv = await RemoteItem.on_js_remoteplay_cmd_done(player_hex, ws, None, pl)
-                    elif pl.c(CMD_REMOTEPLAY):
-                        rv = await RemoteItem.on_js_remoteplay_cmd(player_hex, ws, None, pl)
-                    elif pl.c(CMD_REMOTEPLAY_PING):
-                        rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, None, pl)
-                    elif pl.c(CMD_REMOTEPLAY_PUSH):
-                        rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, None, pl)
-                    elif pl.c(CMD_REMOTEPLAY_PUSH_NOTIFY):
-                        rv = await RemoteItem.on_js_remoteplay_push_notify(player_hex, ws, pl)
-                    if rv is not None:
-                        await ws.send_str(json.dumps(rv, cls=MyEncoder))
-                except Exception:
-                    _LOGGER.warning(f'Cannot parse msg [{msg.data}]: {traceback.format_exc()}')
+        async with _tracked_websocket(request, ws, 'remote'):
+            async for msg in ws:
+                if msg.type == WSMsgType.TEXT:
+                    try:
+                        pl = PlaylistMessage(None, msg.json())
+                        player_hex = phex[1:]
+                        rv = None
+                        if pl.c(CMD_REMOTEPLAY) and pl.f(CMD_REMOTEPLAY_ID):
+                            rv = await RemoteItem.on_js_remoteplay_cmd_done(player_hex, ws, None, pl)
+                        elif pl.c(CMD_REMOTEPLAY):
+                            rv = await RemoteItem.on_js_remoteplay_cmd(player_hex, ws, None, pl)
+                        elif pl.c(CMD_REMOTEPLAY_PING):
+                            rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, None, pl)
+                        elif pl.c(CMD_REMOTEPLAY_PUSH):
+                            rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, None, pl)
+                        elif pl.c(CMD_REMOTEPLAY_PUSH_NOTIFY):
+                            rv = await RemoteItem.on_js_remoteplay_push_notify(player_hex, ws, pl)
+                        if rv is not None:
+                            await ws.send_str(json.dumps(rv, cls=MyEncoder))
+                    except Exception:
+                        _LOGGER.warning(f'Cannot parse msg [{msg.data}]: {traceback.format_exc()}')
         return ws
     else:
         return await pls_h(request)
@@ -1180,43 +1205,43 @@ async def pls_h(request):
     else:
         userid = auid
     ws = web.WebSocketResponse(autoping=True, heartbeat=None, timeout=45, autoclose=False)
-    await ws.prepare(request)
-    async for msg in ws:
-        if msg.type == WSMsgType.TEXT:
-            pl = PlaylistMessage(None, msg.json())
-            rv = None
-            _LOGGER.info("Message " + str(pl))
-            if not userid:
-                _LOGGER.info("Unauthorized")
-                await ws.send_str(json.dumps(pl.err(501, MSG_UNAUTHORIZED), cls=MyEncoder))
+    async with _tracked_websocket(request, ws, 'playlist'):
+        async for msg in ws:
+            if msg.type == WSMsgType.TEXT:
+                pl = PlaylistMessage(None, msg.json())
+                rv = None
+                _LOGGER.info("Message " + str(pl))
+                if not userid:
+                    _LOGGER.info("Unauthorized")
+                    await ws.send_str(json.dumps(pl.err(501, MSG_UNAUTHORIZED), cls=MyEncoder))
+                    break
+                elif pl.c(CMD_REMOTEPLAY) and pl.f(CMD_REMOTEPLAY_ID):
+                    rv = await RemoteItem.on_js_remoteplay_cmd_done(player_hex, ws, userid, pl)
+                elif pl.c(CMD_REMOTEPLAY):
+                    rv = await RemoteItem.on_js_remoteplay_cmd(player_hex, ws, userid, pl)
+                elif pl.c(CMD_REMOTEPLAY_PING):
+                    rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, userid, pl)
+                elif pl.c(CMD_REMOTEPLAY_PUSH):
+                    rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, userid, pl)
+                if rv is not None:
+                    await ws.send_str(json.dumps(rv, cls=MyEncoder))
+                else:
+                    for k, p in request.app.p.processors.items():
+                        _LOGGER.debug(f'Checking {k}')
+                        if p.interested(pl):
+                            control_dict = dict(end=False, msg=pl)
+                            pd = pl.f(PlaylistMessage.PING_DELAY)
+                            Timer(pd if pd else 8, partial(send_ping, ws, control_dict))
+                            out = await p.process(ws, pl, userid, request.app.p.executor)
+                            control_dict["end"] = True
+                            if out:
+                                break
+                            else:
+                                return ws
+            elif msg.type == WSMsgType.ERROR:
+                _LOGGER.error('ws connection closed with exception %s' %
+                              ws.exception())
                 break
-            elif pl.c(CMD_REMOTEPLAY) and pl.f(CMD_REMOTEPLAY_ID):
-                rv = await RemoteItem.on_js_remoteplay_cmd_done(player_hex, ws, userid, pl)
-            elif pl.c(CMD_REMOTEPLAY):
-                rv = await RemoteItem.on_js_remoteplay_cmd(player_hex, ws, userid, pl)
-            elif pl.c(CMD_REMOTEPLAY_PING):
-                rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, userid, pl)
-            elif pl.c(CMD_REMOTEPLAY_PUSH):
-                rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, userid, pl)
-            if rv is not None:
-                await ws.send_str(json.dumps(rv, cls=MyEncoder))
-            else:
-                for k, p in request.app.p.processors.items():
-                    _LOGGER.debug(f'Checking {k}')
-                    if p.interested(pl):
-                        control_dict = dict(end=False, msg=pl)
-                        pd = pl.f(PlaylistMessage.PING_DELAY)
-                        Timer(pd if pd else 8, partial(send_ping, ws, control_dict))
-                        out = await p.process(ws, pl, userid, request.app.p.executor)
-                        control_dict["end"] = True
-                        if out:
-                            break
-                        else:
-                            return ws
-        elif msg.type == WSMsgType.ERROR:
-            _LOGGER.error('ws connection closed with exception %s' %
-                          ws.exception())
-            break
     return ws
 
 

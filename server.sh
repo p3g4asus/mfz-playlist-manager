@@ -25,12 +25,17 @@ memory_interval=${memory_interval:-300}
 memory_log=${memory_log:-$PTH/logs/memory-usage.csv}
 memory_monitor=${memory_monitor:-false}
 memory_tracemalloc=${memory_tracemalloc:-false}
+memory_tracemalloc_frames=${memory_tracemalloc_frames:-1}
 memory_snapshot_interval=${memory_snapshot_interval:-0}
 memory_snapshot_log=${memory_snapshot_log:-$PTH/logs/memory-allocation-diffs.csv}
 refresh_diagnostics=${refresh_diagnostics:-false}
 refresh_diagnostics_log=${refresh_diagnostics_log:-$PTH/logs/refresh-diagnostics-detailed.csv}
 refresh_tracemalloc_snapshot=${refresh_tracemalloc_snapshot:-false}
 refresh_snapshot_playlist_ids=${refresh_snapshot_playlist_ids:-}
+task_diagnostics=${task_diagnostics:-false}
+task_diagnostics_interval=${task_diagnostics_interval:-300}
+task_diagnostics_log=${task_diagnostics_log:-$PTH/logs/asyncio-task-census.csv}
+websocket_diagnostics_log=${websocket_diagnostics_log:-$PTH/logs/websocket-connections.csv}
 cd "$PTH/src"
 DT=`date "+%Y%m%d"`
 mkdir -p "$log_dir"
@@ -60,12 +65,18 @@ args=(
 )
 if [ "$memory_monitor" = true ] || [ "$memory_snapshot_interval" -gt 0 ]; then
     args+=(--memory-monitor --memory-interval "$memory_interval" --memory-log "$memory_log")
+    args+=(--memory-tracemalloc-frames "$memory_tracemalloc_frames")
     if [ "$memory_tracemalloc" = true ]; then
         args+=(--memory-tracemalloc)
     fi
     if [ "$memory_snapshot_interval" -gt 0 ]; then
         args+=(--memory-snapshot-interval "$memory_snapshot_interval" --memory-snapshot-log "$memory_snapshot_log")
     fi
+fi
+if [ "$task_diagnostics" = true ]; then
+    args+=(--task-diagnostics --task-diagnostics-interval "$task_diagnostics_interval"
+        --task-diagnostics-log "$task_diagnostics_log"
+        --websocket-diagnostics-log "$websocket_diagnostics_log")
 fi
 if [ "$refresh_diagnostics" = true ]; then
     args+=(--refresh-diagnostics --refresh-diagnostics-log "$refresh_diagnostics_log")

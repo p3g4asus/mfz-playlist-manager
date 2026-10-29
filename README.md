@@ -25,6 +25,25 @@ Per registrare anche le allocazioni Python tracciate da `tracemalloc` (con un
 po' di overhead aggiuntivo), aggiungere `--memory-tracemalloc`. I campi
 `python_current_bytes` e `python_peak_bytes` nel CSV aiutano a distinguere la
 crescita degli oggetti Python dalla memoria RSS, che include anche librerie native.
+La profondità dello stack si configura con `memory_tracemalloc_frames` o
+`--memory-tracemalloc-frames` (da 1 a 25, default 1). Valori come 10 aiutano a
+risalire dal punto di allocazione al chiamante, ma aumentano il costo: usali per
+una raccolta temporanea.
+
+Per indagare i task asyncio e le connessioni WebSocket, configura nel `server.conf`:
+
+```sh
+task_diagnostics=true
+task_diagnostics_interval=300
+task_diagnostics_log=$PTH/logs/asyncio-task-census.csv
+websocket_diagnostics_log=$PTH/logs/websocket-connections.csv
+```
+
+Il censimento registra per ogni task attivo il nome, la coroutine, lo stack
+corrente e da quanto tempo il monitor lo osserva. Il CSV WebSocket registra
+apertura e chiusura, tipo di endpoint, durata, codice di chiusura ed eventuale
+eccezione; non salva il token o il percorso completo della richiesta. Entrambe
+le diagnostiche sono disattivate per default.
 
 Per indagare il refresh automatico, imposta `refresh_diagnostics=true` nel
 `server.conf` locale oppure avvia con `--refresh-diagnostics`. Il file
