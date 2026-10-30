@@ -42,8 +42,13 @@ websocket_diagnostics_log=$PTH/logs/websocket-connections.csv
 Il censimento registra per ogni task attivo il nome, la coroutine, lo stack
 corrente e da quanto tempo il monitor lo osserva. Il CSV WebSocket registra
 apertura e chiusura, tipo di endpoint, durata, codice di chiusura ed eventuale
-eccezione; non salva il token o il percorso completo della richiesta. Entrambe
-le diagnostiche sono disattivate per default.
+eccezione, un fingerprint stabile del client, l'indirizzo peer visto da aiohttp
+e lo User-Agent. Il fingerprint è calcolato con SHA-256 dalla chiave client
+disponibile (oppure da peer e User-Agent se manca); non salva il token o il
+percorso completo. Dietro un reverse proxy, il peer potrebbe essere l'indirizzo
+del proxy. Se il CSV WebSocket esistente ha uno schema precedente, i nuovi eventi
+vengono scritti in `websocket-connections-v2.csv`. Entrambe le diagnostiche sono
+disattivate per default.
 
 Per indagare il refresh automatico, imposta `refresh_diagnostics=true` nel
 `server.conf` locale oppure avvia con `--refresh-diagnostics`. Il file

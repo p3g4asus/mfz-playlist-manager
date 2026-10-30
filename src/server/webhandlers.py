@@ -1146,13 +1146,13 @@ async def remote_command(request):
 
 
 @asynccontextmanager
-async def _tracked_websocket(request, ws, kind):
+async def _tracked_websocket(request, ws, kind, identity=None, identity_source=""):
     await ws.prepare(request)
     diagnostics = getattr(request.app.p, 'task_diagnostics', None)
     connection_id = None
     if diagnostics:
         try:
-            connection_id = diagnostics.websocket_opened(request, kind)
+            connection_id = diagnostics.websocket_opened(request, kind, identity, identity_source)
         except Exception:
             _LOGGER.exception('Could not record WebSocket open event')
     caught_exception = None
@@ -1172,7 +1172,7 @@ async def _tracked_websocket(request, ws, kind):
 async def pls_h_2(request):
     if 'hex' in request.match_info and (phex := request.match_info['hex']):
         ws = web.WebSocketResponse(autoping=True, heartbeat=None, timeout=45, autoclose=False)
-        async with _tracked_websocket(request, ws, 'remote'):
+        async with _tracked_websocket(request, ws, 'remote', phex[1:], 'remote_key'):
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
                     try:
@@ -1204,8 +1204,10 @@ async def pls_h(request):
         userid = None
     else:
         userid = auid
+    client_identity = player_hex or (str(auid) if isinstance(auid, int) else None)
+    identity_source = 'player_key' if player_hex else 'user_id' if isinstance(auid, int) else ''
     ws = web.WebSocketResponse(autoping=True, heartbeat=None, timeout=45, autoclose=False)
-    async with _tracked_websocket(request, ws, 'playlist'):
+    async with _tracked_websocket(request, ws, 'playlist', client_identity, identity_source):
         async for msg in ws:
             if msg.type == WSMsgType.TEXT:
                 pl = PlaylistMessage(None, msg.json())
