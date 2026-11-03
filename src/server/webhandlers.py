@@ -31,7 +31,7 @@ from common.const import (CMD_PING, CMD_REMOTEBROWSER_JS, CMD_REMOTEDESKTOP_JS, 
 from common.playlist_alc_ses import LOAD_ITEMS_NO, Playlist, PlaylistItem, PlaylistMessage
 from common.timer import Timer
 from common.user_alc_ses import User
-from common.utils import MyEncoder, coro_could_safely_not_be_awaited, get_json_encoder
+from common.utils import MyEncoder, create_task_from_factory, get_json_encoder
 from multidict import CIMultiDict
 from server.db.base import UsesAlchemicDB
 from server.dict_auth_policy import check_credentials, identity2username
@@ -159,7 +159,8 @@ class RemoteItem(object):
                 try:
                     if wait:
                         if not self.queue_timer or self.queue_timer.cancelled():
-                            self.queue_timer = get_running_loop().call_later(5.5, create_task, coro_could_safely_not_be_awaited(self.close_ws(idv)))
+                            self.queue_timer = get_running_loop().call_later(
+                                5.5, create_task_from_factory, lambda: self.close_ws(idv))
                             _LOGGER.debug(f'Cmd sent for {self} : {cmd} -> waiting for response with id {idv}')
                         else:
                             return queue[i:]

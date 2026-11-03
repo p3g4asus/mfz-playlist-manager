@@ -1,8 +1,6 @@
 import asyncio
 import json
 from datetime import datetime, timedelta
-from typing import Coroutine
-from weakref import finalize
 
 
 class JSONAble():
@@ -58,9 +56,9 @@ def get_isosplit(s, split):
     return n, s
 
 
-def coro_could_safely_not_be_awaited(coro_obj: Coroutine) -> Coroutine:
-    finalize(coro_obj, coro_obj.close)
-    return coro_obj
+def create_task_from_factory(coro_factory):
+    """Create a task when a delayed callback fires, not when it is scheduled."""
+    return asyncio.create_task(coro_factory())
 
 
 def parse_isoduration(s):

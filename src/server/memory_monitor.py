@@ -149,23 +149,30 @@ class MemoryMonitor:
         _LOGGER.info("Memory sample: RSS=%s virtual=%s Python=%s tasks=%d threads=%d cache=%s/%s/%s",
                      rss, virtual, py_current, sample[5], sample[6], users, playlists, items)
 
-    def _write_allocation_diffs_if_due(self):
+    @staticmethod
+    def _compare_allocation_snapshots(before):
+        """Build a snapshot and its diff without blocking the event loop."""
+        after = tracemalloc.take_snapshot()
+        records = allocation_diff_records(before, after)
+        current_bytes = tracemalloc.get_traced_memory()[0]
+        return after, records, current_bytes
+
+    async def _write_allocation_diffs_if_due(self):
         if not self.snapshot_interval or self._snapshot is None:
             return
-        now = time.monotonic()
-        if now - self._snapshot_time < self.snapshot_interval:
+        if time.monotonic() - self._snapshot_time < self.snapshot_interval:
             return
         try:
-            after = tracemalloc.take_snapshot()
-            records = allocation_diff_records(self._snapshot, after)
+            before = self._snapshot
+            after, records, current_bytes = await asyncio.to_thread(
+                self._compare_allocation_snapshots, before)
+            now = time.monotonic()
             period_end = datetime.now().astimezone().isoformat(timespec="seconds")
             period_seconds = round(now - self._snapshot_time, 1)
-            old_snapshot = self._snapshot
             self._snapshot = after
             self._snapshot_time = now
             self._snapshot_timestamp = period_end
-            del old_snapshot
-            current_bytes = tracemalloc.get_traced_memory()[0]
+            del before
             for record in records:
                 self._snapshot_writer.writerow({
                     "period_start": self._previous_snapshot_timestamp,
@@ -196,7 +203,7 @@ class MemoryMonitor:
             if self._snapshot_file.tell() == 0:
                 self._snapshot_writer.writeheader()
                 self._snapshot_file.flush()
-            self._snapshot = tracemalloc.take_snapshot()
+            self._snapshot = await asyncio.to_thread(tracemalloc.take_snapshot)
             self._snapshot_time = time.monotonic()
             self._snapshot_timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
             self._previous_snapshot_timestamp = self._snapshot_timestamp
@@ -206,7 +213,7 @@ class MemoryMonitor:
             while True:
                 try:
                     self._write_sample(loop)
-                    self._write_allocation_diffs_if_due()
+                    await self._write_allocation_diffs_if_due()
                 except Exception:
                     _LOGGER.exception("Memory monitoring sample failed")
                 await asyncio.sleep(self.interval)

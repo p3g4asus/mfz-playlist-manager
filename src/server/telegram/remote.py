@@ -22,7 +22,7 @@ from common.const import (CMD_REMOTEPLAY, CMD_REMOTEPLAY_PING, CMD_REMOTEPLAY_PU
                           CMD_REMOTEPLAY_PUSH_NOTIFY)
 from common.playlist_alc_ses import PlaylistMessage
 from common.user_alc_ses import User
-from common.utils import MyEncoder, coro_could_safely_not_be_awaited
+from common.utils import MyEncoder, create_task_from_factory
 from server.db.base import AlchemicBase, AlchemicDB
 from server.telegram.message import (MyNavigationHandler, NameDurationStatus,
                                      ProcessorMessage, StatusTMessage)
@@ -182,7 +182,9 @@ class RemoteInfoMessage(StatusTMessage):
                     self.notification_cache_handle.cancel()
                 self.notification_cache_dict.update(arg)
                 _LOGGER.debug(f'{self.label} delaying notication of {self.notification_cache_time}')
-                self.notification_cache_handle = self.loop.call_later(self.notification_cache_time, create_task, coro_could_safely_not_be_awaited(self.notify_do(self.notification_cache_dict)))
+                self.notification_cache_handle = self.loop.call_later(
+                    self.notification_cache_time, create_task_from_factory,
+                    lambda: self.notify_do(self.notification_cache_dict))
             else:
                 await self.notify_do(arg)
 
@@ -192,13 +194,15 @@ class RemoteInfoMessage(StatusTMessage):
 
     def ws_ping_send_delayed(self, ws):
         if self.task and not self.sentinel:
-            self.sentinel = self.loop.call_later(10, create_task, coro_could_safely_not_be_awaited(self.ws_ping_send_now(ws)))
+            self.sentinel = self.loop.call_later(
+                10, create_task_from_factory, lambda: self.ws_ping_send_now(ws))
 
     async def ws_ping_send_now(self, ws):
         if self.task:
             try:
                 await self.ws_send(ws, json.dumps(PlaylistMessage(CMD_REMOTEPLAY_PING, t=time()), cls=MyEncoder))
-                self.sentinel = self.loop.call_later(3, create_task, coro_could_safely_not_be_awaited(self.ws_sentinel(ws)))
+                self.sentinel = self.loop.call_later(
+                    3, create_task_from_factory, lambda: self.ws_sentinel(ws))
             except Exception:
                 try:
                     await ws.close()
@@ -242,7 +246,8 @@ class RemoteInfoMessage(StatusTMessage):
                     _LOGGER.debug(f'{self.label} Opened connection for {self.my_hex}')
                     remplay = json.dumps(PlaylistMessage(CMD_REMOTEPLAY), cls=MyEncoder)
                     rempush = json.dumps(PlaylistMessage(CMD_REMOTEPLAY_PUSH_NOTIFY, fr=self.dest_hex), cls=MyEncoder)
-                    self.sentinel = self.loop.call_later(7, create_task, coro_could_safely_not_be_awaited(self.ws_sentinel(ws)))
+                    self.sentinel = self.loop.call_later(
+                        7, create_task_from_factory, lambda: self.ws_sentinel(ws))
                     await self.ws_send(ws, remplay)
                     async for msg in ws:
                         if msg.type == WSMsgType.TEXT:
