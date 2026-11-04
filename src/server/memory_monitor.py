@@ -14,6 +14,27 @@ from pathlib import Path
 _LOGGER = logging.getLogger(__name__)
 
 
+def ensure_tracemalloc_frames(traceback_frames):
+    """Ensure the active tracemalloc session keeps the requested depth."""
+    requested = max(1, min(25, int(traceback_frames)))
+    if not tracemalloc.is_tracing():
+        tracemalloc.start(requested)
+        _LOGGER.info("Started tracemalloc with traceback limit=%d", requested)
+    else:
+        active = tracemalloc.get_traceback_limit()
+        if active < requested:
+            _LOGGER.warning(
+                "Tracemalloc was already active with traceback limit=%d; "
+                "restarting it with limit=%d (previous traces will be cleared)",
+                active, requested)
+            tracemalloc.stop()
+            tracemalloc.start(requested)
+        else:
+            _LOGGER.info("Using active tracemalloc traceback limit=%d (requested=%d)",
+                         active, requested)
+    return tracemalloc.get_traceback_limit()
+
+
 def allocation_diff_records(before, after, limit=20):
     """Format allocation deltas, retaining each tracemalloc frame for each site."""
     stats = after.compare_to(before, "lineno")
@@ -187,8 +208,8 @@ class MemoryMonitor:
             _LOGGER.exception("Periodic tracemalloc snapshot comparison failed")
 
     async def run(self, loop):
-        if self.trace_python and not tracemalloc.is_tracing():
-            tracemalloc.start(self.traceback_frames)
+        if self.trace_python:
+            ensure_tracemalloc_frames(self.traceback_frames)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._file = self.path.open("a", newline="", encoding="utf-8")
         self._writer = csv.writer(self._file)
@@ -207,8 +228,11 @@ class MemoryMonitor:
             self._snapshot_time = time.monotonic()
             self._snapshot_timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
             self._previous_snapshot_timestamp = self._snapshot_timestamp
-        _LOGGER.info("Memory monitoring enabled: CSV=%s interval=%ss tracemalloc=%s snapshot_interval=%ss",
-                     self.path.resolve(), self.interval, self.trace_python, self.snapshot_interval)
+        active_frames = tracemalloc.get_traceback_limit() if tracemalloc.is_tracing() else 0
+        _LOGGER.info("Memory monitoring enabled: CSV=%s interval=%ss tracemalloc=%s "
+                     "traceback_frames=%s snapshot_interval=%ss",
+                     self.path.resolve(), self.interval, self.trace_python,
+                     active_frames, self.snapshot_interval)
         try:
             while True:
                 try:

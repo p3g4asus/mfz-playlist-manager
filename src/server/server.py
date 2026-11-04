@@ -25,7 +25,7 @@ from server.dict_auth_policy import DictAuthorizationPolicy
 from server.pls.refreshmessageprocessor import RefreshMessageProcessor
 from server.redis_storage import RedisKeyStorage
 from server.session_cookie_identity import SessionCookieIdentityPolicy
-from server.memory_monitor import MemoryMonitor
+from server.memory_monitor import MemoryMonitor, ensure_tracemalloc_frames
 from server.refresh_diagnostics import RefreshDiagnostics
 from server.task_diagnostics import TaskDiagnostics
 from server.telegram.main import start_telegram_bot, stop_telegram_bot
@@ -329,6 +329,8 @@ def main():
     if args["verbose"]:
         logging.basicConfig(level=logging.DEBUG)
     logging.config.dictConfig(LOGGING)
+    if args['memory_tracemalloc'] or args['memory_snapshot_interval'] > 0:
+        ensure_tracemalloc_frames(args['memory_tracemalloc_frames'])
     app.p.args = args
     loop = asyncio.new_event_loop()
     # Lo assegni a questo thread
