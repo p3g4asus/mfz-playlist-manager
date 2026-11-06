@@ -36,11 +36,11 @@ def ensure_tracemalloc_frames(traceback_frames):
 
 
 def allocation_diff_records(before, after, limit=20):
-    """Format allocation deltas, retaining each tracemalloc frame for each site."""
-    stats = after.compare_to(before, "lineno")
+    """Format allocation deltas grouped by the complete tracemalloc traceback."""
+    stats = after.compare_to(before, "traceback")
     return [
         {
-            "allocation_location": str(stat.traceback[0]),
+            "allocation_location": str(stat.traceback[-1]),
             # tracemalloc.Frame is not a traceback.FrameSummary, so
             # traceback.format_list() cannot format it directly.
             "allocation_traceback": "".join(
