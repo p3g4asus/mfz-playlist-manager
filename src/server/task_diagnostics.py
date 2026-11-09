@@ -41,6 +41,8 @@ class TaskDiagnostics:
         "timestamp", "event", "connection_id", "kind", "client_fingerprint",
         "identity_source", "peer", "user_agent", "task_id", "task_name",
         "elapsed_seconds", "closed", "close_code", "exception",
+        "replaced_connection_id", "replaced_by_connection_id",
+        "replacement_closed", "active_for_fingerprint", "gc_delay_seconds",
     )
 
     def __init__(self, task_path, websocket_path, interval=300):
@@ -53,6 +55,8 @@ class TaskDiagnostics:
         self._websocket_writer = None
         self._first_seen = weakref.WeakKeyDictionary()
         self._connections = {}
+        self._closed_connections = {}
+        self._websocket_connection_ids = {}
 
     @staticmethod
     def _open_csv(path, fields):
@@ -120,7 +124,7 @@ class TaskDiagnostics:
             })
         self._task_file.flush()
 
-    def websocket_opened(self, request, kind, identity=None, identity_source=""):
+    def websocket_opened(self, request, kind, identity=None, identity_source="", ws=None):
         connection_id = uuid.uuid4().hex
         task = asyncio.current_task()
         user_agent = request.headers.get("User-Agent", "").replace("\r", " ").replace("\n", " ")[:200]
@@ -146,18 +150,110 @@ class TaskDiagnostics:
             "task_name": task.get_name() if task else "",
         })
         self._websocket_file.flush()
-        self._connections[connection_id] = {
+        connection = {
             "started": time.monotonic(),
             "kind": kind,
             "client_fingerprint": client_fingerprint,
             "identity_source": fingerprint_source,
             "peer": peer,
             "user_agent": user_agent,
+            "object_id": id(ws) if ws is not None else None,
+            "replaced_by_connection_id": "",
+            "gc_tracked": False,
         }
+        self._connections[connection_id] = connection
+        if ws is not None:
+            object_id = id(ws)
+            self._websocket_connection_ids[object_id] = connection_id
+            try:
+                loop = asyncio.get_running_loop()
+                weakref.finalize(
+                    ws, self._schedule_websocket_collected,
+                    loop, connection_id, object_id,
+                )
+                connection["gc_tracked"] = True
+            except TypeError:
+                _LOGGER.warning("WebSocket object does not support weak references; GC diagnostics unavailable")
         return connection_id
+
+    def websocket_replaced(self, old_ws, new_ws):
+        """Record when a RemoteItem switches its current WebSocket reference."""
+        old_id = self._websocket_connection_ids.get(id(old_ws), "") if old_ws is not None else ""
+        new_id = self._websocket_connection_ids.get(id(new_ws), "") if new_ws is not None else ""
+        old_connection = self._connections.get(old_id) or self._closed_connections.get(old_id, {})
+        new_connection = self._connections.get(new_id, {})
+        if old_connection:
+            old_connection["replaced_by_connection_id"] = new_id
+        fingerprint = new_connection.get("client_fingerprint", "")
+        active_for_fingerprint = sum(
+            1 for connection in self._connections.values()
+            if fingerprint and connection.get("client_fingerprint") == fingerprint
+        )
+        task = asyncio.current_task()
+        self._ensure_websocket_writer()
+        self._websocket_writer.writerow({
+            "timestamp": _now(),
+            "event": "replace",
+            "connection_id": new_id,
+            "kind": new_connection.get("kind", old_connection.get("kind", "")),
+            "client_fingerprint": fingerprint or old_connection.get("client_fingerprint", ""),
+            "identity_source": new_connection.get("identity_source", old_connection.get("identity_source", "")),
+            "peer": new_connection.get("peer", old_connection.get("peer", "")),
+            "user_agent": new_connection.get("user_agent", old_connection.get("user_agent", "")),
+            "task_id": hex(id(task)) if task else "",
+            "task_name": task.get_name() if task else "",
+            "replaced_connection_id": old_id,
+            "replacement_closed": getattr(old_ws, "closed", "") if old_ws is not None else "",
+            "active_for_fingerprint": active_for_fingerprint,
+        })
+        self._websocket_file.flush()
+
+    def _schedule_websocket_collected(self, loop, connection_id, object_id):
+        """Marshal weakref finalizer work onto the diagnostics event loop."""
+        if loop.is_closed():
+            return
+        try:
+            loop.call_soon_threadsafe(
+                self._write_websocket_collected, connection_id, object_id,
+            )
+        except RuntimeError:
+            pass
+
+    def _write_websocket_collected(self, connection_id, object_id):
+        connection = self._closed_connections.pop(connection_id, None)
+        if connection is None:
+            connection = self._connections.pop(connection_id, {})
+        if self._websocket_connection_ids.get(object_id) == connection_id:
+            self._websocket_connection_ids.pop(object_id, None)
+        task = asyncio.current_task()
+        closed_at = connection.get("closed_monotonic")
+        self._ensure_websocket_writer()
+        self._websocket_writer.writerow({
+            "timestamp": _now(),
+            "event": "gc",
+            "connection_id": connection_id,
+            "kind": connection.get("kind", ""),
+            "client_fingerprint": connection.get("client_fingerprint", ""),
+            "identity_source": connection.get("identity_source", ""),
+            "peer": connection.get("peer", ""),
+            "user_agent": connection.get("user_agent", ""),
+            "task_id": hex(id(task)) if task else "",
+            "task_name": task.get_name() if task else "",
+            "elapsed_seconds": round(time.monotonic() - connection.get("started", time.monotonic()), 3),
+            "replaced_by_connection_id": connection.get("replaced_by_connection_id", ""),
+            "gc_delay_seconds": round(time.monotonic() - closed_at, 3) if closed_at else "",
+        })
+        self._websocket_file.flush()
 
     def websocket_closed(self, connection_id, kind, ws, exception=None):
         connection = self._connections.pop(connection_id, {})
+        connection["closed_monotonic"] = time.monotonic()
+        connection["closed"] = ws.closed
+        connection["close_code"] = ws.close_code or ""
+        if connection.get("gc_tracked"):
+            self._closed_connections[connection_id] = connection
+        else:
+            self._websocket_connection_ids.pop(id(ws), None)
         task = asyncio.current_task()
         ws_exception = exception or ws.exception()
         self._ensure_websocket_writer()
@@ -176,6 +272,7 @@ class TaskDiagnostics:
             "closed": ws.closed,
             "close_code": ws.close_code or "",
             "exception": repr(ws_exception) if ws_exception else "",
+            "replaced_by_connection_id": connection.get("replaced_by_connection_id", ""),
         })
         self._websocket_file.flush()
 

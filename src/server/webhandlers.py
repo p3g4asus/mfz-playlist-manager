@@ -58,8 +58,13 @@ class RemoteItem(object):
         self.cmdqueue: list[str] = []
         self.refresh(ws=ws, hex_for_redfr=hex_for_redfr, hex_for_redto=hex_for_redto, hex_for_sh=hex_for_sh, hex_for_telegram=hex_for_telegram, uid=uid, **kwargs)
 
-    def refresh(self, ws: Optional[web.WebSocketResponse] = None, hex_for_redto: Optional[str] = None, hex_for_redfr: Optional[str] = None, hex_for_telegram: Optional[str] = None, hex_for_sh: Optional[str] = None, uid: Optional[int] = None, tick: Optional[int | float] = None, **kwargs):
+    def refresh(self, ws: Optional[web.WebSocketResponse] = None, hex_for_redto: Optional[str] = None, hex_for_redfr: Optional[str] = None, hex_for_telegram: Optional[str] = None, hex_for_sh: Optional[str] = None, uid: Optional[int] = None, tick: Optional[int | float] = None, diagnostics=None, **kwargs):
         if ws is not None:
+            if self.ws is not None and self.ws is not ws and diagnostics:
+                try:
+                    diagnostics.websocket_replaced(self.ws, ws)
+                except Exception:
+                    _LOGGER.exception("Could not record replaced remote WebSocket")
             self.ws = ws
         if hex_for_telegram:
             if self.telegram and self.telegram in _REMOTE_ITEM_DB:
@@ -211,7 +216,7 @@ class RemoteItem(object):
                 await rit.queue_append(what)
 
     @staticmethod
-    async def on_js_remoteplay_cmd(player_hex: str, ws: web.WebSocketResponse, userid: int | None, pl: PlaylistMessage) -> PlaylistMessage:
+    async def on_js_remoteplay_cmd(player_hex: str, ws: web.WebSocketResponse, userid: int | None, pl: PlaylistMessage, diagnostics=None) -> PlaylistMessage:
         if not player_hex:
             _LOGGER.info("Invalid token")
             return pl.err(502, MSG_UNAUTHORIZED)
@@ -219,7 +224,7 @@ class RemoteItem(object):
             dws = _REMOTE_ITEM_DB
             rit: RemoteItem
             dws[player_hex] = rit = dws.get(player_hex, RemoteItem(player_hex))
-            rit.refresh(ws=ws, uid=userid, hex_for_sh=pl.f('sh'), hex_for_telegram=hashlib.sha256(str(uuid4()).encode('utf-8')).hexdigest() if userid else None)
+            rit.refresh(ws=ws, uid=userid, hex_for_sh=pl.f('sh'), hex_for_telegram=hashlib.sha256(str(uuid4()).encode('utf-8')).hexdigest() if userid else None, diagnostics=diagnostics)
             if userid:
                 host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{rit.sh_or_hex()}"
                 host2 = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}telegram/{rit.telegram}"
@@ -245,7 +250,7 @@ class RemoteItem(object):
                 _LOGGER.warning(f'Error processing remote play cmd done for {player_hex} : {traceback.format_exc()}')
 
     @staticmethod
-    async def on_js_remoteplay_ping(player_hex, ws: web.WebSocketResponse, userid: int, pl: PlaylistMessage) -> PlaylistMessage:
+    async def on_js_remoteplay_ping(player_hex, ws: web.WebSocketResponse, userid: int, pl: PlaylistMessage, diagnostics=None) -> PlaylistMessage:
         if not player_hex:
             _LOGGER.info("Invalid token")
             return pl.err(502, MSG_UNAUTHORIZED)
@@ -254,7 +259,7 @@ class RemoteItem(object):
                 dws = _REMOTE_ITEM_DB
                 rit: RemoteItem
                 dws[player_hex] = rit = dws.get(player_hex, RemoteItem(player_hex))
-                rit.refresh(ws=ws, uid=userid, tick=time())
+                rit.refresh(ws=ws, uid=userid, tick=time(), diagnostics=diagnostics)
                 if rit.cmdqueue:
                     await rit.queue_append()
                 datefrom = datetime.fromtimestamp(float(pl.f('t', 0)))
@@ -265,7 +270,7 @@ class RemoteItem(object):
                 return pl.err(509, traceback.format_exc())
 
     @staticmethod
-    async def on_js_remoteplay_push(player_hex, ws: web.WebSocketResponse, userid: int, pl: PlaylistMessage) -> PlaylistMessage:
+    async def on_js_remoteplay_push(player_hex, ws: web.WebSocketResponse, userid: int, pl: PlaylistMessage, diagnostics=None) -> PlaylistMessage:
         if not player_hex:
             _LOGGER.info("Invalid token")
             return pl.err(502, MSG_UNAUTHORIZED)
@@ -276,7 +281,7 @@ class RemoteItem(object):
                 dws = _REMOTE_ITEM_DB
                 rit: RemoteItem
                 dws[player_hex] = rit = dws.get(player_hex, RemoteItem(player_hex))
-                rit.refresh(ws=ws, uid=userid, **ud)
+                rit.refresh(ws=ws, uid=userid, diagnostics=diagnostics, **ud)
                 _LOGGER.info(f'New dict el for {rit} [{pl.what}] -> {json.dumps(w)}')
                 cmd = json.dumps(pl.ok(fr=player_hex), cls=MyEncoder)
                 await rit.notify_push(cmd)
@@ -310,12 +315,12 @@ class RemoteItem(object):
             return web.HTTPNotFound(body='Invalid hex token')
 
     @staticmethod
-    async def on_js_remoteplay_push_notify(player_hex: str, ws: web.WebSocketResponse, pl: PlaylistMessage) -> PlaylistMessage:
+    async def on_js_remoteplay_push_notify(player_hex: str, ws: web.WebSocketResponse, pl: PlaylistMessage, diagnostics=None) -> PlaylistMessage:
         if player_hex in _REMOTE_ITEM_DB:
             ritto: RemoteItem
             ritfr: RemoteItem
             ritto = _REMOTE_ITEM_DB[player_hex]
-            ritto.refresh(ws=ws, hex_for_redfr=pl.fr)
+            ritto.refresh(ws=ws, hex_for_redfr=pl.fr, diagnostics=diagnostics)
             _REMOTE_ITEM_DB[pl.fr] = ritfr = _REMOTE_ITEM_DB.get(pl.fr, RemoteItem(pl.fr))
             ritfr.refresh(hex_for_redto=player_hex)
             await ritfr.notify_push()
@@ -1153,7 +1158,7 @@ async def _tracked_websocket(request, ws, kind, identity=None, identity_source="
     connection_id = None
     if diagnostics:
         try:
-            connection_id = diagnostics.websocket_opened(request, kind, identity, identity_source)
+            connection_id = diagnostics.websocket_opened(request, kind, identity, identity_source, ws)
         except Exception:
             _LOGGER.exception('Could not record WebSocket open event')
     caught_exception = None
@@ -1173,6 +1178,7 @@ async def _tracked_websocket(request, ws, kind, identity=None, identity_source="
 async def pls_h_2(request):
     if 'hex' in request.match_info and (phex := request.match_info['hex']):
         ws = web.WebSocketResponse(autoping=True, heartbeat=None, timeout=45, autoclose=False)
+        diagnostics = getattr(request.app.p, 'task_diagnostics', None)
         async with _tracked_websocket(request, ws, 'remote', phex[1:], 'remote_key'):
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
@@ -1183,13 +1189,13 @@ async def pls_h_2(request):
                         if pl.c(CMD_REMOTEPLAY) and pl.f(CMD_REMOTEPLAY_ID):
                             rv = await RemoteItem.on_js_remoteplay_cmd_done(player_hex, ws, None, pl)
                         elif pl.c(CMD_REMOTEPLAY):
-                            rv = await RemoteItem.on_js_remoteplay_cmd(player_hex, ws, None, pl)
+                            rv = await RemoteItem.on_js_remoteplay_cmd(player_hex, ws, None, pl, diagnostics)
                         elif pl.c(CMD_REMOTEPLAY_PING):
-                            rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, None, pl)
+                            rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, None, pl, diagnostics)
                         elif pl.c(CMD_REMOTEPLAY_PUSH):
-                            rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, None, pl)
+                            rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, None, pl, diagnostics)
                         elif pl.c(CMD_REMOTEPLAY_PUSH_NOTIFY):
-                            rv = await RemoteItem.on_js_remoteplay_push_notify(player_hex, ws, pl)
+                            rv = await RemoteItem.on_js_remoteplay_push_notify(player_hex, ws, pl, diagnostics)
                         if rv is not None:
                             await ws.send_str(json.dumps(rv, cls=MyEncoder))
                     except Exception:
@@ -1207,6 +1213,7 @@ async def pls_h(request):
         userid = auid
     client_identity = player_hex or (str(auid) if isinstance(auid, int) else None)
     identity_source = 'player_key' if player_hex else 'user_id' if isinstance(auid, int) else ''
+    diagnostics = getattr(request.app.p, 'task_diagnostics', None)
     ws = web.WebSocketResponse(autoping=True, heartbeat=None, timeout=45, autoclose=False)
     async with _tracked_websocket(request, ws, 'playlist', client_identity, identity_source):
         async for msg in ws:
@@ -1221,11 +1228,11 @@ async def pls_h(request):
                 elif pl.c(CMD_REMOTEPLAY) and pl.f(CMD_REMOTEPLAY_ID):
                     rv = await RemoteItem.on_js_remoteplay_cmd_done(player_hex, ws, userid, pl)
                 elif pl.c(CMD_REMOTEPLAY):
-                    rv = await RemoteItem.on_js_remoteplay_cmd(player_hex, ws, userid, pl)
+                    rv = await RemoteItem.on_js_remoteplay_cmd(player_hex, ws, userid, pl, diagnostics)
                 elif pl.c(CMD_REMOTEPLAY_PING):
-                    rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, userid, pl)
+                    rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, userid, pl, diagnostics)
                 elif pl.c(CMD_REMOTEPLAY_PUSH):
-                    rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, userid, pl)
+                    rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, userid, pl, diagnostics)
                 if rv is not None:
                     await ws.send_str(json.dumps(rv, cls=MyEncoder))
                 else:
