@@ -13,6 +13,7 @@ from time import time
 from typing import Any, Dict, Optional
 from urllib.parse import quote, urlencode
 from uuid import uuid4
+import weakref
 
 import yt_dlp as youtube_dl
 from aiohttp import ClientSession, WSMsgType, streamer, web, hdrs
@@ -38,6 +39,8 @@ from server.dict_auth_policy import check_credentials, identity2username
 from server.twitch_vod_id import vod_get_id
 
 _LOGGER = logging.getLogger(__name__)
+_REMOTE_WS_SUPERSEDED = object()
+_CLOSING_SUPERSEDED_WEBSOCKETS = weakref.WeakSet()
 
 
 class RemoteItem(object):
@@ -47,6 +50,7 @@ class RemoteItem(object):
         self.hex: str = hex
         self.sh: str = None
         self.ws: web.WebSocketResponse = None
+        self._superseded_ws = weakref.WeakSet()
         self.uid = None
         self.redfr: list[str] = []
         self.tick: float = 0.0
@@ -58,13 +62,8 @@ class RemoteItem(object):
         self.cmdqueue: list[str] = []
         self.refresh(ws=ws, hex_for_redfr=hex_for_redfr, hex_for_redto=hex_for_redto, hex_for_sh=hex_for_sh, hex_for_telegram=hex_for_telegram, uid=uid, **kwargs)
 
-    def refresh(self, ws: Optional[web.WebSocketResponse] = None, hex_for_redto: Optional[str] = None, hex_for_redfr: Optional[str] = None, hex_for_telegram: Optional[str] = None, hex_for_sh: Optional[str] = None, uid: Optional[int] = None, tick: Optional[int | float] = None, diagnostics=None, **kwargs):
+    def refresh(self, ws: Optional[web.WebSocketResponse] = None, hex_for_redto: Optional[str] = None, hex_for_redfr: Optional[str] = None, hex_for_telegram: Optional[str] = None, hex_for_sh: Optional[str] = None, uid: Optional[int] = None, tick: Optional[int | float] = None, **kwargs):
         if ws is not None:
-            if self.ws is not None and self.ws is not ws and diagnostics:
-                try:
-                    diagnostics.websocket_replaced(self.ws, ws)
-                except Exception:
-                    _LOGGER.exception("Could not record replaced remote WebSocket")
             self.ws = ws
         if hex_for_telegram:
             if self.telegram and self.telegram in _REMOTE_ITEM_DB:
@@ -88,6 +87,72 @@ class RemoteItem(object):
         if isinstance(tick, int | float):
             self.tick = tick
         self.d.update(kwargs)
+
+    def set_websocket(self, ws: web.WebSocketResponse, diagnostics=None) -> bool:
+        """Make ws current, closing any socket it supersedes."""
+        if ws in self._superseded_ws:
+            self.close_superseded_websocket(ws)
+            return False
+        if self.ws is ws:
+            return True
+
+        previous = self.ws
+        if previous is not None:
+            self._superseded_ws.add(previous)
+            if self.queue_timer:
+                self.queue_timer.cancel()
+                self.queue_timer = None
+            if diagnostics:
+                try:
+                    diagnostics.websocket_replaced(previous, ws)
+                except Exception:
+                    _LOGGER.exception("Could not record replaced remote WebSocket")
+        self.ws = ws
+        if previous is not None and not previous.closed:
+            self.close_superseded_websocket(previous)
+        return True
+
+    @classmethod
+    def close_superseded_websocket(cls, ws):
+        if ws.closed or ws in _CLOSING_SUPERSEDED_WEBSOCKETS:
+            return
+        _CLOSING_SUPERSEDED_WEBSOCKETS.add(ws)
+        create_task(cls._close_superseded_websocket(ws))
+
+    @staticmethod
+    async def _close_superseded_websocket(ws):
+        try:
+            if not ws.closed:
+                await ws.close()
+        except Exception:
+            _LOGGER.debug("Could not close superseded WebSocket", exc_info=True)
+        finally:
+            _CLOSING_SUPERSEDED_WEBSOCKETS.discard(ws)
+
+    @staticmethod
+    def detach_websocket(ws) -> bool:
+        """Clear RemoteItem references to ws without disturbing newer sockets."""
+        was_current = False
+        visited = set()
+        for remote_item in _REMOTE_ITEM_DB.values():
+            if id(remote_item) in visited:
+                continue
+            visited.add(id(remote_item))
+            if remote_item.ws is ws:
+                remote_item.ws = None
+                was_current = True
+        return was_current
+
+    @staticmethod
+    def is_superseded_websocket(ws) -> bool:
+        visited = set()
+        for remote_item in _REMOTE_ITEM_DB.values():
+            if id(remote_item) in visited:
+                continue
+            visited.add(id(remote_item))
+            if ws in remote_item._superseded_ws:
+                return True
+        return False
 
     def sh_or_hex(self):
         return self.sh if self.sh else self.hex
@@ -224,7 +289,9 @@ class RemoteItem(object):
             dws = _REMOTE_ITEM_DB
             rit: RemoteItem
             dws[player_hex] = rit = dws.get(player_hex, RemoteItem(player_hex))
-            rit.refresh(ws=ws, uid=userid, hex_for_sh=pl.f('sh'), hex_for_telegram=hashlib.sha256(str(uuid4()).encode('utf-8')).hexdigest() if userid else None, diagnostics=diagnostics)
+            if not rit.set_websocket(ws, diagnostics):
+                return _REMOTE_WS_SUPERSEDED
+            rit.refresh(uid=userid, hex_for_sh=pl.f('sh'), hex_for_telegram=hashlib.sha256(str(uuid4()).encode('utf-8')).hexdigest() if userid else None)
             if userid:
                 host = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}rcmd/{rit.sh_or_hex()}"
                 host2 = f"{pl.host + ('/' if pl.host[len(pl.host) - 1] != '/' else '')}telegram/{rit.telegram}"
@@ -259,7 +326,9 @@ class RemoteItem(object):
                 dws = _REMOTE_ITEM_DB
                 rit: RemoteItem
                 dws[player_hex] = rit = dws.get(player_hex, RemoteItem(player_hex))
-                rit.refresh(ws=ws, uid=userid, tick=time(), diagnostics=diagnostics)
+                if not rit.set_websocket(ws, diagnostics):
+                    return _REMOTE_WS_SUPERSEDED
+                rit.refresh(uid=userid, tick=time())
                 if rit.cmdqueue:
                     await rit.queue_append()
                 datefrom = datetime.fromtimestamp(float(pl.f('t', 0)))
@@ -281,7 +350,9 @@ class RemoteItem(object):
                 dws = _REMOTE_ITEM_DB
                 rit: RemoteItem
                 dws[player_hex] = rit = dws.get(player_hex, RemoteItem(player_hex))
-                rit.refresh(ws=ws, uid=userid, diagnostics=diagnostics, **ud)
+                if not rit.set_websocket(ws, diagnostics):
+                    return _REMOTE_WS_SUPERSEDED
+                rit.refresh(uid=userid, **ud)
                 _LOGGER.info(f'New dict el for {rit} [{pl.what}] -> {json.dumps(w)}')
                 cmd = json.dumps(pl.ok(fr=player_hex), cls=MyEncoder)
                 await rit.notify_push(cmd)
@@ -320,7 +391,9 @@ class RemoteItem(object):
             ritto: RemoteItem
             ritfr: RemoteItem
             ritto = _REMOTE_ITEM_DB[player_hex]
-            ritto.refresh(ws=ws, hex_for_redfr=pl.fr, diagnostics=diagnostics)
+            if not ritto.set_websocket(ws, diagnostics):
+                return _REMOTE_WS_SUPERSEDED
+            ritto.refresh(hex_for_redfr=pl.fr)
             _REMOTE_ITEM_DB[pl.fr] = ritfr = _REMOTE_ITEM_DB.get(pl.fr, RemoteItem(pl.fr))
             ritfr.refresh(hex_for_redto=player_hex)
             await ritfr.notify_push()
@@ -1168,9 +1241,10 @@ async def _tracked_websocket(request, ws, kind, identity=None, identity_source="
         caught_exception = exc
         raise
     finally:
+        was_current = RemoteItem.detach_websocket(ws)
         if diagnostics and connection_id:
             try:
-                diagnostics.websocket_closed(connection_id, kind, ws, caught_exception)
+                diagnostics.websocket_closed(connection_id, kind, ws, caught_exception, was_current)
             except Exception:
                 _LOGGER.exception('Could not record WebSocket close event')
 
@@ -1181,6 +1255,9 @@ async def pls_h_2(request):
         diagnostics = getattr(request.app.p, 'task_diagnostics', None)
         async with _tracked_websocket(request, ws, 'remote', phex[1:], 'remote_key'):
             async for msg in ws:
+                if RemoteItem.is_superseded_websocket(ws):
+                    RemoteItem.close_superseded_websocket(ws)
+                    break
                 if msg.type == WSMsgType.TEXT:
                     try:
                         pl = PlaylistMessage(None, msg.json())
@@ -1196,10 +1273,14 @@ async def pls_h_2(request):
                             rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, None, pl, diagnostics)
                         elif pl.c(CMD_REMOTEPLAY_PUSH_NOTIFY):
                             rv = await RemoteItem.on_js_remoteplay_push_notify(player_hex, ws, pl, diagnostics)
+                        if rv is _REMOTE_WS_SUPERSEDED or RemoteItem.is_superseded_websocket(ws):
+                            RemoteItem.close_superseded_websocket(ws)
+                            break
                         if rv is not None:
                             await ws.send_str(json.dumps(rv, cls=MyEncoder))
                     except Exception:
                         _LOGGER.warning(f'Cannot parse msg [{msg.data}]: {traceback.format_exc()}')
+                        continue
         return ws
     else:
         return await pls_h(request)
@@ -1217,6 +1298,9 @@ async def pls_h(request):
     ws = web.WebSocketResponse(autoping=True, heartbeat=None, timeout=45, autoclose=False)
     async with _tracked_websocket(request, ws, 'playlist', client_identity, identity_source):
         async for msg in ws:
+            if RemoteItem.is_superseded_websocket(ws):
+                RemoteItem.close_superseded_websocket(ws)
+                break
             if msg.type == WSMsgType.TEXT:
                 pl = PlaylistMessage(None, msg.json())
                 rv = None
@@ -1233,6 +1317,11 @@ async def pls_h(request):
                     rv = await RemoteItem.on_js_remoteplay_ping(player_hex, ws, userid, pl, diagnostics)
                 elif pl.c(CMD_REMOTEPLAY_PUSH):
                     rv = await RemoteItem.on_js_remoteplay_push(player_hex, ws, userid, pl, diagnostics)
+                if RemoteItem.is_superseded_websocket(ws):
+                    RemoteItem.close_superseded_websocket(ws)
+                    break
+                if rv is _REMOTE_WS_SUPERSEDED:
+                    break
                 if rv is not None:
                     await ws.send_str(json.dumps(rv, cls=MyEncoder))
                 else:

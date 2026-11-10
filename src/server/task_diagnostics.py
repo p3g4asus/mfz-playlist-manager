@@ -43,6 +43,7 @@ class TaskDiagnostics:
         "elapsed_seconds", "closed", "close_code", "exception",
         "replaced_connection_id", "replaced_by_connection_id",
         "replacement_closed", "active_for_fingerprint", "gc_delay_seconds",
+        "was_current_on_close",
     )
 
     def __init__(self, task_path, websocket_path, interval=300):
@@ -245,7 +246,7 @@ class TaskDiagnostics:
         })
         self._websocket_file.flush()
 
-    def websocket_closed(self, connection_id, kind, ws, exception=None):
+    def websocket_closed(self, connection_id, kind, ws, exception=None, was_current=False):
         connection = self._connections.pop(connection_id, {})
         connection["closed_monotonic"] = time.monotonic()
         connection["closed"] = ws.closed
@@ -273,6 +274,7 @@ class TaskDiagnostics:
             "close_code": ws.close_code or "",
             "exception": repr(ws_exception) if ws_exception else "",
             "replaced_by_connection_id": connection.get("replaced_by_connection_id", ""),
+            "was_current_on_close": was_current,
         })
         self._websocket_file.flush()
 
