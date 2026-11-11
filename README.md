@@ -15,6 +15,16 @@ percorso, l'intervallo in secondi e il tracciamento Python si configurano
 rispettivamente con `memory_log`, `memory_interval` e `memory_tracemalloc`
 (`true` o `false`). Da riga di comando si abilita con `--memory-monitor`.
 
+Quando il monitor è attivo, su Linux viene inoltre creato un CSV separato con
+i contatori di `/proc/self/smaps_rollup`, prelevati ogni 30 minuti per default.
+Il file predefinito affianca il CSV principale e aggiunge il suffisso
+`-smaps-rollup` (per esempio `memory-usage-smaps-rollup.csv`). Configura
+`memory_smaps_interval` e `memory_smaps_log` in `server.conf`, oppure usa
+`--memory-smaps-interval` e `--memory-smaps-log`; imposta l'intervallo a `0`
+per disattivare questa raccolta. I campi sono salvati in byte. La lettura di
+`smaps_rollup` è eseguita in un thread e i campi non disponibili sulla
+piattaforma o sul kernel restano vuoti.
+
 Per cambiare frequenza o percorso del file:
 
 ```sh

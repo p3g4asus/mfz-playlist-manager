@@ -114,6 +114,47 @@ def _process_memory_bytes():
         return None, None
 
 
+SMAPS_ROLLUP_FIELDS = (
+    "rss_bytes", "pss_bytes", "pss_anon_bytes", "pss_file_bytes",
+    "pss_shmem_bytes", "private_clean_bytes", "private_dirty_bytes",
+    "anonymous_bytes", "swap_bytes",
+)
+
+
+def _smaps_rollup_bytes():
+    """Return selected Linux smaps_rollup counters in bytes, or None values."""
+    values = {field: None for field in SMAPS_ROLLUP_FIELDS}
+    if not sys.platform.startswith("linux"):
+        return values
+
+    proc_fields = {
+        "Rss": "rss_bytes",
+        "Pss": "pss_bytes",
+        "Pss_Anon": "pss_anon_bytes",
+        "Pss_File": "pss_file_bytes",
+        "Pss_Shmem": "pss_shmem_bytes",
+        "Private_Clean": "private_clean_bytes",
+        "Private_Dirty": "private_dirty_bytes",
+        "Anonymous": "anonymous_bytes",
+        "Swap": "swap_bytes",
+    }
+    try:
+        with open("/proc/self/smaps_rollup", encoding="ascii") as smaps:
+            for line in smaps:
+                key, separator, raw_value = line.partition(":")
+                field = proc_fields.get(key)
+                if not separator or field is None:
+                    continue
+                parts = raw_value.split()
+                if parts:
+                    # smaps_rollup reports these counters in kB.
+                    values[field] = int(parts[0]) * 1024
+    except (OSError, ValueError):
+        _LOGGER.debug("Could not read /proc/self/smaps_rollup", exc_info=True)
+        return {field: None for field in SMAPS_ROLLUP_FIELDS}
+    return values
+
+
 def _cache_counts():
     try:
         from server.telegram.cache import _PLAYLIST_CACHE
@@ -139,14 +180,20 @@ class MemoryMonitor:
         "allocation_count_diff",
     )
 
+    SMAPS_FIELDS = ("timestamp", *SMAPS_ROLLUP_FIELDS)
+
     def __init__(self, path, interval=300, trace_python=False,
-                 snapshot_interval=0, snapshot_path=None, traceback_frames=1):
+                 snapshot_interval=0, snapshot_path=None, traceback_frames=1,
+                 smaps_interval=1800, smaps_path=None):
         self.path = Path(path)
         self.interval = max(10, interval)
         self.snapshot_interval = max(0, snapshot_interval)
         self.snapshot_path = Path(snapshot_path) if snapshot_path else self.path.with_name("memory-allocation-diffs.csv")
         self.trace_python = trace_python or self.snapshot_interval > 0
         self.traceback_frames = max(1, min(25, traceback_frames))
+        self.smaps_interval = max(0, smaps_interval)
+        self.smaps_path = (Path(smaps_path) if smaps_path else
+                           self.path.with_name(f"{self.path.stem}-smaps-rollup{self.path.suffix}"))
         self._file = None
         self._writer = None
         self._snapshot_file = None
@@ -154,6 +201,9 @@ class MemoryMonitor:
         self._snapshot = None
         self._snapshot_time = None
         self._snapshot_timestamp = None
+        self._smaps_file = None
+        self._smaps_writer = None
+        self._smaps_sample_time = None
 
     def _write_sample(self, loop):
         rss, virtual = _process_memory_bytes()
@@ -207,6 +257,20 @@ class MemoryMonitor:
         except Exception:
             _LOGGER.exception("Periodic tracemalloc snapshot comparison failed")
 
+    async def _write_smaps_if_due(self, force=False):
+        if not self.smaps_interval or self._smaps_writer is None:
+            return
+        now = time.monotonic()
+        if (not force and self._smaps_sample_time is not None and
+                now - self._smaps_sample_time < self.smaps_interval):
+            return
+        counters = await asyncio.to_thread(_smaps_rollup_bytes)
+        timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
+        self._smaps_writer.writerow({"timestamp": timestamp, **counters})
+        self._smaps_file.flush()
+        self._smaps_sample_time = time.monotonic()
+        _LOGGER.info("Linux smaps_rollup sample: %s", counters)
+
     async def run(self, loop):
         if self.trace_python:
             ensure_tracemalloc_frames(self.traceback_frames)
@@ -216,6 +280,15 @@ class MemoryMonitor:
         if self._file.tell() == 0:
             self._writer.writerow(self.FIELDS)
             self._file.flush()
+        if self.smaps_interval:
+            self.smaps_path.parent.mkdir(parents=True, exist_ok=True)
+            self._smaps_file = self.smaps_path.open("a", newline="", encoding="utf-8")
+            self._smaps_writer = csv.DictWriter(self._smaps_file,
+                                                fieldnames=self.SMAPS_FIELDS)
+            if self._smaps_file.tell() == 0:
+                self._smaps_writer.writeheader()
+                self._smaps_file.flush()
+            await self._write_smaps_if_due(force=True)
         if self.snapshot_interval:
             self.snapshot_path.parent.mkdir(parents=True, exist_ok=True)
             self._snapshot_file = self.snapshot_path.open("a", newline="", encoding="utf-8")
@@ -230,14 +303,16 @@ class MemoryMonitor:
             self._previous_snapshot_timestamp = self._snapshot_timestamp
         active_frames = tracemalloc.get_traceback_limit() if tracemalloc.is_tracing() else 0
         _LOGGER.info("Memory monitoring enabled: CSV=%s interval=%ss tracemalloc=%s "
-                     "traceback_frames=%s snapshot_interval=%ss",
+                     "traceback_frames=%s snapshot_interval=%ss smaps_interval=%ss smaps_CSV=%s",
                      self.path.resolve(), self.interval, self.trace_python,
-                     active_frames, self.snapshot_interval)
+                     active_frames, self.snapshot_interval, self.smaps_interval,
+                     self.smaps_path.resolve() if self.smaps_interval else "disabled")
         try:
             while True:
                 try:
                     self._write_sample(loop)
                     await self._write_allocation_diffs_if_due()
+                    await self._write_smaps_if_due()
                 except Exception:
                     _LOGGER.exception("Memory monitoring sample failed")
                 await asyncio.sleep(self.interval)
@@ -246,4 +321,6 @@ class MemoryMonitor:
             self._snapshot = None
             if self._snapshot_file:
                 self._snapshot_file.close()
+            if self._smaps_file:
+                self._smaps_file.close()
 

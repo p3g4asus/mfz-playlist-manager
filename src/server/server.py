@@ -293,6 +293,10 @@ def main():
                         help='CSV file for periodic process memory samples')
     parser.add_argument('--memory-interval', type=int, default=300,
                         help='seconds between memory samples (minimum 10)')
+    parser.add_argument('--memory-smaps-interval', type=int, default=1800,
+                        help='seconds between Linux smaps_rollup samples (0 disables them)')
+    parser.add_argument('--memory-smaps-log', required=False, default=None,
+                        help='CSV file for Linux smaps_rollup samples (defaults beside memory log)')
     parser.add_argument('--memory-monitor', action='store_true',
                         help='enable periodic memory sampling to CSV')
     parser.add_argument('--memory-tracemalloc', action='store_true',
@@ -362,7 +366,8 @@ def main():
         if args['memory_monitor'] or args['memory_snapshot_interval'] > 0:
             monitor = MemoryMonitor(args['memory_log'], args['memory_interval'], args['memory_tracemalloc'],
                                     args['memory_snapshot_interval'], args['memory_snapshot_log'],
-                                    args['memory_tracemalloc_frames'])
+                                    args['memory_tracemalloc_frames'],
+                                    args['memory_smaps_interval'], args['memory_smaps_log'])
             memory_task = loop.create_task(monitor.run(loop))
         if args['task_diagnostics']:
             app.p.task_diagnostics = TaskDiagnostics(

@@ -22,6 +22,8 @@ set -a
 . $fl
 set +a
 memory_interval=${memory_interval:-300}
+memory_smaps_interval=${memory_smaps_interval:-1800}
+memory_smaps_log=${memory_smaps_log:-}
 memory_log=${memory_log:-$PTH/logs/memory-usage.csv}
 memory_monitor=${memory_monitor:-false}
 memory_tracemalloc=${memory_tracemalloc:-false}
@@ -64,7 +66,11 @@ args=(
     -v
 )
 if [ "$memory_monitor" = true ] || [ "$memory_snapshot_interval" -gt 0 ]; then
-    args+=(--memory-monitor --memory-interval "$memory_interval" --memory-log "$memory_log")
+    args+=(--memory-monitor --memory-interval "$memory_interval" --memory-log "$memory_log"
+        --memory-smaps-interval "$memory_smaps_interval")
+    if [ -n "$memory_smaps_log" ]; then
+        args+=(--memory-smaps-log "$memory_smaps_log")
+    fi
     args+=(--memory-tracemalloc-frames "$memory_tracemalloc_frames")
     if [ "$memory_tracemalloc" = true ]; then
         args+=(--memory-tracemalloc)
