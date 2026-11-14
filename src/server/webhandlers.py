@@ -56,6 +56,7 @@ class RemoteItem(object):
         self.tick: float = 0.0
         self.queue_id: int = 0
         self.queue_timer: Optional[TimerHandle] = None
+        self._queue_timer_generation = 0
         self.redto: list[str] = []
         self.telegram: str = None
         self.d: Dict[str, Any] = dict()
@@ -99,9 +100,7 @@ class RemoteItem(object):
         previous = self.ws
         if previous is not None:
             self._superseded_ws.add(previous)
-            if self.queue_timer:
-                self.queue_timer.cancel()
-                self.queue_timer = None
+            self._cancel_queue_timer()
             if diagnostics:
                 try:
                     diagnostics.websocket_replaced(previous, ws)
@@ -111,6 +110,13 @@ class RemoteItem(object):
         if previous is not None and not previous.closed:
             self.close_superseded_websocket(previous)
         return True
+
+    def _cancel_queue_timer(self):
+        """Invalidate a pending command timeout before canceling its handle."""
+        self._queue_timer_generation += 1
+        if self.queue_timer:
+            self.queue_timer.cancel()
+            self.queue_timer = None
 
     @classmethod
     def close_superseded_websocket(cls, ws):
@@ -159,6 +165,7 @@ class RemoteItem(object):
 
     def process_ws_error(self, sh: Optional[str] = None):
         if not sh:
+            self._cancel_queue_timer()
             self.ws = None
             if self.sh:
                 self.process_ws_error(self.sh)
@@ -194,22 +201,33 @@ class RemoteItem(object):
         if self.cmdqueue:
             firstel = self.cmdqueue[0]
             if idv is not None and not isinstance(firstel, str) and firstel.get(CMD_REMOTEPLAY_ID) == idv:
-                if self.queue_timer:
-                    self.queue_timer.cancel()
-                    self.queue_timer = None
+                self._cancel_queue_timer()
                 self.cmdqueue.pop(0)
                 _LOGGER.debug(f'Cmd with id {idv} done for {self} : {firstel}')
             await self.queue_append()
 
-    async def close_ws(self, idv: Optional[int] = None):
+    async def close_ws(self, idv: Optional[int] = None, expected_ws=None,
+                       timer_generation=None):
+        # A delayed timeout must never close a socket installed after it was
+        # scheduled, even if TimerHandle.cancel() raced with its callback.
+        if expected_ws is None:
+            expected_ws = self.ws
+        if (self.ws is not expected_ws or
+                (timer_generation is not None and
+                 timer_generation != self._queue_timer_generation)):
+            return
         self.queue_timer = None
         _LOGGER.info(f'Closing ws for {self} (timeout for cmd with id {idv})')
-        if self.ws:
+        if expected_ws:
             try:
-                await self.ws.close()
+                await expected_ws.close()
             except Exception:
                 _LOGGER.warning(f'Error closing ws for {self} : {traceback.format_exc()}')
-            self.process_ws_error()
+            # The connection may have been replaced while close() yielded.
+            if (self.ws is expected_ws and
+                    (timer_generation is None or
+                     timer_generation == self._queue_timer_generation)):
+                self.process_ws_error()
 
     async def queue_process(self, queue: list[str]) -> list[str]:
         if not queue:
@@ -226,15 +244,21 @@ class RemoteItem(object):
                     cmd = json.dumps(cmd, cls=MyEncoder)
                 else:
                     wait = False
+                ws = self.ws
+                if ws is None:
+                    return queue[i:]
                 try:
                     if wait:
                         if not self.queue_timer or self.queue_timer.cancelled():
+                            self._queue_timer_generation += 1
+                            timer_generation = self._queue_timer_generation
                             self.queue_timer = get_running_loop().call_later(
-                                5.5, create_task_from_factory, lambda: self.close_ws(idv))
+                                5.5, create_task_from_factory,
+                                lambda: self.close_ws(idv, ws, timer_generation))
                             _LOGGER.debug(f'Cmd sent for {self} : {cmd} -> waiting for response with id {idv}')
                         else:
                             return queue[i:]
-                    await self.ws.send_str(cmd)
+                    await ws.send_str(cmd)
                     if wait:
                         return queue[i:]
                     else:
@@ -243,7 +267,8 @@ class RemoteItem(object):
                             return []
                 except Exception:
                     _LOGGER.warning(f'Remote play command [{self}] <- {cmd} failed {traceback.format_exc()}')
-                    self.process_ws_error()
+                    if self.ws is ws:
+                        self.process_ws_error()
                     return queue[i:]
 
     def __str__(self):

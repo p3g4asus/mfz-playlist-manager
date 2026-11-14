@@ -1,4 +1,5 @@
 let main_ws = null;
+let main_ws_generation = 0;
 let main_ws_timer = null;
 let main_ws_url = null;
 let main_ws_onopen2 = null;
@@ -173,6 +174,7 @@ function main_ws_onclose_do(ws, close2) {
 
 function main_ws_connect(url, onopen2, onclose2) {
     let socket;
+    const generation = ++main_ws_generation;
     if (url_is_ok(url))
         main_ws_url = url;
     if (typeof onopen2 == 'function' || onopen2 === null)
@@ -182,6 +184,10 @@ function main_ws_connect(url, onopen2, onclose2) {
     console.log('Connecting to url ' + main_ws_url);
     socket = new WebSocket(main_ws_url);
     socket.onopen = function (event) {
+        if (generation !== main_ws_generation) {
+            socket.close();
+            return;
+        }
         console.log('Upgrade HTTP connection OK');
         main_ws = socket;
         main_ws_queue_process();
@@ -189,7 +195,11 @@ function main_ws_connect(url, onopen2, onclose2) {
             main_ws_onopen2();
     };
     socket.onclose = function(e) {
-        main_ws_onclose_do(main_ws, main_ws_onclose2);
+        // A delayed close from an older socket must not clear or reconnect
+        // over a newer socket that has already become current.
+        if (generation !== main_ws_generation || main_ws !== socket)
+            return;
+        main_ws_onclose_do(socket, main_ws_onclose2);
         main_ws = null;
         if (main_ws_timer === null) {
             console.log('Socket is closed. Reconnect will be attempted in 10 second.');
@@ -201,12 +211,14 @@ function main_ws_connect(url, onopen2, onclose2) {
     };
 
     socket.onerror = function(err) {
-        if (main_ws) {
-            main_ws_onclose_do(main_ws, main_ws_onclose2);
-            main_ws = null;
-            console.error('Socket encountered error: ', err.message, 'Closing socket');
+        if (generation !== main_ws_generation || main_ws !== socket) {
             socket.close();
-        } else socket.onclose(err);
+            return;
+        }
+        main_ws_onclose_do(socket, main_ws_onclose2);
+        main_ws = null;
+        console.error('Socket encountered error: ', err.message, 'Closing socket');
+        socket.close();
     };
     socket.onmessage = function (event) {
         console.log(event.data);
