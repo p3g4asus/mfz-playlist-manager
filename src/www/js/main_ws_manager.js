@@ -147,12 +147,12 @@ function main_ws_queue_process(msg) {
 }
 
 function main_ws_reconnect(url, onopen2, onclose2) {
+    if (main_ws_timer) {
+        clearTimeout(main_ws_timer);
+        main_ws_timer = null;
+    }
     if (main_ws) {
         console.log('Asked to reconnect to url=' + (url_is_ok(url)?url:main_ws_url) + ' old was ' + main_ws_url);
-        if (main_ws_timer) {
-            clearTimeout(main_ws_timer);
-            main_ws_timer = null;
-        }
         main_ws.onclose = () => {};
         main_ws.onerror = () => {};
         main_ws.close();
@@ -170,6 +170,17 @@ function url_is_ok(url) {
 function main_ws_onclose_do(ws, close2) {
     if (ws && close2)
         close2();
+}
+
+function main_ws_schedule_reconnect(generation) {
+    if (generation !== main_ws_generation || main_ws_timer !== null)
+        return;
+    console.log('Socket is closed. Reconnect will be attempted in 10 second.');
+    main_ws_timer = setTimeout(() => {
+        main_ws_timer = null;
+        if (generation === main_ws_generation)
+            main_ws_connect();
+    }, 10000);
 }
 
 function main_ws_connect(url, onopen2, onclose2) {
@@ -201,13 +212,7 @@ function main_ws_connect(url, onopen2, onclose2) {
             return;
         main_ws_onclose_do(socket, main_ws_onclose2);
         main_ws = null;
-        if (main_ws_timer === null) {
-            console.log('Socket is closed. Reconnect will be attempted in 10 second.');
-            main_ws_timer = setTimeout(() => {
-                main_ws_connect();
-                main_ws_timer = null;
-            }, 10000);
-        }
+        main_ws_schedule_reconnect(generation);
     };
 
     socket.onerror = function(err) {
@@ -219,6 +224,7 @@ function main_ws_connect(url, onopen2, onclose2) {
         main_ws = null;
         console.error('Socket encountered error: ', err.message, 'Closing socket');
         socket.close();
+        main_ws_schedule_reconnect(generation);
     };
     socket.onmessage = function (event) {
         console.log(event.data);
