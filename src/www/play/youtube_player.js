@@ -13,10 +13,16 @@ class YoutubePlayer {
         this.video_height = video_height;
         this.on_play_finished = null;
         this.on_state_changed = null;
+        this.end_watch_timer = null;
+        this.last_player_time = null;
+        this.last_player_duration = 0;
+        this.end_notified = false;
+        this.end_check_suppressed_until = 0;
     }
 
     onPlayerReady(event) {
         on_player_load('youtube', this);
+        this.end_watch_timer = setInterval(this.check_for_unreported_end.bind(this), 250);
     }
 
     
@@ -36,11 +42,69 @@ class YoutubePlayer {
     3 (buffering)
     5 (video cued).*/
     onPlayerStateChange(event) {
-        if (event.data == VIDEO_STATUS_ENDED && this.on_play_finished) { // ended
-            this.on_play_finished(this);
+        if (event.data == VIDEO_STATUS_UNSTARTED) {
+            this.last_player_time = null;
+            this.last_player_duration = 0;
+            this.end_notified = false;
+        }
+        if (event.data == VIDEO_STATUS_ENDED) {
+            this.finish_playback();
         }
         if (this.on_state_changed)
             this.on_state_changed(this, event.data);
+    }
+
+    finish_playback() {
+        if (this.end_notified)
+            return;
+        this.end_notified = true;
+        if (this.on_play_finished)
+            this.on_play_finished(this);
+    }
+
+    check_for_unreported_end() {
+        if (!this.player)
+            return;
+        let current_time;
+        let duration;
+        let state;
+        try {
+            current_time = this.player.getCurrentTime();
+            duration = this.player.getDuration();
+            state = this.player.getPlayerState();
+        } catch (_) {
+            return;
+        }
+        if (!Number.isFinite(current_time) || !Number.isFinite(duration) || duration <= 0)
+            return;
+
+        if (state === VIDEO_STATUS_ENDED) {
+            this.finish_playback();
+            return;
+        } else if (Date.now() >= this.end_check_suppressed_until &&
+                this.last_player_time !== null &&
+                this.last_player_duration > 0 &&
+                Math.abs(duration - this.last_player_duration) < 1 &&
+                this.last_player_time >= duration - Math.max(3, Math.min(10, duration * 0.05)) &&
+                current_time < 1.5) {
+            // Alcuni Shorts ripartono senza notificare ENDED: prima vanno in
+            // buffering e il tempo torna vicino a zero. Trattiamo il rollover
+            // dalla fine all'inizio come la fine del video.
+            this.finish_playback();
+            return;
+        }
+        this.last_player_time = current_time;
+        this.last_player_duration = duration;
+    }
+
+    destroy() {
+        if (this.end_watch_timer) {
+            clearInterval(this.end_watch_timer);
+            this.end_watch_timer = null;
+        }
+        if (this.player && this.player.destroy)
+            this.player.destroy();
+        this.player = null;
     }
 
     rate(v) {
@@ -53,6 +117,10 @@ class YoutubePlayer {
             vid = vid.match(rx);
             if (!vid || !(vid = vid[1])) return;
         }
+        this.last_player_time = null;
+        this.last_player_duration = 0;
+        this.end_notified = false;
+        this.end_check_suppressed_until = 0;
         this.player.loadVideoById({videoId:vid});
     }
 
@@ -66,6 +134,8 @@ class YoutubePlayer {
     ffw_rew(secs, absolute) {
         let d = this.player.getDuration();
         let ct = absolute?secs:this.player.getCurrentTime() + secs;
+        this.last_player_time = null;
+        this.end_check_suppressed_until = Date.now() + 1500;
         this.player.seekTo(ct<0?0:(ct >= d?d: ct) , true);
     }
 
