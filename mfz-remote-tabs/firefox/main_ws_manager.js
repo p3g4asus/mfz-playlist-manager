@@ -1,4 +1,6 @@
 let main_ws = null;
+let main_ws_attempt = null;
+let main_ws_generation = 0;
 let main_ws_timer = null;
 let main_ws_url = null;
 let main_ws_onopen2 = null;
@@ -146,17 +148,20 @@ function main_ws_queue_process(msg) {
 }
 
 function main_ws_reconnect(url, onopen2, onclose2) {
-    if (main_ws) {
+    if (main_ws_timer) {
+        clearTimeout(main_ws_timer);
+        main_ws_timer = null;
+    }
+    const socket_to_close = main_ws || main_ws_attempt;
+    if (socket_to_close) {
         console.log('Asked to reconnect to url=' + (url_is_ok(url)?url:main_ws_url) + ' old was ' + main_ws_url);
-        if (main_ws_timer) {
-            clearTimeout(main_ws_timer);
-            main_ws_timer = null;
-        }
-        main_ws.onclose = () => {};
-        main_ws.onerror = () => {};
-        main_ws.close();
-        main_ws_onclose_do(main_ws, main_ws_onclose2);
+        socket_to_close.onclose = () => {};
+        socket_to_close.onerror = () => {};
+        socket_to_close.close();
+        if (main_ws === socket_to_close)
+            main_ws_onclose_do(socket_to_close, main_ws_onclose2);
         main_ws = null;
+        main_ws_attempt = null;
     }
     main_ws_connect(url, onopen2, onclose2);
 }
@@ -171,8 +176,20 @@ function main_ws_onclose_do(ws, close2) {
         close2();
 }
 
+function main_ws_schedule_reconnect(generation) {
+    if (generation !== main_ws_generation || main_ws_timer !== null)
+        return;
+    console.log('Socket is closed. Reconnect will be attempted in 10 second.');
+    main_ws_timer = setTimeout(() => {
+        main_ws_timer = null;
+        if (generation === main_ws_generation)
+            main_ws_connect();
+    }, 10000);
+}
+
 function main_ws_connect(url, onopen2, onclose2) {
     let socket;
+    const generation = ++main_ws_generation;
     if (url_is_ok(url))
         main_ws_url = url;
     if (typeof onopen2 == 'function' || onopen2 === null)
@@ -181,32 +198,48 @@ function main_ws_connect(url, onopen2, onclose2) {
         main_ws_onclose2 = onclose2;
     console.log('Connecting to url ' + main_ws_url);
     socket = new WebSocket(main_ws_url);
+    main_ws_attempt = socket;
     socket.onopen = function (event) {
+        if (generation !== main_ws_generation || main_ws_attempt !== socket) {
+            socket.close();
+            return;
+        }
         console.log('Upgrade HTTP connection OK');
+        main_ws_attempt = null;
         main_ws = socket;
         main_ws_queue_process();
         if (main_ws_onopen2)
             main_ws_onopen2();
     };
     socket.onclose = function(e) {
-        main_ws_onclose_do(main_ws, main_ws_onclose2);
-        main_ws = null;
-        if (main_ws_timer === null) {
-            console.log('Socket is closed. Reconnect will be attempted in 10 second.');
-            main_ws_timer = setTimeout(() => {
-                main_ws_connect();
-                main_ws_timer = null;
-            }, 10000);
+        // A delayed close from an older socket must not clear or reconnect
+        // over a newer socket that has already become current.
+        if (generation !== main_ws_generation ||
+                (main_ws !== socket && main_ws_attempt !== socket))
+            return;
+        if (main_ws === socket) {
+            main_ws_onclose_do(socket, main_ws_onclose2);
+            main_ws = null;
         }
+        if (main_ws_attempt === socket)
+            main_ws_attempt = null;
+        main_ws_schedule_reconnect(generation);
     };
 
     socket.onerror = function(err) {
-        if (main_ws) {
-            main_ws_onclose_do(main_ws, main_ws_onclose2);
-            main_ws = null;
-            console.error('Socket encountered error: ', err.message, 'Closing socket');
+        if (generation !== main_ws_generation ||
+                (main_ws !== socket && main_ws_attempt !== socket)) {
             socket.close();
-        } else socket.onclose(err);
+            return;
+        }
+        main_ws_onclose_do(socket, main_ws_onclose2);
+        if (main_ws === socket)
+            main_ws = null;
+        if (main_ws_attempt === socket)
+            main_ws_attempt = null;
+        console.error('Socket encountered error: ', err.message, 'Closing socket');
+        socket.close();
+        main_ws_schedule_reconnect(generation);
     };
     socket.onmessage = function (event) {
         console.log(event.data);
